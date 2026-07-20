@@ -130,7 +130,7 @@ m0_verify() {
   info "Building the verifier"
   compose build spike-runner
   info "Running MySQL, ClickHouse, Kafka and browser-contract checks"
-  compose run --rm spike-runner
+  compose run --rm --no-deps spike-runner
 }
 
 m0_status() {
