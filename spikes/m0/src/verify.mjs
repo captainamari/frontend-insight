@@ -171,7 +171,7 @@ async function verifyKafka() {
 
     await producer.connect();
     await consumer.connect();
-    await consumer.subscribe({ topic: probeTopic, fromBeginning: false });
+    await consumer.subscribe({ topic: probeTopic, fromBeginning: true });
 
     const received = new Promise((resolve, reject) => {
       timeout = setTimeout(
