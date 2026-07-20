@@ -115,7 +115,7 @@ async function verifyClickHouse() {
         SELECT
           toString(run_id) AS run_id_text,
           source,
-          formatDateTime(created_at, '%Y-%m-%d %H:%i:%s.%3N') AS created_at
+          toUnixTimestamp64Milli(created_at) AS created_at_ms
         FROM m0_spike_runs
         WHERE m0_spike_runs.run_id = {runId:UUID}
       `,
@@ -123,17 +123,16 @@ async function verifyClickHouse() {
       format: "JSONEachRow",
     });
     const rows = await queryResult.json();
-    const expectedMilliseconds = String(startedAt.getUTCMilliseconds()).padStart(
-      3,
-      "0",
-    );
-    if (rows.length !== 1 || !rows[0].created_at.endsWith(expectedMilliseconds)) {
+    if (
+      rows.length !== 1 ||
+      Number(rows[0].created_at_ms) !== startedAt.getTime()
+    ) {
       throw new Error("ClickHouse DateTime64(3) precision was not preserved");
     }
 
     return {
       rowsRead: rows.length,
-      storedTimestamp: rows[0].created_at,
+      storedTimestampMs: Number(rows[0].created_at_ms),
       batchFormat: "JSONEachRow",
     };
   } finally {
