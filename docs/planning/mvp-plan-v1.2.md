@@ -71,7 +71,7 @@ MVP 完成不以“代码生成完毕”为准，而以目标用户能独立接�
 | ADR-004 | Kafka 复用 | 使用现有集群 | topic、ACL、容量、保留期可用 |
 | ADR-005 | 浏览器矩阵 | 组织实际使用的最近两个主版本 | 业务项目访问统计或负责人确认 |
 | ADR-006 | 试点项目 | 选定一个 history/hash 代表性项目 | 开发联系人与发布窗口 |
-| ADR-007 | 本地 Mac | Docker Compose full profile；不单装基础组件 | Apple Silicon/Intel 与资源实测记录 |
+| ADR-007 | 本地 Mac | Apple Silicon M1、32 GB 内存、1 TB 硬盘；Docker Compose full profile | arm64 镜像、启动耗时与资源实测记录 |
 
 ### 3.2 Stop 条件
 
@@ -146,7 +146,7 @@ frontend-insight/
 - [ ] 用目标 ClickHouse 版本验证 Node 客户端批写与 DateTime64；
 - [ ] 验证 MySQL migration 和连接池；
 - [ ] 在试点域名验证 CORS、CSP `connect-src` 和 `sendBeacon`/keepalive fetch；
-- [ ] 在目标 Mac 架构运行 Kafka、ClickHouse、MySQL 最小 Compose，记录启动时间、峰值内存和磁盘；
+- [ ] 在 M1/32 GB Mac 上运行 Kafka、ClickHouse、MySQL 最小 Compose，记录启动时间、峰值内存和磁盘；
 - [ ] 记录版本、配置、最小示例与结果。
 
 **验收**：一条测试事件可从浏览器到达 ClickHouse；失败点和替代方案已记录。Spike 代码不可直接复制为生产实现，除非补齐测试和错误处理。
@@ -440,7 +440,7 @@ frontend-insight/
 **目标**：使用者不单独安装 Kafka、ClickHouse、MySQL，即可运行完整链路。  
 **任务**：
 
-- [ ] Compose full profile 支持 Apple Silicon 和 Intel Mac；
+- [ ] Compose full profile 在 Apple Silicon M1/32 GB Mac 上通过；所有镜像必须提供原生 `linux/arm64`，MVP 不以 x86 模拟运行作为验收；
 - [ ] `doctor/bootstrap/up/seed/smoke/status/logs/down/reset`；
 - [ ] down 保留数据，reset 需要 `--confirm-local-data-loss`；
 - [ ] 实测并维护 `docs/guides/local-full-flow-macos.md`；
