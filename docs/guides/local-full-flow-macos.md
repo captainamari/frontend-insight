@@ -5,6 +5,8 @@
 > 适用版本：需求文档 v1.5 / MVP 开发计划 v1.2  
 > 目标：不单独安装 Kafka、ClickHouse、MySQL，在一台 Mac 上完成 SDK → 接收 → Kafka → ClickHouse → API → Dashboard 全流程验证
 
+本项目 MVP 的本地验收基线已经确定为：Apple Silicon M1、32 GB 内存、1 TB 硬盘、Docker Compose。首期不要求同时维护 Intel Mac；未来只有出现真实使用需求时才扩展第二套架构验收。
+
 ## 1. 先说明这份文档如何使用
 
 当前仓库仍处于需求与计划阶段，下面的 `./scripts/dev` 命令是后续实现必须满足的用户接口，不代表此刻已经存在。每完成一个开发 issue，都必须在一台全新或清理过项目环境的 Mac 上实际执行对应命令，并更新本文的实际输出、耗时和故障处理。
@@ -47,12 +49,14 @@
 
 应用、Node.js、Kafka、ClickHouse 和 MySQL 都运行在容器中，因此完整体验不要求先在 Mac 全局安装 Node、pnpm 或数据库客户端。
 
-### 3.2 支持的芯片
+### 3.2 MVP 芯片基线
 
-- Apple Silicon：`arm64`；
-- Intel Mac：`x86_64`。
+- 必测平台：Apple Silicon M1，`arm64`；
+- 所有基础设施和应用镜像必须提供原生 `linux/arm64`；
+- MVP 不接受通过 x86 模拟勉强运行作为验收结果；
+- Intel Mac 不在首期支持承诺内，避免为尚不存在的使用需求增加镜像和排障成本。
 
-所有镜像必须提供相应架构或使用明确可运行的替代镜像。`doctor` 会自动识别架构，不要求使用者自行判断镜像标签。
+`doctor` 会自动识别架构；如果不是 arm64，应明确提示“当前机器不属于 MVP 验收平台”，而不是继续拉取不确定镜像。
 
 ### 3.3 资源预算
 
@@ -60,8 +64,11 @@
 
 | 资源 | 建议值 | 处理方式 |
 |---|---:|---|
-| 可用磁盘 | ≥ 15 GB | 不足时 doctor 阻止启动并说明清理位置 |
-| Docker 可用内存 | 建议 ≥ 6 GB | 低于建议值时警告；若无法稳定运行则不得宣称本地全流程通过 |
+| Mac 总内存 | 已确认 32 GB | 满足 full profile 基线 |
+| Docker Desktop 内存 | 建议 8 GB | full profile 稳态目标 ≤ 6 GB、短时峰值 ≤ 8 GB |
+| Docker Desktop CPU | 建议 4 核 | 保留宿主系统响应空间；压测时单独记录调整值 |
+| 可用磁盘 | ≥ 20 GB | 1 TB 是总容量，doctor 仍需检查当前剩余空间 |
+| Docker 磁盘镜像上限 | 建议 ≥ 40 GB | 容纳镜像、构建缓存和命名卷，不代表会立即占满 |
 | 空闲端口 | 3000、4173、5173 | 冲突时 doctor 显示占用进程和可修改配置 |
 
 如果 Mac 总内存较小，允许先运行 UI fixture profile 评审界面，但最终的“本地全流程验收”必须在 full profile 完成，不能用 mock 结果替代。
@@ -104,7 +111,7 @@ doctor 必须检查：
 ```text
 [PASS] Docker Engine
 [PASS] Docker Compose
-[PASS] Architecture: arm64 or x86_64
+[PASS] Architecture: arm64 (Apple Silicon M1 baseline)
 [PASS] Disk
 [PASS] Ports
 [PASS] Environment file
@@ -358,7 +365,7 @@ reset 执行前必须列出即将删除的本项目容器和命名卷，再要�
 
 ## 10. 本地全流程最终验收
 
-由未参与核心编码的人在 Mac 上完成：
+由未参与核心编码的人在 M1/32 GB Mac 上完成：
 
 - [ ] clone 仓库并切换到指定分支；
 - [ ] doctor 通过；
