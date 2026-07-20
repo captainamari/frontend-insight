@@ -171,6 +171,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      spike-app:
+        condition: service_healthy
     networks: [m0]
 
   spike-runner:

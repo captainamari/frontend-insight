@@ -15,7 +15,6 @@ const kafka = new Kafka({
   brokers: config.kafka.brokers,
   logLevel: logLevel.ERROR,
 });
-const admin = kafka.admin();
 const consumer = kafka.consumer({
   groupId: "frontend-insight-m0-clickhouse",
   allowAutoTopicCreation: false,
@@ -51,22 +50,6 @@ await clickhouse.command({
     ORDER BY (project_key, feature_key, occurred_at, event_id)
   `,
 });
-
-await admin.connect();
-try {
-  await admin.createTopics({
-    waitForLeaders: true,
-    topics: [
-      {
-        topic: config.kafka.topic,
-        numPartitions: 1,
-        replicationFactor: 1,
-      },
-    ],
-  });
-} finally {
-  await admin.disconnect();
-}
 
 await consumer.connect();
 await consumer.subscribe({ topic: config.kafka.topic, fromBeginning: false });

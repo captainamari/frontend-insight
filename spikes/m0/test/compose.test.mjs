@@ -47,6 +47,10 @@ test("infrastructure images are pinned and no service is privileged", () => {
     compose.services.kafka.depends_on["kafka-init"].condition,
     "service_completed_successfully",
   );
+  assert.equal(
+    compose.services["spike-consumer"].depends_on["spike-app"].condition,
+    "service_healthy",
+  );
 });
 
 test("only the local browser spike ports are published", () => {

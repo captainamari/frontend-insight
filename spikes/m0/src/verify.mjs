@@ -113,11 +113,11 @@ async function verifyClickHouse() {
     const queryResult = await client.query({
       query: `
         SELECT
-          toString(run_id) AS run_id,
+          toString(run_id) AS run_id_text,
           source,
           formatDateTime(created_at, '%Y-%m-%d %H:%i:%s.%3N') AS created_at
         FROM m0_spike_runs
-        WHERE run_id = {runId:UUID}
+        WHERE m0_spike_runs.run_id = {runId:UUID}
       `,
       query_params: { runId },
       format: "JSONEachRow",
@@ -291,10 +291,10 @@ async function verifyBrowserContract() {
       const pipelineResult = await clickhouse.query({
         query: `
           SELECT
-            toString(event_id) AS event_id,
+            toString(event_id) AS event_id_text,
             account_hash
           FROM m0_browser_events
-          WHERE event_id = {eventId:UUID}
+          WHERE m0_browser_events.event_id = {eventId:UUID}
         `,
         query_params: { eventId: event.eventId },
         format: "JSONEachRow",
@@ -331,7 +331,7 @@ async function verifyBrowserContract() {
     acceptedEventId: event.eventId,
     credentialGuard: "passed",
     csp: "passed",
-    clickhouseEventId: pipelineRows[0].event_id,
+    clickhouseEventId: pipelineRows[0].event_id_text,
     rawAccountReferencePersisted: false,
   };
 }
