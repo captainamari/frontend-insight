@@ -650,6 +650,6 @@ MVP 先对原始表执行固定查询并记录 p95。满足任一条件时增加
 | ADR-003 共享账号 | 不能识别真实个人；一个账号 + 多浏览器/会话并列展示 | 防止把 token 或浏览器数误报为人数 |
 | ADR-004 Kafka | 可稳定复用现有 Kafka | 若不可复用，应简化为异步批写而非新建 Kafka 集群 |
 | ADR-005 浏览器 | 明确组织实际支持矩阵 | 影响 SDK API、polyfill 和测试成本 |
-| ADR-006 本地 Mac | Docker Compose 一键运行完整链路 | 影响镜像架构、内存预算和操作指南 |
+| ADR-006 本地 Mac | Apple Silicon M1、32 GB 内存、1 TB 硬盘；Docker Compose 一键运行完整链路 | MVP 镜像以 `linux/arm64` 为必测基线；Intel Mac 不作为首期验收平台 |
 
 任何默认假设被推翻，都应先更新本文档与开发计划，再修改实现。
