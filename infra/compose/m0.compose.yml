@@ -54,6 +54,16 @@ services:
     restart: unless-stopped
     networks: [m0]
 
+  kafka-init:
+    image: apache/kafka:4.1.1
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown -R 1000:1000 /tmp/kraft-combined-logs"]
+    volumes:
+      - kafka-data:/tmp/kraft-combined-logs
+    restart: "no"
+    networks: [m0]
+
   kafka:
     image: apache/kafka:4.1.1
     hostname: kafka
@@ -87,6 +97,9 @@ services:
         limits:
           memory: 1536M
     restart: unless-stopped
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
     networks: [m0]
 
   spike-app:

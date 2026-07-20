@@ -40,6 +40,10 @@ jobs:
         working-directory: spikes/m0
         run: npm test
 
+      - name: Audit spike dependencies
+        working-directory: spikes/m0
+        run: npm audit --audit-level=moderate
+
       - name: Validate local operations script
         run: bash -n scripts/dev
 

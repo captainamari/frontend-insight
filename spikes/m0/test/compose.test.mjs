@@ -18,6 +18,7 @@ test("M0 Compose file is valid YAML with the expected isolated services", () => 
     [
       "clickhouse",
       "kafka",
+      "kafka-init",
       "mysql",
       "spike-app",
       "spike-consumer",
@@ -34,10 +35,18 @@ test("infrastructure images are pinned and no service is privileged", () => {
   for (const [name, service] of Object.entries(compose.services)) {
     assert.notEqual(service.privileged, true, `${name} must not be privileged`);
     assert.equal(service.platform, undefined, `${name} must remain multi-arch`);
+    if (name !== "kafka-init") {
+      assert.notEqual(service.user, "0:0", `${name} must not run as root`);
+    }
     if (service.image) {
       assert.doesNotMatch(service.image, /:latest$/, `${name} image must be pinned`);
     }
   }
+  assert.equal(compose.services["kafka-init"].user, "0:0");
+  assert.equal(
+    compose.services.kafka.depends_on["kafka-init"].condition,
+    "service_completed_successfully",
+  );
 });
 
 test("only the local browser spike ports are published", () => {

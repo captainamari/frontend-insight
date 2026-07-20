@@ -16,6 +16,6 @@
     "mysql2": "3.23.1"
   },
   "devDependencies": {
-    "yaml": "2.8.1"
+    "yaml": "2.9.0"
   }
 }

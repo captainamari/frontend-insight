@@ -153,7 +153,7 @@ m0_logs() {
   local service="${1:-}"
   if [[ -n "$service" ]]; then
     case "$service" in
-      mysql|clickhouse|kafka|spike-app|spike-consumer|spike-runner) ;;
+      mysql|clickhouse|kafka-init|kafka|spike-app|spike-consumer|spike-runner) ;;
       *) fail "Unknown M0 service: $service" ;;
     esac
     compose logs --tail 200 "$service"
