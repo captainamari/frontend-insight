@@ -186,29 +186,43 @@ export class MySqlStore {
   }
 
   async consumeSession(refreshTokenHash: string): Promise<Principal | null> {
-    const [rows] = await this.pool.query<UserRow[]>(
-      `SELECT u.id, u.display_name, u.email, u.status, u.global_role
-       FROM auth_sessions s
-       JOIN users u ON u.id = s.user_id
-       WHERE s.refresh_token_hash = ?
-         AND s.revoked_at IS NULL
-         AND s.expires_at > CURRENT_TIMESTAMP(3)
-       LIMIT 1`,
-      [refreshTokenHash],
-    );
-    const row = rows[0];
-    if (!row || row.status !== "active") return null;
-    await this.pool.execute(
-      `UPDATE auth_sessions SET last_seen_at = CURRENT_TIMESTAMP(3)
-       WHERE refresh_token_hash = ?`,
-      [refreshTokenHash],
-    );
-    return {
-      userId: row.id,
-      globalRole: row.global_role,
-      displayName: row.display_name,
-      email: row.email,
-    };
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<UserRow[]>(
+        `SELECT u.id, u.display_name, u.email, u.status, u.global_role
+         FROM auth_sessions s
+         JOIN users u ON u.id = s.user_id
+         WHERE s.refresh_token_hash = ?
+           AND s.revoked_at IS NULL
+           AND s.expires_at > CURRENT_TIMESTAMP(3)
+         LIMIT 1 FOR UPDATE`,
+        [refreshTokenHash],
+      );
+      const row = rows[0];
+      if (!row || row.status !== "active") {
+        await connection.rollback();
+        return null;
+      }
+      await connection.execute(
+        `UPDATE auth_sessions
+         SET last_seen_at = CURRENT_TIMESTAMP(3), revoked_at = CURRENT_TIMESTAMP(3)
+         WHERE refresh_token_hash = ? AND revoked_at IS NULL`,
+        [refreshTokenHash],
+      );
+      await connection.commit();
+      return {
+        userId: row.id,
+        globalRole: row.global_role,
+        displayName: row.display_name,
+        email: row.email,
+      };
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
   }
 
   async revokeSession(refreshTokenHash: string): Promise<void> {
@@ -293,20 +307,43 @@ export class MySqlStore {
     role: ProjectRole;
     actor: Principal;
   }): Promise<void> {
-    await this.pool.execute(
-      `INSERT INTO project_members (project_id, user_id, role)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE role = VALUES(role)`,
-      [input.projectId, input.userId, input.role],
-    );
-    await this.audit({
-      projectId: input.projectId,
-      actorUserId: input.actor.userId,
-      action: "project.member.updated",
-      entityType: "project_member",
-      entityId: input.userId,
-      metadata: { role: input.role },
-    });
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [members] = await connection.query<RowDataPacket[]>(
+        `SELECT role FROM project_members
+         WHERE project_id = ? AND user_id = ? FOR UPDATE`,
+        [input.projectId, input.userId],
+      );
+      if (members[0]?.role === "owner" && input.role !== "owner") {
+        const [owners] = await connection.query<RowDataPacket[]>(
+          `SELECT user_id FROM project_members
+           WHERE project_id = ? AND role = 'owner' FOR UPDATE`,
+          [input.projectId],
+        );
+        if (owners.length <= 1) throw new Error("LAST_OWNER_REQUIRED");
+      }
+      await connection.execute(
+        `INSERT INTO project_members (project_id, user_id, role)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
+        [input.projectId, input.userId, input.role],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "project.member.updated",
+        entityType: "project_member",
+        entityId: input.userId,
+        metadata: { role: input.role },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
   }
 
   async removeProjectMember(input: {

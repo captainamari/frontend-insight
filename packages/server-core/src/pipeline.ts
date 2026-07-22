@@ -105,6 +105,11 @@ class IngestionRateLimiter {
 
   take(key: string): boolean {
     const timestamp = this.now();
+    if (this.entries.size > 10_000) {
+      for (const [candidate, value] of this.entries) {
+        if (timestamp - value.startedAt >= 60_000) this.entries.delete(candidate);
+      }
+    }
     const current = this.entries.get(key);
     if (!current || timestamp - current.startedAt >= 60_000) {
       this.entries.set(key, { count: 1, startedAt: timestamp });
@@ -191,23 +196,28 @@ export class IngestionManager {
     const startedAt = performance.now();
     this.metrics.requests += 1;
     const nowMs = context.nowMs ?? (this.options.now ?? Date.now)();
-    const rawBytes = new TextEncoder().encode(JSON.stringify(input)).byteLength;
-    if ((context.contentLength ?? rawBytes) > 64 * 1024 || rawBytes > 64 * 1024) {
-      throw new IngestionError("BATCH_TOO_LARGE", 413);
-    }
-    const projectKey =
-      typeof input === "object" && input !== null && "projectKey" in input
-        ? String((input as { projectKey: unknown }).projectKey)
-        : "";
-    const project = await this.project(projectKey, nowMs);
-    if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
-    const eventCount =
+    let project: ProjectIngestionConfig | null = null;
+    let eventCount =
       typeof input === "object" && input !== null && "events" in input
         ? Array.isArray((input as { events: unknown }).events)
           ? (input as { events: unknown[] }).events.length
           : 1
         : 1;
     try {
+      const serialized = JSON.stringify(input);
+      const rawBytes = new TextEncoder().encode(serialized).byteLength;
+      if ((context.contentLength ?? rawBytes) > 64 * 1024 || rawBytes > 64 * 1024) {
+        throw new IngestionError("BATCH_TOO_LARGE", 413);
+      }
+      const projectKey =
+        typeof input === "object" && input !== null && "projectKey" in input
+          ? String((input as { projectKey: unknown }).projectKey)
+          : "";
+      if (!/^fi_public_[A-Za-z0-9_-]{8,64}$/.test(projectKey)) {
+        throw new IngestionError("PROJECT_KEY_INVALID", 400);
+      }
+      project = await this.project(projectKey, nowMs);
+      if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
       this.assertProject(project, context);
       const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
       if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
@@ -253,12 +263,17 @@ export class IngestionManager {
         cause instanceof IngestionError
           ? cause
           : new IngestionError("INGESTION_INTERNAL_ERROR", 500);
+      eventCount = Math.min(eventCount, 50);
       this.metrics.rejectedEvents += eventCount;
       this.metrics.rejectionCodes.set(
         error.code,
         (this.metrics.rejectionCodes.get(error.code) ?? 0) + 1,
       );
-      await this.store.markRejected(project.id, error.code, eventCount).catch(() => {});
+      if (project) {
+        await this.store
+          .markRejected(project.id, error.code, eventCount)
+          .catch(() => {});
+      }
       throw error;
     } finally {
       this.latencySamples.push(performance.now() - startedAt);
@@ -274,6 +289,12 @@ export class IngestionManager {
     const cached = this.cache.get(projectKey);
     if (cached && cached.expiresAt > nowMs) return cached.project;
     const project = await this.store.getIngestionProject(projectKey);
+    if (this.cache.size >= 1_000) {
+      for (const [candidate, value] of this.cache) {
+        if (value.expiresAt <= nowMs) this.cache.delete(candidate);
+      }
+      if (this.cache.size >= 1_000) this.cache.delete(this.cache.keys().next().value!);
+    }
     this.cache.set(projectKey, {
       project,
       expiresAt: nowMs + (this.options.projectCacheTtlMs ?? 30_000),

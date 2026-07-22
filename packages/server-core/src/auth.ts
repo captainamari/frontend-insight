@@ -86,7 +86,6 @@ export class AuthManager {
   async refresh(refreshToken: string): Promise<AuthTokens | null> {
     const principal = await this.store.consumeSession(tokenHash(refreshToken));
     if (!principal) return null;
-    await this.store.revokeSession(tokenHash(refreshToken));
     return this.issue(principal);
   }
 

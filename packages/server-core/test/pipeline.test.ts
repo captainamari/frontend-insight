@@ -124,6 +124,26 @@ describe("ingestion pipeline", () => {
     expect(manager.getMetrics().kafkaFailures).toBe(1);
   });
 
+  it("rejects malformed project keys before touching the project cache", async () => {
+    const { manager, publish } = setup();
+    const batch = fixture();
+    batch.projectKey = "fi_public_short";
+    await expect(manager.accept(batch, context)).rejects.toMatchObject({
+      code: "PROJECT_KEY_INVALID",
+      statusCode: 400,
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(manager.getMetrics()).toMatchObject({ requests: 1, rejectedEvents: 3 });
+  });
+
+  it("accounts for over-size rejections in operational metrics", async () => {
+    const { manager } = setup();
+    await expect(
+      manager.accept({ ...fixture(), padding: "x".repeat(70 * 1024) }, context),
+    ).rejects.toMatchObject({ code: "BATCH_TOO_LARGE", statusCode: 413 });
+    expect(manager.getMetrics().rejectionCodes.BATCH_TOO_LARGE).toBe(1);
+  });
+
   it("enforces the project, origin and IP rate-limit key", async () => {
     const { manager } = setup();
     await manager.accept(fixture(), context);

@@ -12,7 +12,7 @@ function trackerKey(config: Pick<TrackerConfig, "projectKey" | "endpoint">): str
 export function createTracker(config: TrackerConfig): Tracker {
   const development = config.development ?? false;
   try {
-    if (!/^fi_public_[A-Za-z0-9_-]{6,64}$/.test(config.projectKey)) {
+    if (!/^fi_public_[A-Za-z0-9_-]{8,64}$/.test(config.projectKey)) {
       return createNoopTracker("PROJECT_KEY_INVALID", development);
     }
     const endpoint = new URL(config.endpoint);
