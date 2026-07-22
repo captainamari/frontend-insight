@@ -210,6 +210,30 @@ describe("web tracker lifecycle and privacy", () => {
     tracker.destroy();
   });
 
+  it("settles a long view against its original page before navigation", async () => {
+    const { runtime, fetchMock } = createRuntime({ beacon: false });
+    const tracker = createTracker({
+      ...config(runtime, "longview-route01"),
+      longViewSuccessAfterMs: 1_000,
+    });
+    const stop = tracker.startLongView("operations_wallboard");
+    vi.advanceTimersByTime(500);
+    window.history.pushState({}, "", "/next-page");
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    const started = batch.events.find(
+      (event) => event.eventName === "feature_long_view_started",
+    );
+    const ended = batch.events.find(
+      (event) => event.eventName === "feature_long_view_ended",
+    );
+    expect(ended?.pageViewId).toBe(started?.pageViewId);
+    expect(ended?.properties).toEqual({ visibleDurationMs: 500 });
+    stop();
+    tracker.destroy();
+  });
+
   it("produces the three feature scenario sequences", async () => {
     const { runtime, fetchMock } = createRuntime();
     const tracker = createTracker({

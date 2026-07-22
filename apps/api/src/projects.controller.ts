@@ -11,13 +11,14 @@ import {
   Get,
   HttpCode,
   HttpException,
+  Inject,
   Param,
   Patch,
   Post,
   Put,
 } from "@nestjs/common";
 import { z } from "zod";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 import { CurrentPrincipal, parseInput } from "./http.js";
 
 const timezone = z
@@ -86,7 +87,7 @@ const membershipSchema = z.object({
 
 @Controller("api/projects")
 export class ProjectsController {
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @Get()
   list(@CurrentPrincipal() principal: Principal) {

@@ -1,7 +1,7 @@
 import type { Principal } from "@frontend-insight/server-core";
-import { Body, Controller, Get, HttpException, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpException, Inject, Post } from "@nestjs/common";
 import { z } from "zod";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 import { CurrentPrincipal, parseInput } from "./http.js";
 
 const createUserSchema = z.object({
@@ -13,7 +13,7 @@ const createUserSchema = z.object({
 
 @Controller("api/admin")
 export class AdminController {
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @Get("users")
   listUsers(@CurrentPrincipal() principal: Principal) {

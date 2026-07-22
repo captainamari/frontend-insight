@@ -1,7 +1,7 @@
 import type { AnalyticsRange, Principal } from "@frontend-insight/server-core";
-import { Controller, Get, HttpException, Param, Query } from "@nestjs/common";
+import { Controller, Get, HttpException, Inject, Param, Query } from "@nestjs/common";
 import { z } from "zod";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 import { CurrentPrincipal, parseInput } from "./http.js";
 
 const rangeSchema = z.object({
@@ -21,7 +21,7 @@ const pagesSchema = rangeSchema.extend({
 
 @Controller("api/projects/:projectId/analytics")
 export class AnalyticsController {
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @Get("overview")
   async overview(

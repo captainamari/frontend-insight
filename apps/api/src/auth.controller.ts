@@ -4,6 +4,7 @@ import {
   Controller,
   HttpCode,
   HttpException,
+  Inject,
   Post,
   Req,
   Res,
@@ -11,7 +12,7 @@ import {
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { PublicRoute } from "./auth.guard.js";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 import { parseInput } from "./http.js";
 
 const loginSchema = z.object({
@@ -32,7 +33,7 @@ function cookieValue(header: string | undefined, name: string): string | null {
 export class AuthController {
   private readonly limiter = new FixedWindowRateLimiter(5, 15 * 60 * 1000);
 
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @PublicRoute()
   @Post("login")

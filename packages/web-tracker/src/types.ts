@@ -47,7 +47,6 @@ export interface TrackerConfig {
   sessionTimeoutMs?: number;
   longViewSuccessAfterMs?: number;
   longViewHeartbeatMs?: number;
-  routeDedupeMs?: number;
   development?: boolean;
   runtime?: TrackerRuntime;
 }

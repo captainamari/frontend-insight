@@ -59,7 +59,6 @@ export class BrowserTracker implements Tracker {
   private pageViewId: string;
   private accountRef: string | undefined;
   private route: string;
-  private lastRouteAt: number;
   private lastActivityAt: number;
   private visibleStartedAt: number | null;
   private flushTimer: ReturnType<typeof setInterval>;
@@ -77,7 +76,6 @@ export class BrowserTracker implements Tracker {
         | "sessionTimeoutMs"
         | "longViewSuccessAfterMs"
         | "longViewHeartbeatMs"
-        | "routeDedupeMs"
         | "development"
       >
     > & {
@@ -93,7 +91,6 @@ export class BrowserTracker implements Tracker {
     this.sessionId = id(runtime, "ses");
     this.pageViewId = id(runtime, "pv");
     this.lastActivityAt = runtime.now();
-    this.lastRouteAt = this.lastActivityAt;
     this.visibleStartedAt = this.isVisible() ? this.lastActivityAt : null;
     this.route = this.resolveRoute();
     this.originalPushState = runtime.window.history.pushState.bind(
@@ -158,12 +155,10 @@ export class BrowserTracker implements Tracker {
     this.safe(() => {
       const route = this.resolveRoute();
       const now = this.runtime.now();
-      if (route === this.route && now - this.lastRouteAt <= this.config.routeDedupeMs) {
-        return;
-      }
+      if (route === this.route) return;
+      this.stopLongViews();
       this.settleVisiblePage();
       this.route = route;
-      this.lastRouteAt = now;
       this.pageViewId = id(this.runtime, "pv");
       this.visibleStartedAt = this.isVisible() ? now : null;
       this.emit("page_view", {}, { title: this.runtime.document.title.slice(0, 256) });
@@ -183,6 +178,7 @@ export class BrowserTracker implements Tracker {
 
   private readonly handlePageHide = (): void => {
     this.safe(() => {
+      this.stopLongViews();
       this.settleVisiblePage();
       void this.flush("lifecycle");
     });
@@ -471,13 +467,17 @@ export class BrowserTracker implements Tracker {
 
   destroy(): void {
     if (this.destroyed) return;
-    this.activeLongViews.forEach((stop) => stop());
+    this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
     this.settleVisiblePage();
     void this.flush("lifecycle");
     this.uninstallLifecycle();
     this.destroyed = true;
     this.diagnostics.state = "destroyed";
+  }
+
+  private stopLongViews(): void {
+    for (const stop of [...this.activeLongViews]) stop();
   }
 
   getDiagnostics(): Readonly<TrackerDiagnostics> {

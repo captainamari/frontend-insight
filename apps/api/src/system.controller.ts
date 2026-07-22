@@ -1,12 +1,12 @@
 import type { Principal } from "@frontend-insight/server-core";
-import { Controller, Get, HttpException } from "@nestjs/common";
+import { Controller, Get, HttpException, Inject } from "@nestjs/common";
 import { PublicRoute } from "./auth.guard.js";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 import { CurrentPrincipal } from "./http.js";
 
 @Controller()
 export class SystemController {
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @PublicRoute()
   @Get("health/live")

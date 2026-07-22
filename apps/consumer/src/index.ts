@@ -68,6 +68,7 @@ export class EventConsumerRuntime {
     this.consumer = this.kafka.consumer({
       groupId: environment.CONSUMER_GROUP_ID,
       allowAutoTopicCreation: false,
+      maxWaitTimeInMs: environment.CONSUMER_FLUSH_TIMEOUT_MS,
       retry: { retries: environment.CONSUMER_MAX_RETRIES },
     });
     this.dlqProducer = this.kafka.producer({ allowAutoTopicCreation: false });

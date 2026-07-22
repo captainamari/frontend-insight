@@ -32,7 +32,6 @@ export function createTracker(config: TrackerConfig): Tracker {
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
         longViewSuccessAfterMs: config.longViewSuccessAfterMs ?? 30_000,
         longViewHeartbeatMs: config.longViewHeartbeatMs ?? 60_000,
-        routeDedupeMs: config.routeDedupeMs ?? 100,
         development,
         normalizeRoute: config.normalizeRoute,
         beforeSend: config.beforeSend,

@@ -1,7 +1,7 @@
-import { HttpException, Injectable, SetMetadata } from "@nestjs/common";
+import { HttpException, Inject, Injectable, SetMetadata } from "@nestjs/common";
 import type { CanActivate, ExecutionContext } from "@nestjs/common";
-import type { Reflector } from "@nestjs/core";
-import type { CoreService } from "./core.service.js";
+import { Reflector } from "@nestjs/core";
+import { CoreService } from "./core.service.js";
 import type { AuthenticatedRequest } from "./http.js";
 
 const publicRouteKey = "frontend-insight.public-route";
@@ -10,7 +10,9 @@ export const PublicRoute = () => SetMetadata(publicRouteKey, true);
 @Injectable()
 export class AuthGuard implements CanActivate {
   constructor(
+    @Inject(Reflector)
     private readonly reflector: Reflector,
+    @Inject(CoreService)
     private readonly core: CoreService,
   ) {}
 

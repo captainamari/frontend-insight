@@ -3,6 +3,7 @@ import {
   Controller,
   Headers,
   HttpCode,
+  Inject,
   Options,
   Post,
   Req,
@@ -10,11 +11,11 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { PublicRoute } from "./auth.guard.js";
-import type { CoreService } from "./core.service.js";
+import { CoreService } from "./core.service.js";
 
 @Controller("v1/events")
 export class IngestionController {
-  constructor(private readonly core: CoreService) {}
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
   @PublicRoute()
   @Options()
