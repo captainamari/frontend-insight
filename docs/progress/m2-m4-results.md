@@ -10,16 +10,18 @@
 
 ## 当前自动化结果
 
-| 检查                               | 本地结果                                      |
-| ---------------------------------- | --------------------------------------------- |
-| Prettier / ESLint / workspace 边界 | 通过                                          |
-| TypeScript 全 workspace            | 通过                                          |
-| Vitest                             | 41 项通过                                     |
-| SDK ESM gzip                       | 4,448 bytes，预算 12,288 bytes                |
-| Chromium/WebKit                    | 当前执行环境未预装对应浏览器；CI 安装后执行   |
-| Docker Compose 全链路              | 当前执行环境无 Docker；由 GitHub Actions 执行 |
+| 检查                               | 结果                           |
+| ---------------------------------- | ------------------------------ |
+| Prettier / ESLint / workspace 边界 | 通过                           |
+| TypeScript 全 workspace            | 通过                           |
+| Vitest                             | 7 个测试文件、51 项通过        |
+| SDK ESM gzip                       | 4,419 bytes，预算 12,288 bytes |
+| Chromium/WebKit                    | 6 项通过，12.9 秒              |
+| Docker Compose 全链路              | 通过                           |
 
-最终提交以 `m2-m4/full-flow` GitHub 状态为准。目标 M1 Mac 仍需按本地指引完成一次人工验收，重点记录首次构建耗时、稳态内存和 Docker Desktop 资源设置。
+完整远程结果：[GitHub Actions 29892837272](https://github.com/captainamari/frontend-insight/actions/runs/29892837272)。端到端 verifier 写入 26 条原始事件，以 13 个 `eventId` 得到去重结果：PV、浏览器、账号和会话均为 3；三类功能均可查询；大屏可见时长为 120,000 ms；数据状态为 `healthy`。M1 migration 回归也在 [GitHub Actions 29892837267](https://github.com/captainamari/frontend-insight/actions/runs/29892837267) 通过。
+
+上述远程运行使用 Linux x86_64。目标 M1 Mac 仍需按本地指引完成一次人工验收，重点记录首次构建耗时、稳态内存和 Docker Desktop 资源设置。
 
 ## 设计边界
 
