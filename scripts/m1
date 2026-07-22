@@ -55,7 +55,7 @@ doctor() {
   docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
   docker info >/dev/null 2>&1 || fail "Docker engine is not running"
 
-  local host_arch docker_arch free_kib
+  local host_arch docker_arch free_kib minimum_free_gib minimum_free_kib
   host_arch="$(uname -m)"
   docker_arch="$(docker info --format '{{.Architecture}}')"
   if [[ "${M1_ALLOW_NON_ARM64:-0}" != "1" ]]; then
@@ -66,10 +66,15 @@ doctor() {
     info "Non-arm64 mode enabled for CI (${host_arch}/${docker_arch})"
   fi
 
+  minimum_free_gib="${M1_MIN_FREE_DISK_GIB:-20}"
+  [[ "$minimum_free_gib" =~ ^[1-9][0-9]*$ ]] || \
+    fail "M1_MIN_FREE_DISK_GIB must be a positive integer"
+  minimum_free_kib=$((minimum_free_gib * 1024 * 1024))
   free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
-  [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free disk is required"
+  [[ "$free_kib" -ge "$minimum_free_kib" ]] || \
+    fail "At least ${minimum_free_gib} GiB free disk is required"
   compose config --quiet
-  info "Doctor passed: host=${host_arch}, docker=${docker_arch}, compose config=valid"
+  info "Doctor passed: host=${host_arch}, docker=${docker_arch}, minimum-free-disk=${minimum_free_gib}GiB, compose config=valid"
 }
 
 up() {

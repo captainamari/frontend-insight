@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 25
     env:
       M1_ALLOW_NON_ARM64: "1"
+      M1_MIN_FREE_DISK_GIB: "8"
 
     steps:
       - name: Check out repository
