@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE_FILE="$ROOT_DIR/infra/compose/m0.compose.yml"
+ENV_FILE="$ROOT_DIR/.env.m0"
+ENV_EXAMPLE="$ROOT_DIR/.env.m0.example"
+PROJECT_NAME="frontend-insight-m0"
+
+info() {
+  printf '[frontend-insight] %s\n' "$*"
+}
+
+fail() {
+  printf '[frontend-insight] ERROR: %s\n' "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat <<'USAGE'
+Usage: ./scripts/dev <command>
+
+Commands:
+  doctor                         Check the M0 local prerequisites and config
+  bootstrap                      Create .env.m0 and validate Compose config
+  m0-up                          Build and start the M0 stack
+  m0-verify                      Run all M0 technical spike checks
+  m0-status                      Show service health and current resource use
+  m0-logs [service]              Show all logs, or logs for one M0 service
+  m0-down                        Stop containers and preserve local data
+  m0-reset --confirm-local-data-loss
+                                 Delete only this project's M0 containers/data
+USAGE
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
+}
+
+ensure_env() {
+  if [[ ! -f "$ENV_FILE" ]]; then
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+    info "Created .env.m0 from .env.m0.example"
+  fi
+}
+
+compose() {
+  docker compose \
+    --project-name "$PROJECT_NAME" \
+    --env-file "$ENV_FILE" \
+    --file "$COMPOSE_FILE" \
+    "$@"
+}
+
+host_memory_bytes() {
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    sysctl -n hw.memsize
+    return
+  fi
+  if [[ -r /proc/meminfo ]]; then
+    awk '/MemTotal/ { print $2 * 1024 }' /proc/meminfo
+    return
+  fi
+  printf '0\n'
+}
+
+doctor() {
+  ensure_env
+  require_command docker
+  docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
+  docker info >/dev/null 2>&1 || fail "Docker engine is not running"
+
+  local host_arch docker_arch allow_non_arm64 memory_bytes free_kib
+  host_arch="$(uname -m)"
+  docker_arch="$(docker info --format '{{.Architecture}}')"
+  allow_non_arm64="${M0_ALLOW_NON_ARM64:-0}"
+
+  if [[ "$allow_non_arm64" != "1" ]]; then
+    [[ "$host_arch" == "arm64" ]] || fail "M0 target is Apple Silicon arm64; detected host architecture: $host_arch"
+    [[ "$docker_arch" == "aarch64" || "$docker_arch" == "arm64" ]] || \
+      fail "Docker is not using an arm64 engine: $docker_arch"
+  else
+    info "Non-arm64 mode enabled for CI (${host_arch}/${docker_arch})"
+  fi
+
+  memory_bytes="$(host_memory_bytes)"
+  if [[ "$allow_non_arm64" != "1" && "$memory_bytes" -lt 17179869184 ]]; then
+    fail "At least 16 GiB host memory is required for the local M0 baseline"
+  fi
+
+  free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
+  if [[ "$free_kib" -lt 10485760 ]]; then
+    fail "At least 10 GiB free disk space is required"
+  fi
+
+  for port in 3100 4173; do
+    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      info "Warning: local port $port is already in use; change it in .env.m0 if it is not this stack"
+    fi
+  done
+
+  compose config --quiet
+  info "Doctor passed: host=${host_arch}, docker=${docker_arch}, compose config=valid"
+}
+
+bootstrap() {
+  ensure_env
+  require_command docker
+  docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
+  compose config --quiet
+  info "M0 local configuration is ready"
+}
+
+m0_up() {
+  doctor
+  info "Building and starting MySQL, ClickHouse, Kafka and the browser spike app"
+  compose up \
+    --detach \
+    --build \
+    --wait \
+    --wait-timeout 240 \
+    mysql clickhouse kafka spike-app spike-consumer
+  info "M0 is ready: demo=http://localhost:4173 api=http://localhost:3100"
+}
+
+m0_verify() {
+  ensure_env
+  require_command docker
+  info "Building the verifier"
+  compose build spike-runner
+  info "Running MySQL, ClickHouse, Kafka and browser-contract checks"
+  compose run --rm --no-deps spike-runner
+}
+
+m0_status() {
+  ensure_env
+  require_command docker
+  compose ps
+
+  local container_ids=()
+  mapfile -t container_ids < <(compose ps --quiet)
+  if [[ "${#container_ids[@]}" -gt 0 ]]; then
+    docker stats --no-stream \
+      --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}' \
+      "${container_ids[@]}"
+  fi
+}
+
+m0_logs() {
+  ensure_env
+  require_command docker
+  local service="${1:-}"
+  if [[ -n "$service" ]]; then
+    case "$service" in
+      mysql|clickhouse|kafka-init|kafka|spike-app|spike-consumer|spike-runner) ;;
+      *) fail "Unknown M0 service: $service" ;;
+    esac
+    compose logs --tail 200 "$service"
+    return
+  fi
+  compose logs --tail 200
+}
+
+m0_down() {
+  ensure_env
+  require_command docker
+  compose down --remove-orphans
+  info "M0 containers stopped; named data volumes were preserved"
+}
+
+m0_reset() {
+  [[ "${1:-}" == "--confirm-local-data-loss" ]] || \
+    fail "Reset deletes local M0 data. Re-run with --confirm-local-data-loss"
+  ensure_env
+  require_command docker
+  info "Volumes selected by Compose project label before deletion:"
+  docker volume ls \
+    --filter "label=com.docker.compose.project=$PROJECT_NAME" \
+    --format '  {{.Name}}'
+  compose down --volumes --remove-orphans
+  info "Deleted only the frontend-insight-m0 Compose containers and named volumes"
+}
+
+command_name="${1:-}"
+if [[ -z "$command_name" ]]; then
+  usage
+  exit 1
+fi
+shift
+
+case "$command_name" in
+  doctor) doctor "$@" ;;
+  bootstrap) bootstrap "$@" ;;
+  m0-up) m0_up "$@" ;;
+  m0-verify) m0_verify "$@" ;;
+  m0-status) m0_status "$@" ;;
+  m0-logs) m0_logs "$@" ;;
+  m0-down) m0_down "$@" ;;
+  m0-reset) m0_reset "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage; fail "Unknown command: $command_name" ;;
+esac
