@@ -16,7 +16,15 @@
 - [事件传输契约 v1](contracts/event-contract-v1.md)；
 - [ADR-008：事件契约与数据库迁移边界](adr/ADR-008-contract-and-migration-boundaries.md)；
 - [M1 本地工程与迁移验收](guides/m1-local-engineering-macos.md)；
-- [M1 实现与验收记录](progress/m1-results.md)。
+- [M1 实现与验收记录](progress/m1-results.md)；
+- [M2–M4 本地验收指引](guides/m2-m4-local-macos.md)；
+- [M2–M4 实现与验收记录](progress/m2-m4-results.md)。
+
+项目学习与维护：
+
+- [M0–M4 项目学习指南](learning/README.md)：从架构与边界出发，依次精读事件契约、Web SDK、接收/消费链路、认证与分析 API；
+- [测试、运维与变更手册](learning/06-testing-operations-and-change-playbooks.md)：按症状排障，并安全修改契约、指标、权限和 migration；
+- [代码精读实验](learning/07-code-reading-labs.md)：通过可重复实验验证 SPA 生命周期、长时大屏、重复交付、refresh rotation、DST 和故障恢复。
 
 历史基线：[需求文档 v1.4](product/requirements-v1.4.md)、[MVP 开发计划 v1.1](planning/mvp-plan-v1.1.md)。
 
