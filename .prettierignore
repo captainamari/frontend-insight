@@ -2,4 +2,12 @@
 **/node_modules
 coverage
 pnpm-lock.yaml
-spikes/m0/package-lock.json
+
+# M0 and product baselines predate the M1 formatter. Keep M1 checks from
+# rewriting already accepted artifacts; new engineering files remain covered.
+spikes/m0
+docs/planning
+docs/product
+docs/reviews
+docs/spikes
+docs/guides/local-full-flow-macos.md

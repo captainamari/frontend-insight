@@ -19,7 +19,7 @@ M1 没有实现正式 SDK、事件接收 API、Kafka consumer、管理后台和�
 | ---------------------------------------------------- | -------------------------------------------- |
 | workspace 依赖循环/跨 app 依赖                       | 通过：0 循环、0 跨 app 依赖                  |
 | 格式、ESLint、TypeScript                             | 通过                                         |
-| 契约/环境/migration 单测                             | 通过：3 个测试文件（准确数量以 CI 输出为准） |
+| 契约/环境/migration 单测                             | 通过：3 个测试文件、21 个测试                 |
 | 全 workspace 构建                                    | 通过                                         |
 | MySQL/ClickHouse 空库、升级、幂等、TTL、fixture 查询 | 由分支 GitHub Actions 执行                   |
 
