@@ -17,7 +17,10 @@ describe("environment validation", () => {
         KAFKA_BROKERS: "kafka:9092",
         MYSQL_URL: "not-a-url",
         CLICKHOUSE_URL: "http://clickhouse:8123",
+        CLICKHOUSE_PASSWORD: "local-only",
+        CLICKHOUSE_DATABASE: "frontend_insight",
         ACCOUNT_HMAC_KEY: secret,
+        AUTH_TOKEN_SECRET: "test-token-secret-at-least-32-characters",
       }),
     ).toThrow(EnvironmentValidationError);
 
@@ -37,7 +40,10 @@ describe("environment validation", () => {
       KAFKA_BROKERS: "kafka-a:9092, kafka-b:9092",
       CONSUMER_GROUP_ID: "frontend-insight-consumer",
       CONSUMER_BATCH_SIZE: "500",
+      MYSQL_URL: "mysql://user:password@mysql:3306/frontend_insight",
       CLICKHOUSE_URL: "http://clickhouse:8123",
+      CLICKHOUSE_PASSWORD: "local-only",
+      CLICKHOUSE_DATABASE: "frontend_insight",
     });
 
     expect(environment.KAFKA_BROKERS).toEqual(["kafka-a:9092", "kafka-b:9092"]);

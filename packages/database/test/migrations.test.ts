@@ -6,7 +6,9 @@ describe("database migration inventory", () => {
   it("has ordered, checksummed upgrade paths for both engines", async () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
-      expect(migrations.map((migration) => migration.version)).toEqual([1, 2]);
+      expect(migrations.map((migration) => migration.version)).toEqual(
+        engine === "mysql" ? [1, 2, 3] : [1, 2],
+      );
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,
       );
@@ -24,11 +26,14 @@ describe("database migration inventory", () => {
       "project_origins",
       "project_members",
       "audit_logs",
+      "auth_sessions",
+      "project_data_status",
     ]) {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
     }
     expect(sql).not.toMatch(/CREATE TABLE[^;]*(redis|elasticsearch|errors)/i);
     expect(sql).toContain("disabled_at");
+    expect(sql).toContain("global_role");
   });
 
   it("defines a 90-day monthly-partitioned MergeTree raw event table", async () => {

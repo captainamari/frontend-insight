@@ -11,6 +11,7 @@
     "dev": "pnpm build && pnpm --parallel --filter './apps/*' dev",
     "build": "pnpm contract:generate && pnpm -r --if-present build",
     "test": "vitest run",
+    "test:browser": "playwright test",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",
@@ -23,6 +24,7 @@
     "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
+    "@playwright/test": "1.55.0",
     "@eslint/js": "10.0.1",
     "@types/node": "24.13.3",
     "eslint": "10.7.0",

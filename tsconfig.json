@@ -6,6 +6,8 @@
     { "path": "./packages/shared-config" },
     { "path": "./packages/test-fixtures" },
     { "path": "./packages/database" },
+    { "path": "./packages/server-core" },
+    { "path": "./packages/web-tracker" },
     { "path": "./apps/api" },
     { "path": "./apps/consumer" },
     { "path": "./apps/web" }

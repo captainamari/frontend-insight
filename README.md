@@ -1,6 +1,27 @@
 # Frontend Insight
 
-内部前端功能采用度监控系统。`main` 已完成 M0 技术 Spike；当前 M1 分支建立可重复构建的工程、事件契约和数据库迁移基线。
+内部 Web 功能采用分析系统。M0 已验证基础设施，M1 已建立工程、事件契约和迁移基线；当前分支继续实现 M2 Web SDK、M3 数据链路和 M4 管理/分析 API。
+
+## M2-M4 已实现范围
+
+- npm ESM Web SDK：页面/SPA 生命周期、标签页会话、三类功能事件、长时可见心跳、隐私边界、批量与离开上报；
+- 接收链路：64 KiB/50 条边界、Origin/项目/限流/schema/时间/feature 校验、项目级账号 HMAC、Kafka 202 语义；
+- consumer：Kafka at-least-once、ClickHouse 批写、查询侧 `eventId` 去重、毒消息无 payload 死信、基础设施故障有限重试后暂停；
+- 本地认证、admin/viewer、项目成员、审计、项目/功能/onboarding API；
+- overview、trend、pages、features、feature detail 固定口径查询，以及数据状态和健康接口；
+- Vitest、Chromium/WebKit SDK 契约和 Docker Compose 端到端验收。
+
+M2-M4 快速验收（Apple Silicon Mac + Docker Desktop）：
+
+```bash
+./scripts/m2-m4 doctor
+./scripts/m2-m4 up
+./scripts/m2-m4 verify
+./scripts/m2-m4 status
+./scripts/m2-m4 down
+```
+
+`verify` 会自动验证三类 fixture 从 HTTP 经 Kafka/consumer 到 ClickHouse，并检查登录、viewer 越权、分析口径、重复事件、长时可见时长、项目停用和审计。详细步骤见 [M2-M4 Mac 验收指引](docs/guides/m2-m4-local-macos.md)。Vue 管理后台与三场景 demo-app 属于 M5，本分支不包含。
 
 ## M1 验证范围
 
@@ -9,7 +30,7 @@
 - MySQL 元数据表和 ClickHouse 原始事件表的版本化 migration；
 - Apple Silicon Mac 上可一键验证空库、升级、幂等、TTL 和固定事件查询。
 
-M1 不包含正式 SDK、事件接收 API、Kafka consumer、管理后台或 Dashboard。
+以下 M1 命令仍可单独验证契约和数据库迁移：
 
 ```bash
 ./scripts/m1 doctor
@@ -71,9 +92,10 @@ M0 不包含管理后台、指标配置、正式 SDK、实时计算或生产部�
 不启动容器也能执行静态和单元测试：
 
 ```bash
-cd spikes/m0
-npm ci
-npm test
+pnpm install --frozen-lockfile
+pnpm check
+pnpm exec playwright install chromium webkit
+pnpm test:browser
 ```
 
-分支推送后，GitHub Actions 会在 Linux x86_64 runner 上执行完整 Compose 冒烟。M1/arm64 仍需在目标 Mac 上执行上面的快速开始命令，不能由 x86 CI 替代。
+分支推送后，GitHub Actions 会执行静态/单元检查、Chromium/WebKit 契约和完整 Compose 数据流。Linux CI 不能替代 M1/arm64 目标 Mac 的最终人工验收。

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 const positiveInteger = z.coerce.number().int().positive();
+const booleanString = z
+  .enum(["true", "false", "1", "0"])
+  .transform((value) => value === "true" || value === "1");
 const logLevel = z.enum(["debug", "info", "warn", "error"]);
 const nodeEnvironment = z.enum(["development", "test", "production"]);
 
@@ -19,7 +22,16 @@ const apiEnvironmentSchema = z.object({
     .refine((items) => items.every(Boolean), "must contain valid broker hosts"),
   MYSQL_URL: z.string().url(),
   CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USERNAME: z.string().min(1).default("default"),
+  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_DATABASE: z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
   ACCOUNT_HMAC_KEY: z.string().min(32),
+  AUTH_TOKEN_SECRET: z.string().min(32),
+  KAFKA_EVENTS_TOPIC: z.string().min(1).default("frontend-insight.events.v1"),
+  KAFKA_DLQ_TOPIC: z.string().min(1).default("frontend-insight.events.dlq.v1"),
+  PROJECT_CACHE_TTL_MS: positiveInteger.max(300_000).default(30_000),
+  INGESTION_RATE_LIMIT_PER_MINUTE: positiveInteger.max(100_000).default(600),
+  REFRESH_COOKIE_SECURE: booleanString.default(true),
 });
 
 const consumerEnvironmentSchema = z.object({
@@ -31,7 +43,17 @@ const consumerEnvironmentSchema = z.object({
     .refine((items) => items.every(Boolean), "must contain valid broker hosts"),
   CONSUMER_GROUP_ID: z.string().min(1).max(128),
   CONSUMER_BATCH_SIZE: positiveInteger.max(5000),
+  CONSUMER_FLUSH_TIMEOUT_MS: positiveInteger.max(60_000).default(5_000),
+  CONSUMER_MAX_RETRIES: positiveInteger.max(10).default(3),
+  CONSUMER_RETRY_PAUSE_MS: positiveInteger.max(300_000).default(30_000),
+  CONSUMER_HEALTH_PORT: positiveInteger.max(65535).default(3200),
+  KAFKA_EVENTS_TOPIC: z.string().min(1).default("frontend-insight.events.v1"),
+  KAFKA_DLQ_TOPIC: z.string().min(1).default("frontend-insight.events.dlq.v1"),
+  MYSQL_URL: z.string().url(),
   CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_USERNAME: z.string().min(1).default("default"),
+  CLICKHOUSE_PASSWORD: z.string(),
+  CLICKHOUSE_DATABASE: z.string().regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/),
 });
 
 const webEnvironmentSchema = z.object({

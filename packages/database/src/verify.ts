@@ -27,10 +27,12 @@ function resolveFeatureId(featureKey: string | undefined): string | null {
 }
 const expectedTables = [
   "audit_logs",
+  "auth_sessions",
   "features",
   "identities",
   "project_members",
   "project_origins",
+  "project_data_status",
   "projects",
   "schema_migrations",
   "users",
@@ -107,6 +109,7 @@ async function verifyUpgradeAndIdempotency() {
     freshUpgradeObserved:
       mysqlV1.applied.includes(1) &&
       mysqlUpgrade.applied.includes(2) &&
+      mysqlUpgrade.applied.includes(3) &&
       clickhouseV1.applied.includes(1) &&
       clickhouseUpgrade.applied.includes(2),
   };
@@ -191,7 +194,7 @@ async function verifyMySqlMetadata() {
       "SELECT version, checksum FROM schema_migrations ORDER BY version",
     );
     if (
-      migrationRows.length !== 2 ||
+      migrationRows.length !== 3 ||
       migrationRows.some((row) => String(row.checksum).length !== 64)
     ) {
       throw new Error("MySQL migration ledger is incomplete");
@@ -208,7 +211,7 @@ async function verifyMySqlMetadata() {
       throw new Error("MySQL fixture features were not queryable by project");
     }
 
-    return { tables, migrationVersions: [1, 2], featureTypes: 3, requestId };
+    return { tables, migrationVersions: [1, 2, 3], featureTypes: 3, requestId };
   } finally {
     await pool.end();
   }

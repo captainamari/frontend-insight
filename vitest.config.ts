@@ -8,6 +8,12 @@ function workspaceSource(relativePath: string): string {
 export default defineConfig({
   resolve: {
     alias: {
+      "@frontend-insight/event-contract/constants": workspaceSource(
+        "./packages/event-contract/src/constants.ts",
+      ),
+      "@frontend-insight/event-contract/security": workspaceSource(
+        "./packages/event-contract/src/security.ts",
+      ),
       "@frontend-insight/event-contract": workspaceSource(
         "./packages/event-contract/src/index.ts",
       ),
@@ -18,6 +24,12 @@ export default defineConfig({
         "./packages/test-fixtures/src/index.ts",
       ),
       "@frontend-insight/database": workspaceSource("./packages/database/src/index.ts"),
+      "@frontend-insight/server-core": workspaceSource(
+        "./packages/server-core/src/index.ts",
+      ),
+      "@frontend-insight/web-tracker": workspaceSource(
+        "./packages/web-tracker/src/index.ts",
+      ),
     },
   },
   test: {
