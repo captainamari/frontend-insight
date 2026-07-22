@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "projectKey": "fi_public_m1demo001",
+  "sentAt": "2026-07-19T17:10:00.000Z",
+  "sdk": { "name": "web-tracker", "version": "0.1.0" },
+  "events": [
+    {
+      "eventId": "evt_data_view_page_001",
+      "eventName": "page_view",
+      "eventTime": "2026-07-19T17:09:58.120Z",
+      "visitorId": "vis_data_view_001",
+      "sessionId": "ses_data_view_001",
+      "pageViewId": "pv_data_view_001",
+      "accountRef": "opaque-account-001",
+      "route": "/reports/sales",
+      "title": "Sales dashboard",
+      "timezoneOffsetMinutes": -420,
+      "properties": { "viewport": "large", "browserFamily": "Chrome" }
+    },
+    {
+      "eventId": "evt_data_view_exposed_001",
+      "eventName": "feature_exposed",
+      "eventTime": "2026-07-19T17:09:58.500Z",
+      "visitorId": "vis_data_view_001",
+      "sessionId": "ses_data_view_001",
+      "pageViewId": "pv_data_view_001",
+      "accountRef": "opaque-account-001",
+      "route": "/reports/sales",
+      "featureKey": "sales_dashboard",
+      "properties": {}
+    },
+    {
+      "eventId": "evt_data_view_success_001",
+      "eventName": "feature_succeeded",
+      "eventTime": "2026-07-19T17:09:59.900Z",
+      "visitorId": "vis_data_view_001",
+      "sessionId": "ses_data_view_001",
+      "pageViewId": "pv_data_view_001",
+      "accountRef": "opaque-account-001",
+      "route": "/reports/sales",
+      "featureKey": "sales_dashboard",
+      "properties": { "renderTarget": "chart" }
+    }
+  ]
+}

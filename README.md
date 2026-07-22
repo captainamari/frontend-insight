@@ -1,8 +1,27 @@
 # Frontend Insight
 
-内部前端功能采用度监控系统。当前分支只实现 M0：验证本地基础设施与浏览器上报链路，为后续 MVP 开发消除技术风险。
+内部前端功能采用度监控系统。`main` 已完成 M0 技术 Spike；当前 M1 分支建立可重复构建的工程、事件契约和数据库迁移基线。
 
-## M0 验证范围
+## M1 验证范围
+
+- pnpm/TypeScript monorepo 与统一 CI 检查；
+- 版本化事件 JSON Schema、生成类型、拒绝码和三类 golden fixtures；
+- MySQL 元数据表和 ClickHouse 原始事件表的版本化 migration；
+- Apple Silicon Mac 上可一键验证空库、升级、幂等、TTL 和固定事件查询。
+
+M1 不包含正式 SDK、事件接收 API、Kafka consumer、管理后台或 Dashboard。
+
+```bash
+./scripts/m1 doctor
+./scripts/m1 up
+./scripts/m1 verify
+./scripts/m1 status
+./scripts/m1 down
+```
+
+详细预期和排障见 [M1 本地工程与迁移验收](docs/guides/m1-local-engineering-macos.md)，实现结果见 [M1 验收记录](docs/progress/m1-results.md)。
+
+## M0 验证范围（已合并）
 
 - MySQL：迁移表、连接池、写入与读取。
 - ClickHouse：Node.js 客户端批量写入及 `DateTime64(3)` 精度。
@@ -12,7 +31,7 @@
 
 M0 不包含管理后台、指标配置、正式 SDK、实时计算或生产部署。
 
-## 本地要求
+## M0 本地要求
 
 - Apple Silicon Mac（基线：M1、32 GB 内存、1 TB 硬盘）
 - Docker Desktop，包含 Docker Compose v2
@@ -20,7 +39,7 @@ M0 不包含管理后台、指标配置、正式 SDK、实时计算或生产部�
 
 容器镜像均为多架构镜像，不固定 `platform`，在 M1 上会自动使用 arm64 版本。
 
-## 快速开始
+## M0 快速开始
 
 ```bash
 ./scripts/dev doctor

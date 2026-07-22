@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/event-contract" },
+    { "path": "./packages/shared-config" },
+    { "path": "./packages/test-fixtures" },
+    { "path": "./packages/database" },
+    { "path": "./apps/api" },
+    { "path": "./apps/consumer" },
+    { "path": "./apps/web" }
+  ]
+}

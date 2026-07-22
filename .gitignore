@@ -1,5 +1,9 @@
 .env.m0
 node_modules/
+dist/
+.env
+.env.m1
+*.tsbuildinfo
 npm-debug.log*
 .DS_Store
 coverage/
