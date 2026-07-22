@@ -15,13 +15,15 @@ M1 没有实现正式 SDK、事件接收 API、Kafka consumer、管理后台和�
 
 ## 自动验证
 
-| 检查                                                 | 当前结果                      |
-| ---------------------------------------------------- | ----------------------------- |
-| workspace 依赖循环/跨 app 依赖                       | 通过：0 循环、0 跨 app 依赖   |
-| 格式、ESLint、TypeScript                             | 通过                          |
-| 契约/环境/migration 单测                             | 通过：3 个测试文件、21 个测试 |
-| 全 workspace 构建                                    | 通过                          |
-| MySQL/ClickHouse 空库、升级、幂等、TTL、fixture 查询 | 由分支 GitHub Actions 执行    |
+| 检查                                                 | 当前结果                                                                                                      |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| workspace 依赖循环/跨 app 依赖                       | 通过：0 循环、0 跨 app 依赖                                                                                   |
+| 格式、ESLint、TypeScript                             | 通过                                                                                                          |
+| 契约/环境/migration 单测                             | 通过：3 个测试文件、21 个测试                                                                                 |
+| 全 workspace 构建                                    | 通过                                                                                                          |
+| MySQL/ClickHouse 空库、升级、幂等、TTL、fixture 查询 | 通过：[GitHub Actions 29888531566](https://github.com/captainamari/frontend-insight/actions/runs/29888531566) |
+
+上述远程运行在 Linux x86_64 上完成完整 Compose 验收；migration runner 报告 MySQL 与 ClickHouse 均成功执行 v1、升级 v2，并在第三次执行时全部识别为已应用。
 
 ## 固定数据预期
 
