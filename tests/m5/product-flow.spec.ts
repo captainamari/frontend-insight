@@ -80,7 +80,7 @@ test("admin can finish the URL-preserving product loop", async ({ page }) => {
 
   await page.getByRole("button", { name: /页面访问/ }).click();
   await expect(page.getByText("昨日同时段", { exact: false }).first()).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "归一化路由" })).toBeVisible();
+  await expect(page.getByText("归一化路由", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /项目与接入/ }).click();
   await expect(page.getByText("fi_public_m1demo001")).toBeVisible();
