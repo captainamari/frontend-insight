@@ -3,8 +3,6 @@ import { expect, test } from "@playwright/test";
 const webUrl = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
 const demoUrl = process.env.M5_DEMO_URL ?? "http://127.0.0.1:4174";
 
-test.describe.configure({ mode: "serial" });
-
 test("three controlled scenarios keep simulated credentials out of telemetry", async ({
   page,
 }) => {
@@ -83,7 +81,7 @@ test("admin can finish the URL-preserving product loop", async ({ page }) => {
   await expect(page.getByText("归一化路由", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /项目与接入/ }).click();
-  await expect(page.getByText("fi_public_m1demo001")).toBeVisible();
+  await expect(page.getByText("fi_public_m1demo001", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "发送测试事件" })).toBeVisible();
   await expect(
     page.getByText("SDK 不读取 Authorization", { exact: false }),
