@@ -104,7 +104,7 @@ async function load(resetPage = false): Promise<void> {
 }
 
 watch(
-  () => [context.projectId.value, context.preset.value, page.value],
+  () => [context.projectId.value, context.search.value, page.value],
   () => void load(),
   { immediate: true },
 );

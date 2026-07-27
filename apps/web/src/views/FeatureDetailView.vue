@@ -52,7 +52,7 @@ async function load(): Promise<void> {
 }
 
 watch(
-  () => [context.projectId.value, context.preset.value, featureId.value],
+  () => [context.projectId.value, context.search.value, featureId.value],
   () => void load(),
   { immediate: true },
 );
