@@ -23,8 +23,14 @@
 | Demo 初始 JS gzip           | 约 33 KiB                      |
 | SDK ESM gzip                | 4,419 bytes，预算 12,288 bytes |
 | Bash 语法                   | 通过                           |
-| Chromium/WebKit M5 产品闭环 | 推送后由 GitHub Actions 执行   |
-| Docker Compose 全链路       | 推送后由 GitHub Actions 执行   |
+| Chromium/WebKit M5 产品闭环 | 通过                           |
+| Docker Compose 全链路       | 通过                           |
+
+[GitHub Actions run 30283839885](https://github.com/captainamari/frontend-insight/actions/runs/30283839885)
+在干净的 Linux amd64 runner 上验证提交
+`e73a83d96099bfae47a94e473c4bc335564ed2a4`：静态检查、65 项 Vitest、6 项 SDK
+浏览器契约、完整 Compose 迁移/播种/数据流，以及 Chromium 与 WebKit 各 3 项 M5
+产品用例全部通过。
 
 ## 设计边界
 
