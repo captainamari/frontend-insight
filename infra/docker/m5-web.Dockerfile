@@ -8,7 +8,7 @@ COPY . .
 ARG APP_DIR
 RUN test "$APP_DIR" = "web" -o "$APP_DIR" = "demo-app"
 RUN pnpm install --frozen-lockfile \
-  && pnpm --filter "@frontend-insight/${APP_DIR}" build \
+  && pnpm --filter "@frontend-insight/${APP_DIR}..." build \
   && mkdir -p /out \
   && cp -R "apps/${APP_DIR}/dist/." /out/
 
