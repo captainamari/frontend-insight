@@ -18,7 +18,7 @@
 | 检查                        | 结果                           |
 | --------------------------- | ------------------------------ |
 | TypeScript 全 workspace     | 通过                           |
-| Vitest                      | 9 个测试文件、64 项通过        |
+| Vitest                      | 9 个测试文件、65 项通过        |
 | Web / demo production build | 通过                           |
 | Demo 初始 JS gzip           | 约 33 KiB                      |
 | SDK ESM gzip                | 4,419 bytes，预算 12,288 bytes |

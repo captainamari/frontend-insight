@@ -212,6 +212,7 @@ export class EventConsumerRuntime {
       return {
         event_id: event.eventId,
         schema_version: envelope.batch.schemaVersion,
+        sdk_name: envelope.batch.sdk.name,
         sdk_version: envelope.batch.sdk.version,
         project_id: envelope.projectId,
         event_name: event.eventName,
