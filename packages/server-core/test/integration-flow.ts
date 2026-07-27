@@ -2,26 +2,21 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@clickhouse/client";
 import type { FrontendInsightEventBatchV1 } from "@frontend-insight/event-contract";
 import { contractScenarios } from "@frontend-insight/test-fixtures";
-import { hash } from "bcryptjs";
 import mysql from "mysql2/promise";
 import type { RowDataPacket } from "mysql2/promise";
+import { m5Fixture, seedM5Fixture } from "../scripts/m5-fixture.js";
 
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const mysqlUrl = process.env.MYSQL_URL;
 const clickhouseUrl = process.env.CLICKHOUSE_URL;
 if (!mysqlUrl || !clickhouseUrl) throw new Error("INTEGRATION_ENVIRONMENT_MISSING");
 
-const projectId = "11111111-1111-4111-8111-111111111111";
-const adminId = "55555555-5555-4555-8555-555555555555";
-const viewerId = "88888888-8888-4888-8888-888888888888";
-const adminPassword = "LocalAdmin-1234";
-const viewerPassword = "LocalViewer-1234";
+const projectId = m5Fixture.projectId;
+const viewerId = m5Fixture.viewer.id;
+const adminPassword = m5Fixture.admin.password;
+const viewerPassword = m5Fixture.viewer.password;
 const origin = "http://localhost:4173";
-const featureIds = {
-  sales_dashboard: "22222222-2222-4222-8222-222222222222",
-  report_export: "33333333-3333-4333-8333-333333333333",
-  operations_wallboard: "44444444-4444-4444-8444-444444444444",
-} as const;
+const featureIds = m5Fixture.featureIds;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(`FLOW_ASSERTION_FAILED: ${message}`);
@@ -59,95 +54,14 @@ function shiftBatch(
 }
 
 async function seed(): Promise<void> {
-  const pool = mysql.createPool(mysqlUrl!);
-  const adminHash = await hash(adminPassword, 12);
-  const viewerHash = await hash(viewerPassword, 12);
-  try {
-    await pool.execute(
-      `INSERT INTO users (id, display_name, email, status, global_role)
-       VALUES (?, 'Local Admin', 'admin@example.invalid', 'active', 'admin')
-       ON DUPLICATE KEY UPDATE status = 'active', global_role = 'admin'`,
-      [adminId],
-    );
-    await pool.execute(
-      `INSERT INTO users (id, display_name, email, status, global_role)
-       VALUES (?, 'Local Viewer', 'viewer@example.invalid', 'active', 'viewer')
-       ON DUPLICATE KEY UPDATE status = 'active', global_role = 'viewer'`,
-      [viewerId],
-    );
-    await pool.execute(
-      `INSERT INTO identities (id, user_id, provider, subject, password_hash)
-       VALUES (?, ?, 'local', ?, ?)
-       ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), password_hash = VALUES(password_hash)`,
-      [
-        "66666666-6666-4666-8666-666666666666",
-        adminId,
-        "admin@example.invalid",
-        adminHash,
-      ],
-    );
-    await pool.execute(
-      `INSERT INTO identities (id, user_id, provider, subject, password_hash)
-       VALUES (?, ?, 'local', ?, ?)
-       ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), password_hash = VALUES(password_hash)`,
-      [
-        "99999999-9999-4999-8999-999999999999",
-        viewerId,
-        "viewer@example.invalid",
-        viewerHash,
-      ],
-    );
-    await pool.execute(
-      `INSERT INTO projects
-         (id, project_key, name, timezone, status, retention_days, created_by_user_id)
-       VALUES (?, 'fi_public_m1demo001', 'M2-M4 Fixture Project', 'UTC', 'active', 90, ?)
-       ON DUPLICATE KEY UPDATE name = VALUES(name), status = 'active', disabled_at = NULL`,
-      [projectId, adminId],
-    );
-    await pool.execute(
-      `INSERT INTO project_origins (id, project_id, origin, enabled)
-       VALUES (?, ?, ?, TRUE)
-       ON DUPLICATE KEY UPDATE enabled = TRUE`,
-      ["77777777-7777-4777-8777-777777777777", projectId, origin],
-    );
-    for (const [userId, role] of [
-      [adminId, "owner"],
-      [viewerId, "viewer"],
-    ] as const) {
-      await pool.execute(
-        `INSERT INTO project_members (project_id, user_id, role)
-         VALUES (?, ?, ?)
-         ON DUPLICATE KEY UPDATE role = VALUES(role)`,
-        [projectId, userId, role],
-      );
-    }
-    const featureRows = [
-      [featureIds.sales_dashboard, "sales_dashboard", "Sales dashboard", "data_view"],
-      [featureIds.report_export, "report_export", "Report export", "action"],
-      [
-        featureIds.operations_wallboard,
-        "operations_wallboard",
-        "Operations wallboard",
-        "long_view",
-      ],
-    ] as const;
-    for (const [id, key, name, type] of featureRows) {
-      await pool.execute(
-        `INSERT INTO features
-           (id, project_id, feature_key, name, feature_type, launched_at, status)
-         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP(3), 'active')
-         ON DUPLICATE KEY UPDATE name = VALUES(name), status = 'active', disabled_at = NULL`,
-        [id, projectId, key, name, type],
-      );
-    }
-    await pool.execute(
-      `INSERT INTO project_data_status (project_id) VALUES (?)
-       ON DUPLICATE KEY UPDATE project_id = VALUES(project_id)`,
-      [projectId],
-    );
-  } finally {
-    await pool.end();
-  }
+  await seedM5Fixture(mysqlUrl!, {
+    origins: [
+      origin,
+      "http://127.0.0.1:4173",
+      "http://localhost:4174",
+      "http://127.0.0.1:4174",
+    ],
+  });
 }
 
 async function login(email: string, password: string) {
@@ -223,8 +137,8 @@ async function main(): Promise<void> {
       async () => (await rawCount(clickhouse)) >= baselineRows + insertedRows,
     );
 
-    const admin = await login("admin@example.invalid", adminPassword);
-    const viewer = await login("viewer@example.invalid", viewerPassword);
+    const admin = await login(m5Fixture.admin.email, adminPassword);
+    const viewer = await login(m5Fixture.viewer.email, viewerPassword);
     const adminHeaders = jsonHeaders({ authorization: `Bearer ${admin.accessToken}` });
     const viewerHeaders = jsonHeaders({
       authorization: `Bearer ${viewer.accessToken}`,
@@ -304,6 +218,14 @@ async function main(): Promise<void> {
       `features failed: ${JSON.stringify(features.body)}`,
     );
     const featureItems = features.body.items as Array<Record<string, unknown>>;
+    assert(
+      Array.isArray(features.body.trend),
+      "feature adoption overview must include trend points",
+    );
+    assert(
+      Array.isArray(features.body.sdkVersions),
+      "feature adoption overview must include SDK version distribution",
+    );
     for (const scenario of contractScenarios) {
       const item = featureItems.find(
         (candidate) => candidate.featureKey === scenario.golden.featureKey,

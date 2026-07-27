@@ -182,12 +182,15 @@ export class AnalyticsStore {
   async overview(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
-      const current = await this.metricOverview(projectId, range);
-      const previous = await this.metricOverview(projectId, {
-        ...range,
-        from: previousLocalCalendarDay(range.from, range.timezone),
-        to: previousLocalCalendarDay(range.to, range.timezone),
-      });
+      const [current, previous, sdkVersions] = await Promise.all([
+        this.metricOverview(projectId, range),
+        this.metricOverview(projectId, {
+          ...range,
+          from: previousLocalCalendarDay(range.from, range.timezone),
+          to: previousLocalCalendarDay(range.to, range.timezone),
+        }),
+        this.sdkVersionDistribution(projectId, range),
+      ]);
       return {
         range,
         current,
@@ -200,6 +203,7 @@ export class AnalyticsStore {
           accounts: "project-HMACed business account references",
           sessions: "tab-scoped sessions with 30-minute inactivity timeout",
         },
+        sdkVersions,
       };
     });
   }
@@ -328,6 +332,7 @@ export class AnalyticsStore {
   async features(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
+      const bucket = range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay";
       const response = await this.client.query({
         query: `
         SELECT
@@ -357,7 +362,31 @@ export class AnalyticsStore {
         query_params: { projectId, from: range.from, to: range.to },
         format: "JSONEachRow",
       });
+      const trendResponse = await this.client.query({
+        query: `
+        SELECT
+          ${bucket}(event_time, {timezone:String}) AS bucket,
+          countIf(event_name = 'feature_exposed') AS exposed,
+          countIf(event_name = 'feature_succeeded') AS succeeded,
+          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL) AS succeeded_accounts,
+          uniqExactIf(visitor_id, event_name = 'feature_succeeded') AS succeeded_visitors
+        FROM (${deduplicatedEventsWhere("AND feature_key IS NOT NULL")})
+        GROUP BY bucket
+        ORDER BY bucket
+      `,
+        query_params: {
+          projectId,
+          from: range.from,
+          to: range.to,
+          timezone: range.timezone,
+        },
+        format: "JSONEachRow",
+      });
       const rows = (await response.json<Record<string, unknown>>()).map(numberRow);
+      const trend = (await trendResponse.json<Record<string, unknown>>()).map(
+        numberRow,
+      );
+      const sdkVersions = await this.sdkVersionDistribution(projectId, range);
       const metrics = new Map(rows.map((row) => [String(row.feature_key), row]));
       const definitions = await this.mysql.listFeatures(projectId);
       return {
@@ -377,6 +406,9 @@ export class AnalyticsStore {
               exposedVisitors > 0 ? succeededVisitors / exposedVisitors : null,
           };
         }),
+        trend,
+        gapPolicy: "missing buckets are omitted and must not be connected as zero",
+        sdkVersions,
       };
     });
   }
@@ -458,6 +490,7 @@ export class AnalyticsStore {
       const rows = await response.json<Record<string, unknown>>();
       const durationRows = await durationResponse.json<Record<string, unknown>>();
       const trendRows = await trendResponse.json<Record<string, unknown>>();
+      const sdkVersions = await this.sdkVersionDistribution(projectId, range);
       return {
         range,
         feature,
@@ -467,8 +500,30 @@ export class AnalyticsStore {
         },
         trend: trendRows.map(numberRow),
         gapPolicy: "missing buckets are omitted and must not be connected as zero",
+        sdkVersions,
       };
     });
+  }
+
+  private async sdkVersionDistribution(
+    projectId: string,
+    range: AnalyticsRange,
+  ): Promise<Array<Record<string, number | string | null>>> {
+    const response = await this.client.query({
+      query: `
+        SELECT
+          sdk_name,
+          sdk_version,
+          count() AS events,
+          max(received_at) AS last_received_at
+        FROM (${deduplicatedEventsWhere()})
+        GROUP BY sdk_name, sdk_version
+        ORDER BY events DESC, sdk_name, sdk_version
+      `,
+      query_params: { projectId, from: range.from, to: range.to },
+      format: "JSONEachRow",
+    });
+    return (await response.json<Record<string, unknown>>()).map(numberRow);
   }
 
   private async measure<T>(operation: () => Promise<T>): Promise<T> {
