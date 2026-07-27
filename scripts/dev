@@ -125,7 +125,7 @@ up() {
 smoke() {
   ensure_env
   require_command docker
-  compose run --rm verifier
+  compose run --rm --no-deps verifier
   compose exec -T api node tools/m5-http-smoke.mjs
   info "Data flow, management UI and demo smoke checks passed"
 }
