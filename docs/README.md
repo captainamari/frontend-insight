@@ -1,6 +1,6 @@
 # Frontend Insight 文档索引
 
-当前评审基线：2026-07-19。最新产品基线为需求文档 v1.5，旧版保留用于查看决策演进。
+当前实现基线：2026-07-27。最新产品基线为需求文档 v1.5，旧版保留用于查看决策演进。
 
 建议阅读顺序：
 
@@ -16,7 +16,10 @@
 - [事件传输契约 v1](contracts/event-contract-v1.md)；
 - [ADR-008：事件契约与数据库迁移边界](adr/ADR-008-contract-and-migration-boundaries.md)；
 - [M1 本地工程与迁移验收](guides/m1-local-engineering-macos.md)；
-- [M1 实现与验收记录](progress/m1-results.md)。
+- [M1 实现与验收记录](progress/m1-results.md)；
+- [M2-M4 Mac 验收指引](guides/m2-m4-local-macos.md)；
+- [M2-M4 实现与验收记录](progress/m2-m4-results.md)；
+- [M5 实现与验收记录](progress/m5-results.md)。
 
 历史基线：[需求文档 v1.4](product/requirements-v1.4.md)、[MVP 开发计划 v1.1](planning/mvp-plan-v1.1.md)。
 

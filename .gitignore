@@ -4,6 +4,7 @@ dist/
 .env
 .env.m1
 .env.m2-m4
+.env.m5
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store
