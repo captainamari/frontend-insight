@@ -1,0 +1,38 @@
+{
+  "name": "frontend-insight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm build && pnpm --parallel --filter './apps/*' dev",
+    "build": "pnpm contract:generate && pnpm -r --if-present build",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:workspace": "node tools/check-workspace-boundaries.mjs",
+    "contract:generate": "pnpm --filter @frontend-insight/event-contract generate",
+    "contract:check": "pnpm --filter @frontend-insight/event-contract generate -- --check",
+    "migrate": "pnpm --filter @frontend-insight/database migrate",
+    "migrate:verify": "pnpm --filter @frontend-insight/database verify",
+    "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@eslint/js": "10.0.1",
+    "@types/node": "24.13.3",
+    "eslint": "10.7.0",
+    "globals": "17.7.0",
+    "prettier": "3.9.5",
+    "tsx": "4.23.1",
+    "typescript": "6.0.2",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

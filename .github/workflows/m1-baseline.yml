@@ -1,0 +1,83 @@
+name: M1 engineering contract and migrations
+
+on:
+  push:
+    branches:
+      - "agent/m1-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: m1-baseline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  m1-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      M1_ALLOW_NON_ARM64: "1"
+      M1_MIN_FREE_DISK_GIB: "8"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.15.1
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run M1 workspace checks
+        run: pnpm check
+
+      - name: Validate M1 operations script
+        run: bash -n scripts/m1
+
+      - name: Validate M1 Compose config
+        run: ./scripts/m1 doctor
+
+      - name: Start M1 databases
+        run: ./scripts/m1 up
+
+      - name: Verify migrations and golden fixtures
+        run: ./scripts/m1 verify
+
+      - name: Capture service health and resources
+        run: ./scripts/m1 status
+
+      - name: Capture logs on failure
+        if: failure()
+        run: ./scripts/m1 logs
+
+      - name: Stop stack and preserve diagnostic volumes
+        if: always()
+        run: ./scripts/m1 down
+
+      - name: Publish connector-visible result
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            state="success"
+          else
+            state="failure"
+          fi
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            --data "{\"state\":\"${state}\",\"target_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\",\"description\":\"Full M1 baseline: ${JOB_STATUS}\",\"context\":\"m1/engineering-contract-migrations\"}"

@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+  - spikes/*
+
+allowBuilds:
+  esbuild: true
+
+preferWorkspacePackages: true
+saveWorkspaceProtocol: rolling
