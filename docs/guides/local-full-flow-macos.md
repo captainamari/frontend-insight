@@ -1,6 +1,7 @@
 # Frontend Insight——M5 Mac 本地全流程指南
 
-> 适用分支：`agent/m5-management-ui-demo`  
+> 适用代码分支：`agent/m5-management-ui-demo`  
+> 适用代码提交：`c1bbbf3`  
 > 适用版本：需求文档 v1.5 / MVP 开发计划 v1.2  
 > 目标机器：Apple Silicon M1、32 GB 内存、1 TB 硬盘  
 > 更新日期：2026-07-27
@@ -9,19 +10,19 @@
 
 ## 1. 运行后会得到什么
 
-| 服务 | 用途 | 本机地址 |
-| --- | --- | --- |
-| `web` | Frontend Insight 管理后台 | <http://localhost:4173> |
-| `demo` | 三类受控使用场景 | <http://localhost:4174> |
-| `api` | 管理、分析和事件接收 API | <http://localhost:3000> |
-| `consumer` | Kafka → ClickHouse 消费者 | <http://localhost:3200/health/ready> |
-| MySQL / Kafka / ClickHouse | 元数据、队列和分析存储 | 仅容器网络 |
+| 服务                       | 用途                      | 本机地址                             |
+| -------------------------- | ------------------------- | ------------------------------------ |
+| `web`                      | Frontend Insight 管理后台 | <http://localhost:4173>              |
+| `demo`                     | 三类受控使用场景          | <http://localhost:4174>              |
+| `api`                      | 管理、分析和事件接收 API  | <http://localhost:3000>              |
+| `consumer`                 | Kafka → ClickHouse 消费者 | <http://localhost:3200/health/ready> |
+| MySQL / Kafka / ClickHouse | 元数据、队列和分析存储    | 仅容器网络                           |
 
 本地种子账号：
 
-| 权限 | 用户名 | 密码 |
-| --- | --- | --- |
-| 管理员 | `admin@example.invalid` | `LocalAdmin-1234` |
+| 权限       | 用户名                   | 密码               |
+| ---------- | ------------------------ | ------------------ |
+| 管理员     | `admin@example.invalid`  | `LocalAdmin-1234`  |
 | 只读查看者 | `viewer@example.invalid` | `LocalViewer-1234` |
 
 这些凭证仅用于本机 Compose 环境，不能复制到试点或生产配置。
@@ -30,11 +31,16 @@
 
 ### 2.1 获取 M5 分支
 
+学习资料分支不包含 M5 业务代码。请切换到代码基线：
+
 ```bash
 git clone https://github.com/captainamari/frontend-insight.git
 cd frontend-insight
 git switch agent/m5-management-ui-demo
+git pull --ff-only
 ```
+
+若需要严格复现本指南基线，可在独立 worktree 或临时分支检出提交 `c1bbbf3`。
 
 ### 2.2 启动 Docker Desktop
 
@@ -215,15 +221,15 @@ M5_DEMO_PORT=5174
 
 ## 7. M1 Mac 最终验收记录
 
-| 项目 | 实际结果 |
-| --- | --- |
-| `doctor / bootstrap / up / seed / smoke` | 待填写 |
-| 三类人工场景 | 待填写 |
-| 管理端 admin/viewer | 待填写 |
-| 首次构建耗时 | 待填写 |
-| 后续启动耗时 | 待填写 |
-| 稳态内存 / 峰值内存 | 待填写 |
-| `down` 后数据保留 | 待填写 |
-| reset 仅删除 M5 卷 | 待填写 |
+| 项目                                     | 实际结果 |
+| ---------------------------------------- | -------- |
+| `doctor / bootstrap / up / seed / smoke` | 待填写   |
+| 三类人工场景                             | 待填写   |
+| 管理端 admin/viewer                      | 待填写   |
+| 首次构建耗时                             | 待填写   |
+| 后续启动耗时                             | 待填写   |
+| 稳态内存 / 峰值内存                      | 待填写   |
+| `down` 后数据保留                        | 待填写   |
+| reset 仅删除 M5 卷                       | 待填写   |
 
 Linux x86_64 CI 用于自动回归，不能替代这张 Apple Silicon 原生验收表。

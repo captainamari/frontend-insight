@@ -1,5 +1,9 @@
 # M5 实现与验收记录
 
+> 代码分支：`agent/m5-management-ui-demo`  
+> 最终代码提交：`c1bbbf3514212b905ee16f2968a716be67c0f3ea`  
+> 更新日期：2026-07-27
+
 ## 已完成范围
 
 - Vue 3 + TypeScript 管理端，使用 Element Plus 与 ECharts；
@@ -26,11 +30,8 @@
 | Chromium/WebKit M5 产品闭环 | 通过                           |
 | Docker Compose 全链路       | 通过                           |
 
-[GitHub Actions run 30283839885](https://github.com/captainamari/frontend-insight/actions/runs/30283839885)
-在干净的 Linux amd64 runner 上验证提交
-`e73a83d96099bfae47a94e473c4bc335564ed2a4`：静态检查、65 项 Vitest、6 项 SDK
-浏览器契约、完整 Compose 迁移/播种/数据流，以及 Chromium 与 WebKit 各 3 项 M5
-产品用例全部通过。
+[GitHub Actions run 30284384394](https://github.com/captainamari/frontend-insight/actions/runs/30284384394)
+在干净的 Linux amd64 runner 上验证最终提交 `c1bbbf3514212b905ee16f2968a716be67c0f3ea`：静态检查、65 项 Vitest、6 项 SDK 浏览器契约、完整 Compose 迁移/播种/数据流，以及 Chromium 与 WebKit 各 3 项 M5 产品用例全部通过。
 
 ## 设计边界
 
@@ -38,4 +39,5 @@
 - 功能采用趋势由固定查询返回，不引入 Redis 或第二套指标口径；
 - demo 的快速大屏阈值只在 `?acceptance=fast` 自动验收入口启用；
 - 本地固定账号和密码只用于 Compose，试点与生产配置属于 M6；
-- Apple Silicon 原生镜像与人工页面操作仍需在目标 M1 Mac 完成最终验收。
+- Apple Silicon 原生镜像与人工页面操作仍需在目标 M1 Mac 完成最终验收；
+- 学习资料集中维护在 `agent/project-learning-guide-m0-m4`，M5 源码仍以代码分支为准。
