@@ -4,15 +4,15 @@
 
 本轮基线：
 
-- [需求文档 v1.6](product/requirements-v1.6.md)：面向智慧园区等复杂内部产品，定义模块/页面/任务、三类页面模板、运营指标、事件 v2、项目运营指数及 M8 前端可观测性边界；
-- [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：在已完成 M0–M5 的基础上，将 M6 拆为实体与 ADR、页面指标、任务实例、指标语义、项目指数、前端闭环和真实用户走查；
+- [需求文档 v1.6](product/requirements-v1.6.md)：面向智慧园区等复杂内部产品，定义模块/页面/任务、三类页面模板、运营指标、事件 v2、项目运营指数、M8 前端可观测性及 M9 AI 分析助手边界；
+- [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：在已完成 M0–M5 的基础上，细化 M6 产品运营闭环，并规划 M7 硬化、M8 可观测性和 M9 多模型 AI 分析、上下文快照及对话历史；
 - [智慧园区内部产品运营指标与项目运营指数方案 v0.2](planning/operational-metrics-health-plan-v0.2.md)：第二轮评审通过的决策来源；[v0.1](planning/operational-metrics-health-plan-v0.1.md) 保留用于查看评审演进。
 
 建议阅读顺序：
 
 1. [v1.3 评审报告](reviews/v1.3-review.md)：了解最初范围、用户体验和技术方案为何调整；
-2. [需求文档 v1.6](product/requirements-v1.6.md)：确认最新产品定位、指标口径、项目运营指数和验收边界；
-3. [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：按 M6 阶段门、任务、测试、迁移和 Go/No-Go 标准执行；
+2. [需求文档 v1.6](product/requirements-v1.6.md)：确认最新产品定位、指标口径、项目运营指数、可观测性和 AI 分析边界；
+3. [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：按 M6–M9 阶段门、任务、测试、迁移和 Go/No-Go 标准执行；
 4. [M5 Mac 本地全流程指南](guides/local-full-flow-macos.md)：验证当前 M0–M5 实现，从环境体检到三类场景、管理后台和数据闭环。
 
 当前实现与验收记录：
