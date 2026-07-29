@@ -1,4 +1,5 @@
 import { createNoopTracker } from "./noop.js";
+import { normalizeProperties } from "./privacy.js";
 import { browserRuntime } from "./runtime.js";
 import { BrowserTracker } from "./tracker.js";
 import type { Tracker, TrackerConfig } from "./types.js";
@@ -19,6 +20,10 @@ export function createTracker(config: TrackerConfig): Tracker {
     if (!/^https?:$/.test(endpoint.protocol)) {
       return createNoopTracker("ENDPOINT_INVALID", development);
     }
+    const staticProperties = normalizeProperties(config.staticProperties);
+    if (!staticProperties) {
+      return createNoopTracker("STATIC_PROPERTIES_INVALID", development);
+    }
     const key = trackerKey(config);
     const existing = activeTrackers.get(key);
     if (existing?.getDiagnostics().state === "active") return existing;
@@ -32,6 +37,7 @@ export function createTracker(config: TrackerConfig): Tracker {
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
         longViewSuccessAfterMs: config.longViewSuccessAfterMs ?? 30_000,
         longViewHeartbeatMs: config.longViewHeartbeatMs ?? 60_000,
+        staticProperties,
         development,
         normalizeRoute: config.normalizeRoute,
         beforeSend: config.beforeSend,

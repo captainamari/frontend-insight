@@ -101,6 +101,7 @@ function initializeTracker(): void {
       "command_dispatch",
       "operations_wallboard",
     ],
+    staticProperties: { demo: true },
     longViewSuccessAfterMs: acceptanceFast ? 1_000 : 30_000,
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
@@ -109,7 +110,7 @@ function initializeTracker(): void {
       record(event);
       return {
         ...event,
-        properties: { ...event.properties, demo: true },
+        properties: { ...event.properties },
       };
     },
   });

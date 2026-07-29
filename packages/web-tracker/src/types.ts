@@ -46,6 +46,7 @@ export interface TrackerConfig {
   endpoint: string;
   projectTimezone?: string;
   registeredFeatures?: readonly string[];
+  staticProperties?: EventProperties;
   normalizeRoute?: (url: URL) => string;
   beforeSend?: (context: BeforeSendContext) => TrackerEvent | null;
   flushIntervalMs?: number;

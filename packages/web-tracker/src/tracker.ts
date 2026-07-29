@@ -83,6 +83,7 @@ export class BrowserTracker implements Tracker {
         | "sessionTimeoutMs"
         | "longViewSuccessAfterMs"
         | "longViewHeartbeatMs"
+        | "staticProperties"
         | "development"
       >
     > & {
@@ -225,7 +226,10 @@ export class BrowserTracker implements Tracker {
     extra: Partial<TrackerEvent> = {},
   ): void {
     if (this.destroyed) return;
-    const properties = normalizeProperties(inputProperties);
+    const properties = normalizeProperties({
+      ...inputProperties,
+      ...this.config.staticProperties,
+    });
     if (!properties) return this.drop("PROPERTIES_INVALID");
     this.refreshSession();
     const event: TrackerEvent = {

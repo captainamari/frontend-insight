@@ -124,6 +124,32 @@ describe("web tracker lifecycle and privacy", () => {
     tracker.destroy();
   });
 
+  it("adds validated static properties before the restricted beforeSend hook", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const seen: Array<Record<string, unknown>> = [];
+    const tracker = createTracker({
+      ...config(runtime, "static01"),
+      staticProperties: { demo: true, deployment: "acceptance" },
+      beforeSend: ({ event }) => {
+        seen.push(event.properties);
+        return { ...event, properties: { ...event.properties } };
+      },
+    });
+    tracker.featureSucceeded("sales_dashboard", { demo: false, rows: 24 });
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    expect(seen).not.toHaveLength(0);
+    expect(
+      batch.events.every(
+        (event) =>
+          (event.properties as Record<string, unknown>).demo === true &&
+          (event.properties as Record<string, unknown>).deployment === "acceptance",
+      ),
+    ).toBe(true);
+    tracker.destroy();
+  });
+
   it("accepts opaque account references and rejects token or PII-like values", async () => {
     const { runtime, fetchMock } = createRuntime();
     const tracker = createTracker(config(runtime, "account01"));
