@@ -2,12 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 
 const webUrl = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
 const demoUrl = process.env.M5_DEMO_URL ?? "http://127.0.0.1:4174";
+const configuredProjectId = "11111111-1111-4111-8111-111111111111";
 
 async function login(page: Page, email: string, password: string): Promise<void> {
   await page.goto(`${webUrl}/login`);
   await page.getByLabel("邮箱").fill(email);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录" }).click();
+  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
+  await page.goto(`${webUrl}/features?project=${configuredProjectId}&range=7d`);
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
@@ -124,12 +127,14 @@ test("admin can follow overview, page detail, index and versioned configuration"
   await expect(page.getByText(/配置叶子权重/)).toBeVisible();
 
   const moduleName = `E2E 模块 ${Date.now()}`;
+  const moduleKey = `e2e_module_${Date.now()}`;
   await page.getByRole("button", { name: "新建模块" }).click();
   const dialog = page.getByRole("dialog", { name: "新建模块" });
-  await dialog.getByLabel("moduleKey").fill(`e2e_module_${Date.now()}`);
+  await dialog.getByLabel("moduleKey").fill(moduleKey);
   await dialog.getByLabel("模块名称").fill(moduleName);
   await dialog.getByRole("button", { name: "创建" }).click();
-  await expect(page.getByDisplayValue(moduleName)).toBeVisible();
+  const createdModule = page.getByRole("row").filter({ hasText: moduleKey });
+  await expect(createdModule.getByRole("textbox").first()).toHaveValue(moduleName);
 });
 
 test("viewer sees M6 evidence but cannot write operational configuration", async ({
