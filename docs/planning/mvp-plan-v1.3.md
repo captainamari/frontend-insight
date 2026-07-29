@@ -16,6 +16,7 @@ v1.2 对应的 M0–M5 已完成并通过手工验收。本计划不重新实现
 - 新 M6：产品运营指标与项目运营指数，预计 26–37 个开发日；
 - M7：承接 v1.2 原 M6 的硬化、部署和试点，预计 6–8 个开发日；
 - M8：前端错误、性能、版本和告警，单独评审和估算。
+- M9：AI 分析助手、多模型接入、页面上下文选择和对话历史，预计 25–35 个开发日，在 M8 后实施。
 
 已确认的技术方向：
 
@@ -28,6 +29,7 @@ v1.2 对应的 M0–M5 已完成并通过手工验收。本计划不重新实现
 7. admin 配置、viewer 只读，“功能采用”继续作为默认入口；
 8. 指标血缘元数据进入 M6，图形化 DAG 为 P1；
 9. M8 加入错误/性能时发布指数 v2，不改写 v1 历史。
+10. M9 AI 只读取服务端授权、脱敏和冻结的上下文快照，不抓取 DOM、不重新计算指标，也不执行平台写操作。
 
 ## 1. 交付目标
 
@@ -74,6 +76,7 @@ M6 不包含：
 - 任意事件、属性、维度、窗口和公式的通用指标引擎；
 - 任意 SQL、任意 group by、自助 BI 和动态回算平台；
 - JS/资源/API 错误、Web Vitals、SourceMap 和告警；
+- AI 分析助手、多模型配置、上下文快照和对话历史；
 - Redis、Elasticsearch 或新的离线调度集群；
 - 行为回放、DOM 文本、表单采集和个人级评分；
 - 小程序 SDK 和外部多租户 SaaS。
@@ -953,3 +956,426 @@ M6 默认继续从 raw events 执行固定查询，并记录：
 - SourceMap 按真实定位需求触发。
 
 M8 与项目运营指数 v2 必须单独完成产品、隐私、数据模型、容量和运维评审，不能直接把错误/性能字段加入 v1 公式。
+
+## 20. M9：AI 分析助手（编外能力）
+
+### 20.1 进入条件与交付边界
+
+M9 只在以下条件满足后进入：
+
+- M6 指标、项目运营指数、definition/profile version 已稳定；
+- M7 生产部署、Secret、审计、备份和故障恢复已通过；
+- M8 错误组、性能指标、发布版本和影响范围已有稳定 read model；
+- 组织明确哪些项目和数据等级可以发送给内部/第三方模型；
+- 至少有一个可用的私有化或批准的模型端点及运维 owner。
+
+M9 是只读分析层。它不能：
+
+- 绕过 analytics/error API 直接执行任意 SQL；
+- 从 DOM、浏览器 store 或任意 API 响应抓取上下文；
+- 重新计算或覆盖正式指标；
+- 调用工具修改项目、目标、权重、错误状态或代码；
+- 把模型回答作为自动化决策或个人考核依据。
+
+### 20.2 目标架构
+
+```mermaid
+flowchart LR
+    A["Vue page context descriptors"] --> B["ContextProviderRegistry"]
+    B --> C["Authorization + policy"]
+    C --> D["Sanitizer + deterministic compactor"]
+    D --> E["Immutable context snapshot"]
+    E --> F["AI Gateway"]
+    F --> G["Provider adapter"]
+    G --> H["Private / DeepSeek / GLM model"]
+    E --> I["Conversation history"]
+    F --> J["AI run + audit"]
+```
+
+核心边界：
+
+- 前端只发送 `blockKey` 和规范化筛选；
+- `ContextProviderRegistry` 在服务端重建真实数据；
+- snapshot 在模型调用前生成并冻结；
+- AI Gateway 统一权限、配额、超时、流式响应和审计；
+- provider adapter 处理协议差异；
+- Dashboard 原查询链路不依赖模型服务，模型故障不能影响页面数据。
+
+### 20.3 工期与阶段
+
+| 里程碑                              | 建议时间 | 结果                                  | 阶段门                    |
+| ----------------------------------- | -------: | ------------------------------------- | ------------------------- |
+| M9.0 ADR、威胁建模和 spike          |   2–3 日 | 数据等级、协议、历史和无操作边界      | 安全/数据负责人批准       |
+| M9.1 AI Gateway 与 provider profile |   5–7 日 | 统一模型协议、配置、Secret 和流式调用 | provider conformance 通过 |
+| M9.2 页面上下文与快照               |   5–7 日 | context block、选择、脱敏、预算和冻结 | 发送内容可预览和复核      |
+| M9.3 对话历史、模板和基础 UI        |   5–7 日 | 全局抽屉、运营模板、历史和引用        | 运营场景闭环通过          |
+| M9.4 错误/性能分析                  |   3–4 日 | 错误模板、堆栈脱敏和排查建议          | M8 场景闭环通过           |
+| M9.5 评测、安全与硬化               |   5–7 日 | 权限、注入、输出、限流和故障验证      | Go/No-Go 通过             |
+
+M9 合计：**25–35 个开发日**。任意用户附件、跨对话 RAG、模型工具调用和自动操作不含在估算内。
+
+### 20.4 M9.0：ADR、威胁建模和 spike
+
+建议新增：
+
+| ADR     | 决策                                              |
+| ------- | ------------------------------------------------- |
+| ADR-013 | AI 上下文 contract、页面 block 注册和服务端重建   |
+| ADR-014 | AI Gateway、provider adapter 和 capability matrix |
+| ADR-015 | 对话、snapshot、留存、分享和权限撤销语义          |
+| ADR-016 | internal/external 数据策略、无工具调用和输出安全  |
+
+任务：
+
+- [ ] 定义数据分类：public/internal/confidential/restricted 或组织现有等级；
+- [ ] 定义每个等级允许的 provider deployment class；
+- [ ] 明确运营聚合、错误堆栈、URL 和版本信息的脱敏规则；
+- [ ] 选择一个私有化 OpenAI-compatible endpoint 做 spike；
+- [ ] 如获准，使用合成数据验证一个 DeepSeek 或 GLM profile；
+- [ ] 验证 streaming、system message、JSON、reasoning 和 usage 差异；
+- [ ] 固化不保存 chain-of-thought 和 provider 原始响应的规则；
+- [ ] 固化默认 180 天内容留存及可缩短策略；
+- [ ] 定义模型回答评测集和人工 rubric。
+
+Stop 条件：
+
+- 数据负责人不能确认外部模型的数据边界；
+- provider 要求浏览器持有 API key；
+- 业务要求模型直接读取原始事件或请求/响应正文；
+- 业务要求首版自动修改平台或执行修复；
+- 模型端点没有明确运维、配额或故障 owner；
+- 历史内容无法满足项目级权限撤销。
+
+### 20.5 M9.1：AI Gateway 与多模型兼容
+
+#### 统一内部模型
+
+建议定义：
+
+```ts
+interface AiModelRequest {
+  profileId: string;
+  systemInstructions: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  contextBlocks: Array<{ blockKey: string; content: string }>;
+  responseFormat: "text" | "json";
+  stream: boolean;
+  maxOutputTokens?: number;
+}
+
+interface AiModelResponseChunk {
+  content?: string;
+  finishReason?: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+  };
+}
+
+interface AiProviderAdapter {
+  validateProfile(): Promise<void>;
+  healthCheck(): Promise<void>;
+  stream(request: AiModelRequest): AsyncIterable<AiModelResponseChunk>;
+}
+```
+
+实际命名按仓库规范调整，但 controller、conversation service 和模板服务不得引用 vendor SDK 类型。
+
+#### model profile
+
+`ai_model_profiles` 至少包含：
+
+- 名称、provider type 和 protocol；
+- base URL、API path 和 model ID；
+- `secretRef` 和认证方式；
+- internal/external deployment class；
+- provider 数据留存、训练使用、删除能力和审批证据；
+- proxy、TLS/CA 和网络区域；
+- temperature、top-p、max output、reasoning、timeout 和 retry；
+- context/output token 上限；
+- streaming、system message、JSON/schema、tool、file、vision、reasoning 和 reasoning-replay capabilities；
+- allowed project/data class；
+- request/token/concurrency quota；
+- fallback profile 和数据策略；
+- status、version、effective_from 和审计字段。
+
+规则：
+
+- 数据库不存真实 API key；
+- base URL 只允许 admin 配置并经过 SSRF/网络 allowlist 校验；
+- external profile 未完成数据留存、训练使用和删除能力评审时不能启用；
+- model/profile 变更产生新版本；单纯 Secret rotation 可以保持 profile 语义版本；
+- capability 由 conformance test 验证，不能只相信管理员勾选；
+- tool calling capability 即使存在，P0 始终禁用；
+- internal profile 不能静默 fallback 到 external；
+- fallback 必须使用相同或更严格的数据 policy；
+- reasoning 字段由 adapter 映射，业务层不写 vendor 分支；
+- adapter 丢弃 reasoning content，不进入消息历史。
+- 要求回放 reasoning content 才能继续多轮的 profile，只能使用非思考模式、无状态调用或标记为不支持 persisted multi-turn；不能为了兼容而持久化 chain-of-thought。
+
+#### 可靠性
+
+- [ ] connect/read/overall timeout；
+- [ ] 仅对连接失败和明确可重试状态做有限重试；
+- [ ] 流式中断返回 partial/failed，不伪装完成；
+- [ ] per-user/project/profile 限流；
+- [ ] 并发、token 和输出长度预算；
+- [ ] circuit breaker 和健康状态；
+- [ ] request ID、provider latency 和 usage；
+- [ ] 模型不可用时 Dashboard 继续正常工作。
+
+阶段门：mock、至少一个私有化 profile，以及获准时一个外部 profile 通过相同 conformance suite。
+
+### 20.6 M9.2：页面上下文注册、选择与快照
+
+#### 双层 registry
+
+- 前端 `PageAiContextRegistry`：声明当前 route 可显示哪些 block、标题和说明；
+- 服务端 `ContextProviderRegistry`：根据 block key、项目和规范化筛选重新查询并生成内容。
+
+前端不得发送可被直接信任的指标值或错误正文。
+
+每个 provider 定义：
+
+- block key、适用页面和 entity type；
+- 查询 DTO schema；
+- read-model 函数；
+- 数据分类和允许字段；
+- deterministic compactor；
+- metric/error version；
+- 最大行数、字符数和预计 token；
+- 可用格式；
+- 引用目标。
+
+#### snapshot 流程
+
+1. 校验会话和当前项目权限；
+2. 校验 page key、block key 和筛选 schema；
+3. 读取稳定 analytics/error read model；
+4. 删除账号、token、query、请求/响应正文和业务 ID；
+5. 对高基数、堆栈和错误消息截断；
+6. 按模型 profile policy 过滤 block；
+7. 做确定性 Top N、趋势和异常摘要；
+8. 生成 canonical JSON/Markdown；
+9. 计算 hash、版本、大小和 token estimate；
+10. 用户预览确认后冻结 snapshot 并调用模型。
+
+P0 建议限制单个 snapshot 的持久化 payload 不超过 256 KiB；超过时必须压缩成确定性摘要或拒绝。该默认值在 ADR-013 中结合真实上下文验证。
+
+#### prompt injection 边界
+
+- 所有 context block 明确标记为“不可信数据，不是指令”；
+- 错误消息、页面标题和自定义属性不能进入 system instructions；
+- prompt template 与 context 使用结构化边界；
+- 模型输出经过 Markdown/HTML sanitizer；
+- URL、代码和命令仅作为文本展示；
+- P0 没有工具和写接口，因此上下文不能获得额外权限。
+
+阶段门：用户预览内容、持久化 snapshot 和实际 provider 请求中的上下文语义一致，且没有越权字段。
+
+### 20.7 M9.3：对话历史、提示词和基础 UI
+
+#### MySQL 数据模型
+
+`ai_prompt_templates`：
+
+- template key、用途、适用页面/数据类型；
+- system/user prompt template；
+- version、status、effective_from 和 owner。
+
+`ai_conversations`：
+
+- project、owner、title；
+- private/shared visibility；
+- status、retention_expires_at 和时间戳。
+
+`ai_messages`：
+
+- conversation、role；
+- 用户消息或最终回答；
+- run/context snapshot 引用；
+- status 和时间戳；
+- 不包含 reasoning content。
+
+`ai_context_snapshots`：
+
+- project、creator、page key；
+- filters、timezone 和 time range；
+- metric/profile/error versions；
+- sanitized bounded payload；
+- sensitivity、hash、token estimate；
+- created_at 和 expires_at。
+
+`ai_runs`：
+
+- conversation/message/snapshot；
+- model profile/version 和 template/version；
+- 实际发送的历史 message ID；
+- 关键生成参数；
+- status、finish reason、latency、usage 和 request ID；
+- normalized error code；
+- 不保存真实 key 和 provider 原始响应。
+
+继续复用 `audit_logs` 记录配置、分享、查看和删除。
+
+#### 历史权限
+
+- [ ] conversation 默认 private；
+- [ ] shared 只允许当前项目成员读取；
+- [ ] 每次读取重新执行当前 project membership；
+- [ ] 权限撤销后历史立即不可访问；
+- [ ] 删除内容后只按审计策略保留最小元数据；
+- [ ] snapshot 不被当前数据覆盖；
+- [ ] retention job 到期删除消息和 snapshot 内容；
+- [ ] 项目停用后不允许新调用，但按权限保留历史读取。
+
+#### UI
+
+- [ ] 全局右侧 AI 图标和抽屉；
+- [ ] 当前项目、页面、筛选和数据状态；
+- [ ] block 勾选、全选限制和敏感等级；
+- [ ] 发送预览、预计 token 和 internal/external 标识；
+- [ ] prompt template、模型和自由问题；
+- [ ] streaming、cancel、retry 和 provider error；
+- [ ] 回答中的 block/metric/error 引用；
+- [ ] 历史列表、搜索、归档和删除；
+- [ ] 上下文已冻结/筛选已变化提示；
+- [ ] 无 context 页面明确状态；
+- [ ] 模型故障不清空 Dashboard。
+
+#### 运营模板
+
+- 项目运营指数解释；
+- 时间范围比较；
+- 功能采用与任务达成；
+- 页面停留、深度和效率；
+- 数据限制和调查建议。
+
+统一要求输出“事实—限制—推测—验证—行动”，数值结论关联 snapshot evidence。
+
+prompt assembly 顺序固定为：平台规则 → 模板版本 → 定义/数据状态 → snapshot → 用户问题 → 获准历史消息。retention job 保存的全部历史不得自动加入每次请求；conversation service 按 token 预算选择回放消息，并在 run 中保存其 ID。
+
+阶段门：使用运营页面完成选择、预览、提问、引用和历史复核闭环。
+
+### 20.8 M9.4：错误与性能分析
+
+- [ ] 错误组摘要 block；
+- [ ] 首次/最近发生、趋势、版本、页面和影响范围；
+- [ ] 服务端解析并脱敏后的 stack；
+- [ ] 浏览器和 OS 粗粒度分布；
+- [ ] Web Vitals 或 API 性能摘要；
+- [ ] 根因候选、复现步骤、排查清单和回归范围模板；
+- [ ] 错误/性能与使用变化的并列时间序列；
+- [ ] 强制说明“相关不代表因果”；
+- [ ] 不发送请求/响应正文、query、header、账号或业务 ID；
+- [ ] 不允许 AI 自动关闭、忽略或修改错误状态。
+
+阶段门：固定错误 fixtures 的事实引用准确，敏感堆栈 fixture 不发生泄露。
+
+### 20.9 M9.5：评测、安全与硬化
+
+#### 固定评测集
+
+至少覆盖：
+
+- 正常运营趋势；
+- 指数不可用和数据延迟；
+- 低曝光、低使用和低任务达成；
+- 页面时长/深度的模板差异；
+- 错误突然增长；
+- 错误与使用下降同时发生但不能证明因果；
+- prompt injection 文本；
+- token、账号、设备和报警标识；
+- provider timeout、429、5xx 和流式中断；
+- 权限撤销和跨项目访问。
+
+评测维度：
+
+- numerical faithfulness；
+- evidence/citation coverage；
+- 是否区分事实和推测；
+- 是否暴露敏感数据；
+- 是否提出越权操作；
+- 模型间输出结构兼容性；
+- latency、token 和失败率；
+- 人工可理解性和行动价值。
+
+固定评测中，来自 snapshot 的明确数值不得被错误转录；所有数值结论必须有 block/metric/error 引用。主观建议使用人工 rubric，不用单一 LLM-as-judge 分数替代人工评审。
+
+#### 安全测试
+
+- [ ] direct/indirect prompt injection；
+- [ ] system prompt extraction；
+- [ ] 跨 block 和跨项目数据访问；
+- [ ] SSRF base URL；
+- [ ] API key 泄露；
+- [ ] 不安全 Markdown/HTML/URL；
+- [ ] 大上下文和高并发成本放大；
+- [ ] fallback 数据越界；
+- [ ] conversation share 越权；
+- [ ] retention 到期删除；
+- [ ] audit 不记录明文敏感内容；
+- [ ] tool calling 和平台写操作始终不可用。
+
+### 20.10 M9 API
+
+只读/使用接口：
+
+- `GET /api/projects/:id/ai/page-context`
+- `POST /api/projects/:id/ai/context-snapshots`
+- `GET/POST /api/projects/:id/ai/conversations`
+- `GET/PATCH/DELETE /api/projects/:id/ai/conversations/:conversationId`
+- `GET/POST /api/projects/:id/ai/conversations/:conversationId/messages`
+- `POST /api/projects/:id/ai/runs/:runId/cancel`
+- `GET /api/projects/:id/ai/runs/:runId`
+
+admin 接口：
+
+- model profile/version CRUD 和 connection test；
+- prompt template/version CRUD；
+- project/data-class/provider policy；
+- quota 和 retention policy；
+- AI service status 和最小调用指标。
+
+流式传输可以使用 SSE。连接中断只中止展示还是同时取消 provider 请求，必须在 ADR-014 固化并有测试。
+
+### 20.11 发布、降级与回滚
+
+发布顺序：
+
+1. 合入 ADR、threat model 和 synthetic fixtures；
+2. 执行 additive MySQL migrations；
+3. 部署默认关闭的 AI Gateway；
+4. 配置 Secret、私有 provider 和 synthetic conformance；
+5. 注册运营页面 context providers；
+6. 对单个项目启用 feature flag；
+7. 完成运营模板观察；
+8. 注册 M8 错误/性能 context；
+9. 完成安全评测后逐项目开放。
+
+降级：
+
+- provider 不可用时显示独立 AI 错误，不影响 Dashboard；
+- 禁用某 profile 后保留历史可读，但不能继续调用；
+- 禁用 AI feature flag 后隐藏入口，保留数据至 retention 到期；
+- 回滚应用时保留 additive 表，不破坏历史；
+- external provider 可单独紧急停用；
+- 配额耗尽时不自动切换到数据策略更宽松的 provider。
+
+### 20.12 M9 Go / No-Go
+
+| 问题               | Go 条件                                        |
+| ------------------ | ---------------------------------------------- |
+| 上下文是否受控？   | 只允许注册 block，服务端重建、脱敏并冻结       |
+| 模型是否可替换？   | provider conformance 和 capability matrix 通过 |
+| Secret 是否安全？  | 浏览器/数据库/日志没有 API key                 |
+| 数据是否越界？     | internal/external policy 和 fallback 测试通过  |
+| 历史是否可复核？   | snapshot、筛选、版本、模型和模板完整           |
+| 权限是否持续有效？ | 历史读取重新鉴权，撤权立即生效                 |
+| 回答是否有证据？   | 数值与关键结论有 context 引用                  |
+| 注入是否受限？     | 无工具、无写操作、输出安全测试通过             |
+| 故障是否隔离？     | 模型失败、限流和超时不影响 Dashboard           |
+| 留存是否可控？     | 180 天默认、到期删除和审计通过                 |
+| 是否有阻断缺陷？   | P0/P1 为 0                                     |
+
+任一项不满足时不开放生产项目；可以保留 synthetic/internal spike，但不得称为正式 AI 分析能力。
