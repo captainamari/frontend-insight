@@ -43,12 +43,14 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) response: FastifyReply,
   ) {
-    if (!this.limiter.take(request.ip)) {
+    const body = parseInput(loginSchema, rawBody);
+    const rateLimitKey = `${request.ip}:${body.email.toLowerCase()}`;
+    if (!this.limiter.take(rateLimitKey)) {
       throw new HttpException("LOGIN_RATE_LIMITED", 429);
     }
-    const body = parseInput(loginSchema, rawBody);
     const tokens = await this.core.auth.login(body.email, body.password);
     if (!tokens) throw new HttpException("INVALID_CREDENTIALS", 401);
+    this.limiter.reset(rateLimitKey);
     response.header("set-cookie", this.refreshCookie(tokens.refreshToken));
     return {
       accessToken: tokens.accessToken,

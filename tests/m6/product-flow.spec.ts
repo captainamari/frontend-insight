@@ -28,6 +28,7 @@ test("operation demo emits independently paired v2 terminal events", async ({
   await firstOperation.getByRole("button", { name: "成功" }).click();
   await firstOperation.getByRole("button", { name: "取消" }).click();
   await firstOperation.getByRole("button", { name: "失败" }).click();
+  await expect(page.locator(".event-list")).toContainText("operation_failed");
   await page.getByRole("button", { name: "立即发送" }).click();
   await expect.poll(() => payloads.length).toBeGreaterThan(0);
 
@@ -69,9 +70,9 @@ test("admin can follow overview, page detail, index and versioned configuration"
 
   await page.getByRole("button", { name: /运营概览/ }).click();
   await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
-  await expect(page.getByText("模块使用")).toBeVisible();
-  await expect(page.getByText("核心页面")).toBeVisible();
-  await expect(page.getByText("关键任务")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "模块使用" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "核心页面" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "关键任务" })).toBeVisible();
   await expect(page.getByText("有效活跃账号")).toBeVisible();
   await expect(page.getByText("活跃日覆盖")).toBeVisible();
   await expect(page.getByText("账号", { exact: true }).first()).toBeVisible();
