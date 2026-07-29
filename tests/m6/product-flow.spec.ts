@@ -11,6 +11,12 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
+function navigationButton(page: Page, name: string) {
+  return page
+    .getByRole("navigation", { name: "主导航" })
+    .getByRole("button", { name: new RegExp(`^${name}`) });
+}
+
 test("operation demo emits independently paired v2 terminal events", async ({
   page,
 }) => {
@@ -68,7 +74,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
 }) => {
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
 
-  await page.getByRole("button", { name: /运营概览/ }).click();
+  await navigationButton(page, "运营概览").click();
   await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "模块使用" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "核心页面" })).toBeVisible();
@@ -84,7 +90,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
       page.getByRole("heading", { name: "任务实例与使用效率" }),
     ).toBeVisible();
     await expect(page.getByText("成功耗时 p50 / p75")).toBeVisible();
-    await page.getByRole("button", { name: /运营概览/ }).click();
+    await navigationButton(page, "运营概览").click();
   }
 
   const reports = page.getByRole("button", { name: /经营分析/ });
@@ -97,7 +103,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
     await expect(page.getByText("会话模块广度 p50 / p75")).toBeVisible();
   }
 
-  await page.getByRole("button", { name: /项目运营指数/ }).click();
+  await navigationButton(page, "项目运营指数").click();
   await expect(page.getByRole("heading", { name: "项目运营指数" })).toBeVisible();
   await expect(page.getByText("叶子权重覆盖")).toBeVisible();
   await expect(page.getByText("四维等价明细")).toBeVisible();
@@ -111,9 +117,10 @@ test("admin can follow overview, page detail, index and versioned configuration"
   await expect(page.getByRole("heading", { name: "功能与任务元数据" })).toBeVisible();
   await expect(page.getByText("当前：智慧园区运营指数 v1 · v1")).toBeVisible();
   await expect(page.getByText(/历史参考（当前筛选）/)).toBeVisible();
-  await expect(page.getByText("实时监测 / 驾驶舱")).toBeVisible();
-  await expect(page.getByText("信息分析")).toBeVisible();
-  await expect(page.getByText("任务操作")).toBeVisible();
+  const templateGuidance = page.getByLabel("页面模板业务解释");
+  await expect(templateGuidance.getByText("实时监测 / 驾驶舱")).toBeVisible();
+  await expect(templateGuidance.getByText("信息分析")).toBeVisible();
+  await expect(templateGuidance.getByText("任务操作")).toBeVisible();
   await expect(page.getByText(/配置叶子权重/)).toBeVisible();
 
   const moduleName = `E2E 模块 ${Date.now()}`;
@@ -129,7 +136,7 @@ test("viewer sees M6 evidence but cannot write operational configuration", async
   page,
 }) => {
   await login(page, "viewer@example.invalid", "LocalViewer-1234");
-  await page.getByRole("button", { name: /项目运营指数/ }).click();
+  await navigationButton(page, "项目运营指数").click();
   await expect(page.getByText("配置目标与权重")).toHaveCount(0);
 
   const url = new URL(page.url());
