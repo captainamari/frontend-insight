@@ -49,10 +49,10 @@
 
 ## 4. 兼容与变更策略
 
-- v1 是当前首个版本，因此服务端目前只接受 `schemaVersion=1`。
+- v1 是首个版本；M6 服务端仍接受 `schemaVersion=1`，同时接受 v2。
 - 新增可选字段且不改变旧语义时，更新 Schema、fixtures 和生成类型，但不改变版本号。
 - 删除字段、改名、改变必填性、类型或事件语义属于破坏性变更，必须增加 `schemaVersion`。
-- 引入 v2 后，服务端至少同时接受当前版本 v2 和前一版本 v1；SDK、ingestion 与 consumer 必须使用同一组版本化 validators。
+- v2 已在 M6 引入；operation 语义见 [事件传输契约 v2](event-contract-v2.md)。SDK、ingestion 与 consumer 使用同一组版本化 validators。
 - 停止接受旧版本前，需要先验证 SDK 版本分布，并给出升级窗口和拒绝量监控。
 
 ## 5. 修改流程

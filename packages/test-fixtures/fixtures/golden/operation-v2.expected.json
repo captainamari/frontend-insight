@@ -1,0 +1,13 @@
+{
+  "scenario": "operation_v2",
+  "eventCount": 6,
+  "featureKey": "report_export",
+  "eventNames": [
+    "page_view",
+    "feature_exposed",
+    "feature_started",
+    "feature_succeeded",
+    "feature_started",
+    "feature_failed"
+  ]
+}

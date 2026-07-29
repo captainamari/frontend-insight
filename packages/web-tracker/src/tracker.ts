@@ -1,4 +1,4 @@
-import type { FrontendInsightEventBatchV1 } from "@frontend-insight/event-contract";
+import type { FrontendInsightEventBatchV2 } from "@frontend-insight/event-contract";
 import {
   CONTRACT_LIMITS,
   CURRENT_SCHEMA_VERSION,
@@ -13,6 +13,9 @@ import {
 } from "./privacy.js";
 import type {
   EventProperties,
+  InteractionType,
+  OperationHandle,
+  OperationState,
   PendingBatch,
   Tracker,
   TrackerConfig,
@@ -22,10 +25,13 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.1.0";
+const SDK_VERSION = "0.2.0";
 const visitorStorageKey = "frontend-insight.visitor-id.v1";
 
-function id(runtime: TrackerRuntime, prefix: "evt" | "vis" | "ses" | "pv"): string {
+function id(
+  runtime: TrackerRuntime,
+  prefix: "evt" | "vis" | "ses" | "pv" | "op",
+): string {
   return `${prefix}_${runtime.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
@@ -48,6 +54,7 @@ export class BrowserTracker implements Tracker {
     failedBatches: 0,
     retries: 0,
     beaconFallbacks: 0,
+    duplicateOperationTerminals: 0,
     warnings: [],
   };
   private readonly queue: TrackerEvent[] = [];
@@ -317,6 +324,67 @@ export class BrowserTracker implements Tracker {
     });
   }
 
+  startOperation(
+    featureKey: string,
+    properties: EventProperties = {},
+    interactionType: InteractionType = "programmatic",
+  ): OperationHandle {
+    if (this.destroyed) {
+      return {
+        succeed() {},
+        fail() {},
+        cancel() {},
+        getState: () => "started",
+      };
+    }
+    const operationInstanceId = id(this.runtime, "op");
+    let state: OperationState = "started";
+    this.safe(() =>
+      this.feature("feature_started", featureKey, properties, {
+        operationInstanceId,
+        interactionType,
+      }),
+    );
+
+    const terminal = (
+      next: Exclude<OperationState, "started">,
+      terminalProperties: EventProperties = {},
+      reasonCode?: string,
+    ): void => {
+      this.safe(() => {
+        if (state !== "started") {
+          this.diagnostics.duplicateOperationTerminals += 1;
+          this.warn("OPERATION_ALREADY_TERMINAL");
+          return;
+        }
+        if (
+          next === "failed" &&
+          (!reasonCode || !/^[a-z][a-z0-9_]{0,63}$/.test(reasonCode))
+        ) {
+          this.drop("REASON_CODE_INVALID");
+          return;
+        }
+        state = next;
+        const eventName = `feature_${next}`;
+        this.feature(eventName, featureKey, terminalProperties, {
+          operationInstanceId,
+          interactionType,
+          ...(reasonCode ? { reasonCode } : {}),
+        });
+      });
+    };
+
+    return Object.freeze({
+      succeed: (terminalProperties: EventProperties = {}) =>
+        terminal("succeeded", terminalProperties),
+      fail: (reasonCode: string, terminalProperties: EventProperties = {}) =>
+        terminal("failed", terminalProperties, reasonCode),
+      cancel: (terminalProperties: EventProperties = {}) =>
+        terminal("canceled", terminalProperties),
+      getState: () => state,
+    });
+  }
+
   startLongView(featureKey: string): () => void {
     if (this.destroyed) return () => {};
     if (this.registeredFeatures && !this.registeredFeatures.has(featureKey)) {
@@ -401,13 +469,13 @@ export class BrowserTracker implements Tracker {
     return { batch: this.makeBatch(events), attempts: 0 };
   }
 
-  private makeBatch(events: TrackerEvent[]): FrontendInsightEventBatchV1 {
+  private makeBatch(events: TrackerEvent[]): FrontendInsightEventBatchV2 {
     return {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       projectKey: this.config.projectKey,
       sentAt: new Date(this.runtime.now()).toISOString(),
       sdk: { name: SDK_NAME, version: SDK_VERSION },
-      events: events as unknown as FrontendInsightEventBatchV1["events"],
+      events: events as unknown as FrontendInsightEventBatchV2["events"],
     };
   }
 

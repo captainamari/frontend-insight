@@ -1,16 +1,21 @@
 import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
 import * as addFormatsModule from "ajv-formats";
 import type { FormatsPlugin } from "ajv-formats";
-import schema from "../schema/event-batch.schema.json" with { type: "json" };
+import schemaV1 from "../schema/event-batch.schema.json" with { type: "json" };
+import schemaV2 from "../schema/event-batch-v2.schema.json" with { type: "json" };
 import {
   CONTRACT_LIMITS,
-  CURRENT_SCHEMA_VERSION,
   REJECTION_CODES,
   STANDARD_EVENT_NAMES,
+  SUPPORTED_SCHEMA_VERSIONS,
   type RejectionCode,
 } from "./constants.js";
 import type { FrontendInsightEventBatchV1 } from "./generated/event-batch.js";
+import type { FrontendInsightEventBatchV2 } from "./generated/event-batch-v2.js";
 import { findCredentialLeak } from "./security.js";
+
+export type FrontendInsightEventBatch =
+  FrontendInsightEventBatchV1 | FrontendInsightEventBatchV2;
 
 export interface ContractValidationError {
   code: RejectionCode;
@@ -19,7 +24,7 @@ export interface ContractValidationError {
 }
 
 export type ContractValidationResult =
-  | { ok: true; value: FrontendInsightEventBatchV1 }
+  | { ok: true; value: FrontendInsightEventBatch }
   | { ok: false; errors: ContractValidationError[] };
 
 export interface ValidationOptions {
@@ -34,10 +39,13 @@ const ajv = new Ajv2020({
 });
 const addFormats = addFormatsModule.default as unknown as FormatsPlugin;
 addFormats(ajv);
-const validateSchema = ajv.compile<FrontendInsightEventBatchV1>(schema);
+const validateSchemaV1 = ajv.compile<FrontendInsightEventBatchV1>(schemaV1);
+const validateSchemaV2 = ajv.compile<FrontendInsightEventBatchV2>(schemaV2);
 
 const standardEventNames = new Set<string>(STANDARD_EVENT_NAMES);
 const customEventName = /^(?!page_|feature_)[a-z][a-z0-9_]{0,63}$/;
+const operationInstanceId = /^op_[A-Za-z0-9_-]{16,64}$/;
+const operationRequiredEvents = new Set(["feature_started", "feature_canceled"]);
 
 function error(
   code: RejectionCode,
@@ -73,11 +81,16 @@ export function validateTransportBatch(
     return error(REJECTION_CODES.schemaInvalid, "$", "batch must be an object");
   }
 
-  if (input.schemaVersion !== CURRENT_SCHEMA_VERSION) {
+  if (
+    typeof input.schemaVersion !== "number" ||
+    !SUPPORTED_SCHEMA_VERSIONS.includes(
+      input.schemaVersion as (typeof SUPPORTED_SCHEMA_VERSIONS)[number],
+    )
+  ) {
     return error(
       REJECTION_CODES.schemaVersionUnsupported,
       "/schemaVersion",
-      `supported schemaVersion is ${CURRENT_SCHEMA_VERSION}`,
+      `supported schemaVersions are ${SUPPORTED_SCHEMA_VERSIONS.join(", ")}`,
     );
   }
 
@@ -137,14 +150,41 @@ export function validateTransportBatch(
           "eventName is not a standard or valid custom event name",
         );
       }
+      if (
+        isRecord(event) &&
+        "operationInstanceId" in event &&
+        (typeof event.operationInstanceId !== "string" ||
+          !operationInstanceId.test(event.operationInstanceId))
+      ) {
+        return error(
+          REJECTION_CODES.operationInstanceInvalid,
+          `${path}/operationInstanceId`,
+          "operationInstanceId must be an opaque SDK-generated identifier",
+        );
+      }
+      if (
+        input.schemaVersion === 2 &&
+        isRecord(event) &&
+        typeof event.eventName === "string" &&
+        operationRequiredEvents.has(event.eventName) &&
+        !("operationInstanceId" in event)
+      ) {
+        return error(
+          REJECTION_CODES.operationInstanceInvalid,
+          `${path}/operationInstanceId`,
+          "operation lifecycle event requires operationInstanceId",
+        );
+      }
     }
   }
 
+  const validateSchema =
+    input.schemaVersion === 1 ? validateSchemaV1 : validateSchemaV2;
   if (!validateSchema(input)) {
     return { ok: false, errors: schemaErrors(validateSchema.errors) };
   }
 
-  const batch = input as unknown as FrontendInsightEventBatchV1;
+  const batch = input as unknown as FrontendInsightEventBatch;
 
   const eventIds = new Set<string>();
   const maximumClockSkewMs =

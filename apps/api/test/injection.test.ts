@@ -7,6 +7,7 @@ import { AuthController } from "../src/auth.controller.js";
 import { AuthGuard } from "../src/auth.guard.js";
 import { CoreService } from "../src/core.service.js";
 import { IngestionController } from "../src/ingestion.controller.js";
+import { OperationalController } from "../src/operational.controller.js";
 import { ProjectsController } from "../src/projects.controller.js";
 import { SystemController } from "../src/system.controller.js";
 
@@ -25,6 +26,7 @@ describe("NestJS runtime injection metadata", () => {
     AuthController,
     IngestionController,
     ProjectsController,
+    OperationalController,
     SystemController,
   ])("declares CoreService explicitly for %s", (controller) => {
     expect(injectionTokens(controller)).toEqual([CoreService]);

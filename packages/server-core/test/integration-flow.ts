@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { createClient } from "@clickhouse/client";
-import type { FrontendInsightEventBatchV1 } from "@frontend-insight/event-contract";
+import type { FrontendInsightEventBatch } from "@frontend-insight/event-contract";
 import { contractScenarios } from "@frontend-insight/test-fixtures";
 import mysql from "mysql2/promise";
 import type { RowDataPacket } from "mysql2/promise";
-import { m5Fixture, seedM5Fixture } from "../scripts/m5-fixture.js";
+import { m5Fixture } from "../scripts/m5-fixture.js";
+import { seedM6Fixture } from "../scripts/m6-fixture.js";
 
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const mysqlUrl = process.env.MYSQL_URL;
@@ -38,9 +39,9 @@ function jsonHeaders(extra: Record<string, string> = {}): Record<string, string>
 }
 
 function shiftBatch(
-  source: FrontendInsightEventBatchV1,
+  source: FrontendInsightEventBatch,
   sentAtMs: number,
-): FrontendInsightEventBatchV1 {
+): FrontendInsightEventBatch {
   const sourceSentAt = Date.parse(source.sentAt);
   const batch = structuredClone(source);
   batch.sentAt = new Date(sentAtMs).toISOString();
@@ -49,12 +50,41 @@ function shiftBatch(
     eventTime: new Date(
       sentAtMs + Date.parse(event.eventTime) - sourceSentAt,
     ).toISOString(),
-  })) as FrontendInsightEventBatchV1["events"];
+  })) as FrontendInsightEventBatch["events"];
+  return batch;
+}
+
+function uniqueOperationBatch(
+  source: FrontendInsightEventBatch,
+  index: number,
+): FrontendInsightEventBatch {
+  if (source.schemaVersion !== 2) throw new Error("V2_FIXTURE_REQUIRED");
+  const batch = structuredClone(source);
+  const suffix = String(index).padStart(2, "0");
+  batch.events = batch.events.map((event) => {
+    const operationNumber =
+      "operationInstanceId" in event && event.operationInstanceId?.endsWith("2")
+        ? index * 2 + 2
+        : index * 2 + 1;
+    return {
+      ...event,
+      eventId: `${event.eventId}_${suffix}`,
+      visitorId: `vis_m6_fixture_${suffix}`,
+      sessionId: `ses_m6_fixture_${suffix}`,
+      pageViewId: `pv_m6_fixture_${suffix}`,
+      accountRef: `opaque-account-m6-${suffix}`,
+      ...("operationInstanceId" in event && event.operationInstanceId
+        ? {
+            operationInstanceId: `op_${String(operationNumber).padStart(32, "0")}`,
+          }
+        : {}),
+    };
+  }) as FrontendInsightEventBatch["events"];
   return batch;
 }
 
 async function seed(): Promise<void> {
-  await seedM5Fixture(mysqlUrl!, {
+  await seedM6Fixture(mysqlUrl!, {
     origins: [
       origin,
       "http://127.0.0.1:4173",
@@ -116,9 +146,19 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   try {
     const baselineRows = await rawCount(clickhouse);
-    const batches = contractScenarios.map((scenario, index) =>
+    const baseBatches = contractScenarios.map((scenario, index) =>
       shiftBatch(scenario.valid, startedAt - 5_000 - index * 1_000),
     );
+    const operationSource = contractScenarios.find(
+      (scenario) => scenario.valid.schemaVersion === 2,
+    )!.valid;
+    const operationSamples = Array.from({ length: 4 }, (_, index) =>
+      shiftBatch(
+        uniqueOperationBatch(operationSource, index + 1),
+        startedAt - 10_000 - index * 1_000,
+      ),
+    );
+    const batches = [...baseBatches, ...operationSamples];
     for (const batch of [...batches, ...batches]) {
       const accepted = await jsonRequest("/v1/events", {
         method: "POST",
@@ -203,11 +243,11 @@ async function main(): Promise<void> {
     );
     const current = overview.body.current as Record<string, number>;
     assert(
-      current.pv === 3,
-      `query-side eventId dedupe expected 3 PV, got ${current.pv}`,
+      current.pv === 8,
+      `query-side eventId dedupe expected 8 PV, got ${current.pv}`,
     );
-    assert(current.visitors === 3, "overview must expose browser count");
-    assert(current.accounts === 3, "overview must expose HMAC account count");
+    assert(current.visitors === 8, "overview must expose browser count");
+    assert(current.accounts === 8, "overview must expose HMAC account count");
 
     const features = await jsonRequest(
       `/api/projects/${projectId}/analytics/features?${query}`,
@@ -226,16 +266,117 @@ async function main(): Promise<void> {
       Array.isArray(features.body.sdkVersions),
       "feature adoption overview must include SDK version distribution",
     );
-    for (const scenario of contractScenarios) {
+    const expectedSuccesses = new Map([
+      ["sales_dashboard", 1],
+      ["report_export", 6],
+      ["operations_wallboard", 1],
+    ]);
+    for (const [featureKey, expectedSuccess] of expectedSuccesses) {
       const item = featureItems.find(
-        (candidate) => candidate.featureKey === scenario.golden.featureKey,
+        (candidate) => candidate.featureKey === featureKey,
       );
-      assert(item, `feature result missing ${scenario.golden.featureKey}`);
+      assert(item, `feature result missing ${featureKey}`);
       assert(
-        item.success_count === 1,
-        `${scenario.golden.featureKey} success must dedupe to one`,
+        item.success_count === expectedSuccess,
+        `${featureKey} success count must dedupe across duplicate batches`,
       );
     }
+
+    const operationalOverview = await jsonRequest(
+      `/api/projects/${projectId}/analytics/operational-overview?${query}`,
+      { headers: adminHeaders },
+    );
+    assert(
+      operationalOverview.response.status === 200,
+      `operational overview failed: ${JSON.stringify(operationalOverview.body)}`,
+    );
+    const operationalSummary = operationalOverview.body.summary as Record<
+      string,
+      number
+    >;
+    assert(
+      operationalSummary.pageViews === 8 && operationalSummary.activeAccounts === 8,
+      "operational overview must preserve raw PV and registered valid-account semantics",
+    );
+    const operationalTasks = operationalOverview.body.keyTasks as Array<
+      Record<string, unknown>
+    >;
+    const reportExportTask = operationalTasks.find(
+      (item) => item.featureKey === "report_export",
+    );
+    assert(
+      reportExportTask?.started === 10 &&
+        reportExportTask.succeeded === 5 &&
+        reportExportTask.failed === 5,
+      "v2 operation instances must pair independently and dedupe duplicate events",
+    );
+    const pageDetail = await jsonRequest(
+      `/api/projects/${projectId}/analytics/page-detail?${query}&route=%2Freports`,
+      { headers: adminHeaders },
+    );
+    assert(
+      pageDetail.response.status === 200 &&
+        (pageDetail.body.classification as Record<string, unknown>)?.status ===
+          "classified" &&
+        Array.isArray(pageDetail.body.trend),
+      "page detail must expose classification and route-scoped trend evidence",
+    );
+    const taskDetail = await jsonRequest(
+      `/api/projects/${projectId}/analytics/tasks/${featureIds.report_export}?${query}`,
+      { headers: adminHeaders },
+    );
+    assert(
+      taskDetail.response.status === 200 &&
+        (taskDetail.body.metrics as Record<string, unknown>)?.started === 10 &&
+        typeof taskDetail.body.availableFrom === "string",
+      "task detail must expose v2 availability and operation metrics",
+    );
+    const operationalIndex = await jsonRequest(
+      `/api/projects/${projectId}/operational-index?${query}`,
+      { headers: adminHeaders },
+    );
+    assert(
+      operationalIndex.response.status === 200,
+      `operational index failed: ${JSON.stringify(operationalIndex.body)}`,
+    );
+    assert(
+      (operationalIndex.body.profile as Record<string, unknown>)?.version === 1,
+      "operational index must expose the active profile version",
+    );
+    assert(
+      (operationalIndex.body.index as Record<string, unknown>)?.status === "available",
+      "fixed M6 fixture must satisfy the index eligibility gates",
+    );
+    assert(
+      Array.isArray(operationalIndex.body.rawMetrics) &&
+        operationalIndex.body.rawMetrics.length === 10,
+      "operational index must retain all raw metric results",
+    );
+    const lineage = await jsonRequest(
+      `/api/projects/${projectId}/metrics/project_operational_index/lineage`,
+      { headers: viewerHeaders },
+    );
+    assert(
+      lineage.response.status === 200 &&
+        Array.isArray(lineage.body.nodes) &&
+        Array.isArray(lineage.body.edges),
+      "viewer can inspect metric lineage JSON",
+    );
+    const viewerSettingsWrite = await jsonRequest(
+      `/api/projects/${projectId}/operational-settings/versions`,
+      {
+        method: "POST",
+        headers: viewerHeaders,
+        body: JSON.stringify({
+          targetAccounts: 20,
+          expectedActiveWeekdays: [1, 2, 3, 4, 5],
+        }),
+      },
+    );
+    assert(
+      viewerSettingsWrite.response.status === 403,
+      "viewer cannot change operational targets",
+    );
 
     const detail = await jsonRequest(
       `/api/projects/${projectId}/analytics/features/${featureIds.operations_wallboard}?${query}`,
@@ -319,6 +460,9 @@ async function main(): Promise<void> {
         featureCount: featureItems.length,
         longViewVisibleDurationMs: detailMetrics.visible_duration_ms,
         dataState: status.body.state,
+        operationalProfileVersion: (
+          operationalIndex.body.profile as Record<string, unknown>
+        )?.version,
         runId: randomUUID(),
       }),
     );

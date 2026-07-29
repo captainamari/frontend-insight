@@ -19,6 +19,10 @@ const pagesSchema = rangeSchema.extend({
   direction: z.enum(["asc", "desc"]).default("desc"),
 });
 
+const pageDetailSchema = rangeSchema.extend({
+  route: z.string().min(1).max(512),
+});
+
 @Controller("api/projects/:projectId/analytics")
 export class AnalyticsController {
   constructor(@Inject(CoreService) private readonly core: CoreService) {}
@@ -80,6 +84,48 @@ export class AnalyticsController {
   ) {
     await this.authorize(principal, projectId);
     return this.core.analytics.featureDetail(projectId, featureId, this.range(query));
+  }
+
+  @Get("operational-overview")
+  async operationalOverview(
+    @Param("projectId") projectId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId);
+    return this.core.analytics.operationalOverview(projectId, this.range(query));
+  }
+
+  @Get("modules")
+  async modules(
+    @Param("projectId") projectId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId);
+    return this.core.analytics.modules(projectId, this.range(query));
+  }
+
+  @Get("page-detail")
+  async pageDetail(
+    @Param("projectId") projectId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId);
+    const parsed = parseInput(pageDetailSchema, query);
+    return this.core.analytics.pageDetail(projectId, parsed.route, parsed);
+  }
+
+  @Get("tasks/:featureId")
+  async taskDetail(
+    @Param("projectId") projectId: string,
+    @Param("featureId") featureId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId);
+    return this.core.analytics.taskDetail(projectId, featureId, this.range(query));
   }
 
   private range(query: unknown): AnalyticsRange {

@@ -3,7 +3,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/app.Dockerfile
-    command: [pnpm, --filter, "@frontend-insight/server-core", seed:m5]
+    command: [pnpm, --filter, "@frontend-insight/server-core", seed:m6]
     environment:
       MYSQL_URL: mysql://frontend_insight:${M24_MYSQL_PASSWORD:-m5-mysql-local-only}@mysql:3306/frontend_insight
       M5_PROJECT_ORIGINS: http://localhost:${M5_WEB_PORT:-4173},http://127.0.0.1:${M5_WEB_PORT:-4173},http://localhost:${M5_DEMO_PORT:-4174},http://127.0.0.1:${M5_DEMO_PORT:-4174}

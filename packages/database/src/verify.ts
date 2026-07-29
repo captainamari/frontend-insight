@@ -30,7 +30,13 @@ const expectedTables = [
   "auth_sessions",
   "features",
   "identities",
+  "metric_profile_assignments",
+  "metric_profile_items",
+  "metric_profiles",
+  "page_definitions",
   "project_members",
+  "project_modules",
+  "project_operational_settings",
   "project_origins",
   "project_data_status",
   "projects",
@@ -110,8 +116,11 @@ async function verifyUpgradeAndIdempotency() {
       mysqlV1.applied.includes(1) &&
       mysqlUpgrade.applied.includes(2) &&
       mysqlUpgrade.applied.includes(3) &&
+      mysqlUpgrade.applied.includes(4) &&
       clickhouseV1.applied.includes(1) &&
-      clickhouseUpgrade.applied.includes(2),
+      clickhouseUpgrade.applied.includes(2) &&
+      clickhouseUpgrade.applied.includes(3) &&
+      clickhouseUpgrade.applied.includes(4),
   };
 }
 
@@ -194,7 +203,7 @@ async function verifyMySqlMetadata() {
       "SELECT version, checksum FROM schema_migrations ORDER BY version",
     );
     if (
-      migrationRows.length !== 3 ||
+      migrationRows.length !== 4 ||
       migrationRows.some((row) => String(row.checksum).length !== 64)
     ) {
       throw new Error("MySQL migration ledger is incomplete");
@@ -211,7 +220,12 @@ async function verifyMySqlMetadata() {
       throw new Error("MySQL fixture features were not queryable by project");
     }
 
-    return { tables, migrationVersions: [1, 2, 3], featureTypes: 3, requestId };
+    return {
+      tables,
+      migrationVersions: [1, 2, 3, 4],
+      featureTypes: 3,
+      requestId,
+    };
   } finally {
     await pool.end();
   }
@@ -257,6 +271,10 @@ async function verifyClickHouseRawEvents() {
         visitor_id: event.visitorId,
         session_id: event.sessionId,
         page_view_id: event.pageViewId,
+        operation_instance_id:
+          "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
+        interaction_type:
+          "interactionType" in event ? (event.interactionType ?? null) : null,
         account_id: accountId(event.accountRef),
         feature_id: resolveFeatureId(event.featureKey),
         feature_key: event.featureKey ?? null,
@@ -297,7 +315,7 @@ async function verifyClickHouseRawEvents() {
 
     const expectedFeatureCounts: Record<string, number> = {
       sales_dashboard: 2,
-      report_export: 3,
+      report_export: 8,
       operations_wallboard: 5,
     };
     const featureResponse = await client.query({
@@ -325,6 +343,33 @@ async function verifyClickHouseRawEvents() {
     }
     if (Object.keys(expectedFeatureCounts).length) {
       throw new Error("one or more fixture features were not queryable");
+    }
+
+    const operationResponse = await client.query({
+      query: `
+        SELECT
+          uniqExact(operation_instance_id) AS instances,
+          countIf(event_name = 'feature_started') AS started,
+          countIf(event_name IN ('feature_succeeded', 'feature_failed', 'feature_canceled')) AS terminals
+        FROM raw_events
+        WHERE request_id = {requestId:UUID}
+          AND schema_version = 2
+          AND operation_instance_id IS NOT NULL
+      `,
+      query_params: { requestId },
+      format: "JSONEachRow",
+    });
+    const operationRows = await operationResponse.json<{
+      instances: string;
+      started: string;
+      terminals: string;
+    }>();
+    if (
+      Number(operationRows[0]?.instances) !== 2 ||
+      Number(operationRows[0]?.started) !== 2 ||
+      Number(operationRows[0]?.terminals) !== 2
+    ) {
+      throw new Error("v2 operation instances were not preserved in ClickHouse");
     }
 
     const privacyResponse = await client.query({
@@ -400,6 +445,7 @@ async function verifyClickHouseRawEvents() {
       requestId,
       insertedEvents: rows.length,
       featureQueries: 3,
+      operationInstances: 2,
       rawAccountReferences: 0,
       dataSkippingIndices: 2,
       ttlDays: 90,

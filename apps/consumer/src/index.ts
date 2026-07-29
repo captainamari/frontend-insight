@@ -227,6 +227,10 @@ export class EventConsumerRuntime {
         feature_stage: event.eventName.startsWith("feature_")
           ? event.eventName.slice("feature_".length)
           : null,
+        operation_instance_id:
+          "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
+        interaction_type:
+          "interactionType" in event ? (event.interactionType ?? null) : null,
         duration_ms:
           typeof properties.durationMs === "number" ? properties.durationMs : null,
         route: event.route,

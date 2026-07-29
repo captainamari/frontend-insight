@@ -36,7 +36,9 @@ describe("golden event scenarios", () => {
         const result = validate(scenario.invalid);
         expect(result.ok).toBe(false);
         if (!result.ok) {
-          expect(result.errors[0]?.code).toBe(REJECTION_CODES.schemaInvalid);
+          expect(result.errors[0]?.code).toBe(
+            scenario.invalidRejectionCode ?? REJECTION_CODES.schemaInvalid,
+          );
         }
       }
     });
@@ -47,11 +49,22 @@ describe("contract limits and rejection codes", () => {
   const source = contractScenarios[0]!.valid;
 
   it("rejects unsupported versions before schema validation", () => {
-    const batch = { ...structuredClone(source), schemaVersion: 2 };
+    const batch = { ...structuredClone(source), schemaVersion: 3 };
     const result = validateTransportBatch(batch);
     expect(result).toMatchObject({
       ok: false,
       errors: [{ code: REJECTION_CODES.schemaVersionUnsupported }],
+    });
+  });
+
+  it("accepts both v1 and v2 and requires SDK operation IDs for v2 starts", () => {
+    expect(validateTransportBatch(contractScenarios[0]!.valid).ok).toBe(true);
+    expect(validateTransportBatch(contractScenarios.at(-1)!.valid).ok).toBe(true);
+    const invalid = structuredClone(contractScenarios.at(-1)!.valid);
+    delete invalid.events[2]!.operationInstanceId;
+    expect(validateTransportBatch(invalid)).toMatchObject({
+      ok: false,
+      errors: [{ code: REJECTION_CODES.operationInstanceInvalid }],
     });
   });
 

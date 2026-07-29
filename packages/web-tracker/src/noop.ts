@@ -9,6 +9,7 @@ export function createNoopTracker(code: string, development = false): Tracker {
     failedBatches: 0,
     retries: 0,
     beaconFallbacks: 0,
+    duplicateOperationTerminals: 0,
     lastErrorCode: code,
     warnings: [code],
   };
@@ -20,6 +21,12 @@ export function createNoopTracker(code: string, development = false): Tracker {
     featureStarted() {},
     featureSucceeded() {},
     featureFailed() {},
+    startOperation: () => ({
+      succeed() {},
+      fail() {},
+      cancel() {},
+      getState: () => "started",
+    }),
     startLongView: () => () => {},
     flush: async () => {},
     destroy() {

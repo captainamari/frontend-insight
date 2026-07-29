@@ -1,7 +1,8 @@
 import { createHmac, randomUUID } from "node:crypto";
 import {
+  SUPPORTED_SCHEMA_VERSIONS,
   validateForIngestion,
-  type FrontendInsightEventBatchV1,
+  type FrontendInsightEventBatch,
 } from "@frontend-insight/event-contract";
 import { Kafka, logLevel, type Producer } from "kafkajs";
 import type { MySqlStore } from "./mysql-store.js";
@@ -122,12 +123,19 @@ class IngestionRateLimiter {
 }
 
 const stageByFeatureType: Record<string, ReadonlySet<string>> = {
-  data_view: new Set(["feature_exposed", "feature_succeeded", "feature_failed"]),
+  data_view: new Set([
+    "feature_exposed",
+    "feature_started",
+    "feature_succeeded",
+    "feature_failed",
+    "feature_canceled",
+  ]),
   action: new Set([
     "feature_exposed",
     "feature_started",
     "feature_succeeded",
     "feature_failed",
+    "feature_canceled",
   ]),
   long_view: new Set([
     "feature_exposed",
@@ -138,6 +146,12 @@ const stageByFeatureType: Record<string, ReadonlySet<string>> = {
     "feature_long_view_ended",
   ]),
 };
+const operationLifecycleEvents = new Set([
+  "feature_started",
+  "feature_succeeded",
+  "feature_failed",
+  "feature_canceled",
+]);
 
 interface CachedProject {
   expiresAt: number;
@@ -256,7 +270,7 @@ export class IngestionManager {
       return {
         requestId,
         acceptedEvents: batch.events.length,
-        supportedSchemaVersions: [1],
+        supportedSchemaVersions: SUPPORTED_SCHEMA_VERSIONS,
       };
     } catch (cause) {
       const error =
@@ -314,8 +328,8 @@ export class IngestionManager {
 
   private sanitize(
     project: ProjectIngestionConfig,
-    source: FrontendInsightEventBatchV1,
-  ): { batch: FrontendInsightEventBatchV1; enrichments: EventEnrichment[] } {
+    source: FrontendInsightEventBatch,
+  ): { batch: FrontendInsightEventBatch; enrichments: EventEnrichment[] } {
     const features = new Map(
       project.features.map((feature) => [feature.featureKey, feature]),
     );
@@ -323,7 +337,18 @@ export class IngestionManager {
     const events = source.events.map((sourceEvent) => {
       const event = structuredClone(sourceEvent);
       const feature = event.featureKey ? features.get(event.featureKey) : undefined;
-      if (event.featureKey) this.assertFeature(event.eventName, feature);
+      const operationInstanceId =
+        "operationInstanceId" in event && typeof event.operationInstanceId === "string"
+          ? event.operationInstanceId
+          : undefined;
+      if (event.featureKey) {
+        this.assertFeature(
+          event.eventName,
+          feature,
+          source.schemaVersion,
+          operationInstanceId,
+        );
+      }
       const accountId = event.accountRef
         ? createHmac("sha256", this.accountHmacKey)
             .update(`${project.id}:${event.accountRef}`)
@@ -340,17 +365,34 @@ export class IngestionManager {
     return {
       batch: {
         ...source,
-        events: events as FrontendInsightEventBatchV1["events"],
-      },
+        events,
+      } as FrontendInsightEventBatch,
       enrichments,
     };
   }
 
-  private assertFeature(eventName: string, feature: FeatureRecord | undefined): void {
+  private assertFeature(
+    eventName: string,
+    feature: FeatureRecord | undefined,
+    schemaVersion: number,
+    operationInstanceId: string | undefined,
+  ): void {
     if (!feature) throw new IngestionError("FEATURE_NOT_FOUND", 400);
     if (feature.status !== "active") throw new IngestionError("FEATURE_DISABLED", 403);
     if (!stageByFeatureType[feature.featureType]?.has(eventName)) {
       throw new IngestionError("FEATURE_STAGE_INVALID", 400, {
+        featureType: feature.featureType,
+        eventName,
+      });
+    }
+    if (
+      schemaVersion === 2 &&
+      feature.operationLifecycleEnabled &&
+      feature.featureType !== "long_view" &&
+      operationLifecycleEvents.has(eventName) &&
+      !operationInstanceId
+    ) {
+      throw new IngestionError("OPERATION_INSTANCE_REQUIRED", 400, {
         featureType: feature.featureType,
         eventName,
       });

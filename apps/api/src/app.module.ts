@@ -7,6 +7,7 @@ import { AuthGuard } from "./auth.guard.js";
 import { CoreService } from "./core.service.js";
 import { ApiExceptionFilter } from "./http.js";
 import { IngestionController } from "./ingestion.controller.js";
+import { OperationalController } from "./operational.controller.js";
 import { ProjectsController } from "./projects.controller.js";
 import { SystemController } from "./system.controller.js";
 
@@ -17,6 +18,7 @@ import { SystemController } from "./system.controller.js";
     IngestionController,
     ProjectsController,
     AnalyticsController,
+    OperationalController,
     SystemController,
   ],
   providers: [

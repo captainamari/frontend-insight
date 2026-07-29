@@ -1,6 +1,6 @@
-export const CURRENT_SCHEMA_VERSION = 1 as const;
+export const CURRENT_SCHEMA_VERSION = 2 as const;
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [CURRENT_SCHEMA_VERSION] as const;
+export const SUPPORTED_SCHEMA_VERSIONS = [1, CURRENT_SCHEMA_VERSION] as const;
 
 export const CONTRACT_LIMITS = Object.freeze({
   maximumBatchBytes: 64 * 1024,
@@ -16,6 +16,7 @@ export const STANDARD_EVENT_NAMES = [
   "feature_started",
   "feature_succeeded",
   "feature_failed",
+  "feature_canceled",
   "feature_long_view_started",
   "feature_long_view_heartbeat",
   "feature_long_view_ended",
@@ -31,6 +32,7 @@ export const REJECTION_CODES = Object.freeze({
   duplicateEventId: "DUPLICATE_EVENT_ID",
   credentialDataRejected: "CREDENTIAL_DATA_REJECTED",
   eventTimeOutOfRange: "EVENT_TIME_OUT_OF_RANGE",
+  operationInstanceInvalid: "OPERATION_INSTANCE_INVALID",
 });
 
 export type RejectionCode = (typeof REJECTION_CODES)[keyof typeof REJECTION_CODES];
