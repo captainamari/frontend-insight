@@ -6,9 +6,7 @@ describe("database migration inventory", () => {
   it("has ordered, checksummed upgrade paths for both engines", async () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
-      expect(migrations.map((migration) => migration.version)).toEqual(
-        engine === "mysql" ? [1, 2, 3] : [1, 2],
-      );
+      expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,
       );
@@ -49,6 +47,13 @@ describe("database migration inventory", () => {
   it("splits multi-statement ClickHouse migrations only at explicit markers", async () => {
     const migration = (await discoverMigrations("clickhouse"))[1]!;
     expect(splitClickHouseStatements(migration.sql)).toHaveLength(2);
+  });
+
+  it("adds SDK name through an upgrade-safe ClickHouse migration", async () => {
+    const migration = (await discoverMigrations("clickhouse"))[2]!;
+    expect(migration.name).toBe("sdk_name");
+    expect(migration.sql).toContain("ADD COLUMN IF NOT EXISTS sdk_name");
+    expect(migration.sql).toContain("DEFAULT 'unknown'");
   });
 
   it("keeps migration files readable from both source and compiled locations", async () => {

@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed:m5": "tsx scripts/seed-m5.ts",
     "verify:flow": "tsx test/integration-flow.ts"
   },
   "dependencies": {

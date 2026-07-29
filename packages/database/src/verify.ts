@@ -248,6 +248,7 @@ async function verifyClickHouseRawEvents() {
       return {
         event_id: event.eventId,
         schema_version: scenario.valid.schemaVersion,
+        sdk_name: scenario.valid.sdk.name,
         sdk_version: scenario.valid.sdk.version,
         project_id: projectId,
         event_name: event.eventName,

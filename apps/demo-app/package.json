@@ -1,19 +1,16 @@
 {
-  "name": "@frontend-insight/web",
+  "name": "@frontend-insight/demo-app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
-    "typecheck": "vue-tsc --noEmit",
-    "test": "vitest run --root ../.. apps/web/test"
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "echarts": "6.0.0",
-    "element-plus": "2.11.4",
-    "vue": "3.5.22",
-    "vue-router": "4.5.1"
+    "@frontend-insight/web-tracker": "workspace:*",
+    "vue": "3.5.22"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "6.0.1",
