@@ -4,7 +4,7 @@
 
 待评审方案：
 
-- [运营指标与可解释健康度重评估及实施计划 v0.1](planning/operational-metrics-health-plan-v0.1.md)：基于 M0–M5 实现重新评估运营指标目录、健康画像、影响范围和后续里程碑；评审通过前不改变 v1.5/v1.2 基线。
+- [智慧园区内部产品运营指标与项目运营指数方案 v0.2](planning/operational-metrics-health-plan-v0.2.md)：结合弗物云业务背景，定义页面/模块/任务指标、项目运营指数、DWS 式指标语义层、血缘和后续里程碑；[v0.1](planning/operational-metrics-health-plan-v0.1.md) 保留用于查看评审演进。评审通过前不改变 v1.5/v1.2 基线。
 
 建议阅读顺序：
 
