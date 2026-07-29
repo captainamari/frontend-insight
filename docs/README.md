@@ -1,17 +1,19 @@
 # Frontend Insight 文档索引
 
-当前评审基线：2026-07-27。最新产品基线为需求文档 v1.5，旧版保留用于查看决策演进。
+当前评审基线：2026-07-29。本轮待评审产品基线为需求文档 v1.6，待评审开发基线为 MVP 开发计划 v1.3；M0–M5 当前实现仍以 v1.5/v1.2 和对应验收记录为历史依据。
 
-待评审方案：
+本轮基线：
 
-- [智慧园区内部产品运营指标与项目运营指数方案 v0.2](planning/operational-metrics-health-plan-v0.2.md)：结合弗物云业务背景，定义页面/模块/任务指标、项目运营指数、DWS 式指标语义层、血缘和后续里程碑；[v0.1](planning/operational-metrics-health-plan-v0.1.md) 保留用于查看评审演进。评审通过前不改变 v1.5/v1.2 基线。
+- [需求文档 v1.6](product/requirements-v1.6.md)：面向智慧园区等复杂内部产品，定义模块/页面/任务、三类页面模板、运营指标、事件 v2、项目运营指数及 M8 前端可观测性边界；
+- [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：在已完成 M0–M5 的基础上，将 M6 拆为实体与 ADR、页面指标、任务实例、指标语义、项目指数、前端闭环和真实用户走查；
+- [智慧园区内部产品运营指标与项目运营指数方案 v0.2](planning/operational-metrics-health-plan-v0.2.md)：第二轮评审通过的决策来源；[v0.1](planning/operational-metrics-health-plan-v0.1.md) 保留用于查看评审演进。
 
 建议阅读顺序：
 
 1. [v1.3 评审报告](reviews/v1.3-review.md)：了解最初范围、用户体验和技术方案为何调整；
-2. [需求文档 v1.5](product/requirements-v1.5.md)：以功能采用为核心，确认三类使用场景、身份边界、MVP 范围和验收标准；
-3. [MVP 开发计划 v1.2](planning/mvp-plan-v1.2.md)：按阶段门、任务、测试与 Go/No-Go 标准执行；
-4. [M5 Mac 本地全流程指南](guides/local-full-flow-macos.md)：从环境体检到三类场景、管理后台和数据闭环验证。
+2. [需求文档 v1.6](product/requirements-v1.6.md)：确认最新产品定位、指标口径、项目运营指数和验收边界；
+3. [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：按 M6 阶段门、任务、测试、迁移和 Go/No-Go 标准执行；
+4. [M5 Mac 本地全流程指南](guides/local-full-flow-macos.md)：验证当前 M0–M5 实现，从环境体检到三类场景、管理后台和数据闭环。
 
 当前实现与验收记录：
 
@@ -35,6 +37,9 @@
 - [测试、运维与变更手册](learning/06-testing-operations-and-change-playbooks.md)：按症状排障，并安全修改契约、指标、权限和 migration；
 - [M0–M4 代码精读实验](learning/07-code-reading-labs.md)：验证 SPA 生命周期、长时大屏、重复交付、refresh rotation、DST 和故障恢复。
 
-历史基线：[需求文档 v1.4](product/requirements-v1.4.md)、[MVP 开发计划 v1.1](planning/mvp-plan-v1.1.md)。
+历史基线：
 
-实现过程中，产品范围以需求文档为准，任务次序以开发计划为准，架构方向变更通过 `docs/adr/` 中的 ADR 记录。
+- [需求文档 v1.5](product/requirements-v1.5.md) 与 [MVP 开发计划 v1.2](planning/mvp-plan-v1.2.md)：M0–M5 功能采用实现基线；
+- [需求文档 v1.4](product/requirements-v1.4.md) 与 [MVP 开发计划 v1.1](planning/mvp-plan-v1.1.md)：早期范围基线。
+
+实现过程中，产品范围以最新需求文档为准，任务次序以最新开发计划为准，架构方向变更通过 `docs/adr/` 中的 ADR 记录。
