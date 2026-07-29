@@ -32,8 +32,10 @@ test("three controlled scenarios keep simulated credentials out of telemetry", a
   const firstOperation = page.locator(".operation-row").first();
   await firstOperation.getByRole("button", { name: "成功" }).click();
   await firstOperation.getByRole("button", { name: "取消" }).click();
+  await firstOperation.getByRole("button", { name: "失败" }).click();
   await expect(page.locator(".event-list")).toContainText("只表示开始，不计入成功使用");
   await expect(page.locator(".event-list")).toContainText("用户明确取消");
+  await expect(page.locator(".event-list")).toContainText("未计入成功");
 
   await page.getByRole("button", { name: /持续展示/ }).click();
   await page.getByRole("button", { name: "开始持续展示" }).click();
