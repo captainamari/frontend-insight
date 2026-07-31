@@ -30,7 +30,9 @@ const currentProject = computed(() => projects.find(selectedProject.value));
 
 const navigation = [
   { route: "features", label: "功能采用", eyebrow: "默认首页" },
+  { route: "operational-overview", label: "运营概览", eyebrow: "持续使用" },
   { route: "pages", label: "页面访问", eyebrow: "访问证据" },
+  { route: "operational-index", label: "项目运营指数", eyebrow: "可解释摘要" },
   { route: "onboarding", label: "项目与接入", eyebrow: "配置和排障" },
 ] as const;
 
@@ -85,7 +87,15 @@ watch(
           :class="{
             active:
               route.name === item.route ||
-              (item.route === 'features' && route.name === 'feature-detail'),
+              (item.route === 'features' &&
+                route.name === 'feature-detail' &&
+                route.query.evidence !== 'task') ||
+              (item.route === 'operational-overview' &&
+                route.name === 'feature-detail' &&
+                route.query.evidence === 'task') ||
+              (item.route === 'operational-overview' && route.name === 'page-detail') ||
+              (item.route === 'operational-index' &&
+                route.name === 'operational-config'),
           }"
           type="button"
           @click="navigate(item.route)"
@@ -98,8 +108,8 @@ watch(
       <div class="sidebar-note">
         <span class="status-dot" aria-hidden="true"></span>
         <div>
-          <strong>只提供采用证据</strong>
-          <small>不生成健康度或设计得分</small>
+          <strong>运营指数可下钻</strong>
+          <small>不替代技术 SLO 或人员绩效</small>
         </div>
       </div>
     </aside>

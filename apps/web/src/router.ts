@@ -23,9 +23,29 @@ export const router = createRouter({
           component: () => import("./views/FeatureDetailView.vue"),
         },
         {
+          path: "operational",
+          name: "operational-overview",
+          component: () => import("./views/OperationalOverviewView.vue"),
+        },
+        {
           path: "pages",
           name: "pages",
           component: () => import("./views/PagesView.vue"),
+        },
+        {
+          path: "page-detail",
+          name: "page-detail",
+          component: () => import("./views/PageDetailView.vue"),
+        },
+        {
+          path: "operational-index",
+          name: "operational-index",
+          component: () => import("./views/OperationalIndexView.vue"),
+        },
+        {
+          path: "operational-config",
+          name: "operational-config",
+          component: () => import("./views/OperationalConfigView.vue"),
         },
         {
           path: "onboarding",

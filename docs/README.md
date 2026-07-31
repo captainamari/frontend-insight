@@ -1,6 +1,6 @@
 # Frontend Insight 文档索引
 
-当前评审基线：2026-07-29。本轮待评审产品基线为需求文档 v1.6，待评审开发基线为 MVP 开发计划 v1.3；M0–M5 当前实现仍以 v1.5/v1.2 和对应验收记录为历史依据。
+当前实现基线：2026-07-29。M0–M5 以 v1.5/v1.2 和对应验收记录为历史依据；M6 按已通过评审的需求文档 v1.6 与 MVP 开发计划 v1.3 实现。
 
 本轮基线：
 
@@ -13,19 +13,25 @@
 1. [v1.3 评审报告](reviews/v1.3-review.md)：了解最初范围、用户体验和技术方案为何调整；
 2. [需求文档 v1.6](product/requirements-v1.6.md)：确认最新产品定位、指标口径、项目运营指数、可观测性和 AI 分析边界；
 3. [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：按 M6–M9 阶段门、任务、测试、迁移和 Go/No-Go 标准执行；
-4. [M5 Mac 本地全流程指南](guides/local-full-flow-macos.md)：验证当前 M0–M5 实现，从环境体检到三类场景、管理后台和数据闭环。
+4. [M6 Mac 本地验收指引](guides/m6-local-acceptance-macos.md)：验证 v1/v2 双版本链路、运营指标、项目运营指数、配置版本和 M0–M5 回归。
 
 当前实现与验收记录：
 
 - [ADR-007：M0 本地 Mac 运行基线](adr/ADR-007-local-mac-runtime.md)；
 - [M0 技术验证与本地验收](spikes/m0-results.md)；
 - [事件传输契约 v1](contracts/event-contract-v1.md)；
+- [事件传输契约 v2](contracts/event-contract-v2.md)；
 - [ADR-008：事件契约与数据库迁移边界](adr/ADR-008-contract-and-migration-boundaries.md)；
+- [ADR-009：运营实体与模板](adr/ADR-009-operational-entities-and-templates.md)；
+- [ADR-010：事件 v2 与任务实例](adr/ADR-010-event-contract-v2-operation-lifecycle.md)；
+- [ADR-011：指标目录与血缘](adr/ADR-011-metric-catalog-and-lineage.md)；
+- [ADR-012：项目运营指数 v1](adr/ADR-012-operational-index-v1.md)；
 - [M1 本地工程与迁移验收](guides/m1-local-engineering-macos.md)；
 - [M1 实现与验收记录](progress/m1-results.md)；
 - [M2–M4 本地验收指引](guides/m2-m4-local-macos.md)；
 - [M2–M4 实现与验收记录](progress/m2-m4-results.md)；
 - [M5 实现与验收记录](progress/m5-results.md)。
+- [M6 本地验收指引](guides/m6-local-acceptance-macos.md)。
 
 项目学习与维护：
 

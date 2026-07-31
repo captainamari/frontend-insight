@@ -68,6 +68,12 @@ const createFeatureSchema = z.object({
   longViewSuccessAfterMs: z.number().int().min(1_000).max(3_600_000).default(30_000),
   heartbeatIntervalMs: z.number().int().min(5_000).max(3_600_000).default(60_000),
   launchedAt: z.string().datetime().optional(),
+  pageDefinitionId: z.string().uuid().nullable().optional(),
+  isKeyTask: z.boolean().default(false),
+  taskWeight: z.number().positive().max(100).default(1),
+  taskTimeoutSeconds: z.number().int().min(30).max(86_400).default(900),
+  operationLifecycleEnabled: z.boolean().default(false),
+  configurationEffectiveFrom: z.string().datetime().optional(),
 });
 
 const updateFeatureSchema = z
@@ -78,6 +84,12 @@ const updateFeatureSchema = z
     longViewSuccessAfterMs: z.number().int().min(1_000).max(3_600_000).optional(),
     heartbeatIntervalMs: z.number().int().min(5_000).max(3_600_000).optional(),
     launchedAt: z.string().datetime().nullable().optional(),
+    pageDefinitionId: z.string().uuid().nullable().optional(),
+    isKeyTask: z.boolean().optional(),
+    taskWeight: z.number().positive().max(100).optional(),
+    taskTimeoutSeconds: z.number().int().min(30).max(86_400).optional(),
+    operationLifecycleEnabled: z.boolean().optional(),
+    configurationEffectiveFrom: z.string().datetime().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "at least one field is required");
 

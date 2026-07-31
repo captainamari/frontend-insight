@@ -32,8 +32,10 @@ test("three controlled scenarios keep simulated credentials out of telemetry", a
   const firstOperation = page.locator(".operation-row").first();
   await firstOperation.getByRole("button", { name: "成功" }).click();
   await firstOperation.getByRole("button", { name: "取消" }).click();
+  await firstOperation.getByRole("button", { name: "失败" }).click();
   await expect(page.locator(".event-list")).toContainText("只表示开始，不计入成功使用");
-  await expect(page.locator(".event-list")).toContainText("user_cancelled");
+  await expect(page.locator(".event-list")).toContainText("用户明确取消");
+  await expect(page.locator(".event-list")).toContainText("未计入成功");
 
   await page.getByRole("button", { name: /持续展示/ }).click();
   await page.getByRole("button", { name: "开始持续展示" }).click();
@@ -54,6 +56,7 @@ test("three controlled scenarios keep simulated credentials out of telemetry", a
   expect(serialized).toContain("feature_started");
   expect(serialized).toContain("feature_succeeded");
   expect(serialized).toContain("feature_failed");
+  expect(serialized).toContain("feature_canceled");
   expect(serialized).toContain("feature_long_view_ended");
 });
 
@@ -65,7 +68,7 @@ test("admin can finish the URL-preserving product loop", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
   await expect(page.getByText("销售数据看板")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("账号转化")).toBeVisible();
+  await expect(page.getByText("曝光后使用率（账号）")).toBeVisible();
   await expect(page.getByText("重复账号 / 浏览器")).toBeVisible();
 
   const url = new URL(page.url());

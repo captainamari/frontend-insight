@@ -1,5 +1,8 @@
 import { createHmac } from "node:crypto";
-import type { FrontendInsightEventBatchV1 } from "@frontend-insight/event-contract";
+import type {
+  FrontendInsightEventBatch,
+  FrontendInsightEventBatchV1,
+} from "@frontend-insight/event-contract";
 import { contractScenarios } from "@frontend-insight/test-fixtures";
 import { describe, expect, it, vi } from "vitest";
 import type { KafkaEventEnvelope, ProjectIngestionConfig } from "../src/model.js";
@@ -27,6 +30,12 @@ const project: ProjectIngestionConfig = {
       name: "Sales dashboard",
       description: null,
       featureType: "data_view",
+      pageDefinitionId: null,
+      isKeyTask: false,
+      taskWeight: 1,
+      taskTimeoutSeconds: 900,
+      operationLifecycleEnabled: false,
+      configurationEffectiveFrom: "2026-07-01T00:00:00.000Z",
       longViewSuccessAfterMs: 30_000,
       heartbeatIntervalMs: 60_000,
       launchedAt: null,
@@ -36,7 +45,15 @@ const project: ProjectIngestionConfig = {
 };
 
 function fixture(): FrontendInsightEventBatchV1 {
-  return structuredClone(contractScenarios[0]!.valid);
+  return structuredClone(
+    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 1)!.valid,
+  ) as FrontendInsightEventBatchV1;
+}
+
+function operationFixture(): FrontendInsightEventBatch {
+  return structuredClone(
+    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 2)!.valid,
+  );
 }
 
 function setup(
@@ -106,11 +123,32 @@ describe("ingestion pipeline", () => {
   it("rejects a stage that is invalid for the registered feature type", async () => {
     const { manager } = setup();
     const batch = fixture();
-    batch.events[1]!.eventName = "feature_started";
+    batch.events[1]!.eventName = "feature_long_view_started";
     await expect(manager.accept(batch, context)).rejects.toMatchObject({
       code: "FEATURE_STAGE_INVALID",
       statusCode: 400,
     });
+  });
+
+  it("accepts v2 operation events and preserves instance identity", async () => {
+    const operationProject: ProjectIngestionConfig = {
+      ...project,
+      features: [
+        {
+          ...project.features[0]!,
+          featureKey: "report_export",
+          featureType: "action",
+          operationLifecycleEnabled: true,
+        },
+      ],
+    };
+    const { manager, publish } = setup({ projectOverride: operationProject });
+    await manager.accept(operationFixture(), context);
+    const envelope = publish.mock.calls[0]![0];
+    expect(envelope.batch.schemaVersion).toBe(2);
+    expect(
+      envelope.batch.events.filter((event) => "operationInstanceId" in event),
+    ).toHaveLength(4);
   });
 
   it("returns a stable 503 only when Kafka persistence fails", async () => {

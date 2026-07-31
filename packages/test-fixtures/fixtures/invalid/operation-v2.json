@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "projectKey": "fi_public_m1demo001",
+  "sentAt": "2026-07-19T17:10:00.000Z",
+  "sdk": {
+    "name": "web-tracker",
+    "version": "0.2.0"
+  },
+  "events": [
+    {
+      "eventId": "evt_operation_v2_cancel_invalid",
+      "eventName": "feature_canceled",
+      "eventTime": "2026-07-19T17:09:58.000Z",
+      "visitorId": "vis_operation_v2_001",
+      "sessionId": "ses_operation_v2_001",
+      "pageViewId": "pv_operation_v2_001",
+      "route": "/reports",
+      "featureKey": "report_export",
+      "timezoneOffsetMinutes": 0,
+      "properties": {}
+    }
+  ]
+}

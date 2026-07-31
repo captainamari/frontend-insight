@@ -225,7 +225,7 @@ watch(
                 formatNumber(row.success_count)
               }}</template>
             </el-table-column>
-            <el-table-column label="账号转化" width="104">
+            <el-table-column label="曝光后使用率（账号）" min-width="160">
               <template #default="{ row }">
                 {{ formatPercent(row.accountConversionRate) }}
               </template>

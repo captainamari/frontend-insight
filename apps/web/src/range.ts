@@ -101,3 +101,15 @@ export function formatDateTime(value: string | null | undefined): string {
     timeStyle: "short",
   }).format(new Date(value));
 }
+
+export function formatDuration(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  if (value < 1_000) return `${Math.round(value)} ms`;
+  if (value < 60_000) return `${(value / 1_000).toFixed(1)} 秒`;
+  return `${(value / 60_000).toFixed(1)} 分钟`;
+}
+
+export function formatScore(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return value.toFixed(1);
+}

@@ -90,4 +90,12 @@ describe("login rate limiter", () => {
     now = 1_000;
     expect(limiter.take("ip")).toBe(true);
   });
+
+  it("clears accumulated attempts after a successful authentication", () => {
+    const limiter = new FixedWindowRateLimiter(2, 1_000);
+    expect(limiter.take("ip:account")).toBe(true);
+    expect(limiter.take("ip:account")).toBe(true);
+    limiter.reset("ip:account");
+    expect(limiter.take("ip:account")).toBe(true);
+  });
 });

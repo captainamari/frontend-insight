@@ -206,7 +206,23 @@ watch(
             :data="resource.data.value?.pages.items ?? []"
             empty-text="所选范围内没有匹配页面"
           >
-            <el-table-column prop="route" label="归一化路由" min-width="280" />
+            <el-table-column label="归一化路由" min-width="280">
+              <template #default="{ row }">
+                <button
+                  type="button"
+                  class="table-link"
+                  @click="
+                    router.push({
+                      name: 'page-detail',
+                      query: { ...route.query, route: row.route },
+                    })
+                  "
+                >
+                  <strong>{{ row.route }}</strong>
+                  <small>查看停留、深度与页面任务</small>
+                </button>
+              </template>
+            </el-table-column>
             <el-table-column label="PV" width="100">
               <template #default="{ row }">{{ formatNumber(row.pv) }}</template>
             </el-table-column>

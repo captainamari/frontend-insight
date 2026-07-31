@@ -6,7 +6,7 @@ describe("database migration inventory", () => {
   it("has ordered, checksummed upgrade paths for both engines", async () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
-      expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3]);
+      expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,
       );
@@ -26,6 +26,12 @@ describe("database migration inventory", () => {
       "audit_logs",
       "auth_sessions",
       "project_data_status",
+      "project_modules",
+      "page_definitions",
+      "project_operational_settings",
+      "metric_profiles",
+      "metric_profile_items",
+      "metric_profile_assignments",
     ]) {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
     }
@@ -54,6 +60,13 @@ describe("database migration inventory", () => {
     expect(migration.name).toBe("sdk_name");
     expect(migration.sql).toContain("ADD COLUMN IF NOT EXISTS sdk_name");
     expect(migration.sql).toContain("DEFAULT 'unknown'");
+  });
+
+  it("adds operation identity without rewriting the raw event table", async () => {
+    const migration = (await discoverMigrations("clickhouse"))[3]!;
+    expect(migration.name).toBe("operation_instance");
+    expect(migration.sql).toContain("operation_instance_id");
+    expect(migration.sql).toContain("interaction_type");
   });
 
   it("keeps migration files readable from both source and compiled locations", async () => {

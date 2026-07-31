@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:m5:e2e": "playwright test --config playwright.m5.config.ts",
+    "test:m6:e2e": "playwright test --config playwright.m6.config.ts",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",

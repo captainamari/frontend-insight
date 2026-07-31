@@ -3,11 +3,19 @@ import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import mysql from "mysql2/promise";
 import type {
   DataStatusRecord,
+  ExpectedFrequency,
   FeatureRecord,
   FeatureType,
   GlobalRole,
+  MetricDimensionKey,
+  MetricProfileItem,
+  MetricProfileRecord,
+  ModuleRecord,
+  PageDefinitionRecord,
+  PageTemplate,
   Principal,
   ProjectIngestionConfig,
+  ProjectOperationalSettings,
   ProjectRecord,
   ProjectRole,
 } from "./model.js";
@@ -58,12 +66,98 @@ function featureFromRow(row: RowDataPacket): FeatureRecord {
     name: String(row.name),
     description: row.description === null ? null : String(row.description),
     featureType: row.feature_type as FeatureType,
+    pageDefinitionId: row.page_definition_id ? String(row.page_definition_id) : null,
+    isKeyTask: Boolean(row.is_key_task),
+    taskWeight: Number(row.task_weight ?? 1),
+    taskTimeoutSeconds: Number(row.task_timeout_seconds ?? 900),
+    operationLifecycleEnabled: Boolean(row.operation_lifecycle_enabled),
+    configurationEffectiveFrom: new Date(
+      (row.configuration_effective_from ??
+        row.created_at ??
+        "1970-01-01T00:00:00.000Z") as string,
+    ).toISOString(),
     longViewSuccessAfterMs: Number(row.long_view_success_after_ms),
     heartbeatIntervalMs: Number(row.heartbeat_interval_ms),
     launchedAt: row.launched_at
       ? new Date(row.launched_at as string).toISOString()
       : null,
     status: row.status as "active" | "disabled",
+  };
+}
+
+function moduleFromRow(row: RowDataPacket): ModuleRecord {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    moduleKey: String(row.module_key),
+    name: String(row.name),
+    criticalityWeight: Number(row.criticality_weight),
+    displayOrder: Number(row.display_order),
+    status: row.status as "active" | "disabled",
+    effectiveFrom: new Date(row.effective_from as string).toISOString(),
+  };
+}
+
+function pageFromRow(row: RowDataPacket): PageDefinitionRecord {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    moduleId: String(row.module_id),
+    normalizedRoute: String(row.normalized_route),
+    name: String(row.name),
+    templateKey: row.template_key as PageTemplate,
+    isCore: Boolean(row.is_core),
+    criticalityWeight: Number(row.criticality_weight),
+    expectedFrequency: row.expected_frequency as ExpectedFrequency,
+    status: row.status as "active" | "disabled",
+    effectiveFrom: new Date(row.effective_from as string).toISOString(),
+  };
+}
+
+function parseWeekdays(value: unknown): number[] {
+  if (Array.isArray(value)) return value.map(Number);
+  if (typeof value === "string") {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) return parsed.map(Number);
+  }
+  return [];
+}
+
+function operationalSettingsFromRow(row: RowDataPacket): ProjectOperationalSettings {
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    version: Number(row.version),
+    targetAccounts: row.target_accounts === null ? null : Number(row.target_accounts),
+    expectedActiveWeekdays: parseWeekdays(row.expected_active_weekdays),
+    status: row.status as "active" | "superseded",
+    effectiveFrom: new Date(row.effective_from as string).toISOString(),
+    effectiveTo: row.effective_to
+      ? new Date(row.effective_to as string).toISOString()
+      : null,
+  };
+}
+
+function profileItemFromRow(row: RowDataPacket): MetricProfileItem {
+  const optionalNumber = (value: unknown): number | null =>
+    value === null || value === undefined ? null : Number(value);
+  return {
+    id: String(row.id),
+    profileId: String(row.profile_id),
+    metricKey: String(row.metric_key),
+    dimensionKey: row.dimension_key as MetricDimensionKey,
+    dimensionWeight: Number(row.dimension_weight),
+    metricWeight: Number(row.metric_weight),
+    targetValue: optionalNumber(row.target_value),
+    floorValue: optionalNumber(row.floor_value),
+    ceilingValue: optionalNumber(row.ceiling_value),
+    targetMin: optionalNumber(row.target_min),
+    targetMax: optionalNumber(row.target_max),
+    toleranceMin: optionalNumber(row.tolerance_min),
+    toleranceMax: optionalNumber(row.tolerance_max),
+    minimumSample: optionalNumber(row.minimum_sample),
+    enabled: Boolean(row.enabled),
+    required: Boolean(row.required),
   };
 }
 
@@ -543,6 +637,669 @@ export class MySqlStore {
     }
   }
 
+  async listModules(projectId: string): Promise<ModuleRecord[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM project_modules
+       WHERE project_id = ?
+       ORDER BY display_order, name, id`,
+      [projectId],
+    );
+    return rows.map(moduleFromRow);
+  }
+
+  async createModule(input: {
+    projectId: string;
+    moduleKey: string;
+    name: string;
+    criticalityWeight: number;
+    displayOrder: number;
+    effectiveFrom?: string | undefined;
+    actor: Principal;
+  }): Promise<ModuleRecord> {
+    const id = randomUUID();
+    await this.pool.execute(
+      `INSERT INTO project_modules
+         (id, project_id, module_key, name, criticality_weight, display_order,
+          status, effective_from)
+       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
+      [
+        id,
+        input.projectId,
+        input.moduleKey,
+        input.name,
+        input.criticalityWeight,
+        input.displayOrder,
+        input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+      ],
+    );
+    await this.audit({
+      projectId: input.projectId,
+      actorUserId: input.actor.userId,
+      action: "module.created",
+      entityType: "module",
+      entityId: id,
+      metadata: {
+        moduleKey: input.moduleKey,
+        effectiveFrom: input.effectiveFrom ?? null,
+      },
+    });
+    return (await this.listModules(input.projectId)).find((item) => item.id === id)!;
+  }
+
+  async updateModule(
+    projectId: string,
+    moduleId: string,
+    input: {
+      name?: string | undefined;
+      criticalityWeight?: number | undefined;
+      displayOrder?: number | undefined;
+      status?: "active" | "disabled" | undefined;
+      effectiveFrom?: string | undefined;
+      actor: Principal;
+    },
+  ): Promise<ModuleRecord> {
+    const assignments: string[] = [];
+    const values: Array<string | number | Date | null> = [];
+    const columns: Array<
+      [keyof typeof input, string, (value: unknown) => string | number | Date]
+    > = [
+      ["name", "name", String],
+      ["criticalityWeight", "criticality_weight", Number],
+      ["displayOrder", "display_order", Number],
+      ["status", "status", String],
+      ["effectiveFrom", "effective_from", (value) => new Date(String(value))],
+    ];
+    for (const [key, column, transform] of columns) {
+      if (input[key] !== undefined) {
+        assignments.push(`${column} = ?`);
+        values.push(transform(input[key]));
+      }
+    }
+    if (input.status !== undefined) {
+      assignments.push("disabled_at = ?");
+      values.push(input.status === "disabled" ? new Date() : null);
+    }
+    if (assignments.length) {
+      const [result] = await this.pool.execute(
+        `UPDATE project_modules SET ${assignments.join(", ")}
+         WHERE id = ? AND project_id = ?`,
+        [...values, moduleId, projectId],
+      );
+      if ((result as { affectedRows: number }).affectedRows !== 1) {
+        throw new Error("MODULE_NOT_FOUND");
+      }
+    }
+    await this.audit({
+      projectId,
+      actorUserId: input.actor.userId,
+      action: "module.updated",
+      entityType: "module",
+      entityId: moduleId,
+      metadata: { changedFields: Object.keys(input).filter((key) => key !== "actor") },
+    });
+    const module = (await this.listModules(projectId)).find(
+      (item) => item.id === moduleId,
+    );
+    if (!module) throw new Error("MODULE_NOT_FOUND");
+    return module;
+  }
+
+  async listPageDefinitions(projectId: string): Promise<PageDefinitionRecord[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM page_definitions
+       WHERE project_id = ?
+       ORDER BY name, normalized_route, id`,
+      [projectId],
+    );
+    return rows.map(pageFromRow);
+  }
+
+  async createPageDefinition(input: {
+    projectId: string;
+    moduleId: string;
+    normalizedRoute: string;
+    name: string;
+    templateKey: PageTemplate;
+    isCore: boolean;
+    criticalityWeight: number;
+    expectedFrequency: ExpectedFrequency;
+    effectiveFrom?: string | undefined;
+    actor: Principal;
+  }): Promise<PageDefinitionRecord> {
+    const module = (await this.listModules(input.projectId)).find(
+      (item) => item.id === input.moduleId,
+    );
+    if (!module) throw new Error("MODULE_NOT_FOUND");
+    const id = randomUUID();
+    await this.pool.execute(
+      `INSERT INTO page_definitions
+         (id, project_id, module_id, normalized_route, name, template_key,
+          is_core, criticality_weight, expected_frequency, status, effective_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+      [
+        id,
+        input.projectId,
+        input.moduleId,
+        input.normalizedRoute,
+        input.name,
+        input.templateKey,
+        input.isCore,
+        input.criticalityWeight,
+        input.expectedFrequency,
+        input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
+      ],
+    );
+    await this.audit({
+      projectId: input.projectId,
+      actorUserId: input.actor.userId,
+      action: "page_definition.created",
+      entityType: "page",
+      entityId: id,
+      metadata: {
+        normalizedRoute: input.normalizedRoute,
+        templateKey: input.templateKey,
+      },
+    });
+    return (await this.listPageDefinitions(input.projectId)).find(
+      (item) => item.id === id,
+    )!;
+  }
+
+  async updatePageDefinition(
+    projectId: string,
+    pageId: string,
+    input: {
+      moduleId?: string | undefined;
+      name?: string | undefined;
+      templateKey?: PageTemplate | undefined;
+      isCore?: boolean | undefined;
+      criticalityWeight?: number | undefined;
+      expectedFrequency?: ExpectedFrequency | undefined;
+      status?: "active" | "disabled" | undefined;
+      effectiveFrom?: string | undefined;
+      actor: Principal;
+    },
+  ): Promise<PageDefinitionRecord> {
+    if (
+      input.moduleId &&
+      !(await this.listModules(projectId)).some((item) => item.id === input.moduleId)
+    ) {
+      throw new Error("MODULE_NOT_FOUND");
+    }
+    const assignments: string[] = [];
+    const values: Array<string | number | boolean | Date | null> = [];
+    const columns: Array<
+      [keyof typeof input, string, (value: unknown) => string | number | boolean | Date]
+    > = [
+      ["moduleId", "module_id", String],
+      ["name", "name", String],
+      ["templateKey", "template_key", String],
+      ["isCore", "is_core", Boolean],
+      ["criticalityWeight", "criticality_weight", Number],
+      ["expectedFrequency", "expected_frequency", String],
+      ["status", "status", String],
+      ["effectiveFrom", "effective_from", (value) => new Date(String(value))],
+    ];
+    for (const [key, column, transform] of columns) {
+      if (input[key] !== undefined) {
+        assignments.push(`${column} = ?`);
+        values.push(transform(input[key]));
+      }
+    }
+    if (input.status !== undefined) {
+      assignments.push("disabled_at = ?");
+      values.push(input.status === "disabled" ? new Date() : null);
+    }
+    if (assignments.length) {
+      const [result] = await this.pool.execute(
+        `UPDATE page_definitions SET ${assignments.join(", ")}
+         WHERE id = ? AND project_id = ?`,
+        [...values, pageId, projectId],
+      );
+      if ((result as { affectedRows: number }).affectedRows !== 1) {
+        throw new Error("PAGE_DEFINITION_NOT_FOUND");
+      }
+    }
+    await this.audit({
+      projectId,
+      actorUserId: input.actor.userId,
+      action: "page_definition.updated",
+      entityType: "page",
+      entityId: pageId,
+      metadata: { changedFields: Object.keys(input).filter((key) => key !== "actor") },
+    });
+    const page = (await this.listPageDefinitions(projectId)).find(
+      (item) => item.id === pageId,
+    );
+    if (!page) throw new Error("PAGE_DEFINITION_NOT_FOUND");
+    return page;
+  }
+
+  async getOperationalSettings(
+    projectId: string,
+    at = new Date(),
+  ): Promise<ProjectOperationalSettings | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM project_operational_settings
+       WHERE project_id = ?
+         AND effective_from <= ?
+         AND (effective_to IS NULL OR effective_to > ?)
+       ORDER BY version DESC LIMIT 1`,
+      [projectId, at, at],
+    );
+    return rows[0] ? operationalSettingsFromRow(rows[0]) : null;
+  }
+
+  async listOperationalSettings(
+    projectId: string,
+  ): Promise<ProjectOperationalSettings[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM project_operational_settings
+       WHERE project_id = ? ORDER BY version DESC`,
+      [projectId],
+    );
+    return rows.map(operationalSettingsFromRow);
+  }
+
+  async createOperationalSettingsVersion(input: {
+    projectId: string;
+    targetAccounts: number | null;
+    expectedActiveWeekdays: number[];
+    effectiveFrom?: string | undefined;
+    actor: Principal;
+  }): Promise<ProjectOperationalSettings> {
+    const id = randomUUID();
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id = ? FOR UPDATE", [
+        input.projectId,
+      ]);
+      const [versionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT
+           COALESCE(MAX(version), 0) + 1 AS next_version,
+           MAX(effective_from) AS latest_effective_from
+         FROM project_operational_settings
+         WHERE project_id = ? FOR UPDATE`,
+        [input.projectId],
+      );
+      const latestEffectiveFrom = versionRows[0]?.latest_effective_from;
+      if (
+        latestEffectiveFrom &&
+        effectiveFrom <= new Date(latestEffectiveFrom as string)
+      ) {
+        throw new Error("SETTINGS_EFFECTIVE_FROM_NOT_AFTER_LATEST");
+      }
+      const version = Number(versionRows[0]?.next_version ?? 1);
+      await connection.execute(
+        `UPDATE project_operational_settings
+         SET status = 'superseded', effective_to = ?
+         WHERE project_id = ? AND status = 'active' AND effective_from < ?`,
+        [effectiveFrom, input.projectId, effectiveFrom],
+      );
+      await connection.execute(
+        `INSERT INTO project_operational_settings
+           (id, project_id, version, target_accounts, expected_active_weekdays,
+            status, effective_from, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
+        [
+          id,
+          input.projectId,
+          version,
+          input.targetAccounts,
+          JSON.stringify(input.expectedActiveWeekdays),
+          effectiveFrom,
+          input.actor.userId,
+        ],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "operational_settings.version_created",
+        entityType: "project_operational_settings",
+        entityId: id,
+        metadata: {
+          version,
+          effectiveFrom: effectiveFrom.toISOString(),
+          targetAccountsConfigured: input.targetAccounts !== null,
+          expectedActiveWeekdays: input.expectedActiveWeekdays,
+        },
+      });
+      await connection.commit();
+      return {
+        id,
+        projectId: input.projectId,
+        version,
+        targetAccounts: input.targetAccounts,
+        expectedActiveWeekdays: [...input.expectedActiveWeekdays],
+        status: "active",
+        effectiveFrom: effectiveFrom.toISOString(),
+        effectiveTo: null,
+      };
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+  }
+
+  private async profileItems(profileId: string): Promise<MetricProfileItem[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM metric_profile_items
+       WHERE profile_id = ? ORDER BY dimension_key, metric_key`,
+      [profileId],
+    );
+    return rows.map(profileItemFromRow);
+  }
+
+  async listMetricProfiles(projectId: string): Promise<MetricProfileRecord[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM metric_profiles
+       WHERE project_id = ? ORDER BY profile_key, version DESC`,
+      [projectId],
+    );
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: String(row.id),
+        projectId: String(row.project_id),
+        profileKey: String(row.profile_key),
+        name: String(row.name),
+        version: Number(row.version),
+        status: row.status as "draft" | "active" | "retired",
+        effectiveFrom: row.effective_from
+          ? new Date(row.effective_from as string).toISOString()
+          : null,
+        items: await this.profileItems(String(row.id)),
+      })),
+    );
+  }
+
+  async getActiveMetricProfile(
+    projectId: string,
+    at = new Date(),
+  ): Promise<MetricProfileRecord | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT p.*
+       FROM metric_profile_assignments a
+       JOIN metric_profiles p ON p.id = a.profile_id
+       WHERE a.project_id = ?
+         AND a.entity_type = 'project'
+         AND a.entity_id = ?
+         AND a.effective_from <= ?
+         AND (a.effective_to IS NULL OR a.effective_to > ?)
+       ORDER BY a.effective_from DESC LIMIT 1`,
+      [projectId, projectId, at, at],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      projectId: String(row.project_id),
+      profileKey: String(row.profile_key),
+      name: String(row.name),
+      version: Number(row.version),
+      status: "active",
+      effectiveFrom: row.effective_from
+        ? new Date(row.effective_from as string).toISOString()
+        : null,
+      items: await this.profileItems(String(row.id)),
+    };
+  }
+
+  async createMetricProfileVersion(input: {
+    projectId: string;
+    profileKey: string;
+    name: string;
+    sourceProfileId?: string | undefined;
+    items?: Array<Omit<MetricProfileItem, "id" | "profileId">> | undefined;
+    actor: Principal;
+  }): Promise<MetricProfileRecord> {
+    const id = randomUUID();
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id = ? FOR UPDATE", [
+        input.projectId,
+      ]);
+      const [versionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+         FROM metric_profiles
+         WHERE project_id = ? AND profile_key = ? FOR UPDATE`,
+        [input.projectId, input.profileKey],
+      );
+      const version = Number(versionRows[0]?.next_version ?? 1);
+      let items = input.items;
+      if (!items && input.sourceProfileId) {
+        const [sourceRows] = await connection.query<RowDataPacket[]>(
+          `SELECT i.* FROM metric_profile_items i
+           JOIN metric_profiles p ON p.id = i.profile_id
+           WHERE i.profile_id = ? AND p.project_id = ?`,
+          [input.sourceProfileId, input.projectId],
+        );
+        if (!sourceRows.length) throw new Error("METRIC_PROFILE_SOURCE_NOT_FOUND");
+        items = sourceRows.map((row) => {
+          const item = profileItemFromRow(row);
+          const { id: _id, profileId: _profileId, ...copy } = item;
+          void _id;
+          void _profileId;
+          return copy;
+        });
+      }
+      if (!items?.length) throw new Error("METRIC_PROFILE_ITEMS_REQUIRED");
+      await connection.execute(
+        `INSERT INTO metric_profiles
+           (id, project_id, profile_key, name, version, status, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 'draft', ?)`,
+        [
+          id,
+          input.projectId,
+          input.profileKey,
+          input.name,
+          version,
+          input.actor.userId,
+        ],
+      );
+      for (const item of items) {
+        await connection.execute(
+          `INSERT INTO metric_profile_items
+             (id, profile_id, metric_key, dimension_key, dimension_weight,
+              metric_weight, target_value, floor_value, ceiling_value,
+              target_min, target_max, tolerance_min, tolerance_max,
+              minimum_sample, enabled, required)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            randomUUID(),
+            id,
+            item.metricKey,
+            item.dimensionKey,
+            item.dimensionWeight,
+            item.metricWeight,
+            item.targetValue,
+            item.floorValue,
+            item.ceilingValue,
+            item.targetMin,
+            item.targetMax,
+            item.toleranceMin,
+            item.toleranceMax,
+            item.minimumSample,
+            item.enabled,
+            item.required,
+          ],
+        );
+      }
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "metric_profile.version_created",
+        entityType: "metric_profile",
+        entityId: id,
+        metadata: {
+          profileKey: input.profileKey,
+          version,
+          sourceProfileId: input.sourceProfileId ?? null,
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (await this.listMetricProfiles(input.projectId)).find(
+      (item) => item.id === id,
+    )!;
+  }
+
+  async activateMetricProfile(input: {
+    projectId: string;
+    profileId: string;
+    effectiveFrom?: string | undefined;
+    actor: Principal;
+  }): Promise<MetricProfileRecord> {
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+    const assignmentId = randomUUID();
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id = ? FOR UPDATE", [
+        input.projectId,
+      ]);
+      const [profileRows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM metric_profiles
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.profileId, input.projectId],
+      );
+      const profile = profileRows[0];
+      if (!profile) throw new Error("METRIC_PROFILE_NOT_FOUND");
+      if (profile.status !== "draft") {
+        throw new Error("METRIC_PROFILE_NOT_DRAFT");
+      }
+      const [assignmentRows] = await connection.query<RowDataPacket[]>(
+        `SELECT MAX(effective_from) AS latest_effective_from
+         FROM metric_profile_assignments
+         WHERE project_id = ? AND entity_type = 'project' AND entity_id = ?`,
+        [input.projectId, input.projectId],
+      );
+      const latestEffectiveFrom = assignmentRows[0]?.latest_effective_from;
+      if (
+        latestEffectiveFrom &&
+        effectiveFrom <= new Date(latestEffectiveFrom as string)
+      ) {
+        throw new Error("PROFILE_EFFECTIVE_FROM_NOT_AFTER_LATEST");
+      }
+      await connection.execute(
+        `UPDATE metric_profiles
+         SET status = 'retired'
+         WHERE project_id = ? AND status = 'active'`,
+        [input.projectId],
+      );
+      await connection.execute(
+        `UPDATE metric_profiles
+         SET status = 'active', effective_from = ?
+         WHERE id = ? AND project_id = ?`,
+        [effectiveFrom, input.profileId, input.projectId],
+      );
+      await connection.execute(
+        `UPDATE metric_profile_assignments
+         SET effective_to = ?
+         WHERE project_id = ? AND entity_type = 'project'
+           AND entity_id = ? AND effective_to IS NULL`,
+        [effectiveFrom, input.projectId, input.projectId],
+      );
+      await connection.execute(
+        `INSERT INTO metric_profile_assignments
+           (id, project_id, entity_type, entity_id, profile_id, effective_from,
+            created_by_user_id)
+         VALUES (?, ?, 'project', ?, ?, ?, ?)`,
+        [
+          assignmentId,
+          input.projectId,
+          input.projectId,
+          input.profileId,
+          effectiveFrom,
+          input.actor.userId,
+        ],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "metric_profile.activated",
+        entityType: "metric_profile",
+        entityId: input.profileId,
+        metadata: {
+          assignmentId,
+          effectiveFrom: effectiveFrom.toISOString(),
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (await this.listMetricProfiles(input.projectId)).find(
+      (item) => item.id === input.profileId,
+    )!;
+  }
+
+  async retireMetricProfile(input: {
+    projectId: string;
+    profileId: string;
+    actor: Principal;
+  }): Promise<void> {
+    const retiredAt = new Date();
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id = ? FOR UPDATE", [
+        input.projectId,
+      ]);
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT id, status FROM metric_profiles
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.profileId, input.projectId],
+      );
+      if (!rows[0]) throw new Error("METRIC_PROFILE_NOT_FOUND");
+      if (rows[0].status === "retired") {
+        throw new Error("METRIC_PROFILE_ALREADY_RETIRED");
+      }
+      await connection.execute(
+        `UPDATE metric_profile_assignments
+         SET effective_to =
+           CASE WHEN effective_from > ? THEN effective_from ELSE ? END
+         WHERE project_id = ? AND profile_id = ? AND effective_to IS NULL`,
+        [retiredAt, retiredAt, input.projectId, input.profileId],
+      );
+      await connection.execute(
+        `UPDATE metric_profiles SET status = 'retired'
+         WHERE id = ? AND project_id = ?`,
+        [input.profileId, input.projectId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "metric_profile.retired",
+        entityType: "metric_profile",
+        entityId: input.profileId,
+        metadata: { retiredAt: retiredAt.toISOString() },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+  }
+
   async listFeatures(projectId: string): Promise<FeatureRecord[]> {
     const [rows] = await this.pool.query<RowDataPacket[]>(
       "SELECT * FROM features WHERE project_id = ? ORDER BY created_at",
@@ -560,14 +1317,30 @@ export class MySqlStore {
     longViewSuccessAfterMs: number;
     heartbeatIntervalMs: number;
     launchedAt?: string | undefined;
+    pageDefinitionId?: string | null | undefined;
+    isKeyTask?: boolean | undefined;
+    taskWeight?: number | undefined;
+    taskTimeoutSeconds?: number | undefined;
+    operationLifecycleEnabled?: boolean | undefined;
+    configurationEffectiveFrom?: string | undefined;
     actor: Principal;
   }): Promise<FeatureRecord> {
+    if (
+      input.pageDefinitionId &&
+      !(await this.listPageDefinitions(input.projectId)).some(
+        (item) => item.id === input.pageDefinitionId,
+      )
+    ) {
+      throw new Error("PAGE_DEFINITION_NOT_FOUND");
+    }
     const id = randomUUID();
     await this.pool.execute(
       `INSERT INTO features
          (id, project_id, feature_key, name, description, feature_type,
+          page_definition_id, is_key_task, task_weight, task_timeout_seconds,
+          operation_lifecycle_enabled, configuration_effective_from,
           long_view_success_after_ms, heartbeat_interval_ms, launched_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
       [
         id,
         input.projectId,
@@ -575,6 +1348,14 @@ export class MySqlStore {
         input.name,
         input.description ?? null,
         input.featureType,
+        input.pageDefinitionId ?? null,
+        input.isKeyTask ?? false,
+        input.taskWeight ?? 1,
+        input.taskTimeoutSeconds ?? 900,
+        input.operationLifecycleEnabled ?? false,
+        input.configurationEffectiveFrom
+          ? new Date(input.configurationEffectiveFrom)
+          : new Date(),
         input.longViewSuccessAfterMs,
         input.heartbeatIntervalMs,
         input.launchedAt ? new Date(input.launchedAt) : null,
@@ -603,9 +1384,23 @@ export class MySqlStore {
       longViewSuccessAfterMs?: number | undefined;
       heartbeatIntervalMs?: number | undefined;
       launchedAt?: string | null | undefined;
+      pageDefinitionId?: string | null | undefined;
+      isKeyTask?: boolean | undefined;
+      taskWeight?: number | undefined;
+      taskTimeoutSeconds?: number | undefined;
+      operationLifecycleEnabled?: boolean | undefined;
+      configurationEffectiveFrom?: string | undefined;
       actor: Principal;
     },
   ): Promise<FeatureRecord> {
+    if (
+      input.pageDefinitionId &&
+      !(await this.listPageDefinitions(projectId)).some(
+        (item) => item.id === input.pageDefinitionId,
+      )
+    ) {
+      throw new Error("PAGE_DEFINITION_NOT_FOUND");
+    }
     const assignments: string[] = [];
     const values: Array<string | number | Date | null> = [];
     const columns: Array<
@@ -624,6 +1419,24 @@ export class MySqlStore {
         (value) => Number(value),
       ],
       ["heartbeatIntervalMs", "heartbeat_interval_ms", (value) => Number(value)],
+      [
+        "pageDefinitionId",
+        "page_definition_id",
+        (value) => (value === null ? null : String(value)),
+      ],
+      ["isKeyTask", "is_key_task", (value) => (value ? 1 : 0)],
+      ["taskWeight", "task_weight", (value) => Number(value)],
+      ["taskTimeoutSeconds", "task_timeout_seconds", (value) => Number(value)],
+      [
+        "operationLifecycleEnabled",
+        "operation_lifecycle_enabled",
+        (value) => (value ? 1 : 0),
+      ],
+      [
+        "configurationEffectiveFrom",
+        "configuration_effective_from",
+        (value) => new Date(String(value)),
+      ],
       [
         "launchedAt",
         "launched_at",

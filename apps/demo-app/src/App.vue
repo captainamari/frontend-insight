@@ -60,6 +60,9 @@ function describe(event: Readonly<TrackerEvent>): string {
   if (event.eventName === "feature_failed") {
     return `未计入成功，原因：${event.reasonCode ?? "unknown"}`;
   }
+  if (event.eventName === "feature_canceled") {
+    return `用户明确取消，原因：${event.reasonCode ?? "user_cancelled"}`;
+  }
   if (event.eventName === "feature_long_view_heartbeat") {
     return `前台可见心跳 ${event.properties.visibleDurationMs ?? 0} ms`;
   }
@@ -98,13 +101,17 @@ function initializeTracker(): void {
       "command_dispatch",
       "operations_wallboard",
     ],
+    staticProperties: { demo: true },
     longViewSuccessAfterMs: acceptanceFast ? 1_000 : 30_000,
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
     beforeSend: ({ event }) => {
       record(event);
-      return event;
+      return {
+        ...event,
+        properties: { ...event.properties },
+      };
     },
   });
   tracker.setAccount(analyticsRef);
@@ -190,15 +197,14 @@ async function runAction(
 ) {
   if (!tracker) return;
   busy.value = true;
-  tracker.featureStarted(featureKey, { scenario: result });
+  const operation = tracker.startOperation(featureKey, { scenario: result }, "click");
   await new Promise((resolve) => window.setTimeout(resolve, 350));
   if (result === "success") {
-    tracker.featureSucceeded(featureKey, { source: "controlled_demo" });
+    operation.succeed({ source: "controlled_demo" });
+  } else if (result === "cancel") {
+    operation.cancel({ reason: "user_cancelled" });
   } else {
-    tracker.featureFailed(
-      featureKey,
-      result === "cancel" ? "user_cancelled" : "operation_failed",
-    );
+    operation.fail("operation_failed");
   }
   await tracker.flush();
   busy.value = false;

@@ -110,12 +110,12 @@ seed() {
   ensure_env
   require_command docker
   compose run --rm seed
-  info "Local admin, viewer, demo project and six feature definitions are ready"
+  info "Local users, M6 project entities, six features and operational profile are ready"
 }
 
 up() {
   doctor
-  info "Building and starting the complete M5 local product"
+  info "Building and starting the complete M6 local product"
   compose up --detach --build --wait --wait-timeout 360 api consumer web demo
   seed
   info "Management UI: http://localhost:4173"
@@ -127,7 +127,8 @@ smoke() {
   require_command docker
   compose run --rm --no-deps verifier
   compose exec -T api node tools/m5-http-smoke.mjs
-  info "Data flow, management UI and demo smoke checks passed"
+  compose exec -T api node tools/m6-http-smoke.mjs
+  info "M6 data flow, operational APIs, management UI and demo smoke checks passed"
 }
 
 status() {

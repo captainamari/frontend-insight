@@ -3,6 +3,16 @@ export type ProjectRole = "owner" | "admin" | "viewer";
 export type FeatureType = "data_view" | "action" | "long_view";
 export type DataState = "healthy" | "delayed" | "no_data" | "broken";
 export type RangePreset = "24h" | "7d" | "30d";
+export type PageTemplate = "monitoring_dashboard" | "analysis_view" | "task_operation";
+export type ExpectedFrequency = "daily" | "weekly" | "monthly" | "ad_hoc";
+export type MetricStatus =
+  | "available"
+  | "insufficient_sample"
+  | "missing_target"
+  | "metric_not_available"
+  | "data_delayed";
+export type MetricDimensionKey =
+  "usage_coverage" | "continuity_depth" | "task_completion" | "usage_efficiency";
 
 export interface User {
   userId: string;
@@ -29,10 +39,82 @@ export interface Feature {
   name: string;
   description: string | null;
   featureType: FeatureType;
+  pageDefinitionId: string | null;
+  isKeyTask: boolean;
+  taskWeight: number;
+  taskTimeoutSeconds: number;
+  operationLifecycleEnabled: boolean;
+  configurationEffectiveFrom: string;
   longViewSuccessAfterMs: number;
   heartbeatIntervalMs: number;
   launchedAt: string | null;
   status: "active" | "disabled";
+}
+
+export interface ProjectModule {
+  id: string;
+  projectId: string;
+  moduleKey: string;
+  name: string;
+  criticalityWeight: number;
+  displayOrder: number;
+  status: "active" | "disabled";
+  effectiveFrom: string;
+}
+
+export interface PageDefinition {
+  id: string;
+  projectId: string;
+  moduleId: string;
+  normalizedRoute: string;
+  name: string;
+  templateKey: PageTemplate;
+  isCore: boolean;
+  criticalityWeight: number;
+  expectedFrequency: ExpectedFrequency;
+  status: "active" | "disabled";
+  effectiveFrom: string;
+}
+
+export interface ProjectOperationalSettings {
+  id: string;
+  projectId: string;
+  version: number;
+  targetAccounts: number | null;
+  expectedActiveWeekdays: number[];
+  status: "active" | "superseded";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
+export interface MetricProfileItem {
+  id: string;
+  profileId: string;
+  metricKey: string;
+  dimensionKey: MetricDimensionKey;
+  dimensionWeight: number;
+  metricWeight: number;
+  targetValue: number | null;
+  floorValue: number | null;
+  ceilingValue: number | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  toleranceMin: number | null;
+  toleranceMax: number | null;
+  minimumSample: number | null;
+  enabled: boolean;
+  required: boolean;
+}
+
+export interface MetricProfile {
+  id: string;
+  projectId: string;
+  profileKey: string;
+  name: string;
+  version: number;
+  status: "draft" | "active" | "retired";
+  effectiveFrom: string | null;
+  items: MetricProfileItem[];
 }
 
 export interface DataStatus {
@@ -170,4 +252,238 @@ export interface OnboardingResponse {
     projectKey: string;
     csp: string;
   };
+}
+
+export interface M6ReadModelMeta {
+  range: RangeQuery;
+  dataStatus: DataStatus;
+  updatedAt: string | null;
+  definitionVersion: string;
+}
+
+export interface PageOperationalMetrics {
+  route: string;
+  pageViews: number;
+  accounts: number;
+  browsers: number;
+  sessions: number;
+  lastVisitAt: string | null;
+  durationSamples: number;
+  durationAverageMs: number | null;
+  durationP50Ms: number | null;
+  durationP75Ms: number | null;
+  durationCoverage: number | null;
+}
+
+export interface TaskOperationalMetrics {
+  started: number;
+  succeeded: number;
+  failed: number;
+  canceled: number;
+  abandoned: number;
+  completionRate: number | null;
+  adverseOutcomeRate: number | null;
+  successDurationP50Ms: number | null;
+  successDurationP75Ms: number | null;
+}
+
+export interface OperationalOverviewResponse extends M6ReadModelMeta {
+  settingsVersion: number | null;
+  summary: {
+    pageViews: number;
+    activeAccounts: number;
+    crossDayAccounts: number;
+    activeDates: number;
+    expectedActiveDays: number;
+    activeExpectedDays: number;
+    activeDayCoverage: number | null;
+    configuredModules: number;
+    configuredPages: number;
+    corePages: number;
+    usedCorePages: number;
+    keyTasks: number;
+    usedKeyTasks: number;
+    unclassifiedRoutes: number;
+  };
+  modules: Array<{
+    id: string;
+    moduleKey: string;
+    name: string;
+    pageViews: number;
+    accounts: number;
+    browsers: number;
+    sessions: number;
+    lastVisitAt: string | null;
+    usedPages: number;
+    configuredPages: number;
+  }>;
+  corePages: Array<
+    PageDefinition & {
+      metrics: PageOperationalMetrics | null;
+    }
+  >;
+  keyTasks: Array<Feature & Partial<TaskOperationalMetrics>>;
+  depth: {
+    sampleSize: number;
+    classifiedSampleSize: number;
+    pageViewsP50: number | null;
+    pageViewsP75: number | null;
+    distinctPagesP50: number | null;
+    distinctPagesP75: number | null;
+    moduleBreadthP50: number | null;
+    moduleBreadthP75: number | null;
+  };
+  taskSummary: TaskOperationalMetrics;
+  unclassified: Array<{
+    route: string;
+    pageViews: number;
+    accounts: number;
+    browsers: number;
+    sessions: number;
+    lastVisitAt: string | null;
+  }>;
+}
+
+export interface PageDetailResponse extends M6ReadModelMeta {
+  classification:
+    | {
+        status: "classified";
+        page: PageDefinition;
+        module: ProjectModule | null;
+      }
+    | { status: "unclassified"; page: null; module: null };
+  metrics: PageOperationalMetrics & {
+    sessionDistinctPagesP50: number | null;
+    sessionDistinctPagesP75: number | null;
+    sessionModuleBreadthP50: number | null;
+    sessionModuleBreadthP75: number | null;
+  };
+  templateTarget: {
+    direction: "target_range";
+    minMs: number;
+    maxMs: number;
+    toleranceMinMs: number;
+    toleranceMaxMs: number;
+  };
+  depthGuidance: string;
+  availableFrom: string | null;
+  trend: TrendPoint[];
+  gapPolicy: string;
+  keyTasks: Feature[];
+  definitions: MetricDefinition[];
+}
+
+export interface TaskDetailResponse extends M6ReadModelMeta {
+  availableFrom: string | null;
+  availabilityStatus: "none" | "partial" | "full";
+  feature: Feature;
+  metrics: TaskOperationalMetrics;
+  semantics: {
+    abandonment: string;
+    pairing: string;
+  };
+}
+
+export interface MetricResult {
+  metricKey: string;
+  value: number | null;
+  status: MetricStatus;
+  sampleSize: number | null;
+  definitionVersion: string;
+  availableFrom: string | null;
+  reason: string | null;
+  inputs: Array<{ metricKey: string; value: number | null }>;
+}
+
+export interface OperationalMetricItemResult {
+  metricKey: string;
+  displayName: string;
+  rawValue: number | null;
+  target: {
+    targetValue: number | null;
+    floorValue: number | null;
+    ceilingValue: number | null;
+    targetMin: number | null;
+    targetMax: number | null;
+    toleranceMin: number | null;
+    toleranceMax: number | null;
+  };
+  sampleSize: number | null;
+  status: MetricStatus;
+  reason: string | null;
+  score: number | null;
+  metricWeight: number;
+  leafConfiguredWeight: number;
+  contribution: number | null;
+  definitionVersion: string;
+  availableFrom: string | null;
+}
+
+export interface OperationalIndexResponse extends M6ReadModelMeta {
+  evaluationRange: RangeQuery;
+  configurationAvailabilityStatus: "partial" | "full";
+  profile: {
+    id: string;
+    profileKey: string;
+    name: string;
+    version: number;
+    effectiveFrom: string | null;
+  } | null;
+  settings: ProjectOperationalSettings | null;
+  availableFrom: string | null;
+  availabilityStatus: "none" | "partial" | "full";
+  rawMetrics: MetricResult[];
+  index: {
+    value: number | null;
+    status: "available" | "unavailable";
+    reasons: string[];
+    eligibleDimensions: number;
+    weightCoverage: number;
+    definitionVersion: string;
+    dimensions: Array<{
+      dimensionKey: MetricDimensionKey;
+      displayName: string;
+      weight: number;
+      score: number | null;
+      contribution: number | null;
+      eligible: boolean;
+      eligibleMetricWeight: number;
+      items: OperationalMetricItemResult[];
+    }>;
+  };
+  configurationGaps: string[];
+}
+
+export interface MetricDefinition {
+  metricKey: string;
+  displayName: string;
+  businessQuestion: string;
+  entityType: "project" | "module" | "page" | "task";
+  valueType: "count" | "ratio" | "duration" | "score";
+  unit: string;
+  layer: "fact" | "atomic" | "derived" | "composite";
+  inputKeys: string[];
+  formulaDescription: string;
+  denominatorDescription: string;
+  deduplicationKey: string;
+  missingValuePolicy: string;
+  scoreDirection: "higher_better" | "lower_better" | "target_range" | "none";
+  minimumSample: number;
+  definitionVersion: string;
+  effectiveFrom: string;
+  owner: string;
+}
+
+export interface MetricLineage {
+  metricKey: string;
+  nodes: Array<{
+    id: string;
+    label: string;
+    layer: "fact" | "atomic" | "derived" | "composite";
+    valueType: string;
+    definitionVersion: string;
+  }>;
+  edges: Array<{ from: string; to: string }>;
+  directUpstream: string[];
+  directDownstream: string[];
 }

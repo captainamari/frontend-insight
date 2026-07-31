@@ -1,7 +1,10 @@
-import type { FrontendInsightEventBatchV1 } from "@frontend-insight/event-contract";
+import type { FrontendInsightEventBatchV2 } from "@frontend-insight/event-contract";
 
 export type PropertyValue = string | number | boolean | null;
 export type EventProperties = Record<string, PropertyValue>;
+export type InteractionType =
+  "click" | "submit" | "keyboard" | "programmatic" | "automatic";
+export type OperationState = "started" | "succeeded" | "failed" | "canceled";
 
 export interface TrackerEvent {
   eventId: string;
@@ -16,6 +19,8 @@ export interface TrackerEvent {
   timezoneOffsetMinutes: number;
   featureKey?: string;
   reasonCode?: string;
+  operationInstanceId?: string;
+  interactionType?: InteractionType;
   properties: EventProperties;
 }
 
@@ -27,6 +32,7 @@ export interface TrackerDiagnostics {
   failedBatches: number;
   retries: number;
   beaconFallbacks: number;
+  duplicateOperationTerminals: number;
   lastErrorCode?: string;
   warnings: string[];
 }
@@ -40,6 +46,7 @@ export interface TrackerConfig {
   endpoint: string;
   projectTimezone?: string;
   registeredFeatures?: readonly string[];
+  staticProperties?: EventProperties;
   normalizeRoute?: (url: URL) => string;
   beforeSend?: (context: BeforeSendContext) => TrackerEvent | null;
   flushIntervalMs?: number;
@@ -76,13 +83,25 @@ export interface Tracker {
     reasonCode: string,
     properties?: EventProperties,
   ): void;
+  startOperation(
+    featureKey: string,
+    properties?: EventProperties,
+    interactionType?: InteractionType,
+  ): OperationHandle;
   startLongView(featureKey: string): () => void;
   flush(reason?: "normal" | "lifecycle"): Promise<void>;
   destroy(): void;
   getDiagnostics(): Readonly<TrackerDiagnostics>;
 }
 
+export interface OperationHandle {
+  succeed(properties?: EventProperties): void;
+  fail(reasonCode: string, properties?: EventProperties): void;
+  cancel(properties?: EventProperties): void;
+  getState(): OperationState;
+}
+
 export interface PendingBatch {
-  batch: FrontendInsightEventBatchV1;
+  batch: FrontendInsightEventBatchV2;
   attempts: number;
 }

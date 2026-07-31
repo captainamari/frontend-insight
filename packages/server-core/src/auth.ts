@@ -160,4 +160,8 @@ export class FixedWindowRateLimiter {
     current.count += 1;
     return true;
   }
+
+  reset(key: string): void {
+    this.windows.delete(key);
+  }
 }

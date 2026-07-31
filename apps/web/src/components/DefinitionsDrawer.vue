@@ -53,7 +53,7 @@ const definitions = [
       </template>
     </dl>
     <el-alert
-      title="本系统提供产品决策证据，不输出健康度、设计得分或人员绩效判断。"
+      title="项目运营指数提供可下钻的产品决策证据，不替代技术 SLO，也不用于人员绩效判断。"
       type="info"
       :closable="false"
       show-icon

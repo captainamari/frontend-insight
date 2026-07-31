@@ -59,6 +59,7 @@ function config(runtime: TrackerRuntime, suffix: string) {
 async function payload(fetchMock: ReturnType<typeof vi.fn>, call = 0) {
   const options = fetchMock.mock.calls[call]?.[1] as RequestInit | undefined;
   return JSON.parse(String(options?.body)) as {
+    schemaVersion: number;
     events: Array<Record<string, unknown>>;
   };
 }
@@ -120,6 +121,32 @@ describe("web tracker lifecycle and privacy", () => {
     ]);
     expect(JSON.stringify(batch)).not.toContain("local-token-value");
     expect(JSON.stringify(batch)).not.toContain("cookie-token");
+    tracker.destroy();
+  });
+
+  it("adds validated static properties before the restricted beforeSend hook", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const seen: Array<Record<string, unknown>> = [];
+    const tracker = createTracker({
+      ...config(runtime, "static01"),
+      staticProperties: { demo: true, deployment: "acceptance" },
+      beforeSend: ({ event }) => {
+        seen.push(event.properties);
+        return { ...event, properties: { ...event.properties } };
+      },
+    });
+    tracker.featureSucceeded("sales_dashboard", { demo: false, rows: 24 });
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    expect(seen).not.toHaveLength(0);
+    expect(
+      batch.events.every(
+        (event) =>
+          (event.properties as Record<string, unknown>).demo === true &&
+          (event.properties as Record<string, unknown>).deployment === "acceptance",
+      ),
+    ).toBe(true);
     tracker.destroy();
   });
 
@@ -267,6 +294,64 @@ describe("web tracker lifecycle and privacy", () => {
       "feature_long_view_heartbeat",
       "feature_long_view_ended",
     ]);
+    tracker.destroy();
+  });
+
+  it("keeps concurrent operation handles independent and accepts one terminal each", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "operation01"));
+    const first = tracker.startOperation(
+      "report_export",
+      { source: "toolbar" },
+      "click",
+    );
+    const second = tracker.startOperation("report_export", {}, "keyboard");
+    first.succeed({ bytes: 2048 });
+    second.fail("request_rejected");
+    second.cancel();
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    expect(batch.schemaVersion).toBe(2);
+    const operations = batch.events.filter((event) => event.operationInstanceId);
+    const instanceIds = new Set(
+      operations.map((event) => String(event.operationInstanceId)),
+    );
+    expect(instanceIds.size).toBe(2);
+    for (const instanceId of instanceIds) {
+      const events = operations.filter(
+        (event) => event.operationInstanceId === instanceId,
+      );
+      expect(
+        events.filter((event) => event.eventName === "feature_started"),
+      ).toHaveLength(1);
+      expect(
+        events.filter((event) =>
+          ["feature_succeeded", "feature_failed", "feature_canceled"].includes(
+            String(event.eventName),
+          ),
+        ),
+      ).toHaveLength(1);
+    }
+    expect(second.getState()).toBe("failed");
+    expect(tracker.getDiagnostics().duplicateOperationTerminals).toBe(1);
+    expect(JSON.stringify(batch)).toContain("request_rejected");
+    tracker.destroy();
+  });
+
+  it("emits an explicit canceled terminal from an operation handle", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "operation-cancel01"));
+    const operation = tracker.startOperation("report_export");
+    operation.cancel({ source: "dialog" });
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    const canceled = batch.events.find(
+      (event) => event.eventName === "feature_canceled",
+    );
+    expect(canceled?.operationInstanceId).toMatch(/^op_[A-Za-z0-9_-]{16,64}$/);
+    expect(canceled?.properties).toEqual({ source: "dialog" });
     tracker.destroy();
   });
 
