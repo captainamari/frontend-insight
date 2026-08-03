@@ -139,15 +139,15 @@ doctor() {
   docker info >/dev/null 2>&1 || fail "Docker engine is not running"
   assert_secrets
   local memory_bytes free_kib
-  memory_bytes="$(host_memory_bytes)"
   if [[ "${FI_ALLOW_CONSTRAINED_HOST:-0}" != "1" ]]; then
+    memory_bytes="$(host_memory_bytes)"
     [[ "$memory_bytes" -ge 17179869184 ]] || \
       fail "At least 16 GiB host memory is required by the production Compose profile"
+    free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
+    [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free disk is required"
   else
-    info "Constrained-host mode only validates policy; do not use it for a pilot"
+    info "Constrained-host mode skips capacity gates and only validates policy; do not use it for a pilot"
   fi
-  free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
-  [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free disk is required"
   compose config --quiet
   if compose config | grep -q 'local-only'; then
     fail "Resolved production Compose still contains a local-only credential"
