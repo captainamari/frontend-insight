@@ -9,6 +9,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel("邮箱").fill("viewer@example.invalid");
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录" }).click();
+  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
   await page.goto(`${webUrl}/observability?project=${projectId}&range=7d`);
 }
 
