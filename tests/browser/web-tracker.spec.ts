@@ -10,6 +10,13 @@ interface BrowserState {
     ): void;
     featureExposed(key: string): void;
     featureSucceeded(key: string): void;
+    captureException(error: unknown): void;
+    captureApiError(details: {
+      method: string;
+      url: string;
+      statusCode: number;
+      durationMs: number;
+    }): void;
     flush(): Promise<void>;
     destroy(): void;
     getDiagnostics(): { state: string; droppedEvents: number; queueSize: number };
@@ -63,6 +70,38 @@ test("destroy removes navigation listeners", async ({ page }) => {
   });
   expect(result.diagnostics.state).toBe("destroyed");
   expect(result.after).toBe(result.before);
+});
+
+test("sanitizes explicit M8 errors in a real browser before transport", async ({
+  page,
+}) => {
+  const result = await page.evaluate(async () => {
+    const state = window as unknown as BrowserState;
+    const error = new TypeError("failed for browser@example.invalid Bearer secret");
+    error.stack =
+      "TypeError: failed\n at loadBudget (https://host.invalid/assets/app.js:10:20?token=secret)";
+    state.__tracker.captureException(error);
+    state.__tracker.captureApiError({
+      method: "GET",
+      url: "https://host.invalid/api/budgets/123456?token=secret",
+      statusCode: 503,
+      durationMs: 120,
+    });
+    await state.__tracker.flush();
+    return state.__batches;
+  });
+  const events = result
+    .flatMap((batch) => batch.events)
+    .filter((event) => String(event.eventName).startsWith("error_"));
+  const serialized = JSON.stringify(events);
+  expect(events.map((event) => event.eventName)).toEqual(["error_js", "error_api"]);
+  expect(serialized).not.toContain("browser@example.invalid");
+  expect(serialized).not.toContain("Bearer secret");
+  expect(serialized).not.toContain("token=secret");
+  expect(serialized).not.toContain("host.invalid");
+  expect((events[1]?.properties as Record<string, unknown>).requestPath).toBe(
+    "/api/budgets/:id",
+  );
 });
 
 test("synchronous event processing stays within the 2 ms p95 budget", async ({

@@ -5,6 +5,44 @@ export type EventProperties = Record<string, PropertyValue>;
 export type InteractionType =
   "click" | "submit" | "keyboard" | "programmatic" | "automatic";
 export type OperationState = "started" | "succeeded" | "failed" | "canceled";
+export type DeploymentEnvironment = "production" | "staging" | "test" | "development";
+export type ResourceType =
+  "script" | "stylesheet" | "image" | "font" | "media" | "other";
+export type RequestMethod =
+  "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "OTHER";
+export type WebVitalName = "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+export type WebVitalRating = "good" | "needs_improvement" | "poor";
+export type NavigationType =
+  "navigate" | "reload" | "back_forward" | "prerender" | "unknown";
+
+export interface ObservabilityConfig {
+  enabled: boolean;
+  releaseVersion: string;
+  deploymentEnvironment?: DeploymentEnvironment;
+  captureJsErrors?: boolean;
+  captureResourceErrors?: boolean;
+  captureApiErrors?: boolean;
+  captureWebVitals?: boolean;
+}
+
+export interface ApiErrorDetails {
+  method: string;
+  url: string | URL;
+  statusCode: number;
+  durationMs: number;
+}
+
+export interface ResourceErrorDetails {
+  resourceType: ResourceType;
+  url: string | URL;
+}
+
+export interface WebVitalDetails {
+  name: WebVitalName;
+  value: number;
+  rating?: WebVitalRating;
+  navigationType?: NavigationType;
+}
 
 export interface TrackerEvent {
   eventId: string;
@@ -54,6 +92,7 @@ export interface TrackerConfig {
   sessionTimeoutMs?: number;
   longViewSuccessAfterMs?: number;
   longViewHeartbeatMs?: number;
+  observability?: ObservabilityConfig;
   development?: boolean;
   runtime?: TrackerRuntime;
 }
@@ -89,6 +128,10 @@ export interface Tracker {
     interactionType?: InteractionType,
   ): OperationHandle;
   startLongView(featureKey: string): () => void;
+  captureException(error: unknown): void;
+  captureApiError(details: ApiErrorDetails): void;
+  captureResourceError(details: ResourceErrorDetails): void;
+  captureWebVital(details: WebVitalDetails): void;
   flush(reason?: "normal" | "lifecycle"): Promise<void>;
   destroy(): void;
   getDiagnostics(): Readonly<TrackerDiagnostics>;

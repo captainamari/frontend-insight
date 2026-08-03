@@ -3,7 +3,7 @@ import { createTracker } from "@frontend-insight/web-tracker";
 import type { Tracker, TrackerEvent } from "@frontend-insight/web-tracker";
 import { computed, onBeforeUnmount, reactive, ref } from "vue";
 
-type Scene = "data" | "action" | "wallboard";
+type Scene = "data" | "action" | "wallboard" | "observability";
 type ResultKind = "success" | "cancel" | "failure";
 
 interface EventEntry {
@@ -36,6 +36,7 @@ const scenes: Array<{ key: Scene; label: string; description: string }> = [
   { key: "data", label: "数据与图表", description: "请求成功且渲染完成" },
   { key: "action", label: "业务操作", description: "开始、取消、失败与成功" },
   { key: "wallboard", label: "持续展示", description: "前台可见阈值与心跳" },
+  { key: "observability", label: "错误与性能", description: "M8 脱敏与版本证据" },
 ];
 const simulatedToken = computed(() => sessionStorage.getItem(tokenKey) ?? "");
 const maskedToken = computed(() => {
@@ -47,6 +48,7 @@ const diagnostics = computed(() => tracker?.getDiagnostics());
 function sceneFromPath(): Scene {
   if (window.location.pathname.includes("action")) return "action";
   if (window.location.pathname.includes("wallboard")) return "wallboard";
+  if (window.location.pathname.includes("observability")) return "observability";
   return "data";
 }
 
@@ -72,6 +74,10 @@ function describe(event: Readonly<TrackerEvent>): string {
   if (event.eventName === "feature_exposed") return "功能入口已实际呈现";
   if (event.eventName === "page_view") return "归一化页面访问";
   if (event.eventName === "page_leave") return "前台可见停留结算";
+  if (event.eventName === "error_js") return "JS 错误已裁剪并按稳定首帧聚类";
+  if (event.eventName === "error_api") return "API 路径已去参数并归一化动态 ID";
+  if (event.eventName === "error_resource") return "资源失败只保留类型和脱敏路径";
+  if (event.eventName === "web_vital") return "性能样本按固定阈值标记等级";
   return "标准事件";
 }
 
@@ -106,6 +112,15 @@ function initializeTracker(): void {
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
+    observability: {
+      enabled: true,
+      releaseVersion: "2026.08.1-demo",
+      deploymentEnvironment: "production",
+      captureJsErrors: true,
+      captureResourceErrors: true,
+      captureWebVitals: true,
+      captureApiErrors: false,
+    },
     beforeSend: ({ event }) => {
       record(event);
       return {
@@ -168,6 +183,38 @@ function exposeScene(value: Scene): void {
     }
   }
   if (value === "wallboard") tracker.featureExposed("operations_wallboard");
+}
+
+async function captureObservability(
+  kind: "js" | "api" | "resource" | "vital",
+): Promise<void> {
+  if (!tracker) return;
+  if (kind === "js") {
+    const error = new TypeError(
+      "Chart render failed for operator@example.invalid with Bearer private-token",
+    );
+    error.stack =
+      "TypeError: chart render failed\n    at renderChart (https://park.invalid/assets/app.js:10:20?token=secret)";
+    tracker.captureException(error);
+  }
+  if (kind === "api") {
+    tracker.captureApiError({
+      method: "GET",
+      url: "https://park.invalid/api/budgets/984321?token=secret",
+      statusCode: 503,
+      durationMs: 850,
+    });
+  }
+  if (kind === "resource") {
+    tracker.captureResourceError({
+      resourceType: "script",
+      url: "https://park.invalid/assets/energy-chunk.js?signature=secret",
+    });
+  }
+  if (kind === "vital") {
+    tracker.captureWebVital({ name: "LCP", value: 4_200, navigationType: "navigate" });
+  }
+  await tracker.flush();
 }
 
 function changeScene(value: Scene): void {
@@ -450,7 +497,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div v-else class="scene-content wallboard-scene">
+        <div v-else-if="scene === 'wallboard'" class="scene-content wallboard-scene">
           <div class="scene-title">
             <span class="scene-index">03</span>
             <div>
@@ -488,6 +535,44 @@ onBeforeUnmount(() => {
             验收方法：开始后切到其他标签页，计时应暂停；返回后继续。关闭或切换场景会发送
             ended 结算。
           </p>
+        </div>
+
+        <div v-else class="scene-content">
+          <div class="scene-title">
+            <span class="scene-index">04</span>
+            <div>
+              <p class="eyebrow">OBSERVABILITY / PRIVACY</p>
+              <h1>错误、性能与发布证据</h1>
+              <p>
+                受控生成四类 M8 事件；SDK 会先删除凭据、URL 参数、邮箱和动态路径 ID。
+              </p>
+            </div>
+          </div>
+          <div class="outcome-grid observability-lab-grid">
+            <button type="button" @click="captureObservability('js')">
+              <strong>模拟 JS 异常</strong>
+              <small>error_js · TypeError + 脱敏首帧</small>
+            </button>
+            <button type="button" @click="captureObservability('api')">
+              <strong>模拟 API 503</strong>
+              <small>error_api · /api/budgets/:id</small>
+            </button>
+            <button type="button" @click="captureObservability('resource')">
+              <strong>模拟资源失败</strong>
+              <small>error_resource · script</small>
+            </button>
+            <button type="button" @click="captureObservability('vital')">
+              <strong>模拟 LCP poor</strong>
+              <small>web_vital · 4200 ms</small>
+            </button>
+          </div>
+          <div class="privacy-proof">
+            <strong>发布边界</strong>
+            <p>
+              所有事件显式关联 2026.08.1-demo / production；SourceMap 不上传，运营指数
+              v1 不受影响。
+            </p>
+          </div>
         </div>
       </section>
 

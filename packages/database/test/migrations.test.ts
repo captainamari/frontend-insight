@@ -6,7 +6,9 @@ describe("database migration inventory", () => {
   it("has ordered, checksummed upgrade paths for both engines", async () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
-      expect(migrations.map((migration) => migration.version)).toEqual([1, 2, 3, 4]);
+      expect(migrations.map((migration) => migration.version)).toEqual(
+        engine === "mysql" ? [1, 2, 3, 4] : [1, 2, 3, 4, 5],
+      );
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,
       );
@@ -67,6 +69,17 @@ describe("database migration inventory", () => {
     expect(migration.name).toBe("operation_instance");
     expect(migration.sql).toContain("operation_instance_id");
     expect(migration.sql).toContain("interaction_type");
+  });
+
+  it("adds nullable observability columns and fixed query indices", async () => {
+    const migration = (await discoverMigrations("clickhouse"))[4]!;
+    expect(migration.name).toBe("observability");
+    expect(migration.sql).toContain("error_group_id");
+    expect(migration.sql).toContain("vital_value");
+    expect(migration.sql).toContain("release_version");
+    expect(migration.sql).toContain("browser_family");
+    expect(migration.sql).toContain("os_family");
+    expect(splitClickHouseStatements(migration.sql)).toHaveLength(3);
   });
 
   it("keeps migration files readable from both source and compiled locations", async () => {

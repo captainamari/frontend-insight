@@ -9,6 +9,14 @@ export type Event = {
 } & {
   [k: string]: unknown;
 } & {
+  [k: string]: unknown;
+} & {
+  [k: string]: unknown;
+} & {
+  [k: string]: unknown;
+} & {
+  [k: string]: unknown;
+} & {
   eventId: string;
   eventName:
     | (
@@ -22,6 +30,10 @@ export type Event = {
         | "feature_long_view_started"
         | "feature_long_view_heartbeat"
         | "feature_long_view_ended"
+        | "error_js"
+        | "error_resource"
+        | "error_api"
+        | "web_vital"
       )
     | string;
   eventTime: string;
@@ -51,6 +63,10 @@ export type Event = {
         | "feature_long_view_started"
         | "feature_long_view_heartbeat"
         | "feature_long_view_ended"
+        | "error_js"
+        | "error_resource"
+        | "error_api"
+        | "web_vital"
       )
     | string;
   eventTime: string;

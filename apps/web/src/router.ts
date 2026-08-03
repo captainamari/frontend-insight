@@ -43,6 +43,11 @@ export const router = createRouter({
           component: () => import("./views/OperationalIndexView.vue"),
         },
         {
+          path: "observability",
+          name: "observability",
+          component: () => import("./views/ObservabilityView.vue"),
+        },
+        {
           path: "operational-config",
           name: "operational-config",
           component: () => import("./views/OperationalConfigView.vue"),

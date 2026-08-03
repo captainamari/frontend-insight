@@ -120,7 +120,8 @@ async function verifyUpgradeAndIdempotency() {
       clickhouseV1.applied.includes(1) &&
       clickhouseUpgrade.applied.includes(2) &&
       clickhouseUpgrade.applied.includes(3) &&
-      clickhouseUpgrade.applied.includes(4),
+      clickhouseUpgrade.applied.includes(4) &&
+      clickhouseUpgrade.applied.includes(5),
   };
 }
 
@@ -420,7 +421,7 @@ async function verifyClickHouseRawEvents() {
       format: "JSONEachRow",
     });
     const indexRows = await indexResponse.json<{ count: string }>();
-    if (Number(indexRows[0]?.count) !== 2) {
+    if (Number(indexRows[0]?.count) !== 4) {
       throw new Error("ClickHouse query indices are incomplete");
     }
 
@@ -447,7 +448,7 @@ async function verifyClickHouseRawEvents() {
       featureQueries: 3,
       operationInstances: 2,
       rawAccountReferences: 0,
-      dataSkippingIndices: 2,
+      dataSkippingIndices: 4,
       ttlDays: 90,
     };
   } finally {

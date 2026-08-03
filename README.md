@@ -2,9 +2,9 @@
 
 内部 Web 产品运营分析系统。它回答页面和功能是否真正被看见、持续使用，关键任务是否完成，以及停留和操作耗时是否符合显式业务目标；同时明确区分账号、匿名浏览器和会话。
 
-M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 demo。M6 在兼容既有功能采用页面的基础上，增加模块/页面/任务实体、operation lifecycle v2、固定运营指标、可查询血缘和可下钻的项目运营指数。
+M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 demo。M6 增加模块/页面/任务实体、operation lifecycle v2、固定运营指标、可查询血缘和可下钻的项目运营指数。M7/M8 进一步交付生产硬化工具，以及独立于运营指数 v1 的前端错误、Web Vitals、发布版本、影响范围和固定告警工作台。
 
-## M6 快速开始
+## M7/M8 快速开始
 
 目标环境：Apple Silicon M1、32 GB 内存、Docker Desktop + Compose v2。
 
@@ -21,7 +21,25 @@ M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 
 - 管理员：`admin@example.invalid` / `LocalAdmin-1234`
 - viewer：`viewer@example.invalid` / `LocalViewer-1234`
 
-demo 覆盖数据/图表渲染、导出/导入/配置/指令结果和大屏持续可见，并实时解释预期事件。操作型场景使用 v2 operation handle，成功、失败、取消和超时近似放弃不会串联。M6 完整人工步骤和排障见 [M6 Mac 本地验收指引](docs/guides/m6-local-acceptance-macos.md)。
+demo 覆盖数据/图表渲染、导出/导入/配置/指令结果、大屏持续可见，以及受控 JS/资源/API/Web Vital 事件。操作型场景使用 v2 operation handle；M8 场景在浏览器发送前裁剪凭据、邮箱、URL 参数与动态 ID。完整负载、故障、恢复、生产策略和产品走查见 [M7/M8 Mac 本地验收指引](docs/guides/m7-m8-local-acceptance-macos.md)。
+
+M7 正式负载与故障演练：
+
+```bash
+bash scripts/m7 load full
+bash scripts/m7 fault all --confirm-disruption
+bash scripts/m7 release-drill --confirm-disruption
+```
+
+Production Compose 使用文件型 Docker Secret，并提供 additive deploy、备份、恢复和保留镜像回滚：
+
+```bash
+bash scripts/production init-secrets --confirm-create
+bash scripts/production doctor
+bash scripts/production deploy pilot-001
+```
+
+这些自动化不替代目标环境演练、真实项目试点和 M8 三项目/处理人发布门。
 
 停止不会删除数据：
 
@@ -50,6 +68,20 @@ demo 覆盖数据/图表渲染、导出/导入/配置/指令结果和大屏持�
 
 项目运营指数用于确定调查和投入优先级，不替代技术 SLO，也不用于人员绩效。
 
+## M7/M8 已实现范围
+
+- 20 events/s 持续与 200 events/s 峰值固定负载工具、吞吐/延迟/追平报告；
+- Kafka、ClickHouse、consumer 故障注入及真实 readiness/恢复语义；
+- production Compose 的文件 Secret、只读文件系统、资源上限、优雅停止和日志轮转；
+- additive migration、保留镜像应用回滚、MySQL/ClickHouse 校验和备份与恢复；
+- SDK v0.3.0 opt-in JS/资源/API 错误和 LCP/CLS/INP/FCP/TTFB；
+- 浏览器端凭据/PII/URL 裁剪、粗粒度浏览器/OS/视口、显式 release/environment；
+- 稳定错误组、影响账号/浏览器/页面/版本、性能 p75 与固定只读告警；
+- 前端可观测性工作台、错误组下钻、发布证据和受控 demo；
+- M5/M6 回归与 M8 Chromium/WebKit E2E。
+
+项目运营指数 v1 保持不变；SourceMap、运营指数 v2、自定义告警和 AI 分析仍按独立阶段门执行。
+
 ## M5 保留能力
 
 - Vue 3 + TypeScript + Element Plus + ECharts 管理端；
@@ -60,7 +92,7 @@ demo 覆盖数据/图表渲染、导出/导入/配置/指令结果和大屏持�
 - 三场景 demo、可见事件解释和模拟 token 泄露回归；
 - full Compose、幂等 seed、数据流 smoke、Chromium/WebKit E2E。
 
-M6 不包含生产部署、备份恢复、错误/性能监控、AI 分析助手和真实项目试点。
+M5 保留能力不包含 M6–M8 的指标、生产硬化和可观测性扩展。
 
 ## M2-M4 数据与管理能力
 
@@ -114,11 +146,12 @@ pnpm exec playwright install chromium webkit
 pnpm test:browser
 ```
 
-启动 Compose 后可以执行 M5 回归与 M6 页面验收：
+启动 Compose 后可以执行 M5/M6 回归与 M8 页面验收：
 
 ```bash
 pnpm test:m5:e2e
 pnpm test:m6:e2e
+pnpm test:m8:e2e
 ```
 
-分支推送后，GitHub Actions 会执行静态/单元检查、两种浏览器 SDK 契约、完整 Compose 数据流、M5 回归和 M6 产品闭环。Linux CI 不能替代 Apple Silicon 目标 Mac 的最终人工验收。
+分支推送后，GitHub Actions 会执行静态/单元检查、两种浏览器 SDK 契约、完整 Compose 数据流、M7 负载/故障/恢复和 M5/M6/M8 产品闭环。Linux CI 不能替代 Apple Silicon 目标 Mac、部署环境和真实试点的最终人工验收。

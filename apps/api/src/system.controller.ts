@@ -20,7 +20,8 @@ export class SystemController {
     await Promise.all([
       this.core.mysql.ping(),
       this.core.analytics.ping(),
-      this.core.publisher.connect(),
+      this.core.observability.ping(),
+      this.core.publisher.ping(),
     ]);
     return { status: "ready", mysql: "ok", clickhouse: "ok", kafka: "ok" };
   }
@@ -33,6 +34,7 @@ export class SystemController {
     return {
       ingestion: this.core.ingestion.getMetrics(),
       analytics: this.core.analytics.getMetrics(),
+      observability: this.core.observability.getMetrics(),
       scope: "current_api_process",
       payloadLogging: false,
     };

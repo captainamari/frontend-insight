@@ -4,6 +4,7 @@ import {
   IngestionManager,
   KafkaEnvelopePublisher,
   MySqlStore,
+  ObservabilityStore,
 } from "@frontend-insight/server-core";
 import {
   loadApiEnvironment,
@@ -39,11 +40,21 @@ export class CoreService implements OnModuleDestroy {
     },
     this.mysql,
   );
+  readonly observability = new ObservabilityStore(
+    {
+      url: this.environment.CLICKHOUSE_URL,
+      username: this.environment.CLICKHOUSE_USERNAME,
+      password: this.environment.CLICKHOUSE_PASSWORD,
+      database: this.environment.CLICKHOUSE_DATABASE,
+    },
+    this.mysql,
+  );
 
   async onModuleDestroy(): Promise<void> {
     await Promise.allSettled([
       this.publisher.disconnect(),
       this.analytics.close(),
+      this.observability.close(),
       this.mysql.close(),
     ]);
   }

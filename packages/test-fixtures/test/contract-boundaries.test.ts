@@ -24,11 +24,13 @@ describe("golden event scenarios", () => {
       expect(scenario.valid.events.map((event) => event.eventName)).toEqual(
         scenario.golden.eventNames,
       );
-      expect(
-        scenario.valid.events.some(
-          (event) => event.featureKey === scenario.golden.featureKey,
-        ),
-      ).toBe(true);
+      if (scenario.golden.featureKey) {
+        expect(
+          scenario.valid.events.some(
+            (event) => event.featureKey === scenario.golden.featureKey,
+          ),
+        ).toBe(true);
+      }
     });
 
     it(`${scenario.name} invalid fixture is rejected at every boundary`, () => {
@@ -49,7 +51,7 @@ describe("contract limits and rejection codes", () => {
   const source = contractScenarios[0]!.valid;
 
   it("rejects unsupported versions before schema validation", () => {
-    const batch = { ...structuredClone(source), schemaVersion: 3 };
+    const batch = { ...structuredClone(source), schemaVersion: 99 };
     const result = validateTransportBatch(batch);
     expect(result).toMatchObject({
       ok: false,
@@ -57,10 +59,11 @@ describe("contract limits and rejection codes", () => {
     });
   });
 
-  it("accepts both v1 and v2 and requires SDK operation IDs for v2 starts", () => {
+  it("accepts v1, v2 operations and constrained observability events", () => {
     expect(validateTransportBatch(contractScenarios[0]!.valid).ok).toBe(true);
     expect(validateTransportBatch(contractScenarios.at(-1)!.valid).ok).toBe(true);
-    const invalid = structuredClone(contractScenarios.at(-1)!.valid);
+    const operation = contractScenarios.find((item) => item.name === "operation_v2")!;
+    const invalid = structuredClone(operation.valid);
     delete invalid.events[2]!.operationInstanceId;
     expect(validateTransportBatch(invalid)).toMatchObject({
       ok: false,
@@ -85,6 +88,22 @@ describe("contract limits and rejection codes", () => {
       ok: false,
       errors: [{ code: REJECTION_CODES.credentialDataRejected }],
     });
+
+    for (const forbiddenValue of [
+      "person@example.invalid",
+      "token=credential-value",
+      "/api/devices?token=credential-value",
+      "/page#private-fragment",
+    ]) {
+      const privacyBatch = structuredClone(source);
+      privacyBatch.events[0]!.properties = { note: forbiddenValue };
+      const privacyResult = validateTransportBatch(privacyBatch);
+      expect(privacyResult).toMatchObject({
+        ok: false,
+        errors: [{ code: REJECTION_CODES.credentialDataRejected }],
+      });
+      expect(JSON.stringify(privacyResult)).not.toContain(forbiddenValue);
+    }
   });
 
   it("rejects duplicate event IDs and excessive event counts", () => {

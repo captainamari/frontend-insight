@@ -83,6 +83,27 @@ function uniqueOperationBatch(
   return batch;
 }
 
+function uniqueObservabilityBatch(
+  source: FrontendInsightEventBatch,
+  index: number,
+): FrontendInsightEventBatch {
+  if (source.schemaVersion !== 2) throw new Error("V2_FIXTURE_REQUIRED");
+  const batch = structuredClone(source);
+  const suffix = String(index).padStart(3, "0");
+  batch.projectKey = m5Fixture.projectKey;
+  batch.events = batch.events.map((event) => ({
+    ...event,
+    eventId: `${event.eventId}_${suffix}`,
+    visitorId: `vis_m8_integration_${suffix}`,
+    sessionId: `ses_m8_integration_${suffix}`,
+    pageViewId: `pv_m8_integration_${suffix}`,
+    ...("accountRef" in event && event.accountRef
+      ? { accountRef: `opaque-account-m8-${suffix}` }
+      : {}),
+  })) as FrontendInsightEventBatch["events"];
+  return batch;
+}
+
 async function seed(): Promise<void> {
   await seedM6Fixture(mysqlUrl!, {
     origins: [
@@ -146,9 +167,13 @@ async function main(): Promise<void> {
   const startedAt = Date.now();
   try {
     const baselineRows = await rawCount(clickhouse);
-    const baseBatches = contractScenarios.map((scenario, index) =>
-      shiftBatch(scenario.valid, startedAt - 5_000 - index * 1_000),
-    );
+    const baseBatches = contractScenarios
+      .filter((scenario) => scenario.name !== "observability_v1")
+      .map((scenario, index) => {
+        const batch = shiftBatch(scenario.valid, startedAt - 5_000 - index * 1_000);
+        batch.projectKey = m5Fixture.projectKey;
+        return batch;
+      });
     const operationSource = contractScenarios.find(
       (scenario) => scenario.valid.schemaVersion === 2,
     )!.valid;
@@ -158,7 +183,16 @@ async function main(): Promise<void> {
         startedAt - 10_000 - index * 1_000,
       ),
     );
-    const batches = [...baseBatches, ...operationSamples];
+    const observabilitySource = contractScenarios.find(
+      (scenario) => scenario.name === "observability_v1",
+    )!.valid;
+    const observabilitySamples = Array.from({ length: 20 }, (_, index) =>
+      shiftBatch(
+        uniqueObservabilityBatch(observabilitySource, index + 1),
+        startedAt - 35_000 - index * 1_000,
+      ),
+    );
+    const batches = [...baseBatches, ...operationSamples, ...observabilitySamples];
     for (const batch of [...batches, ...batches]) {
       const accepted = await jsonRequest("/v1/events", {
         method: "POST",
@@ -378,6 +412,49 @@ async function main(): Promise<void> {
       "viewer cannot change operational targets",
     );
 
+    const observabilityOverview = await jsonRequest(
+      `/api/projects/${projectId}/observability/overview?${query}`,
+      { headers: viewerHeaders },
+    );
+    assert(
+      observabilityOverview.response.status === 200,
+      `observability overview failed: ${JSON.stringify(observabilityOverview.body)}`,
+    );
+    const observabilitySummary = observabilityOverview.body.summary as Record<
+      string,
+      number
+    >;
+    assert(
+      observabilitySummary.errorOccurrences === 60 &&
+        observabilitySummary.errorGroups === 3 &&
+        observabilitySummary.vitalSamples === 20,
+      "M8 read model must aggregate three stable error groups and Web Vitals",
+    );
+    assert(
+      Array.isArray(observabilityOverview.body.alerts) &&
+        observabilityOverview.body.alerts.length >= 4,
+      "M8 fixed alerts must expose threshold evidence",
+    );
+    assert(
+      (observabilityOverview.body.boundaries as Record<string, unknown>)
+        ?.operationalIndexVersion === "operational_v1_unchanged",
+      "M8 must not silently change the operational index v1 formula",
+    );
+    const firstError = (
+      observabilityOverview.body.errors as Array<Record<string, unknown>>
+    )[0];
+    assert(typeof firstError?.groupId === "string", "M8 must expose an error group");
+    const errorDetail = await jsonRequest(
+      `/api/projects/${projectId}/observability/errors/${firstError.groupId}?${query}`,
+      { headers: viewerHeaders },
+    );
+    assert(
+      errorDetail.response.status === 200 &&
+        Array.isArray(errorDetail.body.impact) &&
+        typeof errorDetail.body.privacy === "string",
+      "error detail must retain release/page impact and privacy boundaries",
+    );
+
     const detail = await jsonRequest(
       `/api/projects/${projectId}/analytics/features/${featureIds.operations_wallboard}?${query}`,
       { headers: adminHeaders },
@@ -463,6 +540,7 @@ async function main(): Promise<void> {
         operationalProfileVersion: (
           operationalIndex.body.profile as Record<string, unknown>
         )?.version,
+        observability: observabilitySummary,
         runId: randomUUID(),
       }),
     );

@@ -355,6 +355,136 @@ describe("web tracker lifecycle and privacy", () => {
     tracker.destroy();
   });
 
+  it("captures privacy-bounded JS, resource, API and Web Vital evidence", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "observability01"),
+      observability: {
+        enabled: true,
+        releaseVersion: "2026.08.1",
+        deploymentEnvironment: "production",
+        captureJsErrors: false,
+        captureResourceErrors: false,
+        captureApiErrors: false,
+        captureWebVitals: false,
+      },
+    });
+    tracker.captureException(
+      new Error(
+        "Budget failed token=must-not-leak for person@example.test at https://park.invalid/devices/123456?secret=hidden",
+      ),
+    );
+    tracker.captureResourceError({
+      resourceType: "script",
+      url: "https://park.invalid/assets/123456?token=hidden",
+    });
+    tracker.captureApiError({
+      method: "get",
+      url: "https://park.invalid/api/devices/123456?token=hidden",
+      statusCode: 503,
+      durationMs: 850.4,
+    });
+    tracker.captureWebVital({ name: "LCP", value: 4_200 });
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    expect(batch.schemaVersion).toBe(2);
+    const observability = batch.events.filter((event) =>
+      ["error_js", "error_resource", "error_api", "web_vital"].includes(
+        String(event.eventName),
+      ),
+    );
+    expect(observability).toHaveLength(4);
+    expect(observability[2]?.properties).toMatchObject({
+      requestMethod: "GET",
+      requestPath: "/api/devices/:id",
+      statusCode: 503,
+      durationMs: 850,
+      releaseVersion: "2026.08.1",
+    });
+    expect(observability[3]?.properties).toMatchObject({
+      vitalName: "LCP",
+      vitalRating: "poor",
+    });
+    expect(observability[0]?.properties).toMatchObject({
+      browserFamily: expect.any(String),
+      osFamily: expect.any(String),
+      viewportBucket: expect.any(String),
+    });
+    const serialized = JSON.stringify(observability);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("person@example.test");
+    expect(serialized).not.toContain("token=hidden");
+    expect(serialized).not.toContain("park.invalid");
+    tracker.destroy();
+  });
+
+  it("optionally instruments failed fetches and restores the host function", async () => {
+    const originalFetch = window.fetch;
+    const hostFetch = vi.fn(async () => new Response(null, { status: 502 }));
+    window.fetch = hostFetch as unknown as typeof fetch;
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "autofetch01"),
+      observability: {
+        enabled: true,
+        releaseVersion: "release-42",
+        captureJsErrors: false,
+        captureResourceErrors: false,
+        captureApiErrors: true,
+        captureWebVitals: false,
+      },
+    });
+
+    await window.fetch("/api/alarms/987654?authorization=hidden", {
+      method: "POST",
+    });
+    await tracker.flush();
+    const batch = await payload(fetchMock);
+    expect(
+      batch.events.find((event) => event.eventName === "error_api")?.properties,
+    ).toMatchObject({
+      requestMethod: "POST",
+      requestPath: "/api/alarms/:id",
+      statusCode: 502,
+    });
+
+    tracker.destroy();
+    expect(window.fetch).toBe(hostFetch);
+    window.fetch = originalFetch;
+  });
+
+  it("fails closed when static properties consume or override the M8 budget", () => {
+    const { runtime } = createRuntime();
+    const base = {
+      ...config(runtime, "observability-budget01"),
+      observability: {
+        enabled: true,
+        releaseVersion: "release-42",
+        captureJsErrors: false,
+        captureResourceErrors: false,
+        captureApiErrors: false,
+        captureWebVitals: false,
+      },
+    } as const;
+    const budget = createTracker({
+      ...base,
+      staticProperties: Object.fromEntries(
+        Array.from({ length: 12 }, (_, index) => [`label${index}`, index]),
+      ),
+    });
+    expect(budget.getDiagnostics().lastErrorCode).toBe(
+      "OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED",
+    );
+    const conflict = createTracker({
+      ...base,
+      staticProperties: { releaseVersion: "overridden" },
+    });
+    expect(conflict.getDiagnostics().lastErrorCode).toBe(
+      "OBSERVABILITY_STATIC_PROPERTY_CONFLICT",
+    );
+  });
+
   it("drops unknown features, nested properties and forbidden beforeSend changes", () => {
     const { runtime } = createRuntime();
     const tracker = createTracker({

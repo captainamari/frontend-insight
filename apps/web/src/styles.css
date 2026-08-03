@@ -1241,6 +1241,132 @@ input:focus-visible {
   line-height: 1.6;
 }
 
+.observability-boundary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  padding: 15px 18px;
+  margin-bottom: 18px;
+  color: #31475b;
+  background: #eef5fa;
+  border: 1px solid #cbdde9;
+  border-radius: 8px;
+}
+
+.observability-boundary > div {
+  display: grid;
+  gap: 4px;
+}
+
+.observability-boundary span,
+.observability-boundary small {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.observability-boundary > small {
+  grid-column: 1 / -1;
+}
+
+.observability-heading {
+  align-items: end;
+}
+
+.observability-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.compact-select {
+  width: 128px;
+}
+
+.clickable-table .el-table__row {
+  cursor: pointer;
+}
+
+.error-cell {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.error-cell > span,
+.error-drawer-title > span {
+  display: flex;
+  gap: 6px;
+}
+
+.error-cell small,
+.error-drawer code {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.alert-list {
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.alert-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.alert-list p {
+  margin: 5px 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.alert-list small {
+  color: var(--muted);
+}
+
+.policy-details {
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.policy-details summary {
+  color: var(--blue);
+  cursor: pointer;
+}
+
+.policy-details p,
+.policy-details small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.error-drawer {
+  display: grid;
+  gap: 24px;
+}
+
+.error-drawer-title {
+  display: grid;
+  gap: 10px;
+}
+
+.error-drawer-title h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.error-drawer section h3 {
+  margin: 0 0 12px;
+}
+
 @media (max-width: 1240px) {
   .page-container {
     padding-right: 24px;
@@ -1270,6 +1396,14 @@ input:focus-visible {
 
   .template-guidance-grid {
     grid-template-columns: 1fr;
+  }
+
+  .observability-boundary {
+    grid-template-columns: 1fr;
+  }
+
+  .observability-boundary > small {
+    grid-column: auto;
   }
 }
 

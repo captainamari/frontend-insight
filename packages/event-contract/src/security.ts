@@ -14,6 +14,10 @@ const SENSITIVE_KEYS = new Set([
 
 const BEARER_VALUE = /^\s*bearer\s+\S+/i;
 const JWT_VALUE = /^\s*eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\s*$/;
+const EMAIL_VALUE = /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/;
+const CREDENTIAL_ASSIGNMENT =
+  /\b(?:token|password|passwd|secret|authorization|cookie)\s*[:=]\s*[^\s,;]+/i;
+const URL_WITH_PRIVATE_SUFFIX = /(?:https?:\/\/[^\s?#]+|(?:^|\s)\/[^\s?#]*)[?#][^\s]*/i;
 
 function normalizeKey(key: string): string {
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -27,6 +31,9 @@ export function findCredentialLeak(
   if (typeof value === "string") {
     if (BEARER_VALUE.test(value)) return `${path}:bearer`;
     if (JWT_VALUE.test(value)) return `${path}:jwt`;
+    if (EMAIL_VALUE.test(value)) return `${path}:email`;
+    if (CREDENTIAL_ASSIGNMENT.test(value)) return `${path}:credential-assignment`;
+    if (URL_WITH_PRIVATE_SUFFIX.test(value)) return `${path}:url-query-or-hash`;
     return null;
   }
 

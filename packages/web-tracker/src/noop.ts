@@ -28,6 +28,10 @@ export function createNoopTracker(code: string, development = false): Tracker {
       getState: () => "started",
     }),
     startLongView: () => () => {},
+    captureException() {},
+    captureApiError() {},
+    captureResourceError() {},
+    captureWebVital() {},
     flush: async () => {},
     destroy() {
       diagnostics.state = "destroyed";

@@ -41,6 +41,57 @@ function errorCode(cause: unknown): string {
   return "CONSUMER_PROCESSING_FAILED";
 }
 
+function propertyString(
+  properties: Record<string, unknown>,
+  key: string,
+): string | null {
+  return typeof properties[key] === "string" ? String(properties[key]) : null;
+}
+
+function propertyNumber(
+  properties: Record<string, unknown>,
+  key: string,
+): number | null {
+  const value = properties[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function normalizedErrorMessage(value: string | null): string {
+  return (value ?? "")
+    .replace(/\b\d{3,}\b/g, ":number")
+    .replace(/\b[0-9a-f]{8,}\b/gi, ":hex")
+    .replace(/["'][^"']{8,}["']/g, '":value"')
+    .slice(0, 256);
+}
+
+function normalizedStackFrame(value: string | null): string {
+  return (value ?? "")
+    .replace(/:\d+:\d+(?=\)?$)/, ":line:column")
+    .replace(/([._-])[0-9a-f]{8,}(?=\.(?:js|mjs|css)\b)/gi, "$1:hash")
+    .replace(/\b[0-9a-f]{12,}\b/gi, ":hash")
+    .slice(0, 256);
+}
+
+export function observabilityGroupId(
+  eventName: string,
+  properties: Record<string, unknown>,
+): string | null {
+  if (!eventName.startsWith("error_")) return null;
+  const status = propertyNumber(properties, "statusCode");
+  const statusClass = status === null ? "" : `${Math.floor(status / 100)}xx`;
+  const canonical = [
+    eventName,
+    propertyString(properties, "errorName"),
+    normalizedErrorMessage(propertyString(properties, "errorMessage")),
+    normalizedStackFrame(propertyString(properties, "stackTopFrame")),
+    propertyString(properties, "resourceType"),
+    propertyString(properties, "requestMethod"),
+    propertyString(properties, "requestPath"),
+    statusClass,
+  ].join("|");
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
 export class EventConsumerRuntime {
   private readonly kafka: Kafka;
   private readonly consumer: Consumer;
@@ -209,6 +260,7 @@ export class EventConsumerRuntime {
       const enrichment: EventEnrichment | undefined = enrichments.get(event.eventId);
       if (!enrichment) throw new Error("EVENT_ENRICHMENT_MISSING");
       const properties = event.properties as Record<string, unknown>;
+      const errorGroupId = observabilityGroupId(event.eventName, properties);
       return {
         event_id: event.eventId,
         schema_version: envelope.batch.schemaVersion,
@@ -231,6 +283,26 @@ export class EventConsumerRuntime {
           "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
         interaction_type:
           "interactionType" in event ? (event.interactionType ?? null) : null,
+        release_version: propertyString(properties, "releaseVersion"),
+        deployment_environment: propertyString(properties, "deploymentEnvironment"),
+        browser_family: propertyString(properties, "browserFamily"),
+        os_family: propertyString(properties, "osFamily"),
+        viewport_bucket: propertyString(properties, "viewportBucket"),
+        error_type: event.eventName.startsWith("error_")
+          ? event.eventName.slice("error_".length)
+          : null,
+        error_name: propertyString(properties, "errorName"),
+        error_message: propertyString(properties, "errorMessage"),
+        error_stack_frame: propertyString(properties, "stackTopFrame"),
+        error_group_id: errorGroupId,
+        request_method: propertyString(properties, "requestMethod"),
+        request_path: propertyString(properties, "requestPath"),
+        http_status: propertyNumber(properties, "statusCode"),
+        resource_type: propertyString(properties, "resourceType"),
+        vital_name: propertyString(properties, "vitalName"),
+        vital_value: propertyNumber(properties, "vitalValue"),
+        vital_rating: propertyString(properties, "vitalRating"),
+        navigation_type: propertyString(properties, "navigationType"),
         duration_ms:
           typeof properties.durationMs === "number" ? properties.durationMs : null,
         route: event.route,
