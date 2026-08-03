@@ -43,7 +43,7 @@ M8 保持为独立 `observability_v1.0.0` 读模型：不修改项目运营指�
 | `pnpm check`                           | 通过                                      |
 | workspace boundary / contract check    | 11 packages、0 cycle、0 cross-app 依赖    |
 | ESLint / TypeScript / production build | 通过                                      |
-| Vitest                                 | 14 files、106 tests 通过                  |
+| Vitest                                 | 15 files、108 tests 通过                  |
 | SDK bundle                             | 7,511 gzip bytes / 12,288 上限，通过      |
 | shell / Node 语法与 `git diff --check` | 通过                                      |
 | Chromium SDK browser contracts         | 4/4 通过，含 M8 发送前脱敏与 2 ms p95     |

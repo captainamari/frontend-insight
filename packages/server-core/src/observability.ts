@@ -1,4 +1,5 @@
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
+import { assertClickHouseReady } from "./clickhouse-health.js";
 import { validateAnalyticsRange, type AnalyticsRange } from "./analytics.js";
 import type { MySqlStore } from "./mysql-store.js";
 import { evaluateDataStatus, type DataState } from "./status.js";
@@ -196,7 +197,7 @@ export class ObservabilityStore {
   }
 
   async ping(): Promise<void> {
-    await this.client.ping();
+    await assertClickHouseReady(this.client);
   }
 
   getMetrics(): { queries: number; failures: number; latencyP95Ms: number } {
