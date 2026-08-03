@@ -49,14 +49,14 @@ M8 保持为独立 `observability_v1.0.0` 读模型：不修改项目运营指�
 | Chromium SDK browser contracts         | 4/4 通过，含 M8 发送前脱敏与 2 ms p95     |
 | YAML 解析                              | production Compose 与 M7/M8 workflow 通过 |
 
-当前执行容器没有 Docker daemon，且本地 WebKit 缺少系统动态库，因此 Compose、M5/M6/M8 E2E、M7 正式负载/故障/恢复和 WebKit 由分支 `.github/workflows/m7-m8.yml` 执行；Apple Silicon 最终人工步骤以本地验收指引为准。
+当前执行容器没有 Docker daemon，且本地 WebKit 缺少系统动态库，因此 Compose、M5/M6/M8 E2E、M7 正式负载/故障/恢复和 WebKit 由分支 `.github/workflows/m7-m8.yml` 持续验证，具体结果以 PR checks 为准；Apple Silicon 最终人工步骤以本地验收指引为准。
 
 ## 4. 发布门状态
 
 | 发布门                                     | 状态                         |
 | ------------------------------------------ | ---------------------------- |
 | 代码、契约、类型、单元、构建、Chromium     | 通过                         |
-| Linux Compose 与 WebKit 自动回路           | 等待分支 Actions 结果        |
+| Linux Compose 与 WebKit 自动回路           | 以 PR checks 为准            |
 | Apple Silicon 负载/故障/备份恢复           | 等待本地指引执行             |
 | 目标部署环境 Secret/日志/资源/备份异地副本 | 等待部署 owner 签字          |
 | M7 真实项目扩大试点                        | 等待项目 owner               |

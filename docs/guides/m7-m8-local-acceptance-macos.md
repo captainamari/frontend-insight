@@ -182,7 +182,7 @@ bash scripts/m7 fault kafka --confirm-disruption
 bash scripts/m7 release-drill --confirm-disruption
 ```
 
-通过标准：migration 幂等，恢复后 M5/M6/M8 fixture 全部可查，新增 nullable 列保留，不执行 down migration。演练文件只写入已忽略的 `.runtime/m7-release-drill`。
+通过标准：migration 幂等；停流切点导出的 MySQL 与 ClickHouse 内容在恢复后逐字节一致；恢复后新 marker 可写入并查询；M5/M6/M8 既有读模型全部可查；新增 nullable 列保留且不执行 down migration。演练不会用只适合干净数据窗口的固定 PV 断言误判已正确恢复的负载数据，证据文件只写入已忽略的 `.runtime/m7-release-drill`。
 
 ## 8. Production Compose 策略验收
 
