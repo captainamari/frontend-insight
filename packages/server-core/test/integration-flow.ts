@@ -193,6 +193,16 @@ async function main(): Promise<void> {
       ),
     );
     const batches = [...baseBatches, ...operationSamples, ...observabilitySamples];
+    const logicalEvents = batches.flatMap((batch) => batch.events);
+    const expectedVisitors = new Set(logicalEvents.map((event) => event.visitorId))
+      .size;
+    const expectedAccounts = new Set(
+      logicalEvents
+        .map((event) => event.accountRef)
+        .filter((accountRef): accountRef is string => typeof accountRef === "string"),
+    ).size;
+    const expectedSessions = new Set(logicalEvents.map((event) => event.sessionId))
+      .size;
     for (const batch of [...batches, ...batches]) {
       const accepted = await jsonRequest("/v1/events", {
         method: "POST",
@@ -280,8 +290,18 @@ async function main(): Promise<void> {
       current.pv === 8,
       `query-side eventId dedupe expected 8 PV, got ${current.pv}`,
     );
-    assert(current.visitors === 8, "overview must expose browser count");
-    assert(current.accounts === 8, "overview must expose HMAC account count");
+    assert(
+      current.visitors === expectedVisitors,
+      `overview expected ${expectedVisitors} browsers, got ${current.visitors}`,
+    );
+    assert(
+      current.accounts === expectedAccounts,
+      `overview expected ${expectedAccounts} HMAC accounts, got ${current.accounts}`,
+    );
+    assert(
+      current.sessions === expectedSessions,
+      `overview expected ${expectedSessions} sessions, got ${current.sessions}`,
+    );
 
     const features = await jsonRequest(
       `/api/projects/${projectId}/analytics/features?${query}`,
