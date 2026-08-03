@@ -131,7 +131,7 @@ release_drill() {
   local clickhouse_password
   clickhouse_password="$(awk -F= '$1 == "M24_CLICKHOUSE_PASSWORD" { print $2; exit }' "$ENV_FILE")"
   compose exec -T mysql bash -ec \
-    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --skip-comments --compact --order-by-primary --hex-blob --set-gtid-purged=OFF frontend_insight' \
+    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
     > "$drill_dir/mysql.sql"
   compose exec -T clickhouse clickhouse-client \
     --user frontend_insight \
@@ -142,7 +142,7 @@ release_drill() {
   chmod 600 "$drill_dir/mysql.sql" "$drill_dir/raw_events.native"
   compose run --rm migrate
   compose exec -T mysql bash -ec \
-    'exec mysql -uroot --password="$MYSQL_ROOT_PASSWORD" frontend_insight' \
+    'exec mysql -uroot --password="$MYSQL_ROOT_PASSWORD"' \
     < "$drill_dir/mysql.sql"
   compose exec -T clickhouse clickhouse-client \
     --user frontend_insight \
@@ -157,7 +157,7 @@ release_drill() {
     < "$drill_dir/raw_events.native"
   compose run --rm migrate
   compose exec -T mysql bash -ec \
-    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --skip-comments --compact --order-by-primary --hex-blob --set-gtid-purged=OFF frontend_insight' \
+    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
     > "$drill_dir/mysql.after.sql"
   compose exec -T clickhouse clickhouse-client \
     --user frontend_insight \
