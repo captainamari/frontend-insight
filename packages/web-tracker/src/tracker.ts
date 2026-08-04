@@ -5,6 +5,10 @@ import {
 } from "@frontend-insight/event-contract/constants";
 import { findCredentialLeak } from "@frontend-insight/event-contract/security";
 import {
+  BrowserObservability,
+  type NormalizedObservabilityConfig,
+} from "./observability.js";
+import {
   applyRestrictedBeforeSend,
   isSafeAccountReference,
   isValidCustomEventName,
@@ -13,19 +17,22 @@ import {
 } from "./privacy.js";
 import type {
   EventProperties,
+  ApiErrorDetails,
   InteractionType,
   OperationHandle,
   OperationState,
   PendingBatch,
+  ResourceErrorDetails,
   Tracker,
   TrackerConfig,
   TrackerDiagnostics,
   TrackerEvent,
   TrackerRuntime,
+  WebVitalDetails,
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.2.0";
+const SDK_VERSION = "0.3.0";
 const visitorStorageKey = "frontend-insight.visitor-id.v1";
 
 function id(
@@ -59,6 +66,7 @@ export class BrowserTracker implements Tracker {
   };
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
+  private readonly observability: BrowserObservability | null;
   private readonly originalPushState: History["pushState"];
   private readonly originalReplaceState: History["replaceState"];
   private visitorId: string;
@@ -89,6 +97,7 @@ export class BrowserTracker implements Tracker {
     > & {
       normalizeRoute: TrackerConfig["normalizeRoute"] | undefined;
       beforeSend: TrackerConfig["beforeSend"] | undefined;
+      observability: NormalizedObservabilityConfig | null;
     },
     runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
@@ -107,12 +116,21 @@ export class BrowserTracker implements Tracker {
     this.originalReplaceState = runtime.window.history.replaceState.bind(
       runtime.window.history,
     );
+    this.observability = config.observability
+      ? new BrowserObservability(
+          runtime,
+          config.observability,
+          config.endpoint,
+          (eventName, properties) => this.emit(eventName, properties),
+        )
+      : null;
+    this.emit("page_view", {}, { title: runtime.document.title.slice(0, 256) });
+    this.observability?.start();
     this.installLifecycle();
     this.flushTimer = runtime.setInterval(
       () => void this.flush("normal"),
       config.flushIntervalMs,
     );
-    this.emit("page_view", {}, { title: runtime.document.title.slice(0, 256) });
   }
 
   private loadOrCreateVisitor(): string {
@@ -455,6 +473,22 @@ export class BrowserTracker implements Tracker {
     return stop;
   }
 
+  captureException(error: unknown): void {
+    this.safe(() => this.observability?.captureException(error));
+  }
+
+  captureApiError(details: ApiErrorDetails): void {
+    this.safe(() => this.observability?.captureApiError(details));
+  }
+
+  captureResourceError(details: ResourceErrorDetails): void {
+    this.safe(() => this.observability?.captureResourceError(details));
+  }
+
+  captureWebVital(details: WebVitalDetails): void {
+    this.safe(() => this.observability?.captureWebVital(details));
+  }
+
   private nextBatch(): PendingBatch | null {
     if (!this.queue.length) return null;
     const events: TrackerEvent[] = [];
@@ -539,6 +573,7 @@ export class BrowserTracker implements Tracker {
 
   destroy(): void {
     if (this.destroyed) return;
+    this.observability?.stop();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
     this.settleVisiblePage();

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 2,
+  "projectKey": "fi_public_m8fixture01",
+  "sentAt": "2026-08-01T10:00:05.000Z",
+  "sdk": {
+    "name": "web-tracker",
+    "version": "0.3.0"
+  },
+  "events": [
+    {
+      "eventId": "evt_m8_js_error_0001",
+      "eventName": "error_js",
+      "eventTime": "2026-08-01T10:00:01.000Z",
+      "visitorId": "vis_m8_fixture_0001",
+      "sessionId": "ses_m8_fixture_0001",
+      "pageViewId": "pv_m8_fixture_00001",
+      "accountRef": "opaque-account-m8",
+      "route": "/energy/budget",
+      "timezoneOffsetMinutes": -480,
+      "properties": {
+        "errorName": "TypeError",
+        "errorMessage": "Cannot read configured series",
+        "stackTopFrame": "at renderChart (/assets/app.js:10:20)",
+        "releaseVersion": "2026.08.1",
+        "deploymentEnvironment": "production",
+        "browserFamily": "Chrome",
+        "osFamily": "Windows",
+        "viewportBucket": "wide"
+      }
+    },
+    {
+      "eventId": "evt_m8_resource_0002",
+      "eventName": "error_resource",
+      "eventTime": "2026-08-01T10:00:02.000Z",
+      "visitorId": "vis_m8_fixture_0001",
+      "sessionId": "ses_m8_fixture_0001",
+      "pageViewId": "pv_m8_fixture_00001",
+      "route": "/energy/budget",
+      "timezoneOffsetMinutes": -480,
+      "properties": {
+        "resourceType": "script",
+        "requestPath": "/assets/chunk.js",
+        "releaseVersion": "2026.08.1",
+        "deploymentEnvironment": "production",
+        "browserFamily": "Chrome",
+        "osFamily": "Windows",
+        "viewportBucket": "wide"
+      }
+    },
+    {
+      "eventId": "evt_m8_api_error_003",
+      "eventName": "error_api",
+      "eventTime": "2026-08-01T10:00:03.000Z",
+      "visitorId": "vis_m8_fixture_0001",
+      "sessionId": "ses_m8_fixture_0001",
+      "pageViewId": "pv_m8_fixture_00001",
+      "route": "/energy/budget",
+      "timezoneOffsetMinutes": -480,
+      "properties": {
+        "requestMethod": "GET",
+        "requestPath": "/api/budgets/:id",
+        "statusCode": 503,
+        "durationMs": 850,
+        "releaseVersion": "2026.08.1",
+        "deploymentEnvironment": "production",
+        "browserFamily": "Chrome",
+        "osFamily": "Windows",
+        "viewportBucket": "wide"
+      }
+    },
+    {
+      "eventId": "evt_m8_web_vital_004",
+      "eventName": "web_vital",
+      "eventTime": "2026-08-01T10:00:04.000Z",
+      "visitorId": "vis_m8_fixture_0001",
+      "sessionId": "ses_m8_fixture_0001",
+      "pageViewId": "pv_m8_fixture_00001",
+      "route": "/energy/budget",
+      "timezoneOffsetMinutes": -480,
+      "properties": {
+        "vitalName": "LCP",
+        "vitalValue": 4200,
+        "vitalRating": "poor",
+        "navigationType": "navigate",
+        "releaseVersion": "2026.08.1",
+        "deploymentEnvironment": "production",
+        "browserFamily": "Chrome",
+        "osFamily": "Windows",
+        "viewportBucket": "wide"
+      }
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
+import { assertClickHouseReady } from "./clickhouse-health.js";
 import {
   calculateOperationalIndex,
   metricDefinition,
@@ -246,7 +247,7 @@ export class AnalyticsStore {
   }
 
   async ping(): Promise<void> {
-    await this.client.ping();
+    await assertClickHouseReady(this.client);
   }
 
   getMetrics(): { queries: number; failures: number; latencyP95Ms: number } {

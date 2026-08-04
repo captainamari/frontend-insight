@@ -104,7 +104,11 @@
                 "feature_canceled",
                 "feature_long_view_started",
                 "feature_long_view_heartbeat",
-                "feature_long_view_ended"
+                "feature_long_view_ended",
+                "error_js",
+                "error_resource",
+                "error_api",
+                "web_vital"
               ]
             },
             {
@@ -168,6 +172,189 @@
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_js"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "errorName",
+                  "errorMessage",
+                  "stackTopFrame",
+                  "releaseVersion",
+                  "deploymentEnvironment"
+                ],
+                "properties": {
+                  "errorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+                  "errorMessage": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "stackTopFrame": { "type": "string", "maxLength": 256 },
+                  "releaseVersion": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                  },
+                  "deploymentEnvironment": {
+                    "enum": ["production", "staging", "test", "development"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_resource"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "resourceType",
+                  "requestPath",
+                  "releaseVersion",
+                  "deploymentEnvironment"
+                ],
+                "properties": {
+                  "resourceType": {
+                    "enum": ["script", "stylesheet", "image", "font", "media", "other"]
+                  },
+                  "requestPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "maxLength": 256
+                  },
+                  "releaseVersion": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                  },
+                  "deploymentEnvironment": {
+                    "enum": ["production", "staging", "test", "development"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_api"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "requestMethod",
+                  "requestPath",
+                  "statusCode",
+                  "durationMs",
+                  "releaseVersion",
+                  "deploymentEnvironment"
+                ],
+                "properties": {
+                  "requestMethod": {
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "HEAD",
+                      "OPTIONS",
+                      "OTHER"
+                    ]
+                  },
+                  "requestPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "maxLength": 256
+                  },
+                  "statusCode": { "type": "integer", "minimum": 0, "maximum": 599 },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "releaseVersion": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                  },
+                  "deploymentEnvironment": {
+                    "enum": ["production", "staging", "test", "development"]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "web_vital"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "vitalName",
+                  "vitalValue",
+                  "vitalRating",
+                  "navigationType",
+                  "releaseVersion",
+                  "deploymentEnvironment"
+                ],
+                "properties": {
+                  "vitalName": { "enum": ["LCP", "CLS", "INP", "FCP", "TTFB"] },
+                  "vitalValue": { "type": "number", "minimum": 0, "maximum": 86400000 },
+                  "vitalRating": { "enum": ["good", "needs_improvement", "poor"] },
+                  "navigationType": {
+                    "enum": [
+                      "navigate",
+                      "reload",
+                      "back_forward",
+                      "prerender",
+                      "unknown"
+                    ]
+                  },
+                  "releaseVersion": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                  },
+                  "deploymentEnvironment": {
+                    "enum": ["production", "staging", "test", "development"]
+                  }
+                }
+              }
+            }
+          }
+        },
         {
           "if": {
             "properties": {

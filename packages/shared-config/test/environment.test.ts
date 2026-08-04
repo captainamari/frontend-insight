@@ -1,5 +1,9 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  EnvironmentSecretFileError,
   EnvironmentValidationError,
   loadApiEnvironment,
   loadConsumerEnvironment,
@@ -54,5 +58,43 @@ describe("environment validation", () => {
     expect(
       loadWebEnvironment({ PUBLIC_API_BASE_URL: "http://localhost:3000" }),
     ).toEqual({ PUBLIC_API_BASE_URL: "http://localhost:3000" });
+  });
+
+  it("loads production secrets from mounted files without exposing values", () => {
+    const directory = mkdtempSync(join(tmpdir(), "frontend-insight-secret-"));
+    try {
+      const mysqlFile = join(directory, "mysql-url");
+      const clickhouseFile = join(directory, "clickhouse-password");
+      writeFileSync(mysqlFile, "mysql://user:secret@mysql:3306/frontend_insight\n", {
+        mode: 0o600,
+      });
+      writeFileSync(clickhouseFile, "clickhouse-secret\n", { mode: 0o600 });
+      const environment = loadConsumerEnvironment({
+        NODE_ENV: "production",
+        KAFKA_BROKERS: "kafka:9092",
+        CONSUMER_GROUP_ID: "frontend-insight-production",
+        CONSUMER_BATCH_SIZE: "500",
+        MYSQL_URL_FILE: mysqlFile,
+        CLICKHOUSE_URL: "http://clickhouse:8123",
+        CLICKHOUSE_PASSWORD_FILE: clickhouseFile,
+        CLICKHOUSE_DATABASE: "frontend_insight",
+      });
+      expect(environment.MYSQL_URL).toContain("mysql:3306");
+      expect(environment.CLICKHOUSE_PASSWORD).toBe("clickhouse-secret");
+      expect(() =>
+        loadConsumerEnvironment({
+          NODE_ENV: "production",
+          KAFKA_BROKERS: "kafka:9092",
+          CONSUMER_GROUP_ID: "frontend-insight-production",
+          CONSUMER_BATCH_SIZE: "500",
+          MYSQL_URL_FILE: join(directory, "missing-secret"),
+          CLICKHOUSE_URL: "http://clickhouse:8123",
+          CLICKHOUSE_PASSWORD_FILE: clickhouseFile,
+          CLICKHOUSE_DATABASE: "frontend_insight",
+        }),
+      ).toThrow(EnvironmentSecretFileError);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 });

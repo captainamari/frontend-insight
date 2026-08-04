@@ -1,6 +1,6 @@
 # Frontend Insight 文档索引
 
-当前实现基线：2026-07-29。M0–M5 以 v1.5/v1.2 和对应验收记录为历史依据；M6 按已通过评审的需求文档 v1.6 与 MVP 开发计划 v1.3 实现。
+当前实现基线：2026-08-02。M0–M5 以 v1.5/v1.2 和对应验收记录为历史依据；M6–M8 按已通过评审的需求文档 v1.6 与 MVP 开发计划 v1.3 实现。
 
 本轮基线：
 
@@ -13,7 +13,8 @@
 1. [v1.3 评审报告](reviews/v1.3-review.md)：了解最初范围、用户体验和技术方案为何调整；
 2. [需求文档 v1.6](product/requirements-v1.6.md)：确认最新产品定位、指标口径、项目运营指数、可观测性和 AI 分析边界；
 3. [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：按 M6–M9 阶段门、任务、测试、迁移和 Go/No-Go 标准执行；
-4. [M6 Mac 本地验收指引](guides/m6-local-acceptance-macos.md)：验证 v1/v2 双版本链路、运营指标、项目运营指数、配置版本和 M0–M5 回归。
+4. [M6 Mac 本地验收指引](guides/m6-local-acceptance-macos.md)：验证 v1/v2 双版本链路、运营指标、项目运营指数、配置版本和 M0–M5 回归；
+5. [M7/M8 Mac 本地验收指引](guides/m7-m8-local-acceptance-macos.md)：验证生产策略、负载、故障、恢复，以及错误/性能/发布/固定告警产品闭环。
 
 当前实现与验收记录：
 
@@ -26,12 +27,15 @@
 - [ADR-010：事件 v2 与任务实例](adr/ADR-010-event-contract-v2-operation-lifecycle.md)；
 - [ADR-011：指标目录与血缘](adr/ADR-011-metric-catalog-and-lineage.md)；
 - [ADR-012：项目运营指数 v1](adr/ADR-012-operational-index-v1.md)；
+- [ADR-013：M7 生产硬化与 M8 可观测性 v1](adr/ADR-013-m7-production-and-m8-observability-v1.md)；
 - [M1 本地工程与迁移验收](guides/m1-local-engineering-macos.md)；
 - [M1 实现与验收记录](progress/m1-results.md)；
 - [M2–M4 本地验收指引](guides/m2-m4-local-macos.md)；
 - [M2–M4 实现与验收记录](progress/m2-m4-results.md)；
-- [M5 实现与验收记录](progress/m5-results.md)。
-- [M6 本地验收指引](guides/m6-local-acceptance-macos.md)。
+- [M5 实现与验收记录](progress/m5-results.md)；
+- [M6 本地验收指引](guides/m6-local-acceptance-macos.md)；
+- [M7/M8 本地验收指引](guides/m7-m8-local-acceptance-macos.md)。
+- [M7/M8 实现与验收记录](progress/m7-m8-results.md)。
 
 项目学习与维护：
 

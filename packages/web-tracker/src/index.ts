@@ -1,13 +1,36 @@
 import { createNoopTracker } from "./noop.js";
+import { normalizeObservabilityConfig } from "./observability.js";
 import { normalizeProperties } from "./privacy.js";
 import { browserRuntime } from "./runtime.js";
 import { BrowserTracker } from "./tracker.js";
 import type { Tracker, TrackerConfig } from "./types.js";
 
 const activeTrackers = new Map<string, Tracker>();
+const observabilityPropertyBudget = 9;
+const observabilityReservedProperties = new Set([
+  "releaseVersion",
+  "deploymentEnvironment",
+  "browserFamily",
+  "osFamily",
+  "viewportBucket",
+  "errorName",
+  "errorMessage",
+  "stackTopFrame",
+  "resourceType",
+  "requestMethod",
+  "requestPath",
+  "statusCode",
+  "durationMs",
+  "vitalName",
+  "vitalValue",
+  "vitalRating",
+  "navigationType",
+]);
 
-function trackerKey(config: Pick<TrackerConfig, "projectKey" | "endpoint">): string {
-  return `${config.projectKey}\u0000${config.endpoint}`;
+function trackerKey(
+  config: Pick<TrackerConfig, "projectKey" | "endpoint" | "observability">,
+): string {
+  return `${config.projectKey}\u0000${config.endpoint}\u0000${config.observability?.releaseVersion ?? "none"}`;
 }
 
 export function createTracker(config: TrackerConfig): Tracker {
@@ -23,6 +46,21 @@ export function createTracker(config: TrackerConfig): Tracker {
     const staticProperties = normalizeProperties(config.staticProperties);
     if (!staticProperties) {
       return createNoopTracker("STATIC_PROPERTIES_INVALID", development);
+    }
+    const observability = normalizeObservabilityConfig(config.observability);
+    if (
+      observability &&
+      Object.keys(staticProperties).length > 20 - observabilityPropertyBudget
+    ) {
+      return createNoopTracker("OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED", development);
+    }
+    if (
+      observability &&
+      Object.keys(staticProperties).some((key) =>
+        observabilityReservedProperties.has(key),
+      )
+    ) {
+      return createNoopTracker("OBSERVABILITY_STATIC_PROPERTY_CONFLICT", development);
     }
     const key = trackerKey(config);
     const existing = activeTrackers.get(key);
@@ -41,6 +79,7 @@ export function createTracker(config: TrackerConfig): Tracker {
         development,
         normalizeRoute: config.normalizeRoute,
         beforeSend: config.beforeSend,
+        observability,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,

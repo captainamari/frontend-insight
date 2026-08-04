@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 
 const positiveInteger = z.coerce.number().int().positive();
@@ -79,6 +80,33 @@ export class EnvironmentValidationError extends Error {
   }
 }
 
+export class EnvironmentSecretFileError extends Error {
+  constructor(readonly key: string) {
+    super(`environment secret file is unreadable or empty: ${key}_FILE`);
+    this.name = "EnvironmentSecretFileError";
+  }
+}
+
+function hydrateSecretFiles(
+  source: Record<string, string | undefined>,
+  keys: string[],
+): Record<string, string | undefined> {
+  const hydrated = { ...source };
+  for (const key of keys) {
+    if (hydrated[key]) continue;
+    const file = hydrated[`${key}_FILE`];
+    if (!file) continue;
+    try {
+      const value = readFileSync(file, "utf8").trim();
+      if (!value) throw new Error("empty");
+      hydrated[key] = value;
+    } catch {
+      throw new EnvironmentSecretFileError(key);
+    }
+  }
+  return hydrated;
+}
+
 function parseEnvironment<T extends z.ZodType>(
   scope: string,
   schema: T,
@@ -99,13 +127,26 @@ export type MigrationEnvironment = z.output<typeof migrationEnvironmentSchema>;
 export function loadApiEnvironment(
   source: Record<string, string | undefined> = process.env,
 ): ApiEnvironment {
-  return parseEnvironment("api", apiEnvironmentSchema, source);
+  return parseEnvironment(
+    "api",
+    apiEnvironmentSchema,
+    hydrateSecretFiles(source, [
+      "MYSQL_URL",
+      "CLICKHOUSE_PASSWORD",
+      "ACCOUNT_HMAC_KEY",
+      "AUTH_TOKEN_SECRET",
+    ]),
+  );
 }
 
 export function loadConsumerEnvironment(
   source: Record<string, string | undefined> = process.env,
 ): ConsumerEnvironment {
-  return parseEnvironment("consumer", consumerEnvironmentSchema, source);
+  return parseEnvironment(
+    "consumer",
+    consumerEnvironmentSchema,
+    hydrateSecretFiles(source, ["MYSQL_URL", "CLICKHOUSE_PASSWORD"]),
+  );
 }
 
 export function loadWebEnvironment(
@@ -117,5 +158,9 @@ export function loadWebEnvironment(
 export function loadMigrationEnvironment(
   source: Record<string, string | undefined> = process.env,
 ): MigrationEnvironment {
-  return parseEnvironment("migration", migrationEnvironmentSchema, source);
+  return parseEnvironment(
+    "migration",
+    migrationEnvironmentSchema,
+    hydrateSecretFiles(source, ["MYSQL_URL", "CLICKHOUSE_PASSWORD"]),
+  );
 }

@@ -20,6 +20,17 @@ export const STANDARD_EVENT_NAMES = [
   "feature_long_view_started",
   "feature_long_view_heartbeat",
   "feature_long_view_ended",
+  "error_js",
+  "error_resource",
+  "error_api",
+  "web_vital",
+] as const;
+
+export const OBSERVABILITY_EVENT_NAMES = [
+  "error_js",
+  "error_resource",
+  "error_api",
+  "web_vital",
 ] as const;
 
 export const REJECTION_CODES = Object.freeze({

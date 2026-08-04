@@ -487,3 +487,126 @@ export interface MetricLineage {
   directUpstream: string[];
   directDownstream: string[];
 }
+
+export type ObservabilityErrorType = "js" | "resource" | "api";
+export type ObservabilitySeverity = "critical" | "high" | "warning" | "info";
+
+export interface ObservabilityMeta {
+  range: RangeQuery;
+  dataStatus: DataStatus;
+  updatedAt: string | null;
+  availableFrom: string | null;
+  definitionVersion: string;
+}
+
+export interface ErrorGroupSummary {
+  groupId: string;
+  errorType: ObservabilityErrorType;
+  errorName: string | null;
+  message: string | null;
+  stackTopFrame: string | null;
+  requestMethod: string | null;
+  requestPath: string | null;
+  httpStatus: number | null;
+  resourceType: string | null;
+  occurrences: number;
+  affectedAccounts: number;
+  affectedBrowsers: number;
+  affectedPages: number;
+  pages: string[];
+  releases: string[];
+  browserFamilies: string[];
+  osFamilies: string[];
+  viewportBuckets: string[];
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  severity: ObservabilitySeverity;
+}
+
+export interface WebVitalSummary {
+  route: string;
+  vitalName: "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+  releaseVersion: string;
+  sampleSize: number;
+  p75: number | null;
+  poorSamples: number;
+  poorRate: number | null;
+  lastSeenAt: string | null;
+}
+
+export interface ReleaseObservabilitySummary {
+  releaseVersion: string;
+  deploymentEnvironment: string | null;
+  observabilityEvents: number;
+  errors: number;
+  errorGroups: number;
+  poorVitalSamples: number;
+  affectedBrowsers: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
+export interface FixedAlert {
+  id: string;
+  ruleKey: "error_spike" | "web_vital_poor" | "telemetry_delayed";
+  severity: Exclude<ObservabilitySeverity, "info">;
+  title: string;
+  evidence: string;
+  entityType: "error_group" | "page_vital" | "pipeline";
+  entityKey: string;
+  triggeredAt: string | null;
+  definitionVersion: string;
+}
+
+export interface ObservabilityOverviewResponse extends ObservabilityMeta {
+  summary: {
+    errorOccurrences: number;
+    errorGroups: number;
+    affectedAccounts: number;
+    affectedBrowsers: number;
+    vitalSamples: number;
+    poorVitalSamples: number;
+    releases: number;
+    activeAlerts: number;
+  };
+  errors: ErrorGroupSummary[];
+  vitals: WebVitalSummary[];
+  releases: ReleaseObservabilitySummary[];
+  alerts: FixedAlert[];
+  trend: Array<{
+    bucket: string;
+    errors: number;
+    errorGroups: number;
+    vitalSamples: number;
+    poorVitalSamples: number;
+  }>;
+  alertPolicy: {
+    definitionVersion: string;
+    errorSpike: string;
+    webVitalPoor: string;
+    lifecycle: string;
+  };
+  boundaries: {
+    operationalIndexVersion: "operational_v1_unchanged";
+    sourceMaps: "disabled_pending_real_location_evidence";
+    causality: string;
+  };
+}
+
+export interface ErrorGroupDetailResponse extends ObservabilityMeta {
+  item: ErrorGroupSummary;
+  trend: Array<{
+    bucket: string;
+    occurrences: number;
+    affectedBrowsers: number;
+    affectedAccounts: number;
+  }>;
+  impact: Array<{
+    route: string;
+    releaseVersion: string;
+    occurrences: number;
+    affectedBrowsers: number;
+    lastSeenAt: string | null;
+  }>;
+  privacy: string;
+}

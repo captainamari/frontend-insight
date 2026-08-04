@@ -1,9 +1,10 @@
 # 事件传输契约 v2
 
-状态：M6 基线  
+状态：M6 operation + M8 observability 基线
+
 事实来源：`packages/event-contract/schema/event-batch-v2.schema.json`
 
-v2 在 v1 页面、功能和 long-view 语义上增加任务实例与取消终态。服务端、consumer 和 SDK 同时支持 v1/v2；v1 数据继续进入 M5 分析，但不能计算依赖 operation 配对的 M6 指标。
+v2 在 v1 页面、功能和 long-view 语义上增加任务实例、取消终态与 M8 前端可观测性事件。服务端、consumer 和 SDK 同时支持 v1/v2；v1 数据继续进入 M5 分析，但不能计算依赖 operation 配对的 M6 指标，也不产生 M8 错误/性能证据。
 
 ## 1. v2 新增字段与事件
 
@@ -91,3 +92,20 @@ v2 新增：
 6. 核对 v1/v2 SDK 分布与拒绝量后再讨论停止旧版本。
 
 Schema 是传输格式的唯一事实来源；TypeScript 类型由生成器产生，不手工修改。
+
+## 7. M8 可观测性事件
+
+| 事件             | 必填业务属性                                                                    | 不采集内容                          |
+| ---------------- | ------------------------------------------------------------------------------- | ----------------------------------- |
+| `error_js`       | `errorName`、脱敏 `errorMessage`、脱敏 `stackTopFrame`、release、environment    | 完整堆栈、源码、SourceMap、DOM      |
+| `error_resource` | `resourceType`、无 query/hash 的 `requestPath`、release、environment            | header、完整 URL、资源正文          |
+| `error_api`      | method、归一化 path、status、duration、release、environment                     | 请求/响应 header、query、body       |
+| `web_vital`      | LCP/CLS/INP/FCP/TTFB、value、固定 rating、navigation type、release、environment | PerformanceEntry 原对象和自定义详情 |
+
+四类事件还可携带 SDK 生成的 `browserFamily`、`osFamily` 和 `viewportBucket` 粗粒度档位；不发送 User-Agent 原文。release 必须由宿主构建/部署过程显式注入，平台不从静态资源名或页面内容猜测。
+
+SDK v0.3.0 的 M8 采集是显式 opt-in。JS、资源与 Web Vitals 可分别自动启用；全局 `fetch` 包装默认关闭，已有请求层优先调用 `captureApiError`。显式方法和自动采集使用相同的浏览器端裁剪、schema 与批量边界。
+
+错误组不是新的客户端标识。consumer 只对脱敏后的错误类型、错误名/消息/首帧、资源类型、method、归一化 path 和 HTTP 状态段计算稳定 SHA-256；账号、visitor、页面、发布版本和时间不进入 group ID，只作为服务端影响范围聚合。
+
+M8 继续使用 schema v2，原因是传输外壳、隐私边界和兼容策略不变。新增事件在 additive ClickHouse migration 后才能启用；旧 consumer/API 应先升级，再逐项目开启 SDK `observability.enabled`。

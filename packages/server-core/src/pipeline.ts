@@ -4,7 +4,7 @@ import {
   validateForIngestion,
   type FrontendInsightEventBatch,
 } from "@frontend-insight/event-contract";
-import { Kafka, logLevel, type Producer } from "kafkajs";
+import { Kafka, logLevel, type Admin, type Producer } from "kafkajs";
 import type { MySqlStore } from "./mysql-store.js";
 import type {
   EventEnrichment,
@@ -52,17 +52,27 @@ export interface IngestionMetricsSnapshot {
 
 export class KafkaEnvelopePublisher implements EnvelopePublisher {
   private readonly producer: Producer;
+  private readonly admin: Admin;
   private connected = false;
+  private adminConnected = false;
 
   constructor(
     brokers: string[],
     private readonly topic: string,
   ) {
-    this.producer = new Kafka({
+    const retry = { retries: 3, initialRetryTime: 100, maxRetryTime: 1_000 };
+    const kafka = new Kafka({
       clientId: "frontend-insight-api",
       brokers,
       logLevel: logLevel.NOTHING,
-    }).producer({ allowAutoTopicCreation: false, idempotent: true });
+      retry,
+    });
+    this.producer = kafka.producer({
+      allowAutoTopicCreation: false,
+      idempotent: true,
+      retry,
+    });
+    this.admin = kafka.admin();
   }
 
   async connect(): Promise<void> {
@@ -74,7 +84,17 @@ export class KafkaEnvelopePublisher implements EnvelopePublisher {
 
   async disconnect(): Promise<void> {
     if (this.connected) await this.producer.disconnect();
+    if (this.adminConnected) await this.admin.disconnect();
     this.connected = false;
+    this.adminConnected = false;
+  }
+
+  async ping(): Promise<void> {
+    if (!this.adminConnected) {
+      await this.admin.connect();
+      this.adminConnected = true;
+    }
+    await this.admin.fetchTopicMetadata({ topics: [this.topic] });
   }
 
   async publish(envelope: KafkaEventEnvelope): Promise<void> {
@@ -82,6 +102,7 @@ export class KafkaEnvelopePublisher implements EnvelopePublisher {
     await this.producer.send({
       topic: this.topic,
       acks: -1,
+      timeout: 5_000,
       messages: [
         {
           key: envelope.projectId,
