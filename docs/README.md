@@ -5,14 +5,14 @@
 当前待评审产品与修改基线：
 
 - [需求文档 v1.7](product/requirements-v1.7.md)：结合内部系统前端监测指标字典和产品流程图，统一领域实体、字段/事件/UI 命名、指标公式与分母、分位数、采集上报、隐私边界、页面职责和下钻关系；
-- [修改计划 v1.4](planning/mvp-plan-v1.4.md)：评估对 M0–M8 的影响，并以 M8.1-A（规范与现有口径）、M8.1-B（新增受控采集）、P2/P3（业务/组织/安全能力）分批迁移和验收。
+- [修改计划 v1.4](planning/mvp-plan-v1.4.md)：基于“当前全部为可丢弃测试数据”的前提，评估对 M0–M8 的影响，并以 M8.1-A（Pre-1.0 重置与规范口径）、M8.1-B（新增受控采集）、P2/P3（业务/组织/安全能力）分批实施和验收。
 
 v1.7/v1.4 是后续改造目标，不表示 main 上已经实现。评审通过并完成对应实施、测试和验收前，产品不得把新指标或新采集标记为可用。
 
 建议阅读顺序：
 
 1. [需求文档 v1.7](product/requirements-v1.7.md)：确认规范名、指标口径、采集边界、产品流程和分期优先级；
-2. [修改计划 v1.4](planning/mvp-plan-v1.4.md)：确认 M0–M8 影响、兼容迁移、工作包、测试、发布门与工作量；
+2. [修改计划 v1.4](planning/mvp-plan-v1.4.md)：确认 M0–M8 影响、全量测试数据重置、schema v3/SDK 0.4 唯一基线、工作包、测试、发布门与工作量；
 3. [需求文档 v1.6](product/requirements-v1.6.md) 与 [MVP 开发计划 v1.3](planning/mvp-plan-v1.3.md)：核对 M6–M8 当前已实现基线；
 4. [v1.3 评审报告](reviews/v1.3-review.md)：了解早期范围、用户体验和技术方案为何调整；
 5. [M6 Mac 本地验收指引](guides/m6-local-acceptance-macos.md) 与 [M7/M8 Mac 本地验收指引](guides/m7-m8-local-acceptance-macos.md)：验证当前实现。

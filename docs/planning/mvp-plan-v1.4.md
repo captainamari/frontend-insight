@@ -11,13 +11,14 @@
 
 本次不是一次文案替换。它会同时影响事件契约、Web SDK、接收校验、ClickHouse 事实、MetricCatalog、固定查询、项目运营页面、可观测性页面和测试夹具，整体影响为“中高”。
 
-可以安全分批实施，且不需要推倒 M0–M8：
+项目尚未投产，MySQL、ClickHouse、Kafka、账号、项目、Origin、实体配置、profile、目标和 demo 数据均为可丢弃测试数据，因此采用一次 Pre-1.0 破坏性重置：
 
-1. M0–M8 的核心架构、项目隔离、匿名标识、事件去重、operation lifecycle、项目运营指数 v1 和 M8 可观测性读模型继续复用；
-2. 名称统一采用新契约 + 兼容别名 + 统一读模型，不回写历史原始事件；
-3. 先完成不新增采集的 P0，对现有指标、页面关系和解释纠偏；
-4. 再以逐项目 opt-in 方式补齐 API/资源分母、首屏、长任务、白屏候选和 breadcrumb 等 P1 事实；
-5. 组织、表单、路径和安全能力因依赖外部系统或更高隐私风险，独立进入 P2/P3。
+1. 复用 M0–M8 的架构与业务能力，但不复用测试数据、旧 schema 或旧 API/SDK 兼容逻辑；
+2. schema v3、SDK `0.4.0`、ingest、consumer、API、Web 与 demo 在同一实施批次直接切换到唯一规范名；
+3. 清空明确命名的本地/验收资源，从空库执行干净 schema baseline 和 seed；
+4. 先完成不新增采集的 P0，对现有指标、页面关系和解释纠偏；
+5. 再以逐项目 opt-in 方式补齐 API/资源分母、首屏、长任务、白屏候选和 breadcrumb 等 P1 事实；
+6. 组织、表单、路径和安全能力因依赖外部系统或更高隐私风险，独立进入 P2/P3。
 
 不建议把 P0–P3 一次性合并为一个大版本。P0 可以形成独立、可回滚的 M8.1-A 发布；P1 形成 M8.1-B；P2/P3 只在真实项目与 ADR 就绪后启动。
 
@@ -25,12 +26,13 @@
 
 ### 1.1 目标
 
-- 建立产品、SDK、事件、存储、API、UI 共用的规范词典和兼容映射；
+- 建立产品、SDK、事件、存储、API、UI 共用的唯一规范词典；
 - 把指标公式、分母、分位数、样本、缺失语义、版本与血缘固化到 MetricCatalog；
 - 对齐项目 → 模块 → 页面 → 功能/任务 → 操作实例的产品流程；
 - 在不降低隐私边界的前提下补齐附件中有业务价值的采集能力；
-- 保持旧 SDK、v1/v2 事件、历史数据和项目运营指数 v1 可用；
-- 为每一批提供自动化回归、灰度、观测、回滚和本地验收指引。
+- 将 v1/v2、旧 SDK、旧 API 字段和旧测试数据从运行时移除；
+- 保留项目运营指数 30/25/30/15 产品构成，并用新定义、新配置和新 seed 重新计算；
+- 为每一批提供自动化回归、可观测、重置/回退和本地验收指引。
 
 ### 1.2 非目标
 
@@ -39,6 +41,7 @@
 - 不在没有稳定分母时展示 API/资源“失败率”；
 - 不自动把错误/性能加入项目运营指数 v1；
 - 不把安全异常监控与员工绩效关联；
+- 不开发旧数据库升级、事件回填、双读、兼容别名、deprecated wrapper 或历史指数对照；
 - 不提前实施 M9 AI 助手，且 M9 不得绕过本计划的指标与权限读模型。
 
 ## 2. 对 M0–M8 的影响评估
@@ -46,12 +49,12 @@
 | 里程碑 | 已有资产 | 影响 | 处理方式 |
 | --- | --- | --- | --- |
 | M0 技术验证 | ARM64、Kafka、ClickHouse、Beacon 可行性 | 低 | 不改历史 spike；新事件沿用已验证链路 |
-| M1 工程/迁移 | monorepo、JSON Schema、迁移、golden fixture | 高 | 新增契约版本、兼容 manifest、additive migration 和更多 fixture；不修改旧 schema 真相 |
-| M2 SDK | SPA/page lifecycle、session、批量、隐私 | 高 | 统一字段，补 10s flush、可选性能汇总/任务旅程适配器；保留旧 API wrapper |
-| M3 接收/消费 | Origin、schema、大小、HMAC、Kafka、ClickHouse | 高 | 双/三版本校验、规范化字段、分母事件、别名遥测；原始事件不回写 |
-| M4 管理/分析 API | 固定 overview/trend/pages/features 查询 | 高 | 建 canonical read model、指标定义返回、兼容字段、统一 data status |
+| M1 工程/迁移 | monorepo、JSON Schema、迁移、golden fixture | 高 | 建立只含 v3 的干净 schema baseline、生成类型和 fixture；空库/幂等验证替代旧库升级验证 |
+| M2 SDK | SPA/page lifecycle、session、批量、隐私 | 高 | 发布 SDK `0.4.0`，统一字段，补 10s flush、性能汇总/任务旅程适配器；删除旧 API wrapper |
+| M3 接收/消费 | Origin、schema、大小、HMAC、Kafka、ClickHouse | 高 | 只接收 v3；重建 Kafka/ClickHouse 测试数据和列，不实现多版本 normalizer |
+| M4 管理/分析 API | 固定 overview/trend/pages/features 查询 | 高 | 直接切换 canonical read model、指标定义和统一 data status；删除旧响应字段 |
 | M5 产品前端 | 功能采用、页面访问、接入、筛选和状态 | 中高 | 统一 UI 术语、全局筛选、页面职责和下钻；默认入口不变 |
-| M6 运营闭环 | 实体、operation v2、MetricCatalog、指数 v1 | 高但可复用 | 扩充目录与分位数；冻结指数 v1 公式/历史；避免 page-entry 与 operation 时长混义 |
+| M6 运营闭环 | 实体、operation v2、MetricCatalog、指数 v1 | 高但可复用 | 扩充目录与分位数；按新 key 重建 profile/golden/index 计算；避免 page-entry 与 operation 时长混义 |
 | M7 生产硬化 | 负载/故障/恢复、Secret、日志、回滚 | 中 | 为新增事件重跑容量、备份恢复与降级；不改变运维安全基线 |
 | M8 可观测性 | 错误组、Web Vitals、发布、影响范围、固定告警 | 中高 | 统一环境/发布字段，补可选请求/资源分母和详情联动；保留 SourceMap 阶段门 |
 
@@ -71,12 +74,12 @@
 
 | 表面改动 | 实际风险 | 正确改法 |
 | --- | --- | --- |
-| `userId → accountId` | 原始工号可能被持久化；旧数据与新数据不可连接 | 接入瞬时 `accountRef`，服务端项目级 HMAC；旧 alias 只进转换器 |
+| `userId → accountId` | 原始工号可能被持久化 | 只接受瞬时 `accountRef`，服务端项目级 HMAC；删除 `userId` 字段 |
 | `deviceId → visitorId` | 设备指纹违反现有隐私边界 | 保留浏览器随机实例，文案明确不等于设备/人员 |
 | `pageUrl/pageRoute` | query/hash、业务 ID 和凭据泄露 | 只发送 route，经服务端再归一化 |
 | `operation_fail_rate` | 混淆前端校验、业务拒绝和 HTTP 失败 | 拆成三个独立指标与事件来源 |
 | 资源/API 失败率 | M8 目前主要有异常分子，没有总请求分母 | 先新增受控 summary 事实，再发布 rate |
-| 所有时长默认 P90 | 会破坏 Web Vitals P75 和指数历史 | 按指标族配置主分位数；新增 P90，不覆盖旧 definition |
+| 所有时长默认 P90 | 会违背 Web Vitals P75 和不同指标族的业务语义 | 按指标族配置主分位数；新 baseline 同时生成所需 P75/P90 |
 | 模块渗透率 | 90 日活跃人数不是系统适用人数 | 官方目录分母；无目录时另名为 active share |
 | task duration | page entry 与 operation started 是两个不同起点 | 保留 operation duration；新增显式 task journey |
 
@@ -96,7 +99,7 @@ flowchart TD
 | 内容 | 真相源 |
 | --- | --- |
 | 传输字段、事件结构、大小 | `packages/event-contract` JSON Schema |
-| 规范名、别名、弃用期 | 版本化 compatibility manifest |
+| 规范名及禁止名 | 版本化 canonical manifest |
 | 指标公式、分母、方向、分位数、依赖 | server-core `MetricCatalog` |
 | 页面/模块/任务/目标/profile | MySQL 版本化配置 |
 | 不可变事实与聚合输入 | ClickHouse raw events/read queries |
@@ -104,25 +107,25 @@ flowchart TD
 
 前端不得复制公式；SDK 不计算服务端业务比率；数据库物理列名不得反向决定产品术语。
 
-### 3.2 兼容数据流
+### 3.2 重置后的唯一数据流
 
 ```mermaid
 flowchart TD
-    V1["schema v1"] --> N["Canonical normalizer"]
-    V2["schema v2"] --> N
-    V3["新规范契约"] --> N
-    N --> Q["统一事实查询"]
-    Q --> A["规范 API + deprecated aliases"]
+    R["清空测试资源"] --> B["空库 schema baseline + seed"]
+    V3["SDK 0.4 / schema v3"] --> F["v3 去重事实"]
+    B --> F
+    F --> Q["统一指标查询"]
+    Q --> A["唯一规范 API / UI"]
 ```
 
-是否将新规范契约正式编号为 v3 在 ADR 中确认。无论编号如何，不能在 schema v2 上把相同字段静默换义。
+v1/v2 请求以稳定 `SCHEMA_VERSION_UNSUPPORTED`（名称由 ADR-014 固化）拒绝。旧契约和数据只保留在 Git 历史，不进入 runtime。
 
 ## 4. 先行 ADR 与决策门
 
 | ADR | 必须回答 | 阻断范围 |
 | --- | --- | --- |
-| ADR-014 规范命名与事件版本 | 字段/事件/指标规范名、alias、枚举、弃用期、SDK 版本 | M8.1-A 契约实现 |
-| ADR-015 指标口径与分位数 | 分子分母、样本门槛、P75/P90/P99、缺失状态、definition migration | M8.1-A 查询与 UI |
+| ADR-014 Pre-1.0 重置与事件 v3 | 规范字段/事件/指标、SDK `0.4.0`、干净 schema baseline、安全 reset、v1/v2 拒绝码 | M8.1-A 契约实现 |
+| ADR-015 指标口径与分位数 | 分子分母、样本门槛、P75/P90/P99、缺失状态、新 definition baseline | M8.1-A 查询与 UI |
 | ADR-016 新采集隐私边界 | API/资源 summary、breadcrumb、白屏、表单、业务对象引用、采样 | M8.1-B SDK |
 | ADR-017 组织目录与群体隐私 | eligible 分母、目录版本、角色多值、最小群体、审计与保留 | P2 组织指标 |
 | ADR-018 安全/SourceMap 阶段门 | 证据、权限、处理人、误报、源码与认证数据治理 | P3 |
@@ -133,35 +136,37 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 
 ### 5.1 M8.1-A：规范名、现有口径和产品流程（P0）
 
-目标：不要求业务项目新增埋点，先让现有数据在所有页面上“同名、同算、同解释、可下钻”。
+目标：不要求业务项目新增埋点，直接用重建后的测试数据让所有页面“同名、同算、同解释、可下钻”。
 
-#### A0 资产盘点与冻结
+#### A0 资产盘点与重置清单
 
 - 生成字段、事件、指标、接口字段、数据库列、UI 文案的现状 inventory；
-- 逐项标注 canonical、alias、conflict、unused、privacy-prohibited；
-- 为当前项目运营指数 v1 保存一套不可变 golden baseline；
-- 记录 v1/v2 SDK 分布、事件量、alias 使用和 M8 数据覆盖；
+- 逐项标注 canonical、rename、delete、unused、privacy-prohibited；
+- 列出需要清空的 MySQL schema、ClickHouse 表、Kafka topic/consumer offset、命名 volume、项目配置和 demo seed；
+- 为新项目运营指数公式准备可手算 golden cases，不复制旧测试结果；
+- 确认仓库外没有生产 SDK、真实数据或必须保留的人工配置；
 - 禁止在盘点期新增第三套名称。
 
 退出条件：每一个需求 v1.7 P0 词条都能映射到现有实现位置或明确标记“尚未实现”。
 
-#### A1 契约与兼容层
+#### A1 契约 v3 与干净数据基线
 
-- 在 `packages/event-contract` 增加新版本 schema 或 canonical manifest；
+- 在 `packages/event-contract` 建立唯一 schema v3 与 canonical manifest；
 - 生成 TypeScript 类型和稳定拒绝码；
-- 接收端实现 v1/v2/新版本到 canonical fact 的纯转换；
+- 删除 ingest/consumer/SDK 对 v1/v2、旧字段和旧枚举的运行时支持；
 - 统一 `deploymentEnvironment/releaseVersion/occurredAt/route`；
-- `appId/env/release/userId/pageRoute` 只在批准的 compatibility adapter 中接受；
-- 增加 alias 使用计数，不记录值和 payload；
+- 将活动 migration 重整为可从空库确定性执行的 v3 baseline；不实现旧库升级路径；
+- 提供带精确确认参数、只作用于明确项目资源的 test reset 命令；
+- 重建默认账号、项目、Origin、模块/页面/任务、profile、目标和三场景 demo seed；
 - 保持单事件 8 KiB、批 50 条/64 KiB 与既有隐私拒绝。
 
-退出条件：旧 fixture、旧 SDK 和新 fixture 同时通过；规范输入不能持久化原始账号/URL/UA。
+退出条件：全新环境可一次建库并 seed；第二次执行满足约定的幂等性；v3 fixture 通过；v1/v2 与禁止字段明确拒绝；规范输入不持久化原始账号/URL/UA。
 
 #### A2 MetricCatalog 与固定查询
 
 - 为现有指标补齐 business question、formula、numerator/denominator、dedupe、unit、primary percentile、minimum sample、missing semantics 和 version；
 - 增加 active account/visitor/session 的明确读模型；
-- 为页面/operation 时长新增 P90，不改变旧 P50/P75 历史定义；
+- 为页面/operation 时长生成 P50/P75/P90 所需新定义；
 - 派生周/月活跃、小时分布、单页会话率和 90 日模块活跃份额；
 - 对 operation duration 与 task journey duration 使用不同 key；
 - 缺少目录/API/resource 分母时返回 `not_collected` 或 `missing_denominator`，不返回 0；
@@ -174,7 +179,7 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 - 为功能采用、运营概览、页面/任务详情、指数和可观测性提供相同筛选对象；
 - 所有比率返回 numerator/denominator/sample/coverage/status/version；
 - 返回 `availableFrom`、definition/profile version 和 partial window；
-- 兼容字段明确 `deprecatedSince` 和 replacement；
+- API 响应只返回规范字段，旧字段有契约测试证明不存在；
 - 高基数 route/API/error 使用固定 Top N 或 cursor；
 - 指标定义/血缘 endpoint 成为页面解释来源。
 
@@ -193,15 +198,16 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 
 退出条件：需求 v1.7 第 9 节页面职责与下钻全部通过 Chromium/WebKit E2E 和键盘走查。
 
-#### A5 回归、灰度与文档
+#### A5 重置回归与文档
 
 - 更新单元、contract、browser、consumer、API、M5/M6/M8 E2E；
-- 建新旧字段/查询的差异测试，允许差异只能来自明确的新 definition version；
+- 增加 v1/v2 拒绝、旧字段不存在、全量 reset、空库 baseline、seed 幂等和冷启动闭环测试；
+- 用新 golden fixtures 手算验证原子、派生、复合指标和 30/25/30/15 项目运营指数；
 - 运行 M7 负载、Kafka/ClickHouse 故障、备份恢复和回滚；
-- 为至少一个 M8 数据项目做 shadow read，对比旧/新 read model；
-- 新增 `docs/guides/m8.1-a-local-acceptance-macos.md` 和迁移/弃用清单。
+- 在三场景 demo 验证功能采用、运营概览、页面/任务、指数、错误和 Web Vitals；
+- 新增 `docs/guides/m8.1-a-local-acceptance-macos.md`，在开头明确会删除全部本地/验收测试数据及所需确认参数。
 
-退出条件：M0–M8 回归通过、指数 v1 golden 不漂移、灰度期间旧 SDK 无新增拒绝。
+退出条件：M0–M8 业务能力在 v3 基线上通过；新指数 golden 与手算一致；连续两次 reset → bootstrap → smoke 可重复；运行时不存在 v1/v2 normalizer 或 deprecated API。
 
 ### 5.2 M8.1-B：一期采集缺口（P1）
 
@@ -246,15 +252,15 @@ P2 不作为 M8.1-A/B 发布门：
 
 ### 6.1 事件契约
 
-- canonical fields、enum 和 alias manifest；
+- canonical fields、enum 和禁止名 manifest；
 - event/family registry 与受限 properties schema；
-- v1/v2/新版本 valid、invalid、golden fixtures；
+- v3 valid、invalid、golden fixtures，以及 v1/v2/旧字段拒绝 fixtures；
 - 大小、PII、URL、UA、业务 ID 和 nested object 拒绝用例；
 - 生成代码与文档，禁止手工维护平行类型。
 
 ### 6.2 Web SDK
 
-- config 名称迁移与 deprecated wrapper；
+- SDK `0.4.0` 只提供规范 config 和 API，删除 deprecated wrapper；
 - SPA leave-before-view、hash 策略、30 分钟 session 和 visible duration 截断回归；
 - queue 最多 50、最长 10 秒、64 KiB、sendBeacon/keepalive、retry 与同 eventId；
 - 新 collector 逐项 opt-in、按 pageView 汇总、限流/coverage/diagnostic；
@@ -262,10 +268,10 @@ P2 不作为 M8.1-A/B 发布门：
 
 ### 6.3 Ingest / Consumer / Storage
 
-- 多 schema validator 和 canonical normalizer；
+- 单一 v3 validator；删除多 schema normalizer；
 - `occurredAt/receivedAt` 校时与拒绝规则；
-- additive nullable 列，禁止 destructive migration 和历史原始表回写；
-- alias、schema/SDK 分布和拒绝量只记录计数；
+- 从空库建立干净 MySQL/ClickHouse schema；不开发旧结构升级和原始事件回写；
+- schema/SDK 版本和拒绝量只记录计数；
 - 新事件的高基数、批写、TTL、毒消息和 replay 验证；
 - 根据新事件体重跑 M7 持续/峰值负载。
 
@@ -276,7 +282,7 @@ P2 不作为 M8.1-A/B 发布门：
 - quantile、ratio、coverage、data status 通用结构；
 - 固定查询和 materialization 门槛；P0 先查询时计算；
 - lineage DAG/循环检测；
-- index v1 继续绑定旧 definition/profile，不自动指向新 key。
+- index v1 使用新 baseline 的规范 key、definition/profile 与 seed；错误/性能仍不自动加入。
 
 ### 6.5 Web 管理端
 
@@ -290,49 +296,59 @@ P2 不作为 M8.1-A/B 发布门：
 
 ### 6.6 Demo / Docs / Operations
 
-- demo 增加旧 SDK、新 SDK、三类页面模板和每个 opt-in collector 的可见开关；
-- seed 同时生成可用、分母缺失、样本不足、partial、alias 和隐私拒绝场景；
-- 更新 README、契约、ADR、迁移、SDK 接入、数据字典和本地验收；
+- demo 全部切换 SDK `0.4.0`，覆盖三类页面模板和每个 opt-in collector 的可见开关；
+- seed 生成可用、分母缺失、样本不足、partial 和隐私拒绝场景，不生成旧 alias；
+- 更新 README、契约、ADR、schema baseline、SDK 接入、数据字典和本地验收；
 - production 配置默认关闭所有新敏感 collector；
-- dashboard 增加 schema/SDK/alias/拒绝/事件族/队列抑制的非 payload 指标。
+- dashboard 增加 schema/SDK/拒绝/事件族/队列抑制的非 payload 指标。
 
-## 7. 迁移策略
+## 7. 重建与未来版本策略
 
-### 7.1 数据迁移
+### 7.1 重置范围与安全边界
 
-1. 先发布能理解新旧字段的 consumer/API，再发布新 SDK。
-2. schema 与 ClickHouse migration 只增加列/枚举支持；应用回滚仍能读取旧列。
-3. raw events 不回填；canonical read model 在查询时映射旧事实。
-4. 新指标 `availableFrom` 从可靠事实首次出现时计算，趋势不跨边界伪造。
-5. 只有查询性能达到既定门槛才增加小时/天物化；物化可重建，不成为唯一事实。
+重置仅用于尚未投产的 frontend-insight 本地与验收资源，并要求：
 
-### 7.2 名称迁移
+- 命令必须使用 `--confirm-local-data-loss` 或等价精确确认参数；
+- target 必须解析为明确的 Compose project、数据库、topic 和 volume 名，不接受空变量、通配符、`$HOME`、`~` 或 workspace 根目录；
+- reset 前显示将删除的 MySQL、ClickHouse、Kafka、volume、项目配置与 seed 范围；
+- reset 不尝试保存旧事件、指标、项目、账号、Origin、profile 或目标；
+- Git 仓库、源码、文档、Secret 模板和用户工作区文件不属于删除范围；
+- 任何环境若出现真实数据或外部 SDK 使用，立即停止本方案并重新评估迁移。
 
-- SDK 新配置只输出规范字段；旧配置打印一次无敏感值的开发期 deprecation warning；
-- 生产 alias 使用仅计数，不写 payload；
-- API 兼容期同时返回规范字段与 deprecated alias；UI 只读规范字段；
-- alias 至少跨两个正式 SDK 版本，并在近 30 天生产使用为零后才提下线 PR；
-- UI 名称替换与 API alias 解耦，用户先看到清晰术语，接入方有迁移窗口。
+### 7.2 一次性执行顺序
 
-### 7.3 指标版本迁移
+1. 合并 ADR-014/015、schema v3、SDK `0.4.0`、干净 migrations 和新 seed；
+2. 停止 Web/API/consumer 与 demo，验证目标资源清单；
+3. 执行显式 reset，确认 MySQL/ClickHouse/Kafka/volume 均为空或已重建；
+4. 从空环境运行 migration/bootstrap/seed；
+5. 同时启动只支持 v3 的 SDK、ingest、consumer、API 和 Web；
+6. 运行 smoke、contract、M5/M6/M8 E2E、指标 golden、负载与故障恢复；
+7. 生成新验收数据并开始 `availableFrom`，不显示重置前趋势。
 
-- 新增 P90 或改变分母发布新 `definitionVersion`，不原地修改旧版本；
-- 指数 v1 profile 固定引用原 definition；
-- 页面默认展示新 definition，但历史对比只在同版本内连线；
-- 如需跨版本对照，只并列展示并解释差异，不计算伪同比。
+不得让旧 SDK 与新服务或新 SDK 与旧服务混跑。所有组件通过 schema/SDK version health 信息确认同一基线。
+
+### 7.3 投产后的版本治理
+
+- 本次新定义可直接成为初始 `definitionVersion`；投产后公式、分母或主分位数变化必须发布新版本；
+- profile/directory/definition 继续 clone-on-write，并记录生效时间；
+- 趋势只连接同一版本，跨版本明确断点；
+- 未来数据库只允许向前 migration，不再用清库替代正式升级；
+- 新指标 `availableFrom` 从可靠事实首次出现时计算；
+- 只有查询性能达到门槛才增加小时/天物化，物化可重建且不成为唯一事实。
 
 ## 8. 测试与验收矩阵
 
 | 层 | 必测内容 |
 | --- | --- |
-| Contract | 新旧合法批次、alias、枚举、大小、PII/URL/UA/业务 ID、稳定拒绝码、生成类型 |
+| Contract | v3 合法/非法批次、v1/v2/旧字段拒绝、枚举、大小、PII/URL/UA/业务 ID、稳定拒绝码、生成类型 |
 | SDK unit | route order、hash、visibility、idle/session、queue/flush/retry、sampling、collector isolation |
 | Browser | Chromium/WebKit SPA、后台/恢复、关闭 Beacon、并发 operation、Vue/非 Vue 接入 |
-| Consumer | at-least-once、eventId 去重、canonical mapping、poison/no-payload DLQ、schema 混跑 |
+| Consumer | v3 at-least-once、eventId 去重、poison/no-payload DLQ、v1/v2 拒绝、无多版本分支 |
 | Metric golden | DST/时区、重复、零分母、缺失 leave、P50/P75/P90/P99、coverage、partial、版本切换 |
-| API | RBAC、统一筛选、compat fields、status/sample/version/availableFrom、Top N/cursor |
+| API | RBAC、统一筛选、旧字段不存在、status/sample/version/availableFrom、Top N/cursor |
 | UI | 术语、URL 状态、下钻、所有空态、定义/血缘、版本断点、a11y、错误跳页 |
-| Regression | M5/M6/M8 E2E、指数 v1 golden、auth/audit、Compose smoke |
+| Reset | 精确目标、显式确认、空变量/通配符拒绝、全量清理、空库 bootstrap、seed 幂等、重复执行 |
+| Regression | v3 下的 M5/M6/M8 E2E、新指数 golden、auth/audit、Compose smoke |
 | Production | 20 events/s 持续、200 events/s 峰值、Kafka/CH/consumer 故障、backup/restore/rollback |
 | Privacy | 浏览器抓包与存储/日志扫描均无原始账号、URL 参数、UA、DOM/输入、header/body |
 
@@ -345,7 +361,7 @@ P2 不作为 M8.1-A/B 发布门：
 - `accountRef` 一项目内稳定、跨项目不可关联，且不落原始值；
 - 分母为 0/未采集/目录缺失分别返回不同状态；
 - Web Vitals P75 与页面/API/任务 P90 使用各自规则；
-- 版本切换日趋势断开，指数 v1 同配置结果不变；
+- 新 seed 下指数 v1 四个维度、叶子贡献、70% gate 和总分与手算一致；
 - Canvas/Cesium 页面未启用 readiness adapter 时不生成白屏率；
 - breadcrumb 的 DOM 文本、输入、console、query、业务 ID 被拒绝或删除。
 
@@ -357,33 +373,34 @@ P2 不作为 M8.1-A/B 发布门：
 
 客户端预算建议在 ADR-016 固化：基础 SDK 不明显增加主线程长任务；observer/serialization 单次工作有上限；队列和 breadcrumb ring buffer 有硬上限；禁用 collector 时不注册对应 observer/wrapper。
 
-## 10. 发布、灰度与回滚
+## 10. 执行、验证与回退
 
-### 10.1 发布顺序
+### 10.1 重置执行顺序
 
-1. ADR、schema、migration、consumer/API 兼容层；
-2. Web UI 读取规范 read model，旧 SDK 保持运行；
-3. 一个内部 demo 使用新 SDK；
-4. 一个真实项目 shadow read，默认不开新 P1 collector；
-5. 按项目逐个开启 collector，观察拒绝、队列、event volume、lag、coverage；
-6. 两个正式 SDK 版本后评估 alias 下线，不自动执行。
+1. 完成 ADR、schema v3、SDK `0.4.0`、干净 migrations、seed 与全仓调用方修改；
+2. 先在可丢弃 CI/本地环境执行 reset → bootstrap → smoke；
+3. 再在验收环境停服并展示精确删除清单，经显式确认后重置；
+4. 同时部署 ingest、consumer、API、Web、demo 和 SDK v3 基线；
+5. 运行逻辑、隐私、E2E、M7 负载/故障/备份恢复验收；
+6. M8.1-B collector 仍按项目逐个开启，观察拒绝、队列、event volume、lag 和 coverage。
 
 ### 10.2 回滚
 
-- UI/API 可回滚到保留镜像；additive schema/列保留；
+- 若 M8.1-A 失败，代码可回退到上一提交，但测试数据不恢复；回退后再次清空并用对应旧 baseline/seed 重建；
 - 新 SDK collector 可远程/项目配置关闭，基础 page/feature 事件继续；
-- 新 definition 不删除，默认指针可切回旧版本；
-- 不执行 down migration、不删除新列、不回写 raw events；
+- 不在同一数据环境混用 v1/v2 与 v3，不执行跨 baseline down migration；
+- 不把测试数据恢复能力描述为生产回滚能力；
 - 失败发布仍按 M7 流程验证 Kafka lag、数据查询、备份和恢复。
 
 ### 10.3 Go/No-Go
 
 任一条件触发 No-Go：
 
-- 旧 SDK 拒绝率相对基线明显上升且无法解释；
+- reset 目标不精确、无法证明全部数据可丢弃，或发现仓库外真实 SDK/数据；
+- 任一运行组件仍产生/接受 v1/v2、旧字段或旧枚举；
 - 原始账号、query/hash、UA、DOM/输入或 header/body 出现在网络、Kafka/ClickHouse、日志或 DLQ；
 - 同一指标跨页面值/公式/版本不一致；
-- 指数 v1 golden 漂移；
+- 新项目运营指数 golden 与手算不一致；
 - 新 collector 无法单独关闭、没有 coverage 或没有容量证据；
 - 数据缺失被显示为 0，或没有分母却显示 rate；
 - 页面下钻丢失项目/环境/时间/发布上下文；
@@ -395,19 +412,21 @@ P2 不作为 M8.1-A/B 发布门：
 
 | 批次 | 范围 | 估算 | 主要不确定性 |
 | --- | --- | ---: | --- |
-| M8.1-A / P0 | 盘点、ADR-014/015、兼容契约、MetricCatalog/查询、读模型、UI 流程、回归 | 24–36 | 现有字段散布、旧 API 消费方、指数 golden 差异 |
-| M8.1-B / P1 | API/resource/first-screen/list/long-task/blank/breadcrumb 逐项 opt-in | 28–44 | 宿主请求层差异、事件量、白屏误报、隐私审批 |
+| M8.1-A / P0 | 盘点、ADR-014/015、schema v3、全量重置、MetricCatalog/查询、读模型、UI 流程、回归 | 18–28 | 现有字段散布、迁移脚本重整、全仓调用方、指数新 golden |
+| M8.1-B / P1 | API/resource/first-screen/list/long-task/blank/breadcrumb 逐项 opt-in | 26–40 | 宿主请求层差异、事件量、白屏误报、隐私审批 |
 | P2 | task journey、表单、业务拒绝、路径、组织目录 | 24–40 | 外部账号目录、业务成功语义、角色多值、接入配合 |
 | P3 | 每项独立估算 | 未纳入 | SourceMap/安全/指数 v2/通用引擎/AI 均是独立项目 |
 
-若只做用户当前最紧迫的“命名 + 口径 + 页面关系”对齐，交付 M8.1-A 即可，预计 24–36 人日。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
+若只做当前最紧迫的“命名 + 口径 + 页面关系”对齐，交付 M8.1-A 即可，预计 18–28 人日。相比兼容迁移方案减少约 20%–30% 的工作，但全仓重命名、指标正确性和安全 reset 仍不能省略。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
 
 ## 12. 风险与缓解
 
 | 风险 | 后果 | 缓解 |
 | --- | --- | --- |
-| 全量改名破坏历史/旧 SDK | 接入中断、趋势断裂 | 新版本、alias、canonical normalizer、30 天零使用门 |
-| 公式统一导致指数漂移 | 历史评分失真 | index v1 固定 definition；新定义版本化 |
+| reset 指向错误资源 | 误删其他项目或非测试数据 | 固定 Compose project/库/topic/volume 白名单、dry-run 清单、精确确认参数 |
+| 组件未同步切换 v3 | 事件被拒绝或读模型字段缺失 | 单一变更、version health、启动前契约检查、禁止新旧混跑 |
+| 全量重命名遗漏调用方 | 运行时错误或页面空数据 | `rg` inventory、类型生成、删除旧字段的负向契约测试、全仓 E2E |
+| 公式统一后新指数计算错误 | 产品结论失真 | 新 seed、手算 golden、叶子贡献和 gate 测试 |
 | 新分母事件增量过大 | SDK/链路/存储压力 | pageView 汇总、采样、硬队列、逐项开关和容量 gate |
 | 自动 API 包装破坏宿主 | 业务故障 | 显式 adapter 优先；global fetch 默认关闭 |
 | 白屏/时长被误解 | 产品错误结论 | 页面模板、coverage、候选命名、原始证据优先 |
@@ -419,12 +438,12 @@ P2 不作为 M8.1-A/B 发布门：
 
 M8.1-A 完成时至少应有：
 
-- ADR-014/015 与 canonical/alias manifest；
-- 新事件契约或兼容规范、schema fixtures 与生成类型；
+- ADR-014/015、canonical/禁止名 manifest 与安全 reset 规范；
+- 唯一事件契约 v3、SDK `0.4.0`、schema fixtures 与生成类型；
 - 版本化 MetricCatalog、统一 read model 和 lineage；
 - 对齐后的管理端页面流程和 UI 术语；
-- M0–M8 自动化回归、指数 v1 golden 和 shadow read 报告；
-- migration/deprecation 说明；
+- v3 下 M0–M8 自动化回归、新指数 golden 和 reset 重复性报告；
+- 干净 schema baseline、seed 和 Pre-1.0 重置说明；
 - `docs/guides/m8.1-a-local-acceptance-macos.md`；
 - 实现与验收结果记录。
 
@@ -434,7 +453,7 @@ M8.1-B 每个 collector 另交付 schema、SDK API、开关、隐私 fixture、c
 
 本轮先评审并锁定以下四项，随后即可进入 M8.1-A：
 
-1. 接受 v1.7 规范名，并允许旧名跨两个 SDK 版本兼容；
+1. 接受 Pre-1.0 全量测试数据重置、schema v3/SDK `0.4.0` 唯一基线，且不保留旧名或 v1/v2 runtime；
 2. 接受按指标族选择 P75/P90，而不是全局强制 P90；
 3. 接受“没有官方分母就不展示渗透率/失败率”，改用明确的描述性指标；
 4. 接受 P0 与新增采集 P1 分批发布，项目运营指数 v1 暂不变。
@@ -446,7 +465,7 @@ M8.1-B 每个 collector 另交付 schema、SDK API、开关、隐私 fixture、c
 M9 的功能范围、模型兼容、上下文选择和历史留存仍按 requirements-v1.7 第 18 节实施；本计划不把 M9 混入 M8.1 的代码工作包。新增约束如下：
 
 - M8.1-A 是 M9 P0 前置门。`AIContextBlock` 只使用规范 metric/entity/filter key，并绑定 definition/profile/directory version；
-- context snapshot 只能从统一 read model 生成，不能直接序列化旧页面 store、deprecated alias 或原始事件；
+- context snapshot 只能从统一 read model 生成，不能直接序列化页面 store 或原始事件；
 - M8.1-B collector 未启用或 coverage 不足时，block 返回相同 data status，AI 不得补算；
 - 指标定义与血缘 endpoint 作为提示词中的业务解释来源，避免模板复制公式；
 - 页面职责矩阵同时定义可注册 block 的范围，跨页面/跨项目拼接仍需用户显式选择和服务端授权；

@@ -4,7 +4,7 @@
 - 更新日期：2026-08-06
 - 前序基线：`docs/product/requirements-v1.6.md`
 - 对应开发计划：`docs/planning/mvp-plan-v1.4.md`
-- 当前实现：M0–M8 已合并 `main`；本版本只定义后续对齐目标，不宣称相关改造已经完成
+- 当前实现：M0–M8 已合并 `main`；尚未投产，遥测、项目配置、账号、Origin、profile 与 demo 数据均为可丢弃测试数据
 - 输入依据：《内部业务操作系统 · 前端监测指标字典》v1.0、产品流程图、M0–M8 已验收实现与 ADR-008～ADR-013
 
 ## 0. 本次基线解决什么问题
@@ -15,13 +15,14 @@ v1.6 已建立“功能采用、产品运营、项目运营指数、前端可观
 2. 部分指标只有名称，没有把分母、去重键、时间窗口、分位数、缺失值和业务解释固定为可执行契约；
 3. 产品页面已经具备多个分析入口，但页面、指标、实体、配置和下钻关系缺少一张统一的信息架构。
 
-本版本将上述反馈收敛为一套可迁移、可验收的产品基线。核心原则是：
+本版本将上述反馈收敛为一套可直接重建、可验收的产品基线。核心原则是：
 
-- 一个概念只有一个规范名；旧名称只作为有期限的兼容别名；
+- 一个概念只有一个规范名；当前没有外部生产消费者，不保留旧名称和运行时兼容层；
 - 指标定义同时驱动计算、接口说明、页面文案、血缘和测试，不能各写一份；
 - 原始指标优先于评分，描述性信号不得被包装为因果结论；
-- 不因统一字典而降低 v1.6/M8 已建立的隐私、契约和兼容边界；
-- 所有改造通过新版本、双读和可回滚迁移完成，不改写历史原始事件。
+- 不因统一字典而降低 v1.6/M8 已建立的隐私、契约和 SDK 异常隔离边界；
+- 采用 Pre-1.0 破坏性重置：清空测试数据、重新建立 schema 和 seed，不开发旧数据迁移、双读、别名或回填；
+- 事件、指标和配置仍然版本化，用于投产后的治理，而不是为了保留当前测试历史。
 
 文档中的“必须”“不得”为验收条件；“建议”为默认方案，可由后续 ADR 调整。
 
@@ -83,34 +84,36 @@ flowchart TD
 
 缩写只保留业界稳定指标（PV、LCP、INP、CLS、FCP、TTFB）。首次出现必须同时展示中文解释。
 
-### 3.2 规范字段与兼容映射
+### 3.2 输入名称与最终规范
 
-| 附件/旧名 | v1.7 规范名 | 规则与理由 |
+| 附件/当前名 | v1.7 唯一规范名 | 最终规则与理由 |
 | --- | --- | --- |
-| `appId` | `projectId`（管理/读模型）、`projectKey`（SDK 传输） | 沿用现有项目隔离模型；`appId` 仅为适配器输入别名 |
-| `env` | `deploymentEnvironment` | 枚举统一为 `production`、`staging`、`development`；适配 `prod/staging/dev` |
+| `appId` | `projectId`（管理/读模型）、`projectKey`（SDK 传输） | 沿用现有项目隔离模型；删除 `appId`，不提供输入别名 |
+| `env` | `deploymentEnvironment` | 枚举只接受 `production`、`staging`、`development`；删除 `prod/dev` 适配 |
 | `release` | `releaseVersion` | 必须由构建/部署显式注入，不从资源名猜测 |
 | `event` | `eventName` | 客户端发送具体事实事件；`eventFamily` 由服务端派生，不用宽泛 `custom/error/api` 替代事实名 |
 | `timestamp` | `occurredAt` | 客户端发生时间；服务端另存 `receivedAt`，不覆盖原值 |
 | `pageRoute` | `route` | SDK 发送无 query/hash 的路由；读模型返回 `normalizedRoute` |
 | `pageUrl` | 不采集原始值 | 只保留归一化 route；完整 URL、query、hash 不进入事件 |
-| `userId` | `accountRef`（瞬时传输）→ `accountId`（项目级 HMAC） | 不保存员工工号、姓名等直接标识；`userId` 仅可作为接入层弃用别名 |
+| `userId` | `accountRef`（瞬时传输）→ `accountId`（项目级 HMAC） | 不保存员工工号、姓名等直接标识；删除 `userId` 输入字段 |
 | `deviceId` | `visitorId` | 浏览器一方随机实例，不做设备指纹，也不宣称等于设备或人员 |
 | `ua/os/browser` | `browserFamily`、`osFamily`、`viewportBucket` | 客户端只发粗粒度结果，不发送原始 User-Agent |
 | `deptId/roleId` | `departmentKey/roleKey` | 二期由受治理目录映射；禁止浏览器直传原始组织标识 |
 | `vv` | `sessions` | UI 称“会话数”，不展示 VV |
 | `uv` | `activeAccounts` 或 `activeVisitors` | 必须区分账号与浏览器，不使用一个 UV 混合两种口径 |
 | `bounce_rate` | `singlePageSessionRate` | UI 称“单页会话率”；仅作诊断，不默认评分或告警 |
-| conversion | `postExposureUseRate` / “曝光后使用率” | 内部产品不使用电商“转化”措辞；旧 API 字段只读兼容 |
+| conversion | `postExposureUseRate` / “曝光后使用率” | 内部产品不使用电商“转化”措辞；删除旧 API 字段 |
 | health score | `projectOperationalIndex` / “项目运营指数” | 不是医学或系统综合健康度；错误/性能暂不进入 v1 指数 |
 
-### 3.3 兼容要求
+### 3.3 Pre-1.0 重置要求
 
-1. 规范名进入新的 schema/API 版本；不得在现有 v1/v2 字段上静默换义。
-2. 接收端至少跨两个正式 SDK 版本接受旧别名，并记录不含 payload 的别名使用计数。
-3. 读模型可在兼容期同时返回规范字段和标记 `deprecated` 的旧字段；UI 只使用规范字段。
-4. 原始历史事件保持不可变，由查询映射到统一语义；不能为了改名回写 90 天原始表。
-5. 移除别名前必须证明近 30 天生产流量为零，并单独发布弃用公告/ADR。
+1. `schemaVersion: 3` 是重置后的唯一事件契约；ingest、consumer、SDK、demo 和测试不再接受或产生 v1/v2。
+2. Web SDK 发布新的 Pre-1.0 版本（计划为 `0.4.0`），只暴露规范配置和事件 API，不提供 deprecated wrapper。
+3. 产品 API 和 read model 直接采用规范字段；删除旧字段，不返回 alias 或 `deprecatedSince`。
+4. 本地与验收环境清空 MySQL、ClickHouse、Kafka、项目配置和 demo 数据，再从空环境执行 schema baseline 与 seed。
+5. 不实现旧数据库升级、事件回填、指标历史衔接或旧/新结果对照；Git 历史与 v1/v2 文档仅作为设计演进记录。
+6. 数据库 migration 工具仍必须存在，用于从空库确定性建立最新结构，并服务未来投产后的向前迁移。
+7. `definitionVersion`、profile version 和目录版本仍从新基线开始保存；投产后不得再以“测试阶段”为由原地换义。
 
 ## 4. 统一指标契约
 
@@ -145,7 +148,7 @@ flowchart TD
 | 指标族 | 列表主值 | 详情补充 | 理由 |
 | --- | --- | --- | --- |
 | Core Web Vitals | P75 | P50/P90、样本、good/needs improvement/poor | 与 Web Vitals 标准及 M8 阈值一致 |
-| 任务/操作耗时 | P50 + P90 | P75/P99（样本足够时） | 同时看典型效率与长尾；现有 P75 保留兼容 |
+| 任务/操作耗时 | P50 + P90 | P75/P99（样本足够时） | 同时看典型效率与长尾；P75 可作为详情补充，不承担兼容职责 |
 | 页面可见时长 | P50 + P90 + 覆盖率 | 平均/P75/P99 | 时长不是越长越好，不能只显示均值 |
 | API、首屏、列表渲染 | P90 | P50/P75/P99 | 优先暴露长尾等待 |
 | 计数/比率 | 不适用 | 分子、分母、样本 | 不对比率计算时长分位数 |
@@ -256,7 +259,7 @@ SourceMap 不设为所有项目的强制采集。只有脱敏首帧无法支撑�
 
 ## 6. 项目运营指数 v1
 
-项目运营指数继续按 ADR-012 运行，不因本次字典统一静默改写历史：
+项目运营指数继续采用 ADR-012 的产品构成，因为四个维度仍符合当前业务目标，而不是为了兼容测试历史。重置后所有分项、目标和总分只根据新口径与新 seed 数据重新计算：
 
 | 一级维度 | 权重 | 子项构成 |
 | --- | ---: | --- |
@@ -267,13 +270,13 @@ SourceMap 不设为所有项目的强制采集。只有脱敏首帧无法支撑�
 
 总分仅在至少 3 个 eligible 一级维度、叶子权重覆盖 ≥70%、数据状态可用且各指标满足 minimum sample 时显示；缺失值不按 0。radar chart 只展示四个归一化 0–100 维度，并提供等价表格。
 
-本版本新增的错误、性能、表单、组织或安全指标默认不进入指数 v1。若真实试点证明需要综合运营与体验，必须发布“项目运营指数 v2”，明确新构成、相关性风险、历史不可比边界和重新验收计划。
+本版本新增的错误、性能、表单、组织或安全指标默认不进入指数 v1，这是产品边界而非历史兼容要求。若真实试点证明需要综合运营与体验，必须发布“项目运营指数 v2”，明确新构成、相关性风险和重新验收计划。
 
 ## 7. 事件与上报规范
 
 ### 7.1 规范事件外壳
 
-下一事件契约版本采用明确字段；服务端同时兼容 v1/v2：
+重置后的唯一事件契约为 v3；服务端拒绝 v1/v2：
 
 ```json
 {
@@ -301,7 +304,7 @@ SourceMap 不设为所有项目的强制采集。只有脱敏首帧无法支撑�
 | --- | --- | --- |
 | 页面 | `page_view`、`page_leave` | `page_readiness`（首屏/白屏适配器） |
 | 功能/任务 | `feature_exposed/started/succeeded/failed/canceled` | `task_journey_started/ended`、`form_summary` |
-| 错误 | `error_js`、`error_resource`、`error_api` | 带 allowlist breadcrumb 的兼容扩展 |
+| 错误 | `error_js`、`error_resource`、`error_api` | 带 allowlist breadcrumb 的受控扩展 |
 | 性能 | `web_vital` | `api_request_summary`、`resource_summary`、`list_render`、`long_task_summary` |
 
 不提供任意事件名、任意嵌套属性和任意公式的通用入口。自定义事件只有在 MetricCatalog 注册 schema、隐私规则、owner 和使用者后才能进入生产 allowlist。
@@ -427,21 +430,21 @@ flowchart TD
 
 ## 14. API 与契约方向
 
-既有 v1/v2 API 在迁移期兼容。新增或升级的 read model 必须：
+管理 API 与 read model 在同一变更中直接切换到 v1.7 规范。重置后必须：
 
 - 返回规范字段、metric definition 摘要、numerator/denominator/sample/coverage 和 data status；
 - 接受统一 project/environment/release/time/entity 筛选；
 - 使用 cursor 或固定 Top N 控制高基数错误、route、API path；
 - 通过 metric key 查询 definition/lineage，不在每个页面硬编码公式；
-- 旧字段附 `deprecatedSince` 与替代字段，不改变旧字段语义。
+- schema、SDK、ingest、consumer、API、Web 和 demo 在同一发布基线上只使用规范字段。
 
-事件契约是否命名为 v3、具体 endpoint 与数据库列由实施 ADR 固化；产品验收只认本文件定义的语义与兼容结果。
+事件契约确定命名为 v3；具体 endpoint 与数据库列由实施 ADR 固化。产品验收只认本文件定义的规范语义，不验收 v1/v2 运行时兼容。
 
 ## 15. 分期优先级
 
 | 优先级 | 内容 | 说明 |
 | --- | --- | --- |
-| P0 | 名称、公式、页面关系、MetricCatalog、兼容映射、现有指标 P90/分母/状态统一 | 不新增敏感采集；优先消除同义词和错误解释 |
+| P0 | Pre-1.0 数据重置、唯一命名、公式、页面关系、MetricCatalog、现有指标 P90/分母/状态统一 | 不新增敏感采集；优先消除同义词和错误解释 |
 | P1 | API 请求分母与耗时、首屏、列表、长任务、资源分母、模板化白屏候选、受限 breadcrumb | 对齐附件一期中 M8 尚缺能力，全部 opt-in |
 | P2 | task journey、表单汇总、业务拒绝、路径、目录化部门/角色指标 | 需要业务接入和外部目录 |
 | P3 | 安全异常信号、指数 v2、受控 SourceMap、通用派生指标工作台 | 均需独立证据和 ADR，不与 P0 捆绑 |
@@ -452,9 +455,10 @@ flowchart TD
 
 ### 16.1 文档与命名
 
-- 产品、SDK、schema、API、MetricCatalog、数据库映射和 UI 术语有一张可机读兼容清单。
+- 产品、SDK、schema、API、MetricCatalog、数据库映射和 UI 术语有一张可机读规范清单。
 - 新 UI 不再显示含混的 UV/VV/转化/健康度；账号、浏览器和会话口径清楚可见。
-- 旧 SDK/历史数据仍可查询，且别名使用可观测。
+- schema v3、SDK `0.4.0`、服务端、demo 与 UI 只使用规范字段；v1/v2 事件得到明确拒绝。
+- 执行带显式确认的测试环境 reset 后，可从空库完成 schema、seed、登录、接入和分析闭环。
 
 ### 16.2 指标正确性
 
@@ -478,23 +482,34 @@ flowchart TD
 
 ### 16.5 回归
 
-- M0–M8 既有 contract、SDK、ingest、consumer、analytics、auth、RBAC、Compose、备份恢复和 M8 可观测性验收全部通过。
-- 项目运营指数 v1 的历史结果在相同 definition/profile 和数据范围下保持一致；任何差异必须有版本化迁移说明。
+- M0–M8 的业务能力在 v3 新基线上重新通过 contract、SDK、ingest、consumer、analytics、auth、RBAC、Compose、备份恢复和 M8 可观测性验收。
+- 旧 v1/v2 兼容测试、旧数据升级测试和历史指数对照从验收范围删除；新指标与项目运营指数使用新 golden fixtures 手算一致。
+- reset 必须使用精确确认参数，只能作用于明确命名的本地/验收资源，不能误删生产或其他项目数据。
 
-## 17. 需通过 ADR 固化但不阻断本轮文档评审的事项
+## 17. 已确认前提与待固化 ADR
 
-1. 事件契约 v3 的精确字段、旧别名下线窗口和 SDK 主版本策略；
+### 17.1 已确认
+
+1. 项目未投产，当前 MySQL、ClickHouse、Kafka、用户、项目、Origin、实体配置、profile、目标和 demo 数据全部为可丢弃测试数据。
+2. 本次实施直接重置所有明确命名的本地/验收数据，不提供历史迁移、双读、别名、旧 SDK 或 v1/v2 运行时兼容。
+3. schema v3 与 SDK `0.4.0` 作为唯一新基线；M0–M8 业务能力在新基线上整体回归。
+4. 项目运营指数仍采用 30/25/30/15，是现阶段产品决策；所有结果从新数据重新计算。
+5. 旧代码、契约和 ADR 由 Git 保留用于追溯，不在运行时继续承担兼容成本。
+
+### 17.2 仍需 ADR 固化
+
+1. 事件契约 v3 的精确字段、SDK `0.4.0` API、干净 schema baseline 和安全 reset 命令；
 2. 账号/权限目录接口、eligible 分母快照、角色多值及最小群体展示门槛；
 3. task journey 跨页面/跨会话边界与短期业务对象引用的密钥轮换；
 4. 白屏 readiness 适配器、API/资源分母的抽样率和代表性说明；
 5. SourceMap、breadcrumb、安全信号分别通过真实项目证据后是否进入 P3；
 6. 是否在 P1 完成后提出项目运营指数 v2，默认答案为“不自动加入”。
 
-在这些事项确认前，开发可以完成 P0 的盘点、命名兼容、定义统一、页面信息架构和测试夹具设计，但不得由实现者私自选择会改变隐私、分母或历史可比性的默认值。
+在 ADR-014 固化前，开发可以完成规范清单、公式、页面信息架构和新 golden fixtures 设计，但不得自行增加兼容层，或选择会改变隐私与分母的默认值。
 
 ## 18. M9 编外能力：AI 分析助手
 
-M9 在本版本中继续保留，范围与 v1.6 已评审规划一致，但必须消费 v1.7 的规范 read model，不能继续固化旧别名或从页面 DOM 抓取数据。
+M9 在本版本中继续保留，范围与 v1.6 已评审规划一致，但必须消费 v1.7 的唯一规范 read model，不能从页面 DOM 抓取数据。
 
 ### 18.1 定位与进入条件
 
