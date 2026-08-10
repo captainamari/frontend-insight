@@ -1,143 +1,152 @@
-# Frontend Insight 项目学习指南（M0–M5）
+# Frontend Insight 项目学习指南（M0–M8）
 
-> M0–M4 代码基线：`agent/m1-engineering-contract-migrations`，提交 `fd2f468`  
-> M5 代码基线：`agent/m5-management-ui-demo`，提交 `c1bbbf3`  
-> 学习资料分支：`agent/project-learning-guide-m0-m4`  
-> 已覆盖：M0 技术验证、M1 工程/契约/迁移、M2 Web SDK、M3 数据链路、M4 管理与分析 API、M5 Vue 管理后台与三场景 demo  
-> 尚未覆盖：M6 生产硬化、备份恢复、容量验证与真实项目试点
+> 当前代码基线：`main`，提交 `4262ef6359b492cf9264b4d8fb97bb8b399306e8`（2026-08-02）
+> 当前产品/计划基线：`docs/product/requirements-v1.6.md`、`docs/planning/mvp-plan-v1.3.md`
+> 当前实现范围：M0–M8；M7 目标环境演练、真实项目试点和 M8 三项目/处理人仍是外部发布门
+> 待评审提案：`agent/metric-dictionary-alignment-v1.7` 中的 requirements v1.7、MVP plan v1.4；其中 schema v3、SDK 0.4.0、规范重命名和新增指标均尚未进入 `main`
 
-学习资料分支用于集中维护文档，没有合入 M5 业务代码。阅读第 8–11 章时，请同时打开 `agent/m5-management-ui-demo` 或上述固定提交，避免用后续变更后的代码反推旧设计。
+这组文档以当前 `main` 的源码、测试、migration、Compose 和验收记录为事实来源。它既解释系统为什么这样实现，也帮助评审 v1.7：凡是“当前实现”和“提案目标”不同的地方，必须明确标注，不能把计划写成已经存在的能力。
 
-这组文档的目标不是复述源码，而是让维护者形成一张可以解释、验证和修改项目的心智地图。读完后，你应该能回答五类问题：
+读完后，你应该能回答：
 
-1. 一条事件为什么要经过这些模块，而不是直接写数据库？
-2. 每个存储、框架和抽象分别解决什么问题？
-3. 关键函数维护了哪些业务不变量，改错后会破坏什么？
-4. API 的数据语义如何变成不会误导使用者的页面状态？
-5. 新需求应该落在哪一层、需要补哪些测试、哪些边界暂时不能突破？
+1. 一条页面、任务或可观测性事件怎样从浏览器进入可查询读模型；
+2. 项目、模块、页面、功能/任务、操作实例和指标 profile 分别由谁管理；
+3. 当前指标的公式、样本、版本、血缘和运营指数门槛实际在哪里实现；
+4. 页面为什么需要区分请求状态、链路状态、业务空数据、配置缺口与版本缺口；
+5. M7 的部署、故障、备份、恢复和应用回滚分别保证什么；
+6. v1.7 哪些内容是命名调整，哪些会重建契约、查询、存储或产品流程。
 
-## 1. 先建立正确的项目定义
+## 1. 当前产品定义
 
-Frontend Insight 是“内部 Web 功能采用分析系统”，不是通用埋点平台、人员考核系统、财务级审计系统，也不是 Sentry/BI 的替代品。当前核心问题只有两个：
+Frontend Insight 是面向内部 Web 产品的“功能采用 + 产品运营 + 前端可观测性”平台，不是员工绩效系统、任意 BI、Sentry 的完整替代品或财务级审计系统。
 
-- 页面和数据是否真正被查看；
-- 功能是否从曝光、开始走到了业务成功，以及是否被重复使用。
+当前 `main` 回答四类问题：
 
-这个定义直接决定了代码和页面中的几个重要选择：
+| 产品域 | 当前回答的问题 | 主要证据 |
+| --- | --- | --- |
+| 功能采用 | 页面/功能是否被看到、开始、成功并重复使用 | page/feature/long-view 事件、功能定义 |
+| 产品运营 | 模块和核心页面是否持续使用，关键任务是否达成，时长/深度是否符合目标 | M6 实体、operation v2、固定查询、版本化配置 |
+| 项目运营指数 | 四个运营维度在样本、目标和数据状态满足时如何汇总 | MetricCatalog、profile、70% coverage 和 3 维 gate |
+| 前端可观测性 | 哪些错误、页面、发布和 Web Vitals 正在退化 | M8 错误组、p75、固定只读告警 |
 
-- “按钮被点击”不能算成功，操作功能必须由业务代码显式调用 `featureSucceeded`；
-- 大屏必须累计前台可见时间，后台标签页不能制造成功；
-- `visitorId`、`sessionId`、`accountId` 是三种不同口径，任何一个都不能被直接称为“真实人数”；
-- 允许 Kafka at-least-once 和查询时近似/去重语义，不承诺账务系统的 exactly-once；
-- 缺少数据时必须区分“尚未接入”“所选范围无活动”“链路延迟”“请求失败”，不能统一显示 0；
-- 管理端提供证据、定义和排障入口，不输出健康度、设计得分或人员结论。
+必须始终守住的语义：
 
-## 2. M5 完成后的系统地图
+- 点击或 `feature_started` 不等于业务成功；
+- 并发任务只能按 `operationInstanceId` 配对，不能按“相邻事件”猜测；
+- `accountId`、`visitorId`、`sessionId` 是不同统计口径；
+- 缺失页面时长不补 0，缺失分母不制造比例；
+- 错误/性能与使用变化可以并列，但相关不代表因果；
+- M8 错误和性能没有进入项目运营指数 v1。
+
+## 2. 当前系统地图
 
 ```mermaid
 flowchart TD
-    D["三场景 demo + Web Tracker"] -->|"事件批次"| N["Nginx 同源入口"]
-    W["Vue 管理后台"] -->|"认证/管理/分析"| N
-    N --> A["NestJS API"]
-    A --> M[(MySQL)]
-    A --> K[(Kafka)]
-    K --> C["Consumer"]
-    C --> H[(ClickHouse)]
-    A -->|"固定查询"| H
+    SDK["Demo / 业务系统 + Web Tracker 0.3"] -->|"schema v2（兼容接收 v1）"| N["Nginx / API ingestion"]
+    UI["Vue 管理端"] -->|"认证、配置、固定查询"| N
+    N --> M[(MySQL 控制面)]
+    N --> K[(Kafka 事件面)]
+    K --> C["Consumer：校验、映射、错误分组"]
+    C --> H[(ClickHouse raw_events)]
+    N --> A["AnalyticsStore / ObservabilityStore"]
+    A --> H
 ```
 
-| 组件                      | 当前职责                                                        | 不负责什么                               |
-| ------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
-| `apps/web`                | 登录、项目/范围上下文、功能与页面证据、接入配置、统一页面状态   | 不在浏览器计算权威指标，不绕过服务端授权 |
-| `apps/demo-app`           | 用受控交互证明三类成功语义和隐私边界                            | 不是生产业务系统，不模拟所有异常         |
-| `infra/nginx/m5.conf`     | 提供静态文件、SPA fallback、同源 API/ingestion 代理和基础安全头 | 不替代生产网关、WAF、SSO 或 TLS 终止设计 |
-| `packages/web-tracker`    | 浏览器生命周期、三类功能事件、隐私约束、批量发送                | 不判断业务操作是否成功，不持久化离线队列 |
-| `packages/event-contract` | JSON Schema、生成类型、统一校验、拒绝码                         | 不包含数据库模型或业务授权               |
-| `apps/api`                | HTTP、NestJS 装配、输入/输出边界、认证入口                      | 不直接堆放主要业务逻辑                   |
-| `packages/server-core`    | ingestion、认证、权限、MySQL store、分析查询、状态判断          | 不依赖具体 Web UI                        |
-| Kafka                     | 削峰、解耦接收与写库、有限重放                                  | 不提供最终查询结果                       |
-| `apps/consumer`           | 手动提交 offset、批写 ClickHouse、毒消息隔离                    | 不计算 Dashboard 指标                    |
-| MySQL                     | 用户、项目、功能、Origin、成员、会话、审计和链路状态            | 不存高吞吐行为明细                       |
-| ClickHouse                | 原始事件与固定聚合查询                                          | 不作为管理元数据事实来源                 |
+| 组件 | 当前职责 | 关键边界 |
+| --- | --- | --- |
+| `apps/web` | 功能采用、运营概览、页面/任务详情、运营指数、可观测性和配置 UI | 不在浏览器计算权威指标 |
+| `apps/demo-app` | 三类功能语义、operation 和四类 M8 事件的受控验收 | 不是生产业务模板 |
+| `packages/web-tracker` | SPA/可见时长、operation handle、批量发送、M8 opt-in 采集和浏览器端裁剪 | SDK 0.3 默认发 schema v2；不判断业务成功 |
+| `packages/event-contract` | v1/v2 JSON Schema、生成类型、大小/凭据/operation 校验 | 当前仍接受 v1/v2，不是 v1.7 的 v3-only |
+| `apps/api` | NestJS HTTP 边界、认证、授权和 controller 装配 | 业务查询主要在 server-core |
+| `packages/server-core` | ingestion、认证、MySQL store、运营分析、MetricCatalog、指数和可观测性查询 | 当前 `analytics.ts` / `mysql-store.ts` 仍是较大的集中模块 |
+| `apps/consumer` | at-least-once 消费、ClickHouse 批写、M8 字段映射/错误组、无 payload DLQ | 不计算页面上的最终综合结论 |
+| MySQL | 用户/项目/成员/模块/页面/功能、版本化设置/profile、审计和链路状态 | 不保存高吞吐事件明细 |
+| Kafka | 接收与写库之间的缓冲、故障恢复和有限重放 | Kafka 不可用时 API 明确 503 |
+| ClickHouse | 去重查询基础、运营事实、operation、错误/性能/发布证据 | 原始行可重复，读模型按 `eventId` 去重 |
+| `scripts/production` | Secret、部署、验证、备份、恢复、应用回滚和状态 | 单机 Compose 不等于基础设施 HA |
 
-M5 增加的是“可操作的产品表面”，没有改变 M2–M4 的数据所有权：项目和功能定义仍来自 MySQL，使用事实仍来自 ClickHouse，前端只是把固定 API 的语义清楚地呈现出来。
+## 3. 阅读顺序
 
-## 3. 建议阅读顺序
+| 顺序 | 文档 | 读完后的能力 |
+| ---: | --- | --- |
+| 1 | [架构、边界与技术选型](01-architecture-and-boundaries.md) | 理解控制面/事件面/查询面和 M0–M8 的演进 |
+| 2 | [事件契约、数据模型与迁移](02-contract-data-and-migrations.md) | 区分 v1/v2、operation、M8 列和版本化配置 |
+| 3 | [Web Tracker SDK](03-web-tracker-sdk.md) | 理解 SPA、operation、observability、发送与隔离 |
+| 4 | [接收、Kafka 与 Consumer](04-ingestion-and-consumer.md) | 理解 202/503、at-least-once、DLQ、错误分组和新鲜度 |
+| 5 | [认证、管理与分析 API](05-auth-management-and-analytics.md) | 理解 RBAC、运营配置、固定读模型、指标和可观测性 API |
+| 6 | [测试、运维与变更手册](06-testing-operations-and-change-playbooks.md) | 能选择正确的回归层并安全修改契约/指标/部署 |
+| 7 | [M0–M4 代码精读实验](07-code-reading-labs.md) | 掌握系统基础不变量 |
+| 8–11 | M5 前端、页面状态、demo、本地闭环与测试 | 理解当前 UI 的基础运行时 |
+| 12 | [M6 运营领域与数据模型](12-m6-operational-domain-and-data-model.md) | 理解模块/页面/任务、operation 和生效时间 |
+| 13 | [M6 指标目录、读模型与运营指数](13-m6-metrics-read-models-and-index.md) | 能手算指标、血缘、profile 与指数 gate |
+| 14 | [M6 管理端页面与配置闭环](14-m6-management-ui-and-configuration.md) | 理解页面下钻、版本化配置和权限 |
+| 15 | [M7 生产硬化与故障恢复](15-m7-production-hardening-and-recovery.md) | 理解部署、负载、故障、备份、恢复和应用回滚 |
+| 16 | [M8 前端可观测性](16-m8-frontend-observability.md) | 追踪错误/Web Vitals 从 SDK 到页面 |
+| 17 | [当前实现与 v1.7 评审地图](17-current-main-vs-v1.7-review-map.md) | 区分已存在、需改名、需新增和需决策内容 |
+| 18 | [M6–M8 代码精读实验](18-m6-m8-code-reading-labs.md) | 用 fixture、SQL、API、UI 和故障演练验证理解 |
 
-| 顺序 | 文档                                                                  | 读完后的能力                                                       |
-| ---: | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
-|    1 | [架构、边界与技术选型](01-architecture-and-boundaries.md)             | 能画出组件图，解释为什么分层和为什么使用三种基础设施               |
-|    2 | [事件契约、数据模型与迁移](02-contract-data-and-migrations.md)        | 能从 Schema 追到 Kafka envelope 和 ClickHouse 行，理解兼容与升级   |
-|    3 | [Web Tracker SDK](03-web-tracker-sdk.md)                              | 能解释 SPA、会话、可见时间、长时大屏和发送策略                     |
-|    4 | [接收、Kafka 与 Consumer](04-ingestion-and-consumer.md)               | 能解释 202、HMAC、at-least-once、去重、DLQ 和数据状态              |
-|    5 | [认证、管理与分析 API](05-auth-management-and-analytics.md)           | 能解释双层授权、刷新令牌轮换和每个指标的查询口径                   |
-|    6 | [测试、运维与维护手册](06-testing-operations-and-change-playbooks.md) | 能按证据定位故障，并安全修改契约、查询或数据库                     |
-|    7 | [M0–M4 代码精读实验](07-code-reading-labs.md)                         | 能通过可重复实验把“看懂”变成“亲手验证过”                           |
-|    8 | [M5 前端架构与运行时](08-m5-frontend-architecture-and-runtime.md)     | 能解释 Vue 装配、路由认证、URL 状态、请求刷新与共享状态            |
-|    9 | [M5 分析页面与数据状态](09-m5-analytics-views-and-data-states.md)     | 能把 API 读模型映射到正确的 loading/empty/stale/delayed/ready 页面 |
-|   10 | [M5 接入、demo 与本地闭环](10-m5-onboarding-demo-and-local-loop.md)   | 能解释配置、测试事件、三类业务成功、token 隔离与 Compose 运行结构  |
-|   11 | [M5 测试与代码精读实验](11-m5-testing-and-code-reading-labs.md)       | 能运行并扩展单元、双浏览器、数据流和产品闭环验收                   |
+第 8–11 章保留“M5 引入时为什么这样设计”的教学顺序，但已经补充 M6–M8 对相应模块的当前影响。阅读具体 `main` 行为时，应继续阅读第 12–18 章。
 
-推荐每章采用同一个循环：
+## 4. 从需求到当前代码
 
-1. 先只读本章的“为什么”；
-2. 打开文中列出的源文件，按函数顺序走一遍；
-3. 执行对应测试或实验；
-4. 不看文档，用自己的话复述输入、状态变化、输出和失败路径；
-5. 把仍解释不清的地方记录为问题，不要靠背诵跳过。
+| 问题 | 第一入口 | 继续追踪 |
+| --- | --- | --- |
+| schema v1/v2 选择 | `packages/event-contract/src/validator.ts` | 两份 Schema、fixtures、consumer |
+| SDK 当前发什么 | `packages/web-tracker/src/tracker.ts` 的 `makeBatch` | `CURRENT_SCHEMA_VERSION=2` |
+| 并发任务配对 | `BrowserTracker.startOperation` | ClickHouse `operation_instance_id`、`operationInstances` |
+| M8 自动/显式采集 | `packages/web-tracker/src/observability.ts` | v2 Schema、consumer 映射 |
+| 项目/模块/页面/任务配置 | `apps/api/src/operational.controller.ts` | `MySqlStore`、migration 004 |
+| 运营概览与下钻 | `AnalyticsStore.operationalOverview` | modules/pageDetail/taskDetail |
+| 指标真相源 | `packages/server-core/src/metrics.ts` | `METRIC_CATALOG`、lineage、profile |
+| 项目运营指数 | `AnalyticsStore.operationalIndex` | `calculateOperationalIndex`、M6 fixture |
+| 数据状态 | `evaluateDataStatus` | `resolveProductPresentation` |
+| 错误组与 Web Vitals | `packages/server-core/src/observability.ts` | consumer SHA-256 group、M8 API/UI |
+| 固定告警 | `buildFixedAlerts` | M8 overview/alerts、无确认关闭状态 |
+| 生产部署 | `scripts/production` | production Compose、`*_FILE` Secret |
+| 容量和故障 | `scripts/m7` | load/resilience 工具、M7/M8 workflow |
+| 当前与 v1.7 差异 | [评审地图](17-current-main-vs-v1.7-review-map.md) | requirements v1.7、MVP plan v1.4 |
 
-## 4. 从需求到代码的定位表
+## 5. Review v1.7 时的事实层级
 
-| 需求概念             | 第一入口                                         | 继续追踪                                                               |
-| -------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| 页面访问/SPA 路由    | `packages/web-tracker/src/tracker.ts`            | `handleRouteChange`、`settleVisiblePage`                               |
-| 操作成功不能等于点击 | `BrowserTracker.featureStarted/featureSucceeded` | JSON Schema 条件约束、分析查询 `countIf`                               |
-| 大屏前台 30 秒成功   | `BrowserTracker.startLongView`                   | `AnalyticsStore.featureDetail` 的 `max` 再 `sum`                       |
-| 禁止 token/PII       | `packages/web-tracker/src/privacy.ts`            | `packages/event-contract/src/security.ts`、`IngestionManager.sanitize` |
-| Origin 和项目保护    | `IngestionManager.accept/assertProject`          | `ProjectsController` 更新后的缓存失效                                  |
-| 202 接收语义         | `IngestionController.ingest`                     | `KafkaEnvelopePublisher.publish`                                       |
-| at-least-once 与幂等 | `EventConsumerRuntime.eachBatch`                 | `AnalyticsStore.deduplicatedEventsWhere`                               |
-| admin/viewer         | `AuthGuard`、`ProjectsController.requireProject` | `MySqlStore.getProjectRole`                                            |
-| “昨日同时段”         | `previousLocalCalendarDay`                       | `packages/server-core/test/status-and-range.test.ts` 的 DST 用例       |
-| 无数据/延迟/故障     | `evaluateDataStatus`                             | `project_data_status` 与 consumer 更新点                               |
-| 数据库升级           | `packages/database/src/migrations.ts`            | `infra/*/migrations/*.sql`                                             |
-| 登录恢复与 401 刷新  | `apps/web/src/api.ts`                            | `refreshAccessToken`、`request`、`apps/web/src/auth.ts`                |
-| 项目/范围可分享      | `apps/web/src/components/AppShell.vue`           | `apps/web/src/context.ts`、`apps/web/src/range.ts`                     |
-| 旧数据保留与错误状态 | `apps/web/src/remote.ts`                         | `apps/web/src/presentation.ts`、`StatePanel.vue`                       |
-| 趋势缺口不补 0       | `fillTrendGaps`                                  | `TrendChart.vue` 的 `connectNulls: false`                              |
-| 功能采用首页         | `apps/web/src/views/FeaturesView.vue`            | features API、`DefinitionsDrawer.vue`                                  |
-| 页面访问与排行       | `apps/web/src/views/PagesView.vue`               | overview/trend/pages/data-status 四个 API                              |
-| 项目接入与测试事件   | `apps/web/src/views/OnboardingView.vue`          | Origin/CSP、权限、`/v1/events`、请求 ID                                |
-| 三类真实使用场景     | `apps/demo-app/src/App.vue`                      | `runData`、`runAction`、`startWallboard`                               |
-| 本地完整闭环         | `scripts/dev`                                    | 两层 Compose、seed、smoke、Nginx、Playwright                           |
+评审时按以下顺序确认，不要混用：
 
-## 5. M5 后必须知道的当前边界
+1. `main` 源码、Schema、migration 和自动化测试：当前真实行为；
+2. requirements v1.6、MVP plan v1.3、ADR-009～013：当前实现的设计依据；
+3. requirements v1.7、MVP plan v1.4：尚未实现的目标方案；
+4. 反馈附件/指标字典：输入材料，不自动覆盖源码或已评审 ADR。
 
-这些不是全部都要立刻修复的问题，而是下一次扩展时必须重新评审的约束：
+例如：
 
-- SDK 队列仍在内存中，刷新或断网可能丢少量事件；这是分析系统允许的取舍。
-- API 的限流、项目缓存和指标仍在单进程内；多副本部署前要重新设计一致性和汇总方式。
-- 原始重复事件会进入 ClickHouse，查询侧用 `eventId` 去重；可靠性换来了额外存储成本。
-- `retention_days` 可在管理端修改，但 ClickHouse TTL 仍固定为 90 天；UI 能保存配置不等于保留策略已经执行。
-- 功能的 long-view 阈值可在 MySQL/管理端配置，但运行中的 SDK 没有配置下发链路；demo 与 seed 只是用相同默认值对齐。
-- 管理端从项目对象取得 timezone 并传给分析 API；服务端仍接受调用方提供的合法 timezone，生产前可考虑进一步收紧。
-- `apps/web/src/types.ts` 手工维护 API 读模型，没有 OpenAPI/代码生成；后端字段变化时存在静默漂移风险。
-- `useRemoteData` 没有请求取消或序号保护；用户快速切换项目/范围时，较慢的旧请求理论上可能覆盖新请求。
-- 页面访问把四个 API 放进同一个 `Promise.all`，保证同一屏数据一致，但任一请求失败会让整屏进入 stale/error；未来拆分必须先定义“部分成功”语义。
-- 管理端没有引入 Pinia 或查询缓存。当前共享状态很少，这是降低复杂度；当跨页面可变状态、缓存失效和并发请求明显增多时再引入。
-- onboarding 的“发送测试事件”直接构造最小契约，用来定位 ingestion/Origin，不等于证明业务项目已经正确使用 SDK。
-- 本地固定账号、密码、`unsafe-inline` 样式 CSP 和单 Nginx 入口只用于开发闭环；生产 SSO、TLS、Secret、备份、恢复、容量和故障演练属于 M6。
-- M5 CI 在 Linux amd64 运行，不能替代目标 M1 Mac 的 Docker Desktop、资源占用和人工页面验收。
+- `projectId/projectKey`、`route`、`accountRef`、`releaseVersion`、`deploymentEnvironment` 已存在；
+- `eventTime`、snake_case metric key、`active_browsers` 仍与 v1.7 目标不同；
+- schema v3、SDK 0.4.0、v1/v2 拒绝、安全 reset 和 P90 新读模型是提案，不是当前能力；
+- `userId` 仍是管理端登录用户/成员 ID；它不是浏览器遥测的原始员工标识。若实施规范重命名，不能把所有 `userId` 机械删除。
 
-## 6. 文档维护规则
+## 6. 当前必须知道的边界
 
-代码变化时，不要求把所有实现复制进文档，但以下变化必须同步：
+- SDK 队列在内存中；失败批次完成重试后不会持久化到离线队列。
+- API 的限流、项目缓存、analytics/observability 进程指标仍是单实例内存状态。
+- ClickHouse 保留重复接收事实，查询通过 `LIMIT 1 BY event_id` 去重。
+- 当前数据状态只有 `healthy/delayed/no_data/broken`；v1.7 的 `not_collected/insufficient_sample/partial` 等更细状态尚未形成统一枚举。
+- 页面/任务时长当前主读模型为 P50/P75；Web Vitals 为 P75。v1.7 计划的 P90/P99 尚未实现。
+- MetricCatalog 已有版本、公式、分母说明、去重键、最小样本和血缘，但尚未包含 v1.7 要求的全部 numerator、primary percentile、coverage/status 元数据。
+- `apps/web/src/types.ts` 仍手工维护 API 读模型，没有 OpenAPI 生成。
+- `useRemoteData` 没有 request sequence 或 AbortController，快速切换范围仍可能被旧请求覆盖。
+- 时间范围只有最近 24 小时/7 天/30 天，URL 目前只统一项目与时间；部署环境、release、module、page 等 v1.7 全局筛选尚未实现。
+- M7 的 Linux CI/synthetic 不能替代目标部署环境、Apple Silicon 人工演练和真实项目发布门。
+- production Compose 提供单机 pilot 策略，不提供 TLS 终止、集中日志/通知、异地备份或基础设施高可用。
+- M8 SourceMap、告警确认/关闭/通知、任意告警 DSL、自动修复和 AI 分析均未实现。
 
-- 组件职责或依赖方向改变；
-- 事件字段、事件语义、拒绝码或兼容窗口改变；
-- 身份、授权、刷新令牌、URL 状态或项目上下文改变；
-- 去重、时间范围、指标口径、缺口或页面状态语义改变；
-- migration、数据保留、重试、DLQ、恢复或本地运行语义改变；
-- 本文列出的“当前阶段边界”被解除或替换。
+## 7. 文档维护规则
 
-文档中的源文件路径和函数名属于可执行索引。重构改名时，CI 不会自动替你更新这些说明，代码评审必须把文档链接和路径检查列入验收。
+下列变化必须同步学习资料：
+
+- 事件字段、schema 支持窗口、SDK 公共 API、事件大小/隐私边界；
+- 实体、配置、生效时间、profile、指标公式/分母/分位数/样本或 lineage；
+- API route、读模型字段、数据状态和页面下钻；
+- consumer 映射、错误组特征、告警阈值或 ClickHouse 列；
+- health/readiness、负载门槛、Secret、备份恢复或回滚语义；
+- 当前实现与待评审/待实现内容的边界。
+
+文档中的路径、类名、函数名和命令是可执行索引。更新后应运行路径检查、相对链接检查、`git diff --check`，并抽样从文档反向定位到源码。

@@ -1,5 +1,7 @@
 # 06. 测试、运维与变更手册
 
+> 当前基线：M0–M8。M6 增加 operation/MetricCatalog/index golden，M7 增加负载/故障/备份恢复，M8 增加隐私/错误组/Web Vitals/双浏览器 E2E。
+
 ## 1. “能运行”不等于“语义正确”
 
 这个项目的测试不是只检查 HTTP 200。它要证明：
@@ -11,6 +13,9 @@
 - viewer 不能写或访问未授权项目；
 - DST、空数据、延迟和故障不会产生误导结果；
 - migration 能从空库、旧版和重复执行得到同一结构。
+- 并发 operation 只产生一个匹配终态，指数 gate 与手算一致；
+- M8 脱敏、错误组、P75/告警不污染运营指数；
+- Kafka/ClickHouse/consumer 故障和恢复表现符合 202/503/at-least-once 语义。
 
 学习测试时先问“这个断言保护了哪个产品承诺”，而不是只看 mock 写法。
 
@@ -27,8 +32,11 @@
 | 数据/时间单元    | `packages/server-core/test/status-and-range.test.ts`      | 状态机、范围、DST                                | ClickHouse SQL 真实结果       |
 | migration 单元   | `packages/database/test/migrations.test.ts`               | 清单、DDL 必要表、TTL、breakpoint                | 真实引擎升级                  |
 | Compose verifier | `packages/server-core/test/integration-flow.ts`           | HTTP→Kafka→consumer→CH、auth、权限、分析、审计   | M1 Mac 人工体验和生产容量     |
+| M6 指标/产品      | `metrics.test.ts`、`tests/m6`、`m6-http-smoke.mjs`        | operation、配置版本、血缘、指数 gate 和页面下钻 | 真实业务目标是否合理          |
+| M7 韧性/容量      | `scripts/m7`、`tools/m7-*`                                | 20/200 events/s、三依赖故障、备份恢复            | 目标环境 HA/异地副本          |
+| M8 可观测性       | observability tests、`tests/m8`、`m8-http-smoke.mjs`      | 隐私、错误组、P75、固定告警、双浏览器 UI         | SourceMap/通知/真实处理流程    |
 
-截至当前基线，记录结果为：Vitest 7 个文件/51 项、Chromium/WebKit 6 项、SDK gzip 4,419 bytes、Compose 完整链路通过。Linux x86_64 CI 不能替代目标 Apple Silicon Mac 人工验收。
+M7/M8 实现记录中的无容器证据为：Vitest 15 files/108 tests、Chromium SDK browser 4/4、SDK gzip 7,511 bytes（12 KiB 上限）和静态构建通过；Compose、WebKit、full load/fault/restore 以 PR checks 和本地指引为准。Linux CI 仍不能替代目标 Apple Silicon/部署环境验收。
 
 ## 3. Golden fixtures 为什么是项目的“校准砝码”
 
@@ -61,6 +69,8 @@
 13. 恢复项目并查询 audit log。
 
 这比“启动服务后 curl 一下”强得多，因为它同时验证成功路径、权限、重复、状态变化和审计。
+
+`./scripts/dev smoke` 还会串联 M5/M6/M8 HTTP smoke；M6/M8 Playwright 分别验证管理端任务，M7 drill 验证依赖中断和数据恢复。不要用某一层通过替代其余层。
 
 ## 5. 根检查命令如何形成质量门
 
@@ -104,21 +114,23 @@ kafka healthy
 - resource limit 让目标 Mac 上的成本可见；
 - 镜像固定版本，避免某天拉到不兼容 latest。
 
+M5 overlay 增加 Web/demo/Nginx；production overlay 再增加 Docker Secret、只读 root、tmpfs、资源限制、日志轮转和 release-tag 镜像。具体见 [M7 生产硬化与故障恢复](15-m7-production-hardening-and-recovery.md)。
+
 ## 7. 本地命令与数据安全
 
 ```bash
-./scripts/m2-m4 doctor
-./scripts/m2-m4 up
-./scripts/m2-m4 verify
-./scripts/m2-m4 status
-./scripts/m2-m4 logs api
-./scripts/m2-m4 down
+./scripts/dev doctor
+./scripts/dev up
+./scripts/dev smoke
+./scripts/dev status
+./scripts/dev logs api
+./scripts/dev down
 ```
 
 `down` 不删除卷。只有明确执行以下命令才删除本 Compose 项目的数据：
 
 ```bash
-./scripts/m2-m4 reset --confirm-local-data-loss
+./scripts/dev reset --confirm-local-data-loss
 ```
 
 脚本用固定 Compose project name 和 label 选择卷，先列出目标，再 `down --volumes`。这是 destructive operation 应具备的模式：明确作用域、显式确认、普通停止不携带删除副作用。
@@ -184,12 +196,12 @@ kafka healthy
 
 ### 9.2 新增破坏性事件语义
 
-不要直接编辑 v1：设计 v2、双版本 validator、SDK 发布/采用率、consumer 转换、兼容窗口、拒绝量指标和停用旧版条件。
+当前一般规则仍是发布新 schema、同步 validator/SDK/consumer 并定义兼容窗口。v1.7 是一次明确例外：若 ADR 证明所有数据和消费者都可丢弃，可在同批切到 v3-only，但必须新增 v1/v2 拒绝 fixture、安全 reset、clean baseline/seed 和 M0–M8 全量回归。
 
 ### 9.3 新增分析指标
 
 1. 在 PRD 写清 numerator、denominator、去重单位、时间和 null 语义；
-2. 用 fixture 手算 expected；
+2. 先扩 `METRIC_CATALOG` 的结构化定义/血缘，再用 fixture 手算 expected；
 3. 优先扩固定 query，不开放任意 SQL；
 4. 参数化所有值，动态列用 whitelist；
 5. 检查是否需要 event time 或 received time；
@@ -236,12 +248,13 @@ kafka healthy
 - [ ] 单元、浏览器、Compose 和目标 Mac 中该跑的层级都已验证；
 - [ ] 文档中的当前边界和函数索引仍准确。
 
-## 11. M5/M6 前的维护关注点
+## 11. 当前维护关注点
 
-- M5 页面必须消费 `data-status`，不能只消费分析数值；
-- M5 demo 应直接演示 data view、action、long view 的正确业务调用时机；
-- M5 不应把 `apps/web` 的占位误当已有框架完成；
-- M6 需要分布式限流/缓存一致性、Secret/HMAC 轮换策略、真实负载、备份恢复、项目级保留和生产 health/metrics；
-- 大文件继续增长时，优先按领域拆 `MySqlStore`、`AnalyticsStore`、`BrowserTracker`，但保留现有公共边界和测试。
+- `MySqlStore`、`AnalyticsStore` 已显著增长；下一轮全链重命名前应先建立 inventory 和小步提交边界。
+- 当前 SDK 旧 `featureStarted` wrapper 与 v2 operation 要求存在契约张力，新任务只使用 `startOperation`。
+- API/UI types 手工维护，旧 M5 与新 M6 read model 命名不完全一致。
+- production 仍是单机 pilot；限流/cache/进程指标没有多副本一致性。
+- M7 外部发布门、M8 三项目/处理人、SourceMap 和通知仍未完成。
+- v1.7 reset 只适用于确认可丢弃的本地/验收资源，不能替代投产后的 additive migration/backup/rollback。
 
 本章的实践顺序见 [代码精读实验](07-code-reading-labs.md)。

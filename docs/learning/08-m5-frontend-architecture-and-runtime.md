@@ -1,5 +1,7 @@
 # 08. M5 前端架构与运行时
 
+> 本文以 M5 的前端基础为主。当前 `main` 已在同一运行时上增加 M6 操作域、页面详情、项目运营指数与配置，以及 M8 前端可观测性；新增页面和读模型见 [14. M6 管理端与配置](14-m6-management-ui-and-configuration.md) 和 [16. M8 前端可观测性](16-m8-frontend-observability.md)。
+
 ## 1. 先理解 M5 解决的不是“做几个页面”
 
 M4 已经提供认证、项目管理和固定分析 API，但 API 能调用不等于产品可用。M5 要补齐的是一个稳定的使用闭环：
@@ -67,7 +69,7 @@ Element Plus 没有 `app.use(ElementPlus)` 全量注册，而是按组件注册�
 根组件只保留 `<RouterView />`。真正的布局由嵌套路由中的 `AppShell.vue` 提供：
 
 - `/login` 不显示侧边栏；
-- 认证后的功能、页面和接入页共享项目/范围工具栏；
+- 认证后的功能、操作域、页面、指数、可观测性、配置和接入页共享项目/范围工具栏；
 - 功能详情仍保持“功能采用”导航选中。
 
 “根组件薄、布局走路由”让登录页和管理端外壳的职责不会混在一个巨大条件模板中。
@@ -79,7 +81,7 @@ Element Plus 没有 `app.use(ElementPlus)` 全量注册，而是按组件注册�
 路由表分三层：
 
 - 公共 `/login`；
-- `AppShell` 下的 `/features`、`/features/:featureId`、`/pages`、`/onboarding`；
+- `AppShell` 下的 `/features`、`/features/:featureId`、`/operational`、`/pages`、`/page-detail`、`/operational-index`、`/observability`、`/operational-config`、`/onboarding`；
 - 未知路径回到首页。
 
 页面组件使用动态 import，首次进入时才加载对应 chunk。对小型 SPA 来说，这比设计复杂的 bundle 分包规则更直接。
@@ -277,7 +279,8 @@ flowchart TD
 `apps/web/src/types.ts` 不是领域数据库模型，而是前端读模型：
 
 - `Project/Feature/User` 对应管理 API；
-- `OverviewResponse/FeaturesResponse/FeatureDetailResponse` 对应固定分析 API；
+- `OverviewResponse/FeaturesResponse/FeatureDetailResponse` 对应 M4/M5 固定分析 API；
+- 操作域、页面详情、项目运营指数和可观测性类型对应 M6/M8 固定读模型；
 - `DataStatus` 对应链路状态；
 - `RangeQuery/TrendPoint` 连接范围和图表。
 
@@ -301,7 +304,7 @@ URL query
 → PagesView watch 上下文
 → useRemoteData.load
 → api.request 加 Bearer / 自动 refresh
-→ M4 固定分析 API
+→ M4/M6/M8 固定分析 API
 → types.ts 读模型
 → computed 生成卡片、趋势和页面状态
 → StatePanel / TrendChart / Table 呈现
@@ -331,6 +334,13 @@ URL query
 7. `apps/web/src/context.ts` 与 `range.ts`；
 8. `apps/web/src/remote.ts`；
 9. `apps/web/src/types.ts`。
+
+随后继续阅读：
+
+10. `apps/web/src/views/OperationalOverviewView.vue`；
+11. `apps/web/src/views/PageDetailView.vue` 与 `OperationalIndexView.vue`；
+12. `apps/web/src/views/OperationalConfigView.vue`；
+13. `apps/web/src/views/ObservabilityView.vue`。
 
 自测问题：
 

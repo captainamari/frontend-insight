@@ -1,5 +1,7 @@
 # 03. Web Tracker SDK
 
+> 当前基线：SDK 0.3.0 默认发送 schema v2，增加 `startOperation` 和 opt-in M8 observability；服务端仍兼容 v1。v1.7 的 SDK 0.4/v3-only 尚未实现。
+
 ## 1. SDK 的真正职责
 
 Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿主应用的前提下维护浏览器状态，并把业务成功语义转换为稳定事件：
@@ -8,6 +10,8 @@ Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿�
 - 区分浏览器实例、标签页会话和一次页面视图；
 - 只累计前台可见时间；
 - 为 data view、action、long view 提供不同 API；
+- 为并发任务生成不可由业务方指定的 `operationInstanceId`；
+- 可选采集 JS/资源/API 错误与 Web Vitals，并在浏览器端裁剪；
 - 在 SDK 和服务端双重约束隐私；
 - 控制队列、批次大小、离开页面发送和诊断；
 - 任何内部异常都不能中断宿主业务。
@@ -21,6 +25,7 @@ Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿�
 | `visitorId`  | 尽量跨页面和浏览器重启                   | localStorage 的单个 SDK key | 一个匿名浏览器存储实例 |
 | `sessionId`  | 当前 tracker/标签页，30 分钟无活动后轮换 | 内存                        | 一个标签页会话         |
 | `pageViewId` | 每次归一化 route 变化                    | 内存                        | 一次页面视图实例       |
+| `operationInstanceId` | 一次 startOperation 到首个 terminal | operation handle 闭包 | 一次并发安全的任务实例 |
 
 `accountRef` 是业务系统显式提供的不透明引用，不是 SDK 读取的 token/email。服务端把它转换为项目级 HMAC `accountId`。
 
@@ -31,7 +36,7 @@ Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿�
 入口 `createTracker(config)` 做三件值得学习的事：
 
 1. 在构造前验证公开 `projectKey` 和 HTTP(S) endpoint；
-2. 以 `projectKey + endpoint` 作为 key，重复初始化返回同一个 active tracker，避免 SPA/HMR 重复监听；
+2. 以 `projectKey + endpoint + observability.releaseVersion` 作为 key，重复初始化返回同一个 active tracker，避免 SPA/HMR 重复监听；
 3. 任何初始化异常都返回安全 no-op，而不是向宿主抛错。
 
 监控 SDK、日志 SDK、A/B SDK 等“旁路组件”应遵循同一原则：业务功能的可用性优先于监控完整率。
@@ -46,8 +51,8 @@ Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿�
 4. 归一化当前 route；
 5. 保存原始 `history.pushState/replaceState`；
 6. 安装路由、可见性和离开监听；
-7. 启动定时 flush；
-8. 发出初始 `page_view`。
+7. 发出初始 `page_view` 并启动可选 observability；
+8. 安装生命周期并启动定时 flush（默认 10 秒）。
 
 ### 4.1 为什么同时监听四种路由信号
 
@@ -127,13 +132,13 @@ Web Tracker 不是“给所有事件加一个 HTTP POST”。它在不破坏宿�
 
 ### 7.2 Action
 
-`featureStarted` 表示用户开始操作，只有业务 Promise/回调成功后才能调用 `featureSucceeded`，失败调用 `featureFailed(reasonCode)`。
+当前仍保留 `featureStarted/featureSucceeded/featureFailed`，但需要任务配对时必须使用 `startOperation`。它先发带随机 operation ID 的 started，再通过 handle 的 `succeed/fail/cancel` 发送唯一终态。
 
 典型序列：
 
-`feature_exposed → feature_started → feature_succeeded|feature_failed`。
+`feature_exposed → feature_started → feature_succeeded|feature_failed|feature_canceled`。
 
-这套模式可以直接复用于导入、导出、审批、配置保存、下发指令等异步操作。
+这套模式可以直接复用于导入、导出、审批、配置保存、下发指令等异步操作。当前旧 `featureStarted` wrapper 在默认 v2 下不生成 operation ID，而 v2 validator 要求 started 携带该 ID；新代码不要使用这条路径，v1.7 删除 wrapper 时应加入负向回归证明不再存在。
 
 ### 7.3 Long view
 
@@ -159,11 +164,15 @@ stateDiagram-v2
     Succeeded --> Ended: stop / route / pagehide
 ```
 
+### 7.4 Observability
+
+`BrowserObservability` 是可选旁路：JS/资源/Web Vitals 默认开，自动全局 fetch 包装默认关；也可显式调用 `captureException/captureApiError/captureResourceError/captureWebVital`。它只发送脱敏 message/top frame、归一化 path、release/environment 和粗粒度 browser/OS/viewport，不发送 header、body、query/hash、DOM 或 UA 原文。详细流程见 [M8 前端可观测性](16-m8-frontend-observability.md)。
+
 ## 8. 队列与发送策略
 
 ### 8.1 `nextBatch`
 
-它逐条尝试加入批次，同时满足：
+队列默认上限是 100；达到上限会丢弃最旧事件。`nextBatch` 再逐条尝试加入批次，同时满足：
 
 - 最多 50 条；
 - 序列化批次最多 64 KiB；
@@ -189,7 +198,7 @@ stateDiagram-v2
 
 SDK 修改了全局 History 方法并安装多个 listener/timer。`destroy` 必须：
 
-1. 停止所有 active long view；
+1. 停止 observability observer/fetch wrapper 和所有 active long view；
 2. 清理 flush timer；
 3. 结算页面可见时长并尝试 lifecycle flush；
 4. 恢复原始 History 方法；
@@ -217,6 +226,8 @@ SDK 修改了全局 History 方法并安装多个 listener/timer。`destroy` 必
 | `handleRouteChange`          | 旧页面先结算，新页面再生成 ID          | SPA route 与 original page tests                                       |
 | `emit`                       | 所有事件共享隐私、大小、会话、队列规则 | privacy/queue/feature tests                                            |
 | `startLongView`              | 只累计可见时间，成功一次，心跳累计     | hidden/original page tests                                             |
+| `startOperation`             | SDK 生成配对键、唯一 terminal、重复终态诊断 | operation concurrency tests                                        |
+| `BrowserObservability`       | opt-in、脱敏、固定低基数证据、宿主隔离 | M8 unit/browser tests                                               |
 | `nextBatch`                  | 50 条和 64 KiB 双限制                  | contract limit tests                                                   |
 | `send`                       | beacon fallback、4xx 不重试、5xx 重试  | beacon fallback test                                                   |
 | `destroy`                    | 无遗留 listener/timer                  | Playwright destroy test                                                |
@@ -227,7 +238,9 @@ SDK 修改了全局 History 方法并安装多个 listener/timer。`destroy` 必
 - 退避时间当前很短，适合测试和 MVP；真实公网环境应加入更合理的指数退避与 jitter，但要评估页面生命周期。
 - active tracker registry 没有在 `destroy` 时删除条目，但新建时会因旧实例不是 active 而替换；如果未来大量动态 projectKey，需要关注 registry 增长。
 - `projectTimezone` 出现在配置类型但当前 tracker 未使用；项目时区由查询 API 决定，不应误以为客户端字段已生效。
-- `longViewSuccessAfterMs` 和 `longViewHeartbeatMs` 当前是整个 tracker 的配置，不是按 `featureKey` 配置；MySQL feature 表中的逐功能阈值尚未下发到 SDK。M5 必须选择按功能注入阈值，或明确所有大屏使用同一阈值。
+- `longViewSuccessAfterMs` 和 `longViewHeartbeatMs` 当前是整个 tracker 的配置，不是按 `featureKey` 配置；MySQL feature 表中的逐功能阈值仍未下发到 SDK。
+- 自动 API 采集只发错误请求，没有全部请求分母，不能据此计算 API 失败率或成功率。
+- `DeploymentEnvironment` 当前包含 `test`；v1.7 目标枚举删除它，需要同步 demo/fixture/CI。
 - SDK 只提供原子 API，不自动推断“请求成功”“图表渲染完成”；这是正确的责任边界，不应为了少写接入代码而破坏。
 
 本章实验见 [代码精读实验](07-code-reading-labs.md) 的实验 2、3 和 4。

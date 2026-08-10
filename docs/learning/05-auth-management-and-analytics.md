@@ -1,5 +1,7 @@
 # 05. 认证、管理与分析 API
 
+> 当前基线：M4 认证/RBAC 仍是所有新页面的安全基础；M6 增加模块/页面/版本化设置/profile、MetricCatalog 和运营读模型；M8 增加独立 ObservabilityStore/Controller。
+
 ## 1. API 分层阅读法
 
 管理/分析请求可以按固定顺序阅读：
@@ -140,7 +142,7 @@ Controller 中的 schema 处理：
 
 ## 6. 固定分析 API 为什么比任意查询更合适
 
-MVP 只提供 overview、trend、pages、features、feature detail。没有任意 SQL、任意字段、任意时间范围。
+当前固定查询包括 M5 的 overview/trend/pages/features、M6 的 modules/operational overview/page/task/index，以及 M8 的 observability overview/errors/vitals/releases/alerts。仍没有任意 SQL、任意字段或任意告警 DSL。
 
 固定查询的收益：
 
@@ -206,7 +208,7 @@ MVP 只提供 overview、trend、pages、features、feature detail。没有任�
 
 这样即使一个已定义功能没有事件，也仍然出现在结果中，指标为 0/null。否则 UI 无法区分“未定义”和“已定义但无人使用”。
 
-conversion rate 只有 denominator > 0 才计算，否则返回 null，不把“没有曝光”误报为 0% 转化。
+旧 read model 字段仍叫 `accountConversionRate/visitorConversionRate`，但 UI 已显示“曝光后使用率”。只有 denominator > 0 才计算，否则返回 null；v1.7 要把 API 字段也统一为 postExposureUseRate。
 
 重复使用定义为同账号/visitor 在至少 2 个不同 session 中成功，而不是同一会话连续点击两次。
 
@@ -222,6 +224,14 @@ detail 返回 exposed/started/succeeded/failed、成功账号/浏览器、重复
 
 如果直接 sum 所有 heartbeat，60 秒、120 秒两个累计值会被错误算成 180 秒。
 
+### 9.6 M6 运营读模型与指数
+
+`modules/operationalOverview/pageDetail/taskDetail` 将 MySQL 的模块、页面、任务定义与 ClickHouse 事实合并；未归类 route 保留基础证据但不进入覆盖率/指数。`operationalIndex` 还读取生效中的 settings/profile，按最晚配置边界裁剪 evaluationRange，并通过 3 维 + 70% leaf coverage + healthy data gate 决定是否返回总分。详细公式见 [M6 指标目录、读模型与项目运营指数](13-m6-metrics-read-models-and-index.md)。
+
+### 9.7 M8 可观测性读模型
+
+`ObservabilityStore` 独立处理错误组、影响账号/浏览器/页面/发布、Web Vitals P75 和固定只读告警，并使用 `observability_v1.0.0`。它不会修改运营指数 v1，也不把相关时间趋势解释为因果。
+
 ## 10. 数据状态是分析 API 的前置语义
 
 `evaluateDataStatus` 不查询 ClickHouse 指标，而是读取 MySQL 链路状态，告诉 UI 数据是否可信：
@@ -231,7 +241,7 @@ detail 返回 exposed/started/succeeded/failed、成功账号/浏览器、重复
 - `broken`：展示故障而不是 0；
 - `healthy`：才把指标当作当前链路结果。
 
-M5 页面应先消费 data status，再决定 Dashboard 空状态。这个顺序是产品正确性，不只是 UI 美化。
+M5–M8 页面应先消费 data status，再决定 Dashboard 空状态。M6 又增加 availableFrom/configuration gap/metric status；当前它们还不是同一个统一枚举，v1.7 会进一步重构。
 
 ## 11. 关键符号索引
 
@@ -249,13 +259,17 @@ M5 页面应先消费 data status，再决定 Dashboard 空状态。这个顺序
 | `deduplicatedEventsWhere`              | 全指标共享幂等基座                             |
 | `AnalyticsStore.features`              | 元数据和事实数据合并                           |
 | `AnalyticsStore.featureDetail`         | 累计 heartbeat 的 max-then-sum                 |
+| `OperationalController`                | 模块/页面/设置/profile 的双层授权和版本动作     |
+| `METRIC_CATALOG/calculateOperationalIndex` | 定义、血缘、归一化和总分 gate               |
+| `ObservabilityStore`                   | M8 固定错误/性能读模型与告警                    |
 
 ## 12. 当前边界与维护提醒
 
 - access token 每次请求回查 MySQL；若未来性能不足，应先测量，再设计短缓存和禁用传播语义。
-- 本地认证最终是否被 SSO 替换尚未完成；不要让 M5 UI 深度耦合密码登录细节。
+- 本地认证最终是否被 SSO 替换尚未完成；不要让新 UI 深度耦合密码登录细节。
 - project `retentionDays` 目前是元数据，ClickHouse TTL 仍固定 90 天；UI 不应声称已执行项目级保留。
-- analytics route 的 `timezone` 来自请求并只校验为合法 IANA zone，当前未与项目表中的 timezone 比对；M5 客户端必须使用项目设置，或后续改为服务端读取/强制，避免同一项目不同图表口径漂移。
+- analytics route 的 `timezone` 来自请求并只校验为合法 IANA zone，当前未与项目表中的 timezone 比对；客户端从项目设置生成 query，但服务端仍可进一步强制。
+- M5 与 M6 read model 尚未完全统一：旧 feature 结果混有 snake_case SQL 字段，types.ts 手工维护，MetricCatalog 也还没有驱动所有页面文案。
 - analytics metrics 只保留当前 API 进程最近 1000 次样本，多副本不会自动合并。
 - `uniqExact` 在当前数据规模保证清晰口径；数据量大后可能切换近似聚合，但必须同步 UI 语义与基准测试。
 - 新增 sort/filter 时，必须继续使用参数或固定 whitelist，不能拼接任意用户字符串。

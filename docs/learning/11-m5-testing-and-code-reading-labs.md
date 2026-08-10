@@ -1,5 +1,7 @@
 # 11. M5 测试与代码精读实验
 
+> 本文保留 M5 完成时的测试基线与实验。当前 `main` 已增加 M6/M8 Playwright、M7 负载/故障/恢复演练和对应 workflow；新增代码精读实验见 [18. M6–M8 代码精读实验](18-m6-m8-code-reading-labs.md)。
+
 ## 1. M5 的测试目标是“语义闭环”
 
 前端页面能构建不代表产品正确。M5 至少要同时证明：
@@ -23,6 +25,9 @@
 | SDK 浏览器契约  | `pnpm test:browser`                    | Chromium/WebKit 的 SPA、visibility、beacon/隐私          | 管理端页面                        |
 | 数据流 verifier | `./scripts/dev smoke`                  | migration、重复交付、权限、三类 golden 指标、HTTP health | 人工 UX                           |
 | M5 产品 E2E     | `pnpm test:m5:e2e`                     | demo、admin 闭环、viewer 只读，双浏览器                  | M1 Mac 资源与 Docker Desktop 体验 |
+| M6 产品 E2E     | `pnpm test:m6:e2e`                     | 操作域、页面详情、指数与配置任务，双浏览器               | 生产故障恢复                      |
+| M8 产品 E2E     | `pnpm test:m8:e2e`                     | 错误、Web Vitals、版本与告警页面，双浏览器               | SourceMap 和告警生命周期          |
+| M7 加固演练     | `bash scripts/m7 ...`                  | 负载、Kafka/ClickHouse/consumer 故障、升级/恢复姿态       | 外部发布审批与真实多机容灾         |
 | 人工验收        | `docs/guides/local-full-flow-macos.md` | 文案、等待、浏览器操作、资源、重启与保留                 | 自动回归稳定性                    |
 
 M5 完成时的自动化基线：
@@ -31,6 +36,8 @@ M5 完成时的自动化基线：
 - 6 项 SDK 浏览器契约；
 - 3 个 M5 产品场景 × Chromium/WebKit = 6 项；
 - 完整 Compose migration、seed、数据流和服务健康。
+
+当前 `main` 的静态/单元基线已扩展到 15 个 Vitest 文件、108 项测试；SDK gzip 预算下的产物为 7,511 bytes。M5 数字保留为历史验收点，不应用来描述当前全部覆盖。
 
 测试数量不是质量本身。更重要的是每个产品不变量至少有一个能失败的证据。
 
@@ -204,15 +211,15 @@ M5 E2E 验证用户可见任务：
 
 ## 9. GitHub Actions 当前触发边界
 
-`.github/workflows/m5.yml` 只自动监听：
+当前有三条阶段性产品 workflow：
 
-```yaml
-push:
-  branches:
-    - "agent/m5-*"
-```
+| Workflow | push 分支 | 主要覆盖 |
+| -------- | --------- | -------- |
+| `.github/workflows/m5.yml` | `agent/m5-*` | 静态检查、SDK 浏览器契约、M5 本地产品闭环 |
+| `.github/workflows/m6.yml` | `agent/m6-*` | M5 回归 + M6 产品验收 |
+| `.github/workflows/m7-m8.yml` | `agent/m7-m8-*`，以及相关代码 PR paths | M7 负载/故障/恢复 + M5/M6 回归 + M8 验收 |
 
-因此本学习资料分支 `agent/project-learning-guide-m0-m4` 的文档提交不会触发 M5 产品闭环。更新学习资料时应本地执行 Markdown/链接/路径检查；修改 M5 代码时应在 `agent/m5-*` 分支运行完整 workflow，或手工 `workflow_dispatch`。
+纯 `docs/learning/**` 分支不会因分支名自动触发这些 push 条件，且 M7/M8 的 PR path 过滤也不包含学习文档。更新学习资料时应做 Markdown/链接/路径检查；修改对应阶段代码时使用匹配分支、相关 PR 或手工 `workflow_dispatch`。
 
 不要把“没有失败的 CI”误读为“CI 已运行且通过”。
 
@@ -529,7 +536,7 @@ async function load(loader) {
 7. 三类功能的成功调用点分别是什么？
 8. viewer 的 UI 只读与服务端 403 为什么都要测试？
 9. M5 E2E 与 SDK browser tests 为什么不能合并成一层？
-10. 为什么学习资料分支没有失败的 M5 CI 不能算通过？
+10. 为什么学习资料分支没有失败的阶段性 CI 不能算通过？
 11. `down`、`reset` 和全局 Docker prune 的风险有什么不同？
 12. 快速切换项目时当前实现有什么竞争窗口，最小修复是什么？
 

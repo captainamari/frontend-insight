@@ -1,5 +1,7 @@
 # 04. 接收、Kafka 与 Consumer
 
+> 当前基线：ingestion/consumer 同时处理 v1/v2；M6 增加 operation 列，M8 增加 observability 映射和稳定错误组。M7 为 Kafka publish 增加有界重试/5 秒 timeout，并验证真实故障语义。
+
 ## 1. 一条请求的完整旅程
 
 ```mermaid
@@ -26,7 +28,7 @@ flowchart TD
 
 Controller 不重复契约和项目规则。这样同一 ingestion manager 可以在单元测试中用 fake store/publisher 验证。
 
-当前有两个不同的关联 ID：响应 header 和错误响应使用 Fastify transport request ID；成功响应 body、Kafka envelope 和 `project_data_status.last_request_id` 使用 `IngestionManager` 生成的 pipeline request ID。排查成功链路应使用后者。M6 若要形成统一日志追踪，应明确合并或建立二者映射，不能假定它们现在相同。
+当前仍有两个不同的关联 ID：响应 header 和错误响应使用 Fastify transport request ID；成功响应 body、Kafka envelope 和 `project_data_status.last_request_id` 使用 `IngestionManager` 生成的 pipeline request ID。M6–M8 没有统一它们，不能假定二者相同。
 
 预检请求没有 projectKey body，所以 `OPTIONS` 只声明浏览器可尝试 POST；真正的项目 Origin 白名单在 POST 内校验。不能把“预检返回了 allow-origin”误解为服务端已授权事件。
 
@@ -58,13 +60,13 @@ Controller 不重复契约和项目规则。这样同一 ingestion manager 可�
 - TTL 到期自动刷新；
 - 当前 API 进程通过 `ProjectsController` 修改项目/功能后显式 `invalidateProject`。
 
-多副本部署时，显式失效只影响本进程；需要接受 TTL 窗口，或增加跨实例失效机制。这是 M6 前必须重新评审的边界。
+多副本部署时，显式失效只影响本进程；当前 production Compose 仍是单 API 实例。扩为多副本前需要接受 TTL 窗口或增加跨实例失效机制。
 
 ### 3.2 限流为什么使用组合 key
 
 只按 IP 会让共享出口的多个项目互相影响；只按 project 会让一个恶意来源拖累所有正常来源。组合 `project + origin + IP` 更贴近污染来源。
 
-当前 limiter 存在单进程 Map 中，重启会清空，多副本也不会共享额度。它是 MVP 防放大护栏，不是生产级全局配额。
+当前 limiter 存在单进程 Map 中，重启会清空，多副本也不会共享额度。M7 增加了单机 pilot 的资源/故障边界，但没有把它升级为全局配额。
 
 ## 4. 功能阶段校验
 
@@ -76,7 +78,7 @@ Controller 不重复契约和项目规则。这样同一 ingestion manager 可�
 | `action`     | exposed、started、succeeded、failed                           |
 | `long_view`  | exposed、succeeded、failed、long_view started/heartbeat/ended |
 
-Schema 只知道“这是合法标准事件”，MySQL 功能定义才知道“这个 featureKey 是 action 还是 long_view”。这是协议验证与领域验证分层的典型例子。
+Schema 只知道“这是合法标准事件”；MySQL 功能定义还知道 feature type、是否关键任务、是否开启 operation lifecycle。v2 started/canceled 先在契约层要求 operation ID，`IngestionManager.assertFeature` 再验证项目配置。
 
 ## 5. 账号引用如何在 Kafka 前消失
 
@@ -173,6 +175,8 @@ LIMIT 1 BY event_id
 
 把常用指标字段提成 typed columns，避免每次从 JSON 解析；保留 JSON 则给兼容字段留出空间。这是分析事件建模中常见的“热点列 + 原始受限 bag”组合。
 
+M6 还映射 `operation_instance_id/interaction_type`；M8 将低基数 properties 映射到 release/environment、错误、请求和 Web Vital 独立列，并只用脱敏稳定特征计算 SHA-256 `error_group_id`。账号、visitor、route、release 和时间只作为影响范围，不参与 group ID。
+
 ## 11. 三个时间点构成数据状态
 
 | 字段                | 谁更新                    | 代表什么               |
@@ -188,7 +192,7 @@ LIMIT 1 BY event_id
 - `broken`：有 DLQ 且从未有可查询数据；
 - `healthy`：链路在阈值内追平。
 
-这套状态让 M5 UI 能区分“正常的 0”和“系统还没把数据处理完”。在任何异步数据产品中，数据值和数据新鲜度都应该是产品模型的一部分。
+这套状态让 M5–M8 UI 能区分“正常的 0”和“系统还没把数据处理完”。当前链路状态仍只有 healthy/delayed/no_data/broken；v1.7 更细的 not_collected/insufficient_sample/partial 等尚未统一到这一层。
 
 ## 12. 失败矩阵
 

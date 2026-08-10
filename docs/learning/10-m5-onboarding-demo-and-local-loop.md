@@ -1,5 +1,7 @@
 # 10. M5 接入、demo 与本地闭环
 
+> 本文以 M5 本地闭环为基础。当前 `main` 的同一 `scripts/dev` 已 seed M6 实体，并在 smoke 中执行 M5、M6、M8 HTTP 验证；生产部署、备份恢复与故障演练由 M7 的 `scripts/production`/`scripts/m7` 承担。
+
 ## 1. 为什么 M5 需要两个前端应用
 
 M5 同时有：
@@ -214,12 +216,12 @@ demo 用 450ms 延迟模拟异步结果，重点是成功调用点位于业务�
 `runAction` 的标准模式：
 
 ```ts
-tracker.featureStarted(featureKey);
+const operation = tracker.startOperation(featureKey, { scenario }, "click");
 try {
   await businessOperation();
-  tracker.featureSucceeded(featureKey);
+  operation.succeed();
 } catch (error) {
-  tracker.featureFailed(featureKey, safeReasonCode);
+  operation.fail(safeReasonCode);
 }
 ```
 
@@ -229,7 +231,7 @@ demo 进一步区分：
 - 用户取消 → `feature_failed / user_cancelled`；
 - 业务失败 → `feature_failed / operation_failed`。
 
-started 只说明用户开始，不增加成功使用。reason code 是低基数安全枚举，不应包含服务端异常堆栈、文件名、查询内容或个人信息。
+started 只说明用户开始，不增加成功使用。`startOperation` 让 started 与唯一 terminal 共享 `operationInstanceId`。reason code 是低基数安全枚举，不应包含服务端异常堆栈、文件名、查询内容或个人信息。
 
 ### 7.3 场景三：持续展示
 
@@ -347,7 +349,7 @@ infra/compose/m5.compose.yml
 - 数据链路仍可独立验收；
 - M5 不复制基础设施定义；
 - 共享网络和 service health；
-- M6 如果替换前端部署，不必重写底层本地链路。
+- M6/M8 已沿用同一底层本地链路，只扩展 seed、API、页面与 smoke；M7 另提供生产 Compose 和运维脚本。
 
 ## 12. `scripts/dev` 是本地产品接口
 
@@ -358,8 +360,8 @@ infra/compose/m5.compose.yml
 | `doctor`                          | 检查 Docker/Compose、arm64、内存、磁盘、端口和配置 |
 | `bootstrap`                       | 创建 `.env.m5` 并验证 Compose                      |
 | `up`                              | 构建、等待底层健康、启动应用并 seed                |
-| `seed`                            | 幂等创建本地用户、项目和六个功能                   |
-| `smoke`                           | 验证数据流和三个 HTTP 服务                         |
+| `seed`                            | 幂等创建本地用户、M6 项目实体、六个功能和运营配置  |
+| `smoke`                           | 验证数据流及 M5/M6/M8 HTTP/页面服务                |
 | `status`                          | 查看容器健康和资源                                 |
 | `logs [service]`                  | 读取限定服务日志                                   |
 | `down`                            | 停止但保留卷                                       |
@@ -464,6 +466,8 @@ ALTER TABLE raw_events
 8. `infra/nginx/m5.conf`；
 9. `scripts/dev`；
 10. `docs/guides/local-full-flow-macos.md`。
+
+生产部署与恢复流程继续读 [15. M7 生产加固与恢复](15-m7-production-hardening-and-recovery.md)。
 
 自测问题：
 

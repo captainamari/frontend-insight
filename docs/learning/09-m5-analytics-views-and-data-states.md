@@ -1,5 +1,7 @@
 # 09. M5 分析页面与数据状态
 
+> 本文保留 M5 的基础分析页面和状态机。当前 `main` 还实现了 M6 操作域/项目运营指数与 M8 可观测性读模型；这些能力是在本章原则上扩展，不应被误读为 v1.7 已经实现的统一 `MetricResult`/`ResponseMeta` 契约。
+
 ## 1. 页面不是 API 字段的平铺
 
 M5 的三个主任务分别回答不同问题：
@@ -343,7 +345,25 @@ M5 增加 ClickHouse `sdk_name` 列和 SDK name/version 分布。它用于回答
 
 迁移 `003_sdk_name.sql` 使用 `ADD COLUMN IF NOT EXISTS`，旧行默认 `unknown`。查询和 UI 必须能同时处理新旧行，不能因新增诊断字段让历史数据不可读。
 
-## 12. 可持续扩展页面的规则
+## 12. 当前 `main` 的 M6/M8 扩展
+
+M6 在原有功能采用与页面访问之外新增：
+
+- 操作域概览，把模块、页面定义和关键任务组织成可下钻的读模型；
+- 页面详情与任务详情，展示 PV、账号/浏览器、成功率和 P50/P75 时长；
+- 项目运营指数，按 30/25/30/15 权重聚合，并要求至少 3 个合格维度和 70% 叶子权重覆盖；
+- 版本化的运营配置、模板与项目绑定。
+
+M8 新增错误、Web Vitals、版本和告警读模型。错误分组使用稳定 SHA-256 fingerprint；Web Vitals 当前以 P75 和 poor rate 为核心，并没有自动进入项目运营指数。
+
+需要特别区分两层状态：
+
+- 全链路 `DataStatus.state` 仍只有 `healthy/delayed/no_data/broken`；
+- 页面、指标、覆盖率、配置和告警中的局部状态属于各自读模型，不是已经统一落地的全局状态枚举。
+
+继续阅读 [13. M6 指标读模型与项目运营指数](13-m6-metrics-read-models-and-index.md) 和 [16. M8 前端可观测性](16-m8-frontend-observability.md)。
+
+## 13. 可持续扩展页面的规则
 
 ### 新增一个固定指标
 
@@ -379,7 +399,7 @@ M5 增加 ClickHouse `sdk_name` 列和 SDK name/version 分布。它用于回答
 - 页面请求拆分前先写部分成功语义；
 - 同一术语只在一个 definitions 来源维护。
 
-## 13. 本章代码精读入口
+## 14. 本章代码精读入口
 
 按以下顺序：
 
@@ -395,6 +415,8 @@ M5 增加 ClickHouse `sdk_name` 列和 SDK name/version 分布。它用于回答
 10. `apps/web/src/components/DefinitionsDrawer.vue`；
 11. `packages/server-core/src/analytics.ts`；
 12. `infra/clickhouse/migrations/003_sdk_name.sql`。
+
+M6/M8 代码入口另见 [18. M6–M8 代码精读实验](18-m6-m8-code-reading-labs.md)。
 
 自测问题：
 

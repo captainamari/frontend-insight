@@ -1,5 +1,7 @@
 # 07. 代码精读实验
 
+> 本文保留 M0–M4 的基础实验，并按当前 `main` 修正契约和 SDK 用法。M6–M8 的操作域、生产运维与前端可观测性实验见 [18. M6–M8 代码精读实验](18-m6-m8-code-reading-labs.md)。
+
 ## 1. 如何把项目从“看过”变成“掌握”
 
 只顺着文件读很容易产生熟悉感，却不能证明你能维护。每个实验都要求你完成四项输出：
@@ -53,7 +55,8 @@
 
 从一个 valid fixture 分别制造：
 
-- `schemaVersion=2`；
+- `schemaVersion=3`（当前实现尚不接受）；
+- 合法的 v2 `feature_started`，以及删除 `operationInstanceId` 后的非法版本；
 - 顶层增加 `authorization`；
 - property value 改为 Bearer/JWT；
 - 同批两个相同 `eventId`；
@@ -70,7 +73,7 @@
 - 为什么 TypeScript 类型不能替代运行时 Schema；
 - 为什么 producer/ingestion/consumer 虽然当前同实现，仍保留三个函数名。
 
-## 4. 实验 2：SPA 路由与三个 ID
+## 4. 实验 2：SPA 路由与页面三个 ID
 
 ### 目标
 
@@ -133,12 +136,12 @@ visible 20s → hidden 40s → visible 15s → visible 60s → stop
 tracker.featureExposed("report_export");
 
 async function exportReport() {
-  tracker.featureStarted("report_export");
+  const operation = tracker.startOperation("report_export");
   try {
     await api.exportReport();
-    tracker.featureSucceeded("report_export");
+    operation.succeed();
   } catch (error) {
-    tracker.featureFailed("report_export", mapSafeReason(error));
+    operation.fail(mapSafeReason(error));
     throw error;
   }
 }
@@ -147,6 +150,7 @@ async function exportReport() {
 验证：
 
 - API 失败时没有 succeeded；
+- 同一次 operation 只有一个 terminal，started/succeeded/failed 共享 `operationInstanceId`；
 - reasonCode 是低基数安全枚举，不是完整 exception message；
 - properties 中嵌套对象、email、Bearer token 会被拒绝；
 - `beforeSend` 可以进一步归一 route，但不能改 eventId/featureKey 或增加字段；
@@ -239,7 +243,7 @@ refresh
 2. 运行 `packages/server-core/test/status-and-range.test.ts` 的 DST 用例；
 3. 用 `America/Los_Angeles` 选择春季/秋季切换日期；
 4. 对比“减 24 小时”和“前一日相同本地钟表时间”；
-5. 用一小组 page/feature events 手算 PV、visitors、accounts、sessions、conversion、repeat usage；
+5. 用一小组 page/feature events 手算 PV、visitors、accounts、sessions、曝光后使用率、repeat usage；
 6. 用累计 heartbeat 60s、120s 验证 max-then-sum 得 120s 而不是 180s。
 
 ### 变体
@@ -353,6 +357,6 @@ refresh
 9. 为什么 feature definitions 来自 MySQL、使用事实来自 ClickHouse？
 10. global viewer 即使有 project admin 角色，当前是否能写？请引用实际条件解释。
 11. 修改已应用 migration 为什么必须失败？
-12. M4 能运行的 API 为什么还不等于一个完整可用产品？
+12. M4 能运行的 API 为什么还不等于一个完整可用产品？M6–M8 分别补上了哪些产品面与运维能力？
 
 如果其中任何一题只能背一句结论，回到对应实验，画出输入→状态→输出→失败路径后再继续。

@@ -1,5 +1,7 @@
 # 01. 架构、边界与技术选型
 
+> 当前基线：`main@4262ef6`，覆盖 M0–M8。本文的基础分层仍成立；M6 增加运营领域/指标，M7 增加 production 运维面，M8 增加独立可观测性读模型。
+
 ## 1. 先从约束推导架构
 
 理解这个项目最重要的方法不是记住“用了 NestJS、Kafka 和 ClickHouse”，而是从约束反推组件：
@@ -55,7 +57,7 @@ flowchart LR
 
 | 目录        | 含义                         | 示例                                        |
 | ----------- | ---------------------------- | ------------------------------------------- |
-| `apps/`     | 可启动、可部署的进程入口     | `api`、`consumer`、当前占位的 `web`         |
+| `apps/`     | 可启动、可部署的进程入口     | `api`、`consumer`、Vue `web`、`demo-app`    |
 | `packages/` | 可复用业务或工程能力         | 契约、SDK、数据库迁移、服务端核心、共享配置 |
 | `spikes/`   | 风险验证代码，不承诺生产结构 | M0 最小链路                                 |
 
@@ -78,6 +80,8 @@ flowchart TD
     C --> F["consumer"]
     G["shared-config"] --> E
     G --> F
+    C --> H["MetricCatalog / operational analytics"]
+    C --> I["observability read model"]
 ```
 
 学习要点：依赖箭头应指向更稳定、更通用的模块。事件协议比某个 HTTP 框架稳定，所以 NestJS 依赖契约，契约绝不能反向依赖 NestJS。
@@ -97,13 +101,13 @@ flowchart TD
 2. 以后替换 HTTP adapter 或拆进程时，业务代码迁移成本较低；
 3. Controller 不会逐渐变成数百行、难以复用和难以构造测试的“上帝对象”。
 
-`CoreService` 是当前组合根：在一个位置创建 MySQL、Kafka publisher、ingestion、auth 和 analytics，并在模块销毁时统一关闭连接。组合根集中依赖装配，是值得复用的做法；但随着 M5/M6 增长，可以再按生命周期和测试需求拆成多个 provider。
+`CoreService` 是当前组合根：在一个位置创建 MySQL、Kafka publisher、ingestion、auth、analytics 和 observability store，并在模块销毁时统一关闭连接。组合根集中依赖装配，是值得复用的做法；当前 analytics/observability 都查询 ClickHouse，但使用独立读模型和 definition version。
 
 ## 5. 三种基础设施为什么各司其职
 
 ### 5.1 MySQL：控制面事实来源
 
-MySQL 保存需要强约束和事务的数据：用户与身份、项目与 Origin、功能定义、成员关系、刷新会话、审计、链路状态。
+MySQL 保存需要强约束和事务的数据：用户与身份、项目与 Origin、模块/页面/功能定义、成员关系、版本化运营设置/profile、刷新会话、审计和链路状态。
 
 典型例子是 `MySqlStore.setProjectMember`：它用事务和 `FOR UPDATE` 保证不能删除或降级最后一个 owner。ClickHouse 不适合承担这种行级事务不变量。
 
@@ -126,7 +130,7 @@ Kafka 的价值在于：
 
 当前先查原始表，而不是提前建立大量聚合表。原因是数据量和查询形态还没有真实证据。只有达到 PRD 中的事件量或 p95 阈值，才引入 `AggregatingMergeTree` 状态表。
 
-## 6. M0 到 M4 是怎样逐层降低风险的
+## 6. M0 到 M8 是怎样逐层降低风险的
 
 | 里程碑 | 先证明的问题                                                              | 主要证据                                                |
 | ------ | ------------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -135,6 +139,10 @@ Kafka 的价值在于：
 | M2     | SPA 生命周期、隐私、三类功能和离开页面发送是否正确                        | SDK 单元测试、Chromium/WebKit 契约、gzip 预算           |
 | M3     | 公开接收、Kafka、consumer、去重和链路状态是否闭环                         | pipeline 测试、完整 Compose verifier                    |
 | M4     | 登录、权限、项目/功能管理和固定分析口径是否正确                           | API/权限测试、Golden dataset 端到端断言                 |
+| M5     | 管理端、demo、URL 上下文和产品数据状态是否形成可用闭环                     | Vue/Playwright/Compose 产品验收                         |
+| M6     | 运营实体、operation、版本化目标、指标血缘和指数 gate 是否可解释            | migration 004、M6 fixture、MetricCatalog、M6 E2E       |
+| M7     | pilot 部署、容量、依赖故障、备份/恢复和应用回滚是否可演练                  | production Compose、load/fault/release drill           |
+| M8     | 错误、Web Vitals、发布与影响范围能否在隐私边界内形成稳定证据               | schema v2 M8 事件、observability store、M8 E2E         |
 
 M0 代码仍保留是为了保存技术风险证据，不是因为生产系统需要维护两套实现。阅读时要把 `spikes/m0` 当作“最小实验”，把 `packages/*` 和 `apps/*` 当作正式实现。
 
@@ -154,7 +162,7 @@ M0 代码仍保留是为了保存技术风险证据，不是因为生产系统�
 - 数据量很小、无需削峰的系统不一定需要 Kafka；数据库队列或异步批写可能更简单。
 - 需要严格一次记账的系统不能照搬查询侧去重；它需要事务、幂等写和更强的审计。
 - 多租户公网产品需要分布式限流、密钥管理、租户隔离、审计导出和更完整的威胁模型。
-- 当前 `server-core` 中 `MySqlStore`、`AnalyticsStore` 已经较大。M5/M6 新增职责时，应按领域或查询集拆分，而不是继续把所有方法放入同一文件。
+- 当前 `server-core` 中 `MySqlStore`、`AnalyticsStore` 已超过千行级，M6 职责已集中进入这两个模块；下一次大改应按领域/查询集拆分，而不是继续堆入同一文件。M8 已通过独立 `ObservabilityStore` 示范了按读模型拆分。
 
 判断是否拆文件/服务的依据应是职责、变化频率和部署需求，不是单纯行数。当前单体进程仍然适合一人团队，但依赖方向和边界必须继续守住。
 
@@ -162,11 +170,12 @@ M0 代码仍保留是为了保存技术风险证据，不是因为生产系统�
 
 按以下顺序打开文件：
 
-1. `docs/product/requirements-v1.5.md` 的 1、7、9、10 节；
-2. `docs/planning/mvp-plan-v1.2.md` 的 4、5、9 节；
+1. `docs/product/requirements-v1.6.md` 与 `docs/planning/mvp-plan-v1.3.md`；
+2. `docs/adr/ADR-009`～`ADR-013`；
 3. 根 `package.json` 和 `pnpm-workspace.yaml`；
 4. `tools/check-workspace-boundaries.mjs`；
 5. `apps/api/src/app.module.ts` 与 `core.service.ts`；
-6. `infra/compose/m2-m4.compose.yml`。
+6. `packages/server-core/src/metrics.ts` 与 `observability.ts`；
+7. `infra/compose/m2-m4.compose.yml`、`production.compose.yml` 和 `scripts/production`。
 
 自测问题：如果去掉 Kafka，哪些代码和验收语义必须同时改变？如果把项目元数据放进 ClickHouse，最后一个 owner、Origin 更新和审计事务会遇到什么问题？
