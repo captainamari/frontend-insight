@@ -1,7 +1,7 @@
 # Frontend Insight 修改计划 v1.4
 
 - 状态：待技术与产品评审
-- 更新日期：2026-08-06
+- 更新日期：2026-08-10
 - 产品基线：`docs/product/requirements-v1.7.md`
 - 前序计划：`docs/planning/mvp-plan-v1.3.md`
 - 规划起点：M0–M8 已实现并合并 `main`（基线提交 `4262ef6359b492cf9264b4d8fb97bb8b399306e8`）
@@ -16,7 +16,7 @@
 1. 复用 M0–M8 的架构与业务能力，但不复用测试数据、旧 schema 或旧 API/SDK 兼容逻辑；
 2. schema v3、SDK `0.4.0`、ingest、consumer、API、Web 与 demo 在同一实施批次直接切换到唯一规范名；
 3. 清空明确命名的本地/验收资源，从空库执行干净 schema baseline 和 seed；
-4. 先完成不新增采集的 P0，对现有指标、页面关系和解释纠偏；
+4. 先完成不新增采集的 P0，把管理端默认入口从“功能采用”改为“项目入口页”，增加“项目入口 → 项目概览 → 专项分析/实体下钻”的导航闭环，并对现有指标、页面关系和解释纠偏；
 5. 再以逐项目 opt-in 方式补齐 API/资源分母、首屏、长任务、白屏候选和 breadcrumb 等 P1 事实；
 6. 组织、表单、路径和安全能力因依赖外部系统或更高隐私风险，独立进入 P2/P3。
 
@@ -28,7 +28,7 @@
 
 - 建立产品、SDK、事件、存储、API、UI 共用的唯一规范词典；
 - 把指标公式、分母、分位数、样本、缺失语义、版本与血缘固化到 MetricCatalog；
-- 对齐项目 → 模块 → 页面 → 功能/任务 → 操作实例的产品流程；
+- 对齐平台入口 → 项目入口页 → 项目概览 → 专项分析，以及项目 → 模块 → 页面 → 功能/任务 → 操作实例的两级产品流程；
 - 在不降低隐私边界的前提下补齐附件中有业务价值的采集能力；
 - 将 v1/v2、旧 SDK、旧 API 字段和旧测试数据从运行时移除；
 - 保留项目运营指数 30/25/30/15 产品构成，并用新定义、新配置和新 seed 重新计算；
@@ -52,8 +52,8 @@
 | M1 工程/迁移 | monorepo、JSON Schema、迁移、golden fixture | 高 | 建立只含 v3 的干净 schema baseline、生成类型和 fixture；空库/幂等验证替代旧库升级验证 |
 | M2 SDK | SPA/page lifecycle、session、批量、隐私 | 高 | 发布 SDK `0.4.0`，统一字段，补 10s flush、性能汇总/任务旅程适配器；删除旧 API wrapper |
 | M3 接收/消费 | Origin、schema、大小、HMAC、Kafka、ClickHouse | 高 | 只接收 v3；重建 Kafka/ClickHouse 测试数据和列，不实现多版本 normalizer |
-| M4 管理/分析 API | 固定 overview/trend/pages/features 查询 | 高 | 直接切换 canonical read model、指标定义和统一 data status；删除旧响应字段 |
-| M5 产品前端 | 功能采用、页面访问、接入、筛选和状态 | 中高 | 统一 UI 术语、全局筛选、页面职责和下钻；默认入口不变 |
+| M4 管理/分析 API | 项目管理、固定 overview/trend/pages/features 查询 | 高 | 增加授权项目集合与单项目概览 read model；直接切换 canonical 指标定义和统一 data status；删除旧响应字段 |
+| M5 产品前端 | 功能采用、页面访问、接入、筛选和状态 | 高 | 破除“功能采用默认首页”的既有假设；将项目入口页设为平台默认入口，项目概览设为项目默认页，并重构导航、返回路径、URL 状态和 E2E |
 | M6 运营闭环 | 实体、operation v2、MetricCatalog、指数 v1 | 高但可复用 | 扩充目录与分位数；按新 key 重建 profile/golden/index 计算；避免 page-entry 与 operation 时长混义 |
 | M7 生产硬化 | 负载/故障/恢复、Secret、日志、回滚 | 中 | 为新增事件重跑容量、备份恢复与降级；不改变运维安全基线 |
 | M8 可观测性 | 错误组、Web Vitals、发布、影响范围、固定告警 | 中高 | 统一环境/发布字段，补可选请求/资源分母和详情联动；保留 SourceMap 阶段门 |
@@ -66,7 +66,7 @@
 - 模块/页面/任务实体、三类页面模板和 clone-on-write 配置；
 - operation handle、并发配对、取消终态与 SDK 异常隔离；
 - MetricCatalog、definition version 与 lineage JSON 的骨架；
-- URL 可分享筛选、admin/viewer 权限、数据状态与页面 E2E；
+- URL 可分享筛选、admin/viewer 权限、数据状态与页面 E2E；现有实现可复用，但默认路由和页面顺序必须按 v1.7 重构；
 - M7 负载、故障、备份恢复和 production Compose；
 - M8 脱敏错误组、粗粒度影响范围、Web Vitals P75 和发布维度。
 
@@ -140,7 +140,7 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 
 #### A0 资产盘点与重置清单
 
-- 生成字段、事件、指标、接口字段、数据库列、UI 文案的现状 inventory；
+- 生成字段、事件、指标、接口字段、数据库列、UI 文案、前端路由、导航菜单、面包屑、登录后跳转和 E2E 的现状 inventory；
 - 逐项标注 canonical、rename、delete、unused、privacy-prohibited；
 - 列出需要清空的 MySQL schema、ClickHouse 表、Kafka topic/consumer offset、命名 volume、项目配置和 demo seed；
 - 为新项目运营指数公式准备可手算 golden cases，不复制旧测试结果；
@@ -176,38 +176,47 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 
 #### A3 统一读模型与 API
 
-- 为功能采用、运营概览、页面/任务详情、指数和可观测性提供相同筛选对象；
+- 增加“当前用户可访问项目集合”read model/API，返回总项目数、筛选结果数、项目状态、权限、负责人/所属信息、资产数量、最近有效事件时间、数据状态和运营指数摘要/不可用原因；
+- 增加“单项目概览”read model/API，返回项目属性、资产与配置覆盖、数据新鲜度、运营指数、功能采用、使用/任务和错误/性能摘要；
+- 项目入口列表采用批量查询或预聚合，禁止 Web 对每个项目逐个请求专项接口形成 N+1；
+- 为功能采用、使用/页面/任务、指数和可观测性提供相同的项目内筛选对象；
 - 所有比率返回 numerator/denominator/sample/coverage/status/version；
 - 返回 `availableFrom`、definition/profile version 和 partial window；
 - API 响应只返回规范字段，旧字段有契约测试证明不存在；
 - 高基数 route/API/error 使用固定 Top N 或 cursor；
 - 指标定义/血缘 endpoint 成为页面解释来源。
 
-退出条件：同一指标从两个页面访问时值、范围、版本与解释完全一致。
+退出条件：项目集合和项目概览通过 RBAC、分页/筛选、空态与 data status 契约测试；同一摘要从项目概览和专项页访问时值、范围、版本与解释完全一致。
 
 #### A4 管理端信息架构
 
-- 保持“功能采用”为默认入口；
-- 全局项目/环境/时间/发布筛选组件复用并写入 URL；
-- 运营概览按项目 → 模块 → 页面 → 功能/任务下钻；
+- 将 `/projects` 设为登录后的平台默认入口，展示当前用户有权访问的全部已接入项目；`/` 不得跳到功能采用、最近项目或第一个项目；
+- 项目入口页展示总项目数、筛选结果数及每个项目的状态、资产数量、最近数据时间、数据状态和运营指数摘要/不可用原因；
+- 点击项目进入 `/projects/:projectId/overview`；项目概览是项目内默认页，功能采用改为项目内二级专项页；
+- 项目概览提供功能采用、使用/页面/任务、项目运营指数、可观测性和配置摘要及明确下钻入口；
+- 项目入口页使用自己的搜索、状态、排序和分页 URL 状态；项目内复用环境/时间/发布筛选，并在切换项目时清理失效实体筛选；
+- 实现项目入口 → 项目概览 → 模块 → 页面 → 功能/任务的面包屑和返回路径；从项目内返回时保留入口页列表状态；
+- 直接项目深链执行 RBAC；覆盖 `forbidden`、`not_found`、零授权项目、单授权项目和多个项目场景；
 - 页面/任务详情并列显示使用、效率、相关性能/错误摘要；
 - 页面详情与可观测性互相带筛选跳转，但不显示因果措辞；
 - “指标定义与血缘”抽屉展示公式、分母、样本、版本和 DAG；
 - UI 替换 UV/VV/转化/健康度等歧义词；
 - radar 保留等价表格，趋势不跨数据/版本缺口。
 
-退出条件：需求 v1.7 第 9 节页面职责与下钻全部通过 Chromium/WebKit E2E 和键盘走查。
+退出条件：需求 v1.7 第 9 节默认路由、项目列表、项目概览、专项下钻、返回路径和权限场景全部通过 Chromium/WebKit E2E 和键盘走查；功能采用不再承担平台默认入口。
 
 #### A5 重置回归与文档
 
 - 更新单元、contract、browser、consumer、API、M5/M6/M8 E2E；
+- 删除或改写断言“功能采用是默认首页”的旧测试，新增 `/ → /projects → /projects/:projectId/overview` 主路径测试；
+- 增加零/单/多项目、项目无数据、指数不可用、无权限深链、返回保留列表状态，以及项目概览到各专项页的测试；
 - 增加 v1/v2 拒绝、旧字段不存在、全量 reset、空库 baseline、seed 幂等和冷启动闭环测试；
 - 用新 golden fixtures 手算验证原子、派生、复合指标和 30/25/30/15 项目运营指数；
 - 运行 M7 负载、Kafka/ClickHouse 故障、备份恢复和回滚；
-- 在三场景 demo 验证功能采用、运营概览、页面/任务、指数、错误和 Web Vitals；
-- 新增 `docs/guides/m8.1-a-local-acceptance-macos.md`，在开头明确会删除全部本地/验收测试数据及所需确认参数。
+- 在三场景 demo 验证项目入口、项目概览、功能采用、页面/任务、指数、错误和 Web Vitals；
+- 新增 `docs/guides/m8.1-a-local-acceptance-macos.md`，在开头明确会删除全部本地/验收测试数据及所需确认参数，并把项目入口 → 项目概览作为 UI 验收第一条主流程。
 
-退出条件：M0–M8 业务能力在 v3 基线上通过；新指数 golden 与手算一致；连续两次 reset → bootstrap → smoke 可重复；运行时不存在 v1/v2 normalizer 或 deprecated API。
+退出条件：M0–M8 业务能力在 v3 基线上通过；默认入口与项目概览的新 E2E 通过；新指数 golden 与手算一致；连续两次 reset → bootstrap → smoke 可重复；运行时不存在 v1/v2 normalizer 或 deprecated API。
 
 ### 5.2 M8.1-B：一期采集缺口（P1）
 
@@ -286,10 +295,13 @@ P2 不作为 M8.1-A/B 发布门：
 
 ### 6.5 Web 管理端
 
+- `/projects` 平台默认入口与授权项目列表；
+- `/projects/:projectId/overview` 项目默认概览，以及项目内稳定子路由；
+- 项目卡片/表格摘要、项目总数与筛选结果数、零/单/多项目状态；
+- 项目入口独立列表状态与项目内 shared filters/URL 状态；
+- 项目入口 → 项目概览 → 专项分析/实体下钻的页面职责、面包屑和返回路径；
 - 单一术语资源表和 API 驱动的 metric copy；
-- shared global filters 与 URL 状态；
-- 页面职责/下钻/返回路径；
-- loading、no_data、not_collected、insufficient_sample、partial、delayed、broken、forbidden；
+- loading、no_data、not_collected、insufficient_sample、partial、delayed、broken、forbidden、not_found；
 - 指标定义、血缘和版本断点；
 - admin 配置与 viewer 只读；
 - ECharts resize/dispose、键盘、颜色以外状态和 radar 等价表格回归。
@@ -345,8 +357,8 @@ P2 不作为 M8.1-A/B 发布门：
 | Browser | Chromium/WebKit SPA、后台/恢复、关闭 Beacon、并发 operation、Vue/非 Vue 接入 |
 | Consumer | v3 at-least-once、eventId 去重、poison/no-payload DLQ、v1/v2 拒绝、无多版本分支 |
 | Metric golden | DST/时区、重复、零分母、缺失 leave、P50/P75/P90/P99、coverage、partial、版本切换 |
-| API | RBAC、统一筛选、旧字段不存在、status/sample/version/availableFrom、Top N/cursor |
-| UI | 术语、URL 状态、下钻、所有空态、定义/血缘、版本断点、a11y、错误跳页 |
+| API | 授权项目集合、项目概览、RBAC、分页/筛选、批量摘要、统一项目内筛选、旧字段不存在、status/sample/version/availableFrom、Top N/cursor |
+| UI | `/ → /projects → /projects/:projectId/overview`、零/单/多项目、入口列表状态、项目概览到专项页、术语、URL 状态、下钻、所有空态、定义/血缘、版本断点、a11y、错误跳页 |
 | Reset | 精确目标、显式确认、空变量/通配符拒绝、全量清理、空库 bootstrap、seed 幂等、重复执行 |
 | Regression | v3 下的 M5/M6/M8 E2E、新指数 golden、auth/audit、Compose smoke |
 | Production | 20 events/s 持续、200 events/s 峰值、Kafka/CH/consumer 故障、backup/restore/rollback |
@@ -361,6 +373,7 @@ P2 不作为 M8.1-A/B 发布门：
 - `accountRef` 一项目内稳定、跨项目不可关联，且不落原始值；
 - 分母为 0/未采集/目录缺失分别返回不同状态；
 - Web Vitals P75 与页面/API/任务 P90 使用各自规则；
+- 新 seed 下零/单/多项目均可从项目入口进入正确项目概览，项目摘要与详情 read model 一致；
 - 新 seed 下指数 v1 四个维度、叶子贡献、70% gate 和总分与手算一致；
 - Canvas/Cesium 页面未启用 readiness adapter 时不生成白屏率；
 - breadcrumb 的 DOM 文本、输入、console、query、业务 ID 被拒绝或删除。
@@ -403,6 +416,8 @@ P2 不作为 M8.1-A/B 发布门：
 - 新项目运营指数 golden 与手算不一致；
 - 新 collector 无法单独关闭、没有 coverage 或没有容量证据；
 - 数据缺失被显示为 0，或没有分母却显示 rate；
+- `/` 或 `/projects` 仍默认进入功能采用、最近项目或第一个项目，或者点击项目未先进入项目概览；
+- 项目入口未展示全部授权项目、项目摘要与详情口径不一致，或项目列表产生 N+1 专项查询；
 - 页面下钻丢失项目/环境/时间/发布上下文；
 - M5/M6/M8 任一关键回归失败。
 
@@ -412,12 +427,12 @@ P2 不作为 M8.1-A/B 发布门：
 
 | 批次 | 范围 | 估算 | 主要不确定性 |
 | --- | --- | ---: | --- |
-| M8.1-A / P0 | 盘点、ADR-014/015、schema v3、全量重置、MetricCatalog/查询、读模型、UI 流程、回归 | 18–28 | 现有字段散布、迁移脚本重整、全仓调用方、指数新 golden |
+| M8.1-A / P0 | 盘点、ADR-014/015、schema v3、全量重置、MetricCatalog/查询、项目入口/项目概览、UI 流程、回归 | 20–31 | 现有字段散布、路由与导航重构、项目摘要查询、迁移脚本重整、全仓调用方、指数新 golden |
 | M8.1-B / P1 | API/resource/first-screen/list/long-task/blank/breadcrumb 逐项 opt-in | 26–40 | 宿主请求层差异、事件量、白屏误报、隐私审批 |
 | P2 | task journey、表单、业务拒绝、路径、组织目录 | 24–40 | 外部账号目录、业务成功语义、角色多值、接入配合 |
 | P3 | 每项独立估算 | 未纳入 | SourceMap/安全/指数 v2/通用引擎/AI 均是独立项目 |
 
-若只做当前最紧迫的“命名 + 口径 + 页面关系”对齐，交付 M8.1-A 即可，预计 18–28 人日。相比兼容迁移方案减少约 20%–30% 的工作，但全仓重命名、指标正确性和安全 reset 仍不能省略。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
+若只做当前最紧迫的“命名 + 口径 + 项目入口/项目概览 + 页面关系”对齐，交付 M8.1-A 即可，预计 20–31 人日。相比兼容迁移方案减少约 20%–30% 的工作，但全仓重命名、指标正确性和安全 reset 仍不能省略。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
 
 ## 12. 风险与缓解
 
@@ -432,7 +447,9 @@ P2 不作为 M8.1-A/B 发布门：
 | 白屏/时长被误解 | 产品错误结论 | 页面模板、coverage、候选命名、原始证据优先 |
 | 组织/轨迹侵犯隐私 | 员工监控与合规风险 | 目录映射、聚合门槛、allowlist、审计、独立 ADR |
 | 多页面重复公式 | 数值和文案漂移 | MetricCatalog/API 单一真相源 |
-| 低分辨率流程图被过度解读 | 实现不存在的页面/关系 | 只固化可辨认结构，名称以 v1.7 字典为准 |
+| 把核心分析能力误当默认入口 | 用户未选择项目就进入功能采用，无法建立项目级心智 | 固定 `/projects` 与 `/projects/:projectId/overview` 契约，删除旧默认首页断言并增加 E2E |
+| 跨项目摘要逐项目请求 | 项目入口出现 N+1、口径漂移和加载缓慢 | 服务端授权项目集合 read model 批量返回有界摘要 |
+| 低分辨率流程图被过度解读 | 实现不存在的页面/关系 | 只固化已由产品确认的“项目入口 → 项目概览”关系，其余名称以 v1.7 字典为准 |
 
 ## 13. 交付物
 
@@ -441,7 +458,7 @@ M8.1-A 完成时至少应有：
 - ADR-014/015、canonical/禁止名 manifest 与安全 reset 规范；
 - 唯一事件契约 v3、SDK `0.4.0`、schema fixtures 与生成类型；
 - 版本化 MetricCatalog、统一 read model 和 lineage；
-- 对齐后的管理端页面流程和 UI 术语；
+- 对齐后的项目入口页、项目概览、项目内专项路由、返回路径和 UI 术语；
 - v3 下 M0–M8 自动化回归、新指数 golden 和 reset 重复性报告；
 - 干净 schema baseline、seed 和 Pre-1.0 重置说明；
 - `docs/guides/m8.1-a-local-acceptance-macos.md`；
