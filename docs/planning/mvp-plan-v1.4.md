@@ -16,7 +16,7 @@
 1. 复用 M0–M8 的架构与业务能力，但不复用测试数据、旧 schema 或旧 API/SDK 兼容逻辑；
 2. schema v3、SDK `0.4.0`、ingest、consumer、API、Web 与 demo 在同一实施批次直接切换到唯一规范名；
 3. 清空明确命名的本地/验收资源，从空库执行干净 schema baseline 和 seed；
-4. 先完成不新增采集的 P0，把管理端默认入口从“功能采用”改为“项目入口页”，增加“项目入口 → 项目概览 → 专项分析/实体下钻”的导航闭环，并对现有指标、页面关系和解释纠偏；
+4. 先完成不新增采集的 P0，把管理端默认入口改为入口页，并将项目内能力收敛为项目概览、业务分析、页面分析、指标管理和设置；功能采用、项目运营指数和可观测性分别降为对应模块的子域；
 5. 再以逐项目 opt-in 方式补齐 API/资源分母、首屏、长任务、白屏候选和 breadcrumb 等 P1 事实；
 6. 组织、表单、路径和安全能力因依赖外部系统或更高隐私风险，独立进入 P2/P3。
 
@@ -28,7 +28,7 @@
 
 - 建立产品、SDK、事件、存储、API、UI 共用的唯一规范词典；
 - 把指标公式、分母、分位数、样本、缺失语义、版本与血缘固化到 MetricCatalog；
-- 对齐平台入口 → 项目入口页 → 项目概览 → 专项分析，以及项目 → 模块 → 页面 → 功能/任务 → 操作实例的两级产品流程；
+- 对齐入口页 → 项目概览 → 业务分析/页面分析/指标管理/设置，以及项目 → 模块 → 页面 → 功能/任务 → 操作实例的两级产品流程；
 - 在不降低隐私边界的前提下补齐附件中有业务价值的采集能力；
 - 将 v1/v2、旧 SDK、旧 API 字段和旧测试数据从运行时移除；
 - 保留项目运营指数 30/25/30/15 产品构成，并用新定义、新配置和新 seed 重新计算；
@@ -52,8 +52,8 @@
 | M1 工程/迁移 | monorepo、JSON Schema、迁移、golden fixture | 高 | 建立只含 v3 的干净 schema baseline、生成类型和 fixture；空库/幂等验证替代旧库升级验证 |
 | M2 SDK | SPA/page lifecycle、session、批量、隐私 | 高 | 发布 SDK `0.4.0`，统一字段，补 10s flush、性能汇总/任务旅程适配器；删除旧 API wrapper |
 | M3 接收/消费 | Origin、schema、大小、HMAC、Kafka、ClickHouse | 高 | 只接收 v3；重建 Kafka/ClickHouse 测试数据和列，不实现多版本 normalizer |
-| M4 管理/分析 API | 项目管理、固定 overview/trend/pages/features 查询 | 高 | 增加授权项目集合与单项目概览 read model；直接切换 canonical 指标定义和统一 data status；删除旧响应字段 |
-| M5 产品前端 | 功能采用、页面访问、接入、筛选和状态 | 高 | 破除“功能采用默认首页”的既有假设；将项目入口页设为平台默认入口，项目概览设为项目默认页，并重构导航、返回路径、URL 状态和 E2E |
+| M4 管理/分析 API | 项目管理、固定 overview/trend/pages/features 查询 | 高 | 增加授权项目集合、项目概览、业务分析和页面分析 read model；拆分指标管理只读/配置接口；直接切换 canonical data status 并删除旧字段 |
+| M5 产品前端 | 功能采用、页面访问、接入、筛选和状态 | 高 | 重构为入口页、项目概览、业务分析、页面分析、指标管理和设置；功能采用并入业务分析，可观测性并入页面分析，指数并入项目概览；重写导航、URL 状态和 E2E |
 | M6 运营闭环 | 实体、operation v2、MetricCatalog、指数 v1 | 高但可复用 | 扩充目录与分位数；按新 key 重建 profile/golden/index 计算；避免 page-entry 与 operation 时长混义 |
 | M7 生产硬化 | 负载/故障/恢复、Secret、日志、回滚 | 中 | 为新增事件重跑容量、备份恢复与降级；不改变运维安全基线 |
 | M8 可观测性 | 错误组、Web Vitals、发布、影响范围、固定告警 | 中高 | 统一环境/发布字段，补可选请求/资源分母和详情联动；保留 SourceMap 阶段门 |
@@ -91,7 +91,7 @@ flowchart TD
     C --> F["去重事实层"]
     F --> M["MetricCatalog + 固定查询"]
     M --> R["统一读模型"]
-    R --> U["采用 / 运营 / 指数 / 可观测性"]
+    R --> U["入口 / 概览 / 业务分析 / 页面分析 / 指标管理 / 设置"]
 ```
 
 ### 3.1 真相源边界
@@ -140,7 +140,7 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 
 #### A0 资产盘点与重置清单
 
-- 生成字段、事件、指标、接口字段、数据库列、UI 文案、前端路由、导航菜单、面包屑、登录后跳转和 E2E 的现状 inventory；
+- 生成字段、事件、指标、接口字段、数据库列、UI 文案、前端路由、导航菜单、面包屑、登录后跳转和 E2E 的现状 inventory，并把每个旧页面映射到入口页、项目概览、业务分析、页面分析、指标管理或设置；
 - 逐项标注 canonical、rename、delete、unused、privacy-prohibited；
 - 列出需要清空的 MySQL schema、ClickHouse 表、Kafka topic/consumer offset、命名 volume、项目配置和 demo seed；
 - 为新项目运营指数公式准备可手算 golden cases，不复制旧测试结果；
@@ -177,46 +177,46 @@ ADR-014/015 可在同一评审完成。ADR-016 允许按事件族拆分，未批
 #### A3 统一读模型与 API
 
 - 增加“当前用户可访问项目集合”read model/API，返回总项目数、筛选结果数、项目状态、权限、负责人/所属信息、资产数量、最近有效事件时间、数据状态和运营指数摘要/不可用原因；
-- 增加“单项目概览”read model/API，返回项目属性、资产与配置覆盖、数据新鲜度、运营指数、功能采用、使用/任务和错误/性能摘要；
-- 项目入口列表采用批量查询或预聚合，禁止 Web 对每个项目逐个请求专项接口形成 N+1；
-- 为功能采用、使用/页面/任务、指数和可观测性提供相同的项目内筛选对象；
-- 所有比率返回 numerator/denominator/sample/coverage/status/version；
-- 返回 `availableFrom`、definition/profile version 和 partial window；
-- API 响应只返回规范字段，旧字段有契约测试证明不存在；
-- 高基数 route/API/error 使用固定 Top N 或 cursor；
-- 指标定义/血缘 endpoint 成为页面解释来源。
+- 增加“单项目概览”read model/API，返回项目属性、资产与配置覆盖、数据新鲜度、项目运营指数、业务分析和页面分析摘要；
+- 建立业务分析 read model/API，统一功能采用、关键任务、持续使用、任务达成、操作耗时和业务拒绝；
+- 建立页面分析 read model/API，统一页面使用、停留/深度、页面模板、性能、错误和发布影响；现有 M8 可观测性查询作为页面分析子域复用，不复制公式；
+- 指标管理提供 MetricCatalog/lineage 只读接口，以及 admin 专用、clone-on-write 的 profile/target/threshold/weight 配置接口；不实现任意公式或 SQL；
+- 设置接口继续承载项目、资产、Origin、SDK/schema、采集开关、成员、隐私、保留和审计；
+- 入口页项目列表采用批量查询或预聚合，禁止 Web 对每个项目逐个请求专项接口形成 N+1；
+- 所有比率返回 numerator/denominator/sample/coverage/status/version；业务分析和页面分析共享项目内筛选对象；
+- API 响应只返回规范字段，旧字段有契约测试证明不存在；高基数 route/API/error 使用固定 Top N 或 cursor。
 
-退出条件：项目集合和项目概览通过 RBAC、分页/筛选、空态与 data status 契约测试；同一摘要从项目概览和专项页访问时值、范围、版本与解释完全一致。
+退出条件：入口页、项目概览、业务分析、页面分析、指标管理和设置分别通过 RBAC/契约测试；同一摘要从项目概览和目标模块访问时值、范围、版本与解释完全一致。
 
-#### A4 管理端信息架构
+#### A4 管理端六模块信息架构
 
-- 将 `/projects` 设为登录后的平台默认入口，展示当前用户有权访问的全部已接入项目；`/` 不得跳到功能采用、最近项目或第一个项目；
-- 项目入口页展示总项目数、筛选结果数及每个项目的状态、资产数量、最近数据时间、数据状态和运营指数摘要/不可用原因；
-- 点击项目进入 `/projects/:projectId/overview`；项目概览是项目内默认页，功能采用改为项目内二级专项页；
-- 项目概览提供功能采用、使用/页面/任务、项目运营指数、可观测性和配置摘要及明确下钻入口；
-- 项目入口页使用自己的搜索、状态、排序和分页 URL 状态；项目内复用环境/时间/发布筛选，并在切换项目时清理失效实体筛选；
-- 实现项目入口 → 项目概览 → 模块 → 页面 → 功能/任务的面包屑和返回路径；从项目内返回时保留入口页列表状态；
-- 直接项目深链执行 RBAC；覆盖 `forbidden`、`not_found`、零授权项目、单授权项目和多个项目场景；
-- 页面/任务详情并列显示使用、效率、相关性能/错误摘要；
-- 页面详情与可观测性互相带筛选跳转，但不显示因果措辞；
-- “指标定义与血缘”抽屉展示公式、分母、样本、版本和 DAG；
-- UI 替换 UV/VV/转化/健康度等歧义词；
-- radar 保留等价表格，趋势不跨数据/版本缺口。
+- 将 `/projects` 设为登录后的平台默认入口，展示当前用户有权访问的全部已接入项目；`/` 不得跳到分析模块、最近项目或第一个项目；
+- 点击项目进入 `/projects/:projectId/overview`；项目概览展示项目运营指数及业务分析、页面分析、指标治理和设置摘要；
+- 新建 `/projects/:projectId/business-analysis` 一级模块，承载 `features/tasks/reuse/efficiency` 子路由；将现有功能采用 UI、任务和操作效率迁入该模块；
+- 新建 `/projects/:projectId/page-analysis` 一级模块，承载 `usage/performance/errors/releases` 子路由；将页面访问、页面详情和 M8 可观测性 UI 迁入该模块；
+- 新建 `/projects/:projectId/metrics` 一级模块，承载 `catalog/lineage/profiles/targets`；viewer 只读定义与血缘，admin 管理目标、阈值、权重和 profile；
+- 使用 `/projects/:projectId/settings` 统一项目资料、资产、Origin、SDK/schema、采集、成员、隐私、保留和审计；未归类 route 从页面分析跳到设置完成资产配置；
+- 项目运营指数不再是一级导航；在项目概览显示摘要并进入概览下的构成详情；可观测性不再是一级导航，保留页面分析内部标签和深链；
+- 删除或改写旧 `/adoption`、页面访问、指数、可观测性一级导航和旧测试断言；Pre-1.0 不保留仅服务旧测试链接的 alias；
+- 入口页使用自己的搜索、状态、排序和分页 URL 状态；项目概览、业务分析和页面分析复用环境/时间/发布筛选，指标管理和设置只显示任务所需筛选；
+- 实现入口页 → 项目概览 → 一级模块 → 实体详情的面包屑和返回路径；直接深链执行 RBAC 并覆盖 `forbidden/not_found`；
+- 保持数据状态、指标解释、radar 等价表格、键盘和颜色以外状态。
 
-退出条件：需求 v1.7 第 9 节默认路由、项目列表、项目概览、专项下钻、返回路径和权限场景全部通过 Chromium/WebKit E2E 和键盘走查；功能采用不再承担平台默认入口。
+退出条件：需求 v1.7 第 9 节六模块路由、模块边界、权限、下钻和返回路径全部通过 Chromium/WebKit E2E 与键盘走查；功能采用、项目运营指数和可观测性均不再承担并列一级入口。
 
 #### A5 重置回归与文档
 
 - 更新单元、contract、browser、consumer、API、M5/M6/M8 E2E；
-- 删除或改写断言“功能采用是默认首页”的旧测试，新增 `/ → /projects → /projects/:projectId/overview` 主路径测试；
-- 增加零/单/多项目、项目无数据、指数不可用、无权限深链、返回保留列表状态，以及项目概览到各专项页的测试；
-- 增加 v1/v2 拒绝、旧字段不存在、全量 reset、空库 baseline、seed 幂等和冷启动闭环测试；
-- 用新 golden fixtures 手算验证原子、派生、复合指标和 30/25/30/15 项目运营指数；
-- 运行 M7 负载、Kafka/ClickHouse 故障、备份恢复和回滚；
-- 在三场景 demo 验证项目入口、项目概览、功能采用、页面/任务、指数、错误和 Web Vitals；
-- 新增 `docs/guides/m8.1-a-local-acceptance-macos.md`，在开头明确会删除全部本地/验收测试数据及所需确认参数，并把项目入口 → 项目概览作为 UI 验收第一条主流程。
+- 删除或改写断言“功能采用是默认首页/一级页面”的旧测试，新增 `/ → /projects → /projects/:projectId/overview` 主路径；
+- 增加项目概览分别进入 business-analysis、page-analysis、metrics、settings 的路由、RBAC、刷新和返回状态测试；
+- 增加业务分析功能采用/任务/复用/效率，以及页面分析使用/性能/错误/发布标签的归属和深链测试；
+- 增加 viewer/admin 在指标管理与设置中的能力差异，并证明 UI/API 均不存在任意公式或 SQL 入口；
+- 增加零/单/多项目、项目无数据、指数不可用、无权限深链、全量 reset、空库 baseline、seed 幂等和冷启动测试；
+- 用新 golden fixtures 手算验证原子、派生、复合指标和 30/25/30/15 项目运营指数；运行 M7 负载、故障、备份恢复和回滚；
+- 在三场景 demo 验证入口页、项目概览、业务分析、页面分析、指标管理、设置、指数、错误和 Web Vitals；
+- 本地验收指引把入口页 → 项目概览 → 六模块导航作为 UI 验收第一组主流程。
 
-退出条件：M0–M8 业务能力在 v3 基线上通过；默认入口与项目概览的新 E2E 通过；新指数 golden 与手算一致；连续两次 reset → bootstrap → smoke 可重复；运行时不存在 v1/v2 normalizer 或 deprecated API。
+退出条件：M0–M8 业务能力在 v3 基线上通过；六模块信息架构 E2E 通过；新指数 golden 与手算一致；连续两次 reset → bootstrap → smoke 可重复。
 
 ### 5.2 M8.1-B：一期采集缺口（P1）
 
@@ -253,7 +253,7 @@ P2 不作为 M8.1-A/B 发布门：
 - 受控 SourceMap；
 - 项目运营指数 v2；
 - 通用自定义/派生指标工作台；
-- M9 多模型 AI 分析助手。
+- M9 可复用 AI 助手子系统（通用核心、宿主适配器、数据解释、操作讲解和可嵌入 UI）。
 
 以上能力互不自动解锁。每项都必须有真实用户任务、owner、权限、保留、容量和误用风险评审。
 
@@ -295,15 +295,16 @@ P2 不作为 M8.1-A/B 发布门：
 
 ### 6.5 Web 管理端
 
-- `/projects` 平台默认入口与授权项目列表；
-- `/projects/:projectId/overview` 项目默认概览，以及项目内稳定子路由；
-- 项目卡片/表格摘要、项目总数与筛选结果数、零/单/多项目状态；
-- 项目入口独立列表状态与项目内 shared filters/URL 状态；
-- 项目入口 → 项目概览 → 专项分析/实体下钻的页面职责、面包屑和返回路径；
+- `/projects` 入口页与授权项目列表；
+- `/projects/:projectId/overview` 项目概览与项目运营指数构成详情；
+- `/projects/:projectId/business-analysis` 及功能采用、关键任务、持续使用和操作效率子路由；
+- `/projects/:projectId/page-analysis` 及页面使用、停留/深度、性能、错误和发布子路由；
+- `/projects/:projectId/metrics` 的定义/血缘只读与 admin profile/目标/阈值/权重管理；
+- `/projects/:projectId/settings` 的项目、资产、接入、成员、采集和隐私治理；
+- 入口页独立列表状态与项目内 shared filters/URL 状态；
+- 入口页 → 项目概览 → 一级模块 → 实体详情的页面职责、面包屑和返回路径；
 - 单一术语资源表和 API 驱动的 metric copy；
 - loading、no_data、not_collected、insufficient_sample、partial、delayed、broken、forbidden、not_found；
-- 指标定义、血缘和版本断点；
-- admin 配置与 viewer 只读；
 - ECharts resize/dispose、键盘、颜色以外状态和 radar 等价表格回归。
 
 ### 6.6 Demo / Docs / Operations
@@ -357,8 +358,8 @@ P2 不作为 M8.1-A/B 发布门：
 | Browser | Chromium/WebKit SPA、后台/恢复、关闭 Beacon、并发 operation、Vue/非 Vue 接入 |
 | Consumer | v3 at-least-once、eventId 去重、poison/no-payload DLQ、v1/v2 拒绝、无多版本分支 |
 | Metric golden | DST/时区、重复、零分母、缺失 leave、P50/P75/P90/P99、coverage、partial、版本切换 |
-| API | 授权项目集合、项目概览、RBAC、分页/筛选、批量摘要、统一项目内筛选、旧字段不存在、status/sample/version/availableFrom、Top N/cursor |
-| UI | `/ → /projects → /projects/:projectId/overview`、零/单/多项目、入口列表状态、项目概览到专项页、术语、URL 状态、下钻、所有空态、定义/血缘、版本断点、a11y、错误跳页 |
+| API | 授权项目集合、项目概览、业务分析、页面分析、指标管理、设置、RBAC、批量摘要、统一分析筛选、旧字段不存在、status/sample/version/availableFrom、Top N/cursor |
+| UI | `/ → /projects → /projects/:projectId/overview`、业务分析/页面分析/指标管理/设置、旧一级路由移除、零/单/多项目、viewer/admin、URL 状态、下钻、空态、定义/血缘、版本断点、a11y |
 | Reset | 精确目标、显式确认、空变量/通配符拒绝、全量清理、空库 bootstrap、seed 幂等、重复执行 |
 | Regression | v3 下的 M5/M6/M8 E2E、新指数 golden、auth/audit、Compose smoke |
 | Production | 20 events/s 持续、200 events/s 峰值、Kafka/CH/consumer 故障、backup/restore/rollback |
@@ -373,7 +374,7 @@ P2 不作为 M8.1-A/B 发布门：
 - `accountRef` 一项目内稳定、跨项目不可关联，且不落原始值；
 - 分母为 0/未采集/目录缺失分别返回不同状态；
 - Web Vitals P75 与页面/API/任务 P90 使用各自规则；
-- 新 seed 下零/单/多项目均可从项目入口进入正确项目概览，项目摘要与详情 read model 一致；
+- 新 seed 下零/单/多项目均可从入口页进入正确项目概览，并能到达业务分析、页面分析、指标管理和设置；项目摘要与目标模块 read model 一致；
 - 新 seed 下指数 v1 四个维度、叶子贡献、70% gate 和总分与手算一致；
 - Canvas/Cesium 页面未启用 readiness adapter 时不生成白屏率；
 - breadcrumb 的 DOM 文本、输入、console、query、业务 ID 被拒绝或删除。
@@ -416,7 +417,9 @@ P2 不作为 M8.1-A/B 发布门：
 - 新项目运营指数 golden 与手算不一致；
 - 新 collector 无法单独关闭、没有 coverage 或没有容量证据；
 - 数据缺失被显示为 0，或没有分母却显示 rate；
-- `/` 或 `/projects` 仍默认进入功能采用、最近项目或第一个项目，或者点击项目未先进入项目概览；
+- `/` 或 `/projects` 仍默认进入分析模块、最近项目或第一个项目，或者点击项目未先进入项目概览；
+- 功能采用、项目运营指数或可观测性仍作为并列一级导航，或业务分析与页面分析职责交叉复制；
+- 指标管理允许 viewer 修改配置、允许任意公式/SQL，或设置没有承载资产/接入/权限治理；
 - 项目入口未展示全部授权项目、项目摘要与详情口径不一致，或项目列表产生 N+1 专项查询；
 - 页面下钻丢失项目/环境/时间/发布上下文；
 - M5/M6/M8 任一关键回归失败。
@@ -427,12 +430,12 @@ P2 不作为 M8.1-A/B 发布门：
 
 | 批次 | 范围 | 估算 | 主要不确定性 |
 | --- | --- | ---: | --- |
-| M8.1-A / P0 | 盘点、ADR-014/015、schema v3、全量重置、MetricCatalog/查询、项目入口/项目概览、UI 流程、回归 | 20–31 | 现有字段散布、路由与导航重构、项目摘要查询、迁移脚本重整、全仓调用方、指数新 golden |
+| M8.1-A / P0 | 盘点、ADR-014/015、schema v3、全量重置、MetricCatalog/查询、六模块信息架构、UI 流程、回归 | 22–35 | 现有字段散布、业务/页面边界、路由导航重构、项目摘要查询、迁移脚本、全仓调用方、指数新 golden |
 | M8.1-B / P1 | API/resource/first-screen/list/long-task/blank/breadcrumb 逐项 opt-in | 26–40 | 宿主请求层差异、事件量、白屏误报、隐私审批 |
 | P2 | task journey、表单、业务拒绝、路径、组织目录 | 24–40 | 外部账号目录、业务成功语义、角色多值、接入配合 |
 | P3 | 每项独立估算 | 未纳入 | SourceMap/安全/指数 v2/通用引擎/AI 均是独立项目 |
 
-若只做当前最紧迫的“命名 + 口径 + 项目入口/项目概览 + 页面关系”对齐，交付 M8.1-A 即可，预计 20–31 人日。相比兼容迁移方案减少约 20%–30% 的工作，但全仓重命名、指标正确性和安全 reset 仍不能省略。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
+若只做当前最紧迫的“命名 + 口径 + 入口/概览/业务分析/页面分析/指标管理/设置”对齐，交付 M8.1-A 即可，预计 22–35 人日。相比兼容迁移方案减少约 20%–30% 的工作，但全仓重命名、指标正确性和安全 reset 仍不能省略。一次性实施 A+B 会放大回归与隐私风险，建议分两个 PR 系列和两个发布门。
 
 ## 12. 风险与缓解
 
@@ -447,8 +450,10 @@ P2 不作为 M8.1-A/B 发布门：
 | 白屏/时长被误解 | 产品错误结论 | 页面模板、coverage、候选命名、原始证据优先 |
 | 组织/轨迹侵犯隐私 | 员工监控与合规风险 | 目录映射、聚合门槛、allowlist、审计、独立 ADR |
 | 多页面重复公式 | 数值和文案漂移 | MetricCatalog/API 单一真相源 |
-| 把核心分析能力误当默认入口 | 用户未选择项目就进入功能采用，无法建立项目级心智 | 固定 `/projects` 与 `/projects/:projectId/overview` 契约，删除旧默认首页断言并增加 E2E |
-| 跨项目摘要逐项目请求 | 项目入口出现 N+1、口径漂移和加载缓慢 | 服务端授权项目集合 read model 批量返回有界摘要 |
+| 把子能力误当一级模块 | 功能采用、指数、可观测性并列后用户难以理解业务/页面边界 | 固定六模块路由与职责矩阵，删除旧一级导航断言并增加 E2E |
+| “业务分析”膨胀为通用 BI | 范围失控并重新产生多口径 | 仅承载功能、任务、持续使用和效率；禁止任意 SQL/公式 |
+| 指标管理被误解为公式编辑器 | 正式口径被 UI 任意改变 | viewer 只读定义；admin 只配置版本化 profile/目标/阈值/权重 |
+| 跨项目摘要逐项目请求 | 入口页出现 N+1、口径漂移和加载缓慢 | 服务端授权项目集合 read model 批量返回有界摘要 |
 | 低分辨率流程图被过度解读 | 实现不存在的页面/关系 | 只固化已由产品确认的“项目入口 → 项目概览”关系，其余名称以 v1.7 字典为准 |
 
 ## 13. 交付物
@@ -458,7 +463,7 @@ M8.1-A 完成时至少应有：
 - ADR-014/015、canonical/禁止名 manifest 与安全 reset 规范；
 - 唯一事件契约 v3、SDK `0.4.0`、schema fixtures 与生成类型；
 - 版本化 MetricCatalog、统一 read model 和 lineage；
-- 对齐后的项目入口页、项目概览、项目内专项路由、返回路径和 UI 术语；
+- 对齐后的入口页、项目概览、业务分析、页面分析、指标管理、设置、子路由、返回路径和 UI 术语；
 - v3 下 M0–M8 自动化回归、新指数 golden 和 reset 重复性报告；
 - 干净 schema baseline、seed 和 Pre-1.0 重置说明；
 - `docs/guides/m8.1-a-local-acceptance-macos.md`；
@@ -468,24 +473,82 @@ M8.1-B 每个 collector 另交付 schema、SDK API、开关、隐私 fixture、c
 
 ## 14. 评审建议
 
-本轮先评审并锁定以下四项，随后即可进入 M8.1-A：
+本轮先评审并锁定以下五项，随后即可进入 M8.1-A：
 
 1. 接受 Pre-1.0 全量测试数据重置、schema v3/SDK `0.4.0` 唯一基线，且不保留旧名或 v1/v2 runtime；
 2. 接受按指标族选择 P75/P90，而不是全局强制 P90；
 3. 接受“没有官方分母就不展示渗透率/失败率”，改用明确的描述性指标；
-4. 接受 P0 与新增采集 P1 分批发布，项目运营指数 v1 暂不变。
+4. 接受 P0 与新增采集 P1 分批发布，项目运营指数 v1 暂不变；
+5. 接受入口页、项目概览、业务分析、页面分析、指标管理和设置的六模块信息架构，以及功能采用/指数/可观测性的子域归属。
 
 若其中任何一项不接受，应先修订需求与 ADR，不在代码里通过临时映射或默认值绕过产品决策。
 
-## 15. 与 M9 AI 分析助手的衔接
+## 15. M9 可复用 AI 助手子系统计划
 
-M9 的功能范围、模型兼容、上下文选择和历史留存仍按 requirements-v1.7 第 18 节实施；本计划不把 M9 混入 M8.1 的代码工作包。新增约束如下：
+M9 与 M8.1-A/B 独立排期。目标不是给 Frontend Insight 增加一个专用聊天抽屉，而是交付可嵌入不同业务系统的通用助手核心、宿主适配协议、数据解释、操作讲解和 UI。Frontend Insight 是第一个 production-like host，另建 synthetic/minimal host 证明复用边界。
 
-- M8.1-A 是 M9 P0 前置门。`AIContextBlock` 只使用规范 metric/entity/filter key，并绑定 definition/profile/directory version；
-- context snapshot 只能从统一 read model 生成，不能直接序列化页面 store 或原始事件；
-- M8.1-B collector 未启用或 coverage 不足时，block 返回相同 data status，AI 不得补算；
-- 指标定义与血缘 endpoint 作为提示词中的业务解释来源，避免模板复制公式；
-- 页面职责矩阵同时定义可注册 block 的范围，跨页面/跨项目拼接仍需用户显式选择和服务端授权；
-- M9 开发估算、AI Gateway、provider conformance、安全与数据出境评审单独维护，不消耗 M8.1-A/B 的完成门。
+### 15.1 前置门与 ADR
 
-因此推荐顺序为：M8.1-A 评审与实施 → 规范 read model 稳定观察 → M9 P0 与 M8.1-B 可独立排期；二者都不得修改项目运营指数 v1。
+- M8.1-A 的规范 read model、业务分析/页面分析边界、MetricCatalog 和六模块路由稳定后，才能实现 Frontend Insight adapter；
+- ADR-019 固化通用助手模块边界、依赖方向、tenant/workspace/scope contract、宿主 adapter 和部署形态；
+- ADR-020 固化操作指南来源、产品/角色版本、知识治理、深链/高亮动作和“首版无写操作”边界；
+- external provider、历史留存、数据驻留、跨 tenant 隔离和 synthetic host conformance 必须在 M9 发布前完成评审。
+
+### 15.2 目标模块与交付物
+
+| 模块 | 主要交付 |
+| --- | --- |
+| `assistant-contract` | 通用 schema、HostIdentity/Authorization/Context/Definition/Guide/Evidence/Action 接口和兼容策略 |
+| `assistant-context-runtime` | 宿主回调、重新鉴权、脱敏、Top N/裁剪、token 预算、snapshot 和 evidence |
+| `assistant-gateway` | provider adapter、capability matrix、streaming、timeout/retry、quota、fallback、审计和 policy |
+| `assistant-web` | 框架无关嵌入层、右侧抽屉默认实现、主题、多语言、Vue/React wrapper 和卸载隔离 |
+| `frontend-insight-assistant-adapter` | 项目概览、业务分析、页面分析、MetricCatalog、错误组和权限适配 |
+| `assistant-demo-host` | 第二宿主、示例数据、操作指南和 conformance 验证 |
+
+通用模块不得导入 Frontend Insight 包；CI 增加 dependency boundary 检查。宿主前端只提交 block/guide/action key 和筛选，不提交任意 DOM/store/API payload。
+
+### 15.3 两种 capability
+
+`data_explanation`：用户选择结构化 context block，服务端通过宿主 adapter 重新鉴权并生成不可变 snapshot；回答必须引用 evidence，保留 data status/sample/coverage/version，不从原始事件重算正式指标。
+
+`operation_guidance`：宿主通过版本化 `HostGuideProvider` 提供页面、角色、前置条件、步骤、验证结果、帮助引用和允许深链。P0 只解释、导航和可选高亮；点击、提交、审批、删除和配置修改等写操作不进入 M9。
+
+### 15.4 实施阶段与估算
+
+| 阶段 | 范围 | 估算 | 阶段门 |
+| --- | --- | ---: | --- |
+| M9.0 | ADR-019/020、威胁建模、host contract 与 synthetic spike | 3–5 | 两个 host 可实现同一最小 contract |
+| M9.1 | assistant-contract、context runtime、Frontend Insight adapter | 6–9 | dependency boundary 与 context conformance 通过 |
+| M9.2 | gateway、provider profiles、streaming、quota、fallback 和审计 | 6–9 | 私有化 profile 与获准外部 profile conformance 通过 |
+| M9.3 | data_explanation、snapshot、evidence 和运营/页面模板 | 5–7 | 数值忠实、权限与引用评测通过 |
+| M9.4 | operation_guidance、guide version/role、深链和高亮建议 | 5–8 | 无 DOM 推断、无写操作、指南版本正确 |
+| M9.5 | assistant-web、主题/i18n、Vue/React wrapper、历史与嵌入 | 5–8 | 同一构建嵌入两个 host 且卸载不影响宿主 |
+| M9.6 | 注入、越权、tenant 隔离、保留、故障与容量硬化 | 5–6 | M9 Go/No-Go 通过 |
+
+M9 合计预计 35–52 人日，不计业务系统编写真实操作指南、客户私有化网络适配和未来写操作工具。M9.0–M9.2 先建立平台能力；M9.3 与 M9.4 可以在共同 contract 稳定后分开交付。
+
+### 15.5 测试与验收
+
+- contract/schema 向前兼容、未知 capability 拒绝和 adapter conformance；
+- 通用包无 Frontend Insight import，Frontend Insight 与 demo host 使用相同 runtime/gateway/web 构建；
+- 每次 context、guide、evidence 和历史读取重新执行宿主授权；跨 tenant/workspace/scope 访问全部拒绝；
+- Frontend Insight 业务分析与页面分析 context 数值、筛选、版本和 data status 与 read model 一致；
+- 操作指南按宿主版本和角色返回正确步骤，过期/无权限/缺失指南有明确状态；不存在 DOM 抓取；
+- external profile、fallback、snapshot、prompt injection、guide injection、不安全 Markdown 和敏感数据测试通过；
+- provider 超时、限流、流式中断或助手卸载不影响宿主；浏览器、日志和数据库没有 API key；
+- 首版没有宿主写接口、tool calling 或可以绕过用户确认的动作。
+
+### 15.6 M9 Go/No-Go
+
+任一条件触发 No-Go：
+
+- 通用核心依赖 Frontend Insight 类型、数据库或页面 store；
+- 第二个 host 不能在不修改核心的情况下完成嵌入、鉴权、数据解释和操作讲解；
+- 模型从 DOM、任意 API、原始数据库或历史对话推断正式数据/操作步骤；
+- context/guide/evidence/history 存在跨 tenant、workspace、scope 或权限撤销后的访问；
+- 操作讲解能够直接执行写操作，或指南没有版本、角色和证据来源；
+- external/internal policy 或 fallback 发生数据越界；
+- 模型故障、助手加载失败或卸载影响宿主页面。
+
+推荐顺序：M8.1-A 评审与实施 → 规范 read model 和六模块 IA 稳定观察 → M9.0/1/2 平台底座 → M9.3 数据解释 → M9.4 操作讲解 → M9.5/6 嵌入与硬化。M9 不修改项目运营指数 v1，也不消耗 M8.1-A/B 的完成门。
+
