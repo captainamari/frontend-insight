@@ -151,7 +151,13 @@ watch(
       <el-button
         v-if="canWrite"
         plain
-        @click="router.push({ name: 'operational-config', query: route.query })"
+        @click="
+          router.push({
+            name: 'metrics',
+            params: { projectId: context.projectId.value },
+            query: route.query,
+          })
+        "
       >
         配置目标与权重
       </el-button>
