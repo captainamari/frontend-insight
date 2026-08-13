@@ -44,7 +44,7 @@
 ### 阅读路径
 
 1. `packages/event-contract/src/constants.ts`；
-2. `packages/event-contract/schema/event-batch.schema.json`；
+2. `packages/event-contract/schema/event-batch-v3.schema.json`；
 3. `packages/event-contract/src/security.ts`；
 4. `packages/event-contract/src/validator.ts`；
 5. `packages/test-fixtures/test/contract-boundaries.test.ts`。

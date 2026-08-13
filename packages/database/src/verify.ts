@@ -354,7 +354,7 @@ async function verifyClickHouseRawEvents() {
           countIf(event_name IN ('feature_succeeded', 'feature_failed', 'feature_canceled')) AS terminals
         FROM raw_events
         WHERE request_id = {requestId:UUID}
-          AND schema_version = 2
+          AND schema_version = 3
           AND operation_instance_id IS NOT NULL
       `,
       query_params: { requestId },

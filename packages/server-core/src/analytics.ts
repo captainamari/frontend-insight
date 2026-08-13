@@ -1461,7 +1461,7 @@ export class AnalyticsStore {
             event_name IN ('feature_succeeded', 'feature_failed', 'feature_canceled')
           ) AS terminal_name
         FROM (${deduplicatedEventsWhere(
-          "AND schema_version = 2 AND operation_instance_id IS NOT NULL AND feature_key IS NOT NULL",
+          "AND schema_version = 3 AND operation_instance_id IS NOT NULL AND feature_key IS NOT NULL",
         )})
         GROUP BY operation_instance_id
         HAVING started_at_ms > 0
@@ -1500,7 +1500,7 @@ export class AnalyticsStore {
           toUnixTimestamp64Milli(minOrNull(event_time)) AS available_from_ms
         FROM raw_events
         WHERE project_id = {projectId:UUID}
-          AND schema_version = 2
+          AND schema_version = 3
           AND event_name = 'feature_started'
           AND operation_instance_id IS NOT NULL
           AND feature_key IN {featureKeys:Array(String)}

@@ -95,7 +95,7 @@ pnpm exec vitest run packages/server-core/test/metrics.test.ts
 
 本地 seed 会注册两个模块、三个核心页面、四个关键任务、目标/业务日历和一个激活的 `operational_v1` profile。`smoke` 还会写入满足主要 M6 样本门槛的合成生产事件。场景 demo 的事件带 `demo: true`，可显示在原始访问分析中，但不进入项目运营指数。
 
-## 4. event v2 与任务实例验收
+## 4. schema v3 与 operation v2 任务实例验收
 
 打开 <http://localhost:4174/action?acceptance=fast>，输入默认用户名 `demo.operator`，模拟密码填写任意非空值。
 
@@ -107,7 +107,7 @@ pnpm exec vitest run packages/server-core/test/metrics.test.ts
 - 三次操作分别只有一个 `feature_succeeded`、`feature_canceled`、`feature_failed`；
 - 取消显示为用户明确取消，不混入失败；
 - 失败携带稳定的 `reasonCode`；
-- 事件请求使用 `schemaVersion: 2`；
+- 事件请求使用唯一运行时契约 `schemaVersion: 3`；operation v2 表示任务实例业务语义，不表示事件 schema 版本；
 - 每次开始和对应终态具有相同 `operationInstanceId`，不同操作的 ID 不同；
 - 模拟密码、token、邮箱等内容不出现在请求 payload。
 
