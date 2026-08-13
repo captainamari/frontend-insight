@@ -15,6 +15,7 @@ import type {
   PageTemplate,
   Principal,
   ProjectIngestionConfig,
+  ProjectCollectorSettings,
   ProjectOperationalSettings,
   ProjectRecord,
   ProjectRole,
@@ -123,6 +124,15 @@ function parseWeekdays(value: unknown): number[] {
   return [];
 }
 
+function parseStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string") {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) return parsed.map(String);
+  }
+  return [];
+}
+
 function operationalSettingsFromRow(row: RowDataPacket): ProjectOperationalSettings {
   return {
     id: String(row.id),
@@ -130,6 +140,38 @@ function operationalSettingsFromRow(row: RowDataPacket): ProjectOperationalSetti
     version: Number(row.version),
     targetAccounts: row.target_accounts === null ? null : Number(row.target_accounts),
     expectedActiveWeekdays: parseWeekdays(row.expected_active_weekdays),
+    status: row.status as "active" | "superseded",
+    effectiveFrom: new Date(row.effective_from as string).toISOString(),
+    effectiveTo: row.effective_to
+      ? new Date(row.effective_to as string).toISOString()
+      : null,
+  };
+}
+
+function collectorSettingsFromRow(row: RowDataPacket): ProjectCollectorSettings {
+  const actions = parseStringList(row.breadcrumb_action_keys);
+  const toggle = (prefix: string) => ({
+    enabled: Boolean(row[`${prefix}_enabled`]),
+    sampleRate: Number(row[`${prefix}_sample_rate`]),
+  });
+  return {
+    id: String(row.id),
+    projectId: String(row.project_id),
+    version: Number(row.version),
+    api: {
+      ...toggle("api"),
+      slowThresholdMs: Number(row.api_slow_threshold_ms),
+      globalFetch: Boolean(row.api_global_fetch),
+    },
+    resources: toggle("resources"),
+    firstScreen: toggle("first_screen"),
+    listRender: toggle("list_render"),
+    longTasks: toggle("long_tasks"),
+    blankScreen: toggle("blank_screen"),
+    breadcrumbs: {
+      ...toggle("breadcrumbs"),
+      allowedActionKeys: actions,
+    },
     status: row.status as "active" | "superseded",
     effectiveFrom: new Date(row.effective_from as string).toISOString(),
     effectiveTo: row.effective_to
@@ -985,6 +1027,142 @@ export class MySqlStore {
     } finally {
       connection.release();
     }
+  }
+
+  async getCollectorSettings(
+    projectId: string,
+    at = new Date(),
+  ): Promise<ProjectCollectorSettings | null> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM project_collector_settings
+       WHERE project_id = ?
+         AND effective_from <= ?
+         AND (effective_to IS NULL OR effective_to > ?)
+       ORDER BY version DESC LIMIT 1`,
+      [projectId, at, at],
+    );
+    return rows[0] ? collectorSettingsFromRow(rows[0]) : null;
+  }
+
+  async listCollectorSettings(projectId: string): Promise<ProjectCollectorSettings[]> {
+    const [rows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM project_collector_settings
+       WHERE project_id = ? ORDER BY version DESC`,
+      [projectId],
+    );
+    return rows.map(collectorSettingsFromRow);
+  }
+
+  async createCollectorSettingsVersion(
+    input: Omit<
+      ProjectCollectorSettings,
+      "id" | "version" | "status" | "effectiveFrom" | "effectiveTo"
+    > & {
+      effectiveFrom?: string | undefined;
+      actor: Principal;
+    },
+  ): Promise<ProjectCollectorSettings> {
+    const id = randomUUID();
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id = ? FOR UPDATE", [
+        input.projectId,
+      ]);
+      const [versionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT COALESCE(MAX(version), 0) + 1 AS next_version,
+                MAX(effective_from) AS latest_effective_from
+         FROM project_collector_settings
+         WHERE project_id = ? FOR UPDATE`,
+        [input.projectId],
+      );
+      const latestEffectiveFrom = versionRows[0]?.latest_effective_from;
+      if (
+        latestEffectiveFrom &&
+        effectiveFrom <= new Date(latestEffectiveFrom as string)
+      ) {
+        throw new Error("COLLECTOR_EFFECTIVE_FROM_NOT_AFTER_LATEST");
+      }
+      const version = Number(versionRows[0]?.next_version ?? 1);
+      await connection.execute(
+        `UPDATE project_collector_settings
+         SET status = 'superseded', effective_to = ?
+         WHERE project_id = ? AND status = 'active' AND effective_from < ?`,
+        [effectiveFrom, input.projectId, effectiveFrom],
+      );
+      await connection.execute(
+        `INSERT INTO project_collector_settings
+          (id, project_id, version,
+           api_enabled, api_sample_rate, api_slow_threshold_ms, api_global_fetch,
+           resources_enabled, resources_sample_rate,
+           first_screen_enabled, first_screen_sample_rate,
+           list_render_enabled, list_render_sample_rate,
+           long_tasks_enabled, long_tasks_sample_rate,
+           blank_screen_enabled, blank_screen_sample_rate,
+           breadcrumbs_enabled, breadcrumbs_sample_rate, breadcrumb_action_keys,
+           status, effective_from, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 'active', ?, ?)`,
+        [
+          id,
+          input.projectId,
+          version,
+          input.api.enabled,
+          input.api.sampleRate,
+          input.api.slowThresholdMs,
+          input.api.globalFetch,
+          input.resources.enabled,
+          input.resources.sampleRate,
+          input.firstScreen.enabled,
+          input.firstScreen.sampleRate,
+          input.listRender.enabled,
+          input.listRender.sampleRate,
+          input.longTasks.enabled,
+          input.longTasks.sampleRate,
+          input.blankScreen.enabled,
+          input.blankScreen.sampleRate,
+          input.breadcrumbs.enabled,
+          input.breadcrumbs.sampleRate,
+          JSON.stringify(input.breadcrumbs.allowedActionKeys),
+          effectiveFrom,
+          input.actor.userId,
+        ],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "collector_settings.version_created",
+        entityType: "project_collector_settings",
+        entityId: id,
+        metadata: {
+          version,
+          effectiveFrom: effectiveFrom.toISOString(),
+          enabledCollectors: [
+            input.api.enabled && "api",
+            input.resources.enabled && "resources",
+            input.firstScreen.enabled && "first_screen",
+            input.listRender.enabled && "list_render",
+            input.longTasks.enabled && "long_tasks",
+            input.blankScreen.enabled && "blank_screen",
+            input.breadcrumbs.enabled && "breadcrumbs",
+          ].filter(Boolean),
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    const created = (await this.listCollectorSettings(input.projectId)).find(
+      (item) => item.id === id,
+    );
+    if (!created) throw new Error("COLLECTOR_SETTINGS_NOT_FOUND");
+    return created;
   }
 
   private async profileItems(profileId: string): Promise<MetricProfileItem[]> {

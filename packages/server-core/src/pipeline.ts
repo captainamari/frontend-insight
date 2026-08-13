@@ -407,7 +407,7 @@ export class IngestionManager {
       });
     }
     if (
-      schemaVersion === 2 &&
+      schemaVersion === 3 &&
       feature.operationLifecycleEnabled &&
       feature.featureType !== "long_view" &&
       operationLifecycleEvents.has(eventName) &&

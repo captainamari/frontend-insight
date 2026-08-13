@@ -5,6 +5,7 @@ import { AdminController } from "../src/admin.controller.js";
 import { AnalyticsController } from "../src/analytics.controller.js";
 import { AuthController } from "../src/auth.controller.js";
 import { AuthGuard } from "../src/auth.guard.js";
+import { CollectorConfigController } from "../src/collector-config.controller.js";
 import { CoreService } from "../src/core.service.js";
 import { IngestionController } from "../src/ingestion.controller.js";
 import { ObservabilityController } from "../src/observability.controller.js";
@@ -25,6 +26,7 @@ describe("NestJS runtime injection metadata", () => {
     AdminController,
     AnalyticsController,
     AuthController,
+    CollectorConfigController,
     IngestionController,
     ProjectsController,
     OperationalController,

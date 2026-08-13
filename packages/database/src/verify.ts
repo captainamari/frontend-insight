@@ -267,7 +267,7 @@ async function verifyClickHouseRawEvents() {
         sdk_version: scenario.valid.sdk.version,
         project_id: projectId,
         event_name: event.eventName,
-        event_time: clickHouseTimestamp(event.eventTime),
+        event_time: clickHouseTimestamp(event.occurredAt),
         received_at: clickHouseTimestamp(scenario.valid.sentAt),
         visitor_id: event.visitorId,
         session_id: event.sessionId,

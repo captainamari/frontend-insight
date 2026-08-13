@@ -4,12 +4,8 @@ import { compileFromFile } from "json-schema-to-typescript";
 
 const contracts = [
   {
-    schema: "../schema/event-batch.schema.json",
-    output: "../src/generated/event-batch.ts",
-  },
-  {
-    schema: "../schema/event-batch-v2.schema.json",
-    output: "../src/generated/event-batch-v2.ts",
+    schema: "../schema/event-batch-v3.schema.json",
+    output: "../src/generated/event-batch-v3.ts",
   },
 ];
 

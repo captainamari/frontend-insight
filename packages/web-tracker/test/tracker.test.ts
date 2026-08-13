@@ -1,7 +1,11 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTracker, type TrackerRuntime } from "../src/index.js";
+import {
+  createTracker,
+  createTrackerWithRemoteConfig,
+  type TrackerRuntime,
+} from "../src/index.js";
 
 function setVisibility(value: "visible" | "hidden"): void {
   Object.defineProperty(document, "visibilityState", {
@@ -50,6 +54,8 @@ function config(runtime: TrackerRuntime, suffix: string) {
   return {
     projectKey: `fi_public_tracker${suffix}`,
     endpoint: "https://collector.example.test/v1/events",
+    releaseVersion: "test-release",
+    deploymentEnvironment: "development",
     registeredFeatures: ["sales_dashboard", "report_export", "operations_wallboard"],
     flushIntervalMs: 60_000,
     runtime,
@@ -184,7 +190,7 @@ describe("web tracker lifecycle and privacy", () => {
     tracker.destroy();
   });
 
-  it("settles visible time and falls back from beacon to keepalive fetch", async () => {
+  it("pauses visible time on hidden and settles only on pagehide", async () => {
     const { runtime, fetchMock, sendBeacon } = createRuntime({ beacon: false });
     const tracker = createTracker(config(runtime, "beacon01"));
     vi.advanceTimersByTime(2_500);
@@ -192,11 +198,22 @@ describe("web tracker lifecycle and privacy", () => {
     await vi.advanceTimersByTimeAsync(1);
 
     expect(sendBeacon).toHaveBeenCalledOnce();
-    const batch = await payload(fetchMock);
+    expect(
+      (await payload(fetchMock)).events.some(
+        (event) => event.eventName === "page_leave",
+      ),
+    ).toBe(false);
+    vi.advanceTimersByTime(5_000);
+    setVisibility("visible");
+    vi.advanceTimersByTime(500);
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.advanceTimersByTimeAsync(1);
+
+    const batch = await payload(fetchMock, 1);
     const leave = batch.events.find((event) => event.eventName === "page_leave");
-    expect(leave?.properties).toEqual({ visibleDurationMs: 2500 });
-    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).keepalive).toBe(true);
-    expect(tracker.getDiagnostics().beaconFallbacks).toBe(1);
+    expect(leave?.properties).toEqual({ visibleDurationMs: 3000 });
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).keepalive).toBe(true);
+    expect(tracker.getDiagnostics().beaconFallbacks).toBe(2);
     tracker.destroy();
   });
 
@@ -312,7 +329,7 @@ describe("web tracker lifecycle and privacy", () => {
     await tracker.flush();
 
     const batch = await payload(fetchMock);
-    expect(batch.schemaVersion).toBe(2);
+    expect(batch.schemaVersion).toBe(3);
     const operations = batch.events.filter((event) => event.operationInstanceId);
     const instanceIds = new Set(
       operations.map((event) => String(event.operationInstanceId)),
@@ -359,10 +376,10 @@ describe("web tracker lifecycle and privacy", () => {
     const { runtime, fetchMock } = createRuntime();
     const tracker = createTracker({
       ...config(runtime, "observability01"),
+      releaseVersion: "2026.08.1",
+      deploymentEnvironment: "production",
       observability: {
         enabled: true,
-        releaseVersion: "2026.08.1",
-        deploymentEnvironment: "production",
         captureJsErrors: false,
         captureResourceErrors: false,
         captureApiErrors: false,
@@ -388,7 +405,7 @@ describe("web tracker lifecycle and privacy", () => {
     await tracker.flush();
 
     const batch = await payload(fetchMock);
-    expect(batch.schemaVersion).toBe(2);
+    expect(batch.schemaVersion).toBe(3);
     const observability = batch.events.filter((event) =>
       ["error_js", "error_resource", "error_api", "web_vital"].includes(
         String(event.eventName),
@@ -400,11 +417,14 @@ describe("web tracker lifecycle and privacy", () => {
       requestPath: "/api/devices/:id",
       statusCode: 503,
       durationMs: 850,
-      releaseVersion: "2026.08.1",
     });
     expect(observability[3]?.properties).toMatchObject({
       vitalName: "LCP",
       vitalRating: "poor",
+    });
+    expect(observability[2]).toMatchObject({
+      releaseVersion: "2026.08.1",
+      deploymentEnvironment: "production",
     });
     expect(observability[0]?.properties).toMatchObject({
       browserFamily: expect.any(String),
@@ -428,7 +448,6 @@ describe("web tracker lifecycle and privacy", () => {
       ...config(runtime, "autofetch01"),
       observability: {
         enabled: true,
-        releaseVersion: "release-42",
         captureJsErrors: false,
         captureResourceErrors: false,
         captureApiErrors: true,
@@ -454,13 +473,204 @@ describe("web tracker lifecycle and privacy", () => {
     window.fetch = originalFetch;
   });
 
+  it("keeps every P1 collector disabled by default", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "p1-default-off01"));
+    tracker.captureApiRequest({
+      method: "GET",
+      url: "/api/orders/123?token=hidden",
+      statusCode: 200,
+      durationMs: 20,
+    });
+    tracker.captureResourceRequest({
+      resourceType: "script",
+      url: "/assets/app.js",
+      succeeded: true,
+      durationMs: 10,
+    });
+    tracker.markPageReady({ templateKey: "analysis_view", blankCandidate: true });
+    tracker.startListRender("orders", 10)();
+    tracker.recordBreadcrumbAction("orders_opened");
+    window.history.pushState({}, "", "/next");
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    const p1Names = new Set([
+      "api_request_summary",
+      "resource_summary",
+      "page_readiness",
+      "list_render",
+      "long_task_summary",
+    ]);
+    expect(
+      batch.events.filter((event) => p1Names.has(String(event.eventName))),
+    ).toEqual([]);
+    tracker.destroy();
+  });
+
+  it("emits privacy-bounded P1 evidence with denominators and error-only breadcrumbs", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "p1-explicit01"),
+      observability: {
+        enabled: true,
+        captureJsErrors: false,
+        captureResourceErrors: false,
+        captureApiErrors: false,
+        captureWebVitals: false,
+      },
+      collectors: {
+        api: { enabled: true, sampleRate: 1, slowThresholdMs: 100 },
+        resources: { enabled: true, sampleRate: 1 },
+        firstScreen: { enabled: true, sampleRate: 1 },
+        listRender: { enabled: true, sampleRate: 1 },
+        longTasks: { enabled: true, sampleRate: 1 },
+        blankScreen: { enabled: true, sampleRate: 1 },
+        breadcrumbs: {
+          enabled: true,
+          sampleRate: 1,
+          allowedActionKeys: ["orders_opened"],
+        },
+      },
+    });
+    vi.advanceTimersByTime(120);
+    tracker.markPageReady({ templateKey: "analysis_view", blankCandidate: true });
+    const finishList = tracker.startListRender("business-order-9988", 1_200);
+    vi.advanceTimersByTime(45);
+    finishList();
+    tracker.captureApiRequest({
+      method: "post",
+      url: "/api/orders/987654?token=must-not-leak",
+      statusCode: 503,
+      durationMs: 240,
+    });
+    tracker.captureResourceRequest({
+      resourceType: "script",
+      url: "/assets/private-name.js?token=must-not-leak",
+      succeeded: false,
+      durationMs: 80,
+    });
+    tracker.recordBreadcrumbAction("orders_opened");
+    tracker.recordBreadcrumbAction("business_order_9988");
+    tracker.captureException(new Error("render failed for business order 9988"));
+    window.history.pushState({}, "", "/next");
+    await tracker.flush();
+
+    const batch = await payload(fetchMock);
+    const byName = (name: string) =>
+      batch.events.find((event) => event.eventName === name);
+    expect(byName("api_request_summary")?.properties).toMatchObject({
+      requestMethod: "POST",
+      requestPath: "/api/orders/:id",
+      requestCount: 1,
+      errorCount: 1,
+      successCount: 0,
+      slowCount: 1,
+      sampleRate: 1,
+    });
+    expect(byName("page_readiness")?.properties).toMatchObject({
+      templateKey: "analysis_view",
+      readinessDurationMs: 120,
+      readinessState: "blank_candidate",
+      firstScreenCollected: true,
+      blankDetectionCollected: true,
+    });
+    expect(byName("list_render")?.properties).toMatchObject({
+      rowCountBucket: ">1000",
+      durationMs: 45,
+    });
+    expect(byName("resource_summary")?.properties).toMatchObject({
+      totalCount: 1,
+      failedCount: 1,
+      observedPageViews: 1,
+    });
+    expect(byName("long_task_summary")?.properties).toMatchObject({
+      longTaskCount: 0,
+      observedPageViews: 1,
+    });
+    const error = byName("error_js");
+    expect(error?.breadcrumbs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "action", key: "orders_opened" }),
+        expect.objectContaining({
+          kind: "api",
+          key: "api_failed",
+          path: "/api/orders/:id",
+        }),
+      ]),
+    );
+    expect(
+      batch.events
+        .filter((event) => !String(event.eventName).startsWith("error_"))
+        .every((event) => event.breadcrumbs === undefined),
+    ).toBe(true);
+    const serialized = JSON.stringify(batch);
+    expect(serialized).not.toContain("must-not-leak");
+    expect(serialized).not.toContain("business-order-9988");
+    expect(serialized).not.toContain("business_order_9988");
+    tracker.destroy();
+  });
+
+  it("does not wrap global fetch unless its collector opts in", () => {
+    const originalFetch = window.fetch;
+    const hostFetch = vi.fn(async () => new Response(null, { status: 200 }));
+    window.fetch = hostFetch as unknown as typeof fetch;
+    const { runtime } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "p1-fetch-off01"),
+      collectors: { api: { enabled: true, sampleRate: 1 } },
+    });
+    expect(window.fetch).toBe(hostFetch);
+    tracker.destroy();
+    window.fetch = originalFetch;
+  });
+
+  it("loads project-authoritative collector switches before startup", async () => {
+    const { runtime } = createRuntime();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/v1/collector-config/")) {
+        return Response.json({
+          schemaVersion: 1,
+          version: 2,
+          collectors: {
+            api: {
+              enabled: true,
+              sampleRate: 1,
+              slowThresholdMs: 500,
+              globalFetch: false,
+            },
+          },
+        });
+      }
+      return new Response(null, { status: 202 });
+    });
+    runtime.fetch = fetchMock as unknown as typeof fetch;
+    const tracker = await createTrackerWithRemoteConfig(config(runtime, "p1-remote01"));
+    tracker.captureApiRequest({
+      method: "GET",
+      url: "/api/reports/123?secret=hidden",
+      statusCode: 200,
+      durationMs: 100,
+    });
+    await tracker.flush();
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain(
+      "/v1/collector-config/fi_public_trackerp1-remote01",
+    );
+    const batch = await payload(fetchMock, 1);
+    expect(
+      batch.events.find((event) => event.eventName === "api_request_summary")
+        ?.properties,
+    ).toMatchObject({ requestPath: "/api/reports/:id", sampleRate: 1 });
+    tracker.destroy();
+  });
+
   it("fails closed when static properties consume or override the M8 budget", () => {
     const { runtime } = createRuntime();
     const base = {
       ...config(runtime, "observability-budget01"),
       observability: {
         enabled: true,
-        releaseVersion: "release-42",
         captureJsErrors: false,
         captureResourceErrors: false,
         captureApiErrors: false,

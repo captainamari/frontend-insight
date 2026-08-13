@@ -1,9 +1,10 @@
 import { createNoopTracker } from "./noop.js";
 import { normalizeObservabilityConfig } from "./observability.js";
+import { normalizeP1CollectorConfig } from "./collectors.js";
 import { normalizeProperties } from "./privacy.js";
 import { browserRuntime } from "./runtime.js";
 import { BrowserTracker } from "./tracker.js";
-import type { Tracker, TrackerConfig } from "./types.js";
+import type { P1CollectorConfig, Tracker, TrackerConfig } from "./types.js";
 
 const activeTrackers = new Map<string, Tracker>();
 const observabilityPropertyBudget = 9;
@@ -28,9 +29,9 @@ const observabilityReservedProperties = new Set([
 ]);
 
 function trackerKey(
-  config: Pick<TrackerConfig, "projectKey" | "endpoint" | "observability">,
+  config: Pick<TrackerConfig, "projectKey" | "endpoint" | "releaseVersion">,
 ): string {
-  return `${config.projectKey}\u0000${config.endpoint}\u0000${config.observability?.releaseVersion ?? "none"}`;
+  return `${config.projectKey}\u0000${config.endpoint}\u0000${config.releaseVersion}`;
 }
 
 export function createTracker(config: TrackerConfig): Tracker {
@@ -47,7 +48,16 @@ export function createTracker(config: TrackerConfig): Tracker {
     if (!staticProperties) {
       return createNoopTracker("STATIC_PROPERTIES_INVALID", development);
     }
-    const observability = normalizeObservabilityConfig(config.observability);
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(config.releaseVersion)) {
+      return createNoopTracker("RELEASE_VERSION_INVALID", development);
+    }
+    const deploymentEnvironment = config.deploymentEnvironment ?? "production";
+    const observability = normalizeObservabilityConfig(
+      config.observability,
+      config.releaseVersion,
+      deploymentEnvironment,
+    );
+    const collectors = normalizeP1CollectorConfig(config.collectors);
     if (
       observability &&
       Object.keys(staticProperties).length > 20 - observabilityPropertyBudget
@@ -70,6 +80,8 @@ export function createTracker(config: TrackerConfig): Tracker {
       {
         projectKey: config.projectKey,
         endpoint: endpoint.toString(),
+        releaseVersion: config.releaseVersion,
+        deploymentEnvironment,
         flushIntervalMs: config.flushIntervalMs ?? 10_000,
         maximumQueueSize: Math.min(config.maximumQueueSize ?? 100, 100),
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
@@ -80,6 +92,7 @@ export function createTracker(config: TrackerConfig): Tracker {
         normalizeRoute: config.normalizeRoute,
         beforeSend: config.beforeSend,
         observability,
+        collectors,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,
@@ -89,6 +102,40 @@ export function createTracker(config: TrackerConfig): Tracker {
   } catch {
     return createNoopTracker("INITIALIZATION_FAILED", development);
   }
+}
+
+/**
+ * Loads the project-authoritative collector switches before starting the SDK.
+ * A missing, rejected, or malformed config fails closed for P1 collectors while
+ * preserving the base page/feature tracker.
+ */
+export async function createTrackerWithRemoteConfig(
+  config: Omit<TrackerConfig, "collectors"> & { collectorConfigUrl?: string },
+): Promise<Tracker> {
+  const { collectorConfigUrl, ...trackerConfig } = config;
+  let collectors: P1CollectorConfig | undefined;
+  try {
+    const url = collectorConfigUrl
+      ? new URL(collectorConfigUrl, config.endpoint)
+      : new URL(
+          `./collector-config/${encodeURIComponent(config.projectKey)}`,
+          config.endpoint,
+        );
+    const runtime = config.runtime ?? browserRuntime();
+    const response = await runtime.fetch(url, {
+      method: "GET",
+      credentials: "omit",
+      headers: { accept: "application/json" },
+    });
+    if (response.ok) {
+      const payload = (await response.json()) as { collectors?: unknown };
+      normalizeP1CollectorConfig(payload.collectors as P1CollectorConfig | undefined);
+      collectors = payload.collectors as P1CollectorConfig | undefined;
+    }
+  } catch {
+    collectors = undefined;
+  }
+  return createTracker({ ...trackerConfig, ...(collectors ? { collectors } : {}) });
 }
 
 export type * from "./types.js";

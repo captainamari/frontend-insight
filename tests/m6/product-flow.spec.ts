@@ -52,7 +52,7 @@ test("operation demo emits independently paired v2 terminal events", async ({
       "feature_canceled",
     ].includes(String(event.eventName)),
   );
-  expect(payloads.some((payload) => payload.schemaVersion === 2)).toBe(true);
+  expect(payloads.some((payload) => payload.schemaVersion === 3)).toBe(true);
   const starts = operationEvents.filter(
     (event) => event.eventName === "feature_started",
   );

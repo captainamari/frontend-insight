@@ -7,7 +7,7 @@ import PageHeader from "../components/PageHeader.vue";
 import StatePanel from "../components/StatePanel.vue";
 import TrendChart from "../components/TrendChart.vue";
 import { useDashboardContext } from "../context";
-import { formatDateTime, formatNumber, formatPercent } from "../range";
+import { formatDateTime, formatDuration, formatNumber, formatPercent } from "../range";
 import { useRemoteData } from "../remote";
 import type {
   ErrorGroupDetailResponse,
@@ -15,11 +15,13 @@ import type {
   ObservabilityErrorType,
   ObservabilityOverviewResponse,
   ObservabilitySeverity,
+  PagePerformanceResponse,
   WebVitalSummary,
 } from "../types";
 
 const context = useDashboardContext();
 const resource = useRemoteData<ObservabilityOverviewResponse>();
+const performance = useRemoteData<PagePerformanceResponse>();
 const detail = useRemoteData<ErrorGroupDetailResponse>();
 const drawerOpen = ref(false);
 const errorType = ref<ObservabilityErrorType | "all">("all");
@@ -125,11 +127,18 @@ function vitalValue(item: WebVitalSummary): string {
 
 async function load(): Promise<void> {
   if (!context.projectId.value || !context.search.value) return;
-  await resource.load(() =>
-    api.request<ObservabilityOverviewResponse>(
-      `/api/projects/${context.projectId.value}/observability/overview?${context.search.value}`,
+  await Promise.all([
+    resource.load(() =>
+      api.request<ObservabilityOverviewResponse>(
+        `/api/projects/${context.projectId.value}/observability/overview?${context.search.value}`,
+      ),
     ),
-  );
+    performance.load(() =>
+      api.request<PagePerformanceResponse>(
+        `/api/projects/${context.projectId.value}/observability/page-performance?${context.search.value}`,
+      ),
+    ),
+  ]);
 }
 
 async function openError(item: ErrorGroupSummary): Promise<void> {
@@ -190,6 +199,251 @@ watch(
 
         <section class="metrics-grid" aria-label="可观测性摘要">
           <MetricCard v-for="card in cards" :key="card.label" v-bind="card" />
+        </section>
+
+        <section class="panel p1-performance" aria-label="P1 页面性能证据">
+          <div class="section-heading observability-heading">
+            <div>
+              <span class="eyebrow">CONTROLLED COLLECTORS / P1</span>
+              <h2>页面性能与操作耗时</h2>
+              <p>
+                仅展示显式启用 collector 后的证据；没有分母时显示“未采集”，不会用 0
+                代替。
+              </p>
+            </div>
+            <router-link
+              :to="{
+                name: 'collector-settings',
+                params: { projectId: context.projectId.value },
+              }"
+            >
+              管理采集开关
+            </router-link>
+          </div>
+
+          <div
+            v-if="performance.loading.value && !performance.data.value"
+            class="inline-empty compact-empty"
+          >
+            正在加载 P1 采集证据…
+          </div>
+          <div
+            v-else-if="performance.error.value && !performance.data.value"
+            class="collector-status collector-status-error"
+          >
+            <strong>P1 证据暂不可用</strong>
+            <span>{{ performance.error.value.message }}</span>
+            <el-button text type="primary" @click="load">重试</el-button>
+          </div>
+          <template v-else-if="performance.data.value">
+            <div class="coverage-grid">
+              <div>
+                <span>页面浏览分母</span>
+                <strong>{{
+                  formatNumber(performance.data.value.coverage.pageViews)
+                }}</strong>
+              </div>
+              <div>
+                <span>首屏覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.readiness.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.readiness.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{
+                    formatPercent(performance.data.value.coverage.readiness.sampleRate)
+                  }}</small
+                >
+              </div>
+              <div>
+                <span>资源覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.resources.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.resources.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{
+                    formatPercent(performance.data.value.coverage.resources.sampleRate)
+                  }}</small
+                >
+              </div>
+              <div>
+                <span>长任务覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.longTasks.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.longTasks.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{
+                    formatPercent(performance.data.value.coverage.longTasks.sampleRate)
+                  }}</small
+                >
+              </div>
+              <div>
+                <span>白屏候选检测覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.blankScreen.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.blankScreen.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{
+                    formatPercent(
+                      performance.data.value.coverage.blankScreen.sampleRate,
+                    )
+                  }}</small
+                >
+              </div>
+            </div>
+
+            <div
+              v-if="
+                [
+                  performance.data.value.api.status,
+                  performance.data.value.resources.status,
+                  performance.data.value.readiness.status,
+                  performance.data.value.listRender.status,
+                  performance.data.value.longTasks.status,
+                  performance.data.value.blankScreen.status,
+                ].every((status) => status === 'not_collected')
+              "
+              class="collector-status"
+            >
+              <strong>当前范围未采集 P1 事件</strong>
+              <span>请先在“采集开关”中按项目启用，再按 SDK 接入说明显式上报。</span>
+            </div>
+
+            <div class="p1-summary-grid">
+              <article>
+                <span>资源失败率</span>
+                <strong>{{
+                  performance.data.value.resources.status === "not_collected"
+                    ? "未采集"
+                    : formatPercent(performance.data.value.resources.failureRate)
+                }}</strong>
+                <small
+                  v-if="performance.data.value.resources.status !== 'not_collected'"
+                  >{{ performance.data.value.resources.numerator }} /
+                  {{ performance.data.value.resources.denominator }} 次请求</small
+                >
+              </article>
+              <article>
+                <span>长任务影响 PV 率</span>
+                <strong>{{
+                  performance.data.value.longTasks.status === "not_collected"
+                    ? "未采集"
+                    : formatPercent(
+                        performance.data.value.longTasks.affectedPageViewRate,
+                      )
+                }}</strong>
+                <small
+                  v-if="performance.data.value.longTasks.status !== 'not_collected'"
+                  >{{ performance.data.value.longTasks.count }} 次 ·
+                  {{
+                    formatDuration(performance.data.value.longTasks.durationMs)
+                  }}</small
+                >
+              </article>
+              <article>
+                <span>白屏候选率</span>
+                <strong>{{
+                  performance.data.value.blankScreen.status === "not_collected"
+                    ? "未采集"
+                    : formatPercent(performance.data.value.blankScreen.candidateRate)
+                }}</strong>
+                <small
+                  v-if="performance.data.value.blankScreen.status !== 'not_collected'"
+                  >{{ performance.data.value.blankScreen.numerator }} /
+                  {{ performance.data.value.blankScreen.denominator }} 个已检测
+                  PV</small
+                >
+              </article>
+            </div>
+
+            <h3>API 请求汇总</h3>
+            <el-table
+              :data="performance.data.value.api.items"
+              empty-text="未采集 API 请求汇总"
+            >
+              <el-table-column label="接口" min-width="260">
+                <template #default="{ row }"
+                  ><code>{{ row.requestMethod }} {{ row.requestPath }}</code></template
+                >
+              </el-table-column>
+              <el-table-column label="P50 / P90" width="170">
+                <template #default="{ row }"
+                  >{{ formatDuration(row.p50Ms) }} /
+                  {{ formatDuration(row.p90Ms) }}</template
+                >
+              </el-table-column>
+              <el-table-column label="成功 / 错误 / 慢" min-width="230">
+                <template #default="{ row }"
+                  >{{ formatPercent(row.successRate) }} /
+                  {{ formatPercent(row.errorRate) }} /
+                  {{ formatPercent(row.slowRequestRate) }}</template
+                >
+              </el-table-column>
+              <el-table-column label="分母" width="90">
+                <template #default="{ row }">{{
+                  formatNumber(row.denominator)
+                }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="110">
+                <template #default="{ row }">{{
+                  row.status === "insufficient_sample" ? "样本不足" : "可用"
+                }}</template>
+              </el-table-column>
+            </el-table>
+
+            <div class="overview-columns p1-detail-columns">
+              <section>
+                <h3>首屏 readiness（按模板）</h3>
+                <el-table
+                  :data="performance.data.value.readiness.items"
+                  empty-text="未采集显式 readiness"
+                >
+                  <el-table-column prop="templateKey" label="模板" min-width="130" />
+                  <el-table-column label="P50 / P90" min-width="150">
+                    <template #default="{ row }"
+                      >{{ formatDuration(row.p50Ms) }} /
+                      {{ formatDuration(row.p90Ms) }}</template
+                    >
+                  </el-table-column>
+                  <el-table-column prop="sampleSize" label="样本" width="72" />
+                  <el-table-column label="白屏候选" width="110">
+                    <template #default="{ row }">{{
+                      formatPercent(row.blankCandidateRate)
+                    }}</template>
+                  </el-table-column>
+                </el-table>
+              </section>
+              <section>
+                <h3>列表渲染（按行数桶）</h3>
+                <el-table
+                  :data="performance.data.value.listRender.items"
+                  empty-text="未采集列表渲染"
+                >
+                  <el-table-column prop="route" label="页面" min-width="140" />
+                  <el-table-column prop="rowCountBucket" label="行数桶" width="110" />
+                  <el-table-column label="P50 / P90" min-width="150">
+                    <template #default="{ row }"
+                      >{{ formatDuration(row.p50Ms) }} /
+                      {{ formatDuration(row.p90Ms) }}</template
+                    >
+                  </el-table-column>
+                  <el-table-column prop="sampleSize" label="样本" width="72" />
+                </el-table>
+              </section>
+            </div>
+            <p class="privacy-note">
+              白屏仅表示 adapter 判定的候选状态，不等同于事实；API、资源、长任务和
+              breadcrumb 均不采集 query、header/body、DOM、输入内容或业务对象 ID。口径
+              {{ performance.data.value.definitionVersion }}。
+            </p>
+          </template>
         </section>
 
         <section class="panel chart-panel">

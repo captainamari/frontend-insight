@@ -2,7 +2,7 @@
 
 内部 Web 产品运营分析系统。它回答页面和功能是否真正被看见、持续使用，关键任务是否完成，以及停留和操作耗时是否符合显式业务目标；同时明确区分账号、匿名浏览器和会话。
 
-M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 demo。M6 增加模块/页面/任务实体、operation lifecycle v2、固定运营指标、可查询血缘和可下钻的项目运营指数。M7/M8 进一步交付生产硬化工具，以及独立于运营指数 v1 的前端错误、Web Vitals、发布版本、影响范围和固定告警工作台。
+M0-M8 已完成基础设施、Web SDK、数据链路、管理后台、运营指标与前端可观测性。M8.1-A 将产品入口固定为“入口页 → 项目概览”，项目内按业务分析、页面分析、指标管理和设置组织；M8.1-B 在独立 opt-in 下补齐 API/资源分母、首屏、列表、长任务、白屏候选和错误 breadcrumb。
 
 ## M7/M8 快速开始
 
@@ -21,7 +21,7 @@ M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 
 - 管理员：`admin@example.invalid` / `LocalAdmin-1234`
 - viewer：`viewer@example.invalid` / `LocalViewer-1234`
 
-demo 覆盖数据/图表渲染、导出/导入/配置/指令结果、大屏持续可见，以及受控 JS/资源/API/Web Vital 事件。操作型场景使用 v2 operation handle；M8 场景在浏览器发送前裁剪凭据、邮箱、URL 参数与动态 ID。完整负载、故障、恢复、生产策略和产品走查见 [M7/M8 Mac 本地验收指引](docs/guides/m7-m8-local-acceptance-macos.md)。
+demo 覆盖数据/图表渲染、导出/导入/配置/指令结果、大屏持续可见，以及受控 JS/资源/API/Web Vital/P1 事件。运行时统一为 schema v3 / SDK 0.4.0；浏览器发送前裁剪凭据、邮箱、URL 参数与动态 ID。P1 走查见 [M8.1-B Mac 本地验收指引](docs/guides/m8.1-b-local-acceptance-macos.md)。
 
 M7 正式负载与故障演练：
 
@@ -68,16 +68,19 @@ bash scripts/production deploy pilot-001
 
 项目运营指数用于确定调查和投入优先级，不替代技术 SLO，也不用于人员绩效。
 
-## M7/M8 已实现范围
+## M7/M8.1 已实现范围
 
 - 20 events/s 持续与 200 events/s 峰值固定负载工具、吞吐/延迟/追平报告；
 - Kafka、ClickHouse、consumer 故障注入及真实 readiness/恢复语义；
 - production Compose 的文件 Secret、只读文件系统、资源上限、优雅停止和日志轮转；
 - additive migration、保留镜像应用回滚、MySQL/ClickHouse 校验和备份与恢复；
-- SDK v0.3.0 opt-in JS/资源/API 错误和 LCP/CLS/INP/FCP/TTFB；
+- schema v3 / SDK 0.4.0 唯一基线，v1/v2 明确拒绝；
+- 项目入口页、项目概览，以及业务分析/页面分析/指标管理/设置的信息架构；
+- 七类项目级版本化 P1 collector，默认关闭、独立采样、可远程回滚；
+- API 请求 P50/P90 与分母、资源失败率、显式首屏、列表行数桶、长任务、白屏候选和受限 breadcrumb；
 - 浏览器端凭据/PII/URL 裁剪、粗粒度浏览器/OS/视口、显式 release/environment；
 - 稳定错误组、影响账号/浏览器/页面/版本、性能 p75 与固定只读告警；
-- 前端可观测性工作台、错误组下钻、发布证据和受控 demo；
+- 页面分析中的 coverage/采样率/分子分母/样本不足/未采集，以及错误组下钻和受控 demo；
 - M5/M6 回归与 M8 Chromium/WebKit E2E。
 
 项目运营指数 v1 保持不变；SourceMap、运营指数 v2、自定义告警和 AI 分析仍按独立阶段门执行。

@@ -1,28 +1,29 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "projectKey": "fi_public_m1demo001",
   "sentAt": "2026-07-19T17:10:00.000Z",
   "sdk": {
     "name": "web-tracker",
-    "version": "0.2.0"
+    "version": "0.4.0"
   },
   "events": [
     {
       "eventId": "evt_operation_v2_page_001",
       "eventName": "page_view",
-      "eventTime": "2026-07-19T17:09:50.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
       "accountRef": "opaque-account-operation-v2",
       "route": "/reports",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:50.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_operation_v2_exposed_001",
       "eventName": "feature_exposed",
-      "eventTime": "2026-07-19T17:09:51.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
@@ -30,12 +31,14 @@
       "route": "/reports",
       "featureKey": "report_export",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:51.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_operation_v2_started_001",
       "eventName": "feature_started",
-      "eventTime": "2026-07-19T17:09:52.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
@@ -45,12 +48,14 @@
       "route": "/reports",
       "featureKey": "report_export",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:52.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_operation_v2_success_001",
       "eventName": "feature_succeeded",
-      "eventTime": "2026-07-19T17:09:54.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
@@ -60,12 +65,14 @@
       "route": "/reports",
       "featureKey": "report_export",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:54.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_operation_v2_started_002",
       "eventName": "feature_started",
-      "eventTime": "2026-07-19T17:09:55.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
@@ -75,12 +82,14 @@
       "route": "/reports",
       "featureKey": "report_export",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:55.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_operation_v2_failed_002",
       "eventName": "feature_failed",
-      "eventTime": "2026-07-19T17:09:58.000Z",
       "visitorId": "vis_operation_v2_001",
       "sessionId": "ses_operation_v2_001",
       "pageViewId": "pv_operation_v2_001",
@@ -91,7 +100,10 @@
       "featureKey": "report_export",
       "reasonCode": "request_rejected",
       "timezoneOffsetMinutes": 0,
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T17:09:58.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     }
   ]
 }

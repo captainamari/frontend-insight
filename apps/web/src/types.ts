@@ -87,6 +87,30 @@ export interface ProjectOperationalSettings {
   effectiveTo: string | null;
 }
 
+export interface CollectorToggleSettings {
+  enabled: boolean;
+  sampleRate: number;
+}
+
+export interface ProjectCollectorSettings {
+  id: string;
+  projectId: string;
+  version: number;
+  api: CollectorToggleSettings & {
+    slowThresholdMs: number;
+    globalFetch: boolean;
+  };
+  resources: CollectorToggleSettings;
+  firstScreen: CollectorToggleSettings;
+  listRender: CollectorToggleSettings;
+  longTasks: CollectorToggleSettings;
+  blankScreen: CollectorToggleSettings;
+  breadcrumbs: CollectorToggleSettings & { allowedActionKeys: string[] };
+  status: "active" | "superseded";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
 export interface MetricProfileItem {
   id: string;
   profileId: string;
@@ -497,6 +521,98 @@ export interface ObservabilityMeta {
   updatedAt: string | null;
   availableFrom: string | null;
   definitionVersion: string;
+}
+
+export interface PagePerformanceResponse extends ObservabilityMeta {
+  definitionVersion: string;
+  coverage: {
+    pageViews: number;
+    readiness: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
+    resources: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
+    longTasks: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
+    blankScreen: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
+  };
+  api: {
+    status: "available" | "not_collected" | "insufficient_sample";
+    items: Array<{
+      requestMethod: string;
+      requestPath: string;
+      numerator: { successes: number; errors: number; slowRequests: number };
+      denominator: number;
+      successRate: number | null;
+      errorRate: number | null;
+      slowRequestRate: number | null;
+      p50Ms: number | null;
+      p90Ms: number | null;
+      sampleRate: number | null;
+      sampleSize: number;
+      status: "available" | "not_collected" | "insufficient_sample";
+      lastSeenAt: string | null;
+    }>;
+  };
+  resources: {
+    status: "available" | "not_collected";
+    numerator: number;
+    denominator: number;
+    failureRate: number | null;
+    sampleRate: number | null;
+  };
+  readiness: {
+    status: "available" | "not_collected" | "insufficient_sample";
+    items: Array<{
+      templateKey: string;
+      p50Ms: number | null;
+      p90Ms: number | null;
+      sampleSize: number;
+      status: "available" | "not_collected" | "insufficient_sample";
+      blankCandidateRate: number | null;
+      blankCandidates: number;
+      blankObservedPageViews: number;
+    }>;
+  };
+  listRender: {
+    status: "available" | "not_collected" | "insufficient_sample";
+    items: Array<{
+      route: string;
+      rowCountBucket: string;
+      p50Ms: number | null;
+      p90Ms: number | null;
+      sampleSize: number;
+      status: "available" | "not_collected" | "insufficient_sample";
+    }>;
+  };
+  longTasks: {
+    status: "available" | "not_collected";
+    count: number;
+    durationMs: number;
+    numerator: number;
+    denominator: number;
+    affectedPageViewRate: number | null;
+    sampleRate: number | null;
+  };
+  blankScreen: {
+    status: "available" | "not_collected";
+    numerator: number;
+    denominator: number;
+    candidateRate: number | null;
+    sampleRate: number | null;
+  };
 }
 
 export interface ErrorGroupSummary {

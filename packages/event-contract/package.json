@@ -16,8 +16,8 @@
       "types": "./src/security.ts",
       "import": "./dist/src/security.js"
     },
-    "./schema": "./schema/event-batch.schema.json",
-    "./schema-v2": "./schema/event-batch-v2.schema.json"
+    "./schema": "./schema/event-batch-v3.schema.json",
+    "./schema-v3": "./schema/event-batch-v3.schema.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

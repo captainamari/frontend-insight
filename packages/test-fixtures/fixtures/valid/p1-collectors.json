@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 3,
+  "projectKey": "fi_public_p1fixture01",
+  "sentAt": "2026-08-13T12:00:05.000Z",
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_p1_page_view_0000",
+      "eventName": "page_view",
+      "occurredAt": "2026-08-13T12:00:00.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {}
+    },
+    {
+      "eventId": "evt_p1_readiness_0001",
+      "eventName": "page_readiness",
+      "occurredAt": "2026-08-13T12:00:01.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "templateKey": "analysis_view",
+        "readinessDurationMs": 840,
+        "readinessState": "ready",
+        "firstScreenCollected": true,
+        "blankDetectionCollected": true,
+        "sampleRate": 0.5
+      }
+    },
+    {
+      "eventId": "evt_p1_api_summary_0002",
+      "eventName": "api_request_summary",
+      "occurredAt": "2026-08-13T12:00:02.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "requestMethod": "GET",
+        "requestPath": "/api/reports/:id",
+        "statusCode": 200,
+        "durationMs": 320,
+        "requestCount": 1,
+        "errorCount": 0,
+        "successCount": 1,
+        "slowCount": 0,
+        "slowThresholdMs": 2000,
+        "sampleRate": 0.5
+      }
+    },
+    {
+      "eventId": "evt_p1_resource_0003",
+      "eventName": "resource_summary",
+      "occurredAt": "2026-08-13T12:00:03.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "totalCount": 12,
+        "failedCount": 1,
+        "totalDurationMs": 780,
+        "observedPageViews": 1,
+        "sampleRate": 0.5
+      }
+    },
+    {
+      "eventId": "evt_p1_list_render_0004",
+      "eventName": "list_render",
+      "occurredAt": "2026-08-13T12:00:03.200Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "rowCountBucket": "100-1000",
+        "durationMs": 95,
+        "sampleRate": 0.5
+      }
+    },
+    {
+      "eventId": "evt_p1_long_task_0005",
+      "eventName": "long_task_summary",
+      "occurredAt": "2026-08-13T12:00:04.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "longTaskCount": 2,
+        "longTaskDurationMs": 180,
+        "longTaskMaximumMs": 110,
+        "observedPageViews": 1,
+        "sampleRate": 0.5
+      }
+    },
+    {
+      "eventId": "evt_p1_error_breadcrumb_0006",
+      "eventName": "error_js",
+      "occurredAt": "2026-08-13T12:00:04.500Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "errorName": "TypeError",
+        "errorMessage": "render failed",
+        "stackTopFrame": "at render (app.js:1:1)"
+      },
+      "breadcrumbs": [
+        {
+          "kind": "route",
+          "occurredAt": "2026-08-13T12:00:00.000Z",
+          "key": "route_changed",
+          "path": "/analysis"
+        },
+        {
+          "kind": "action",
+          "occurredAt": "2026-08-13T12:00:01.500Z",
+          "key": "report_opened"
+        },
+        {
+          "kind": "api",
+          "occurredAt": "2026-08-13T12:00:02.000Z",
+          "key": "api_completed",
+          "method": "GET",
+          "path": "/api/reports/:id",
+          "statusCode": 200
+        }
+      ]
+    }
+  ]
+}

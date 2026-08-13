@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   OBSERVABILITY_DEFINITION_VERSION,
   buildFixedAlerts,
+  durationEvidence,
+  evidenceRate,
   errorSeverity,
   type ErrorGroupSummary,
   type WebVitalSummary,
@@ -104,5 +106,36 @@ describe("fixed observability alerts", () => {
       updatedAt: null,
     });
     expect(alerts).toHaveLength(0);
+  });
+});
+
+describe("P1 page-performance evidence states", () => {
+  it("never turns a missing denominator into a zero rate", () => {
+    expect(evidenceRate(0, 0)).toBeNull();
+    expect(evidenceRate(0, 12)).toBe(0);
+    expect(evidenceRate(3, 12)).toBe(0.25);
+  });
+
+  it("enforces the documented P50 and P90 sample gates", () => {
+    expect(durationEvidence(0, null, null)).toEqual({
+      p50Ms: null,
+      p90Ms: null,
+      status: "not_collected",
+    });
+    expect(durationEvidence(4, 80, 120)).toEqual({
+      p50Ms: null,
+      p90Ms: null,
+      status: "insufficient_sample",
+    });
+    expect(durationEvidence(5, 80, 120)).toEqual({
+      p50Ms: 80,
+      p90Ms: null,
+      status: "insufficient_sample",
+    });
+    expect(durationEvidence(20, 80, 120)).toEqual({
+      p50Ms: 80,
+      p90Ms: 120,
+      status: "available",
+    });
   });
 });

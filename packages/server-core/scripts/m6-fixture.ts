@@ -15,6 +15,7 @@ export const m6Fixture = {
   settingsId: "30111111-1111-4111-8111-111111111111",
   profileId: "40111111-1111-4111-8111-111111111111",
   assignmentId: "50111111-1111-4111-8111-111111111111",
+  collectorSettingsId: "70111111-1111-4111-8111-111111111111",
 } as const;
 
 const itemIds = [
@@ -161,6 +162,38 @@ export async function seedM6Fixture(
          status = 'active',
          effective_to = NULL`,
       [m6Fixture.settingsId, m5Fixture.projectId, m5Fixture.admin.id],
+    );
+    await pool.execute(
+      `INSERT INTO project_collector_settings
+         (id, project_id, version,
+          api_enabled, api_sample_rate, api_slow_threshold_ms, api_global_fetch,
+          resources_enabled, resources_sample_rate,
+          first_screen_enabled, first_screen_sample_rate,
+          list_render_enabled, list_render_sample_rate,
+          long_tasks_enabled, long_tasks_sample_rate,
+          blank_screen_enabled, blank_screen_sample_rate,
+          breadcrumbs_enabled, breadcrumbs_sample_rate, breadcrumb_action_keys,
+          status, effective_from, created_by_user_id)
+       VALUES (?, ?, 1,
+               TRUE, 1, 2000, FALSE,
+               TRUE, 1,
+               TRUE, 1,
+               TRUE, 1,
+               TRUE, 1,
+               TRUE, 1,
+               TRUE, 1, '["demo_action"]',
+               'active', '2026-07-01 00:00:00.000', ?)
+       ON DUPLICATE KEY UPDATE
+         api_enabled = TRUE,
+         resources_enabled = TRUE,
+         first_screen_enabled = TRUE,
+         list_render_enabled = TRUE,
+         long_tasks_enabled = TRUE,
+         blank_screen_enabled = TRUE,
+         breadcrumbs_enabled = TRUE,
+         status = 'active',
+         effective_to = NULL`,
+      [m6Fixture.collectorSettingsId, m5Fixture.projectId, m5Fixture.admin.id],
     );
     await pool.execute(
       `INSERT INTO metric_profiles

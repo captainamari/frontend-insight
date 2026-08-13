@@ -4,6 +4,7 @@ import { AdminController } from "./admin.controller.js";
 import { AnalyticsController } from "./analytics.controller.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthGuard } from "./auth.guard.js";
+import { CollectorConfigController } from "./collector-config.controller.js";
 import { CoreService } from "./core.service.js";
 import { ApiExceptionFilter } from "./http.js";
 import { IngestionController } from "./ingestion.controller.js";
@@ -16,6 +17,7 @@ import { SystemController } from "./system.controller.js";
   controllers: [
     AdminController,
     AuthController,
+    CollectorConfigController,
     IngestionController,
     ProjectsController,
     AnalyticsController,

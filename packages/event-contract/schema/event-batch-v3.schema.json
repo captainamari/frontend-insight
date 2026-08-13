@@ -1,0 +1,753 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://frontend-insight.internal/schemas/event-batch-v3.json",
+  "title": "Frontend Insight Event Batch v3",
+  "description": "Canonical Pre-1.0 transport contract with opt-in performance summaries and privacy-bounded diagnostics.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "projectKey", "sentAt", "sdk", "events"],
+  "properties": {
+    "schemaVersion": {
+      "const": 3
+    },
+    "projectKey": {
+      "type": "string",
+      "pattern": "^fi_public_[A-Za-z0-9_-]{8,64}$"
+    },
+    "sentAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sdk": {
+      "$ref": "#/$defs/sdk"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
+  },
+  "$defs": {
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+        }
+      }
+    },
+    "propertyValue": {
+      "oneOf": [
+        {
+          "type": "string",
+          "maxLength": 256
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "propertiesBag": {
+      "type": "object",
+      "maxProperties": 20,
+      "propertyNames": {
+        "pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/propertyValue"
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "eventName",
+        "occurredAt",
+        "visitorId",
+        "sessionId",
+        "pageViewId",
+        "route",
+        "properties",
+        "deploymentEnvironment",
+        "releaseVersion"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string",
+          "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+        },
+        "eventName": {
+          "anyOf": [
+            {
+              "enum": [
+                "page_view",
+                "page_leave",
+                "feature_exposed",
+                "feature_started",
+                "feature_succeeded",
+                "feature_failed",
+                "feature_canceled",
+                "feature_long_view_started",
+                "feature_long_view_heartbeat",
+                "feature_long_view_ended",
+                "error_js",
+                "error_resource",
+                "error_api",
+                "web_vital",
+                "page_readiness",
+                "api_request_summary",
+                "resource_summary",
+                "list_render",
+                "long_task_summary"
+              ]
+            },
+            {
+              "type": "string",
+              "pattern": "^(?!page_|feature_)[a-z][a-z0-9_]{0,63}$"
+            }
+          ]
+        },
+        "visitorId": {
+          "type": "string",
+          "pattern": "^vis_[A-Za-z0-9_-]{8,64}$"
+        },
+        "sessionId": {
+          "type": "string",
+          "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+        },
+        "pageViewId": {
+          "type": "string",
+          "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+        },
+        "operationInstanceId": {
+          "type": "string",
+          "pattern": "^op_[A-Za-z0-9_-]{16,64}$"
+        },
+        "interactionType": {
+          "enum": ["click", "submit", "keyboard", "programmatic", "automatic"]
+        },
+        "accountRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "route": {
+          "type": "string",
+          "pattern": "^/",
+          "maxLength": 512
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "timezoneOffsetMinutes": {
+          "type": "integer",
+          "minimum": -840,
+          "maximum": 840
+        },
+        "featureKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "properties": {
+          "$ref": "#/$defs/propertiesBag"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deploymentEnvironment": {
+          "enum": ["production", "staging", "development"]
+        },
+        "releaseVersion": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "breadcrumbs": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "occurredAt", "key"],
+            "properties": {
+              "kind": {
+                "enum": ["route", "action", "api", "error"]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.:-]{0,63}$"
+              },
+              "method": {
+                "enum": [
+                  "GET",
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE",
+                  "HEAD",
+                  "OPTIONS",
+                  "OTHER"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^/",
+                "maxLength": 256
+              },
+              "statusCode": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 599
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_js"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": ["errorName", "errorMessage", "stackTopFrame"],
+                "properties": {
+                  "errorName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "errorMessage": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "stackTopFrame": {
+                    "type": "string",
+                    "maxLength": 256
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_resource"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": ["resourceType", "requestPath"],
+                "properties": {
+                  "resourceType": {
+                    "enum": ["script", "stylesheet", "image", "font", "media", "other"]
+                  },
+                  "requestPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "maxLength": 256
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "error_api"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "requestMethod",
+                  "requestPath",
+                  "statusCode",
+                  "durationMs"
+                ],
+                "properties": {
+                  "requestMethod": {
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "HEAD",
+                      "OPTIONS",
+                      "OTHER"
+                    ]
+                  },
+                  "requestPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "maxLength": 256
+                  },
+                  "statusCode": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 599
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "web_vital"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "vitalName",
+                  "vitalValue",
+                  "vitalRating",
+                  "navigationType"
+                ],
+                "properties": {
+                  "vitalName": {
+                    "enum": ["LCP", "CLS", "INP", "FCP", "TTFB"]
+                  },
+                  "vitalValue": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "vitalRating": {
+                    "enum": ["good", "needs_improvement", "poor"]
+                  },
+                  "navigationType": {
+                    "enum": [
+                      "navigate",
+                      "reload",
+                      "back_forward",
+                      "prerender",
+                      "unknown"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "page_readiness"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "templateKey",
+                  "readinessDurationMs",
+                  "readinessState",
+                  "firstScreenCollected",
+                  "blankDetectionCollected",
+                  "sampleRate"
+                ],
+                "properties": {
+                  "templateKey": {
+                    "enum": ["monitoring_dashboard", "analysis_view", "task_operation"]
+                  },
+                  "readinessDurationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "readinessState": {
+                    "enum": ["ready", "blank_candidate"]
+                  },
+                  "firstScreenCollected": {
+                    "type": "boolean"
+                  },
+                  "blankDetectionCollected": {
+                    "type": "boolean"
+                  },
+                  "sampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "api_request_summary"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "requestMethod",
+                  "requestPath",
+                  "statusCode",
+                  "durationMs",
+                  "requestCount",
+                  "errorCount",
+                  "successCount",
+                  "slowCount",
+                  "slowThresholdMs",
+                  "sampleRate"
+                ],
+                "properties": {
+                  "requestMethod": {
+                    "enum": [
+                      "GET",
+                      "POST",
+                      "PUT",
+                      "PATCH",
+                      "DELETE",
+                      "HEAD",
+                      "OPTIONS",
+                      "OTHER"
+                    ]
+                  },
+                  "requestPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "maxLength": 256
+                  },
+                  "statusCode": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 599
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "requestCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "errorCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "successCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "slowCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "slowThresholdMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 60000
+                  },
+                  "sampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "resource_summary"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "totalCount",
+                  "failedCount",
+                  "totalDurationMs",
+                  "observedPageViews",
+                  "sampleRate"
+                ],
+                "properties": {
+                  "totalCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "failedCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "totalDurationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "observedPageViews": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "sampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "list_render"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": ["rowCountBucket", "durationMs", "sampleRate"],
+                "properties": {
+                  "rowCountBucket": {
+                    "enum": ["<100", "100-1000", ">1000"]
+                  },
+                  "durationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "sampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "long_task_summary"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": [
+                  "longTaskCount",
+                  "longTaskDurationMs",
+                  "longTaskMaximumMs",
+                  "observedPageViews",
+                  "sampleRate"
+                ],
+                "properties": {
+                  "longTaskCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  "longTaskDurationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "longTaskMaximumMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 86400000
+                  },
+                  "observedPageViews": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "sampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "enum": [
+                  "feature_exposed",
+                  "feature_started",
+                  "feature_succeeded",
+                  "feature_failed",
+                  "feature_canceled",
+                  "feature_long_view_started",
+                  "feature_long_view_heartbeat",
+                  "feature_long_view_ended"
+                ]
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "featureKey": true
+            },
+            "required": ["featureKey"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "const": "feature_failed"
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "reasonCode": true
+            },
+            "required": ["reasonCode"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "enum": ["feature_started", "feature_canceled"]
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "operationInstanceId": true
+            },
+            "required": ["operationInstanceId"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "eventName": {
+                "enum": [
+                  "page_leave",
+                  "feature_long_view_heartbeat",
+                  "feature_long_view_ended"
+                ]
+              }
+            },
+            "required": ["eventName"]
+          },
+          "then": {
+            "properties": {
+              "properties": {
+                "type": "object",
+                "required": ["visibleDurationMs"],
+                "properties": {
+                  "visibleDurationMs": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 604800000
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

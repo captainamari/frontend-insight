@@ -10,6 +10,22 @@ const SENSITIVE_KEYS = new Set([
   "passwd",
   "secret",
   "clientsecret",
+  "useragent",
+  "ua",
+  "query",
+  "hash",
+  "referrer",
+  "domtext",
+  "selector",
+  "inputvalue",
+  "clipboard",
+  "console",
+  "header",
+  "headers",
+  "body",
+  "requestbody",
+  "responsebody",
+  "businessobjectid",
 ]);
 
 const BEARER_VALUE = /^\s*bearer\s+\S+/i;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createClient } from "@clickhouse/client";
 import type { FrontendInsightEventBatch } from "@frontend-insight/event-contract";
 import { contractScenarios } from "@frontend-insight/test-fixtures";
+import p1CollectorsFixture from "../../test-fixtures/fixtures/valid/p1-collectors.json" with { type: "json" };
 import mysql from "mysql2/promise";
 import type { RowDataPacket } from "mysql2/promise";
 import { m5Fixture } from "../scripts/m5-fixture.js";
@@ -47,8 +48,8 @@ function shiftBatch(
   batch.sentAt = new Date(sentAtMs).toISOString();
   batch.events = batch.events.map((event) => ({
     ...event,
-    eventTime: new Date(
-      sentAtMs + Date.parse(event.eventTime) - sourceSentAt,
+    occurredAt: new Date(
+      sentAtMs + Date.parse(event.occurredAt) - sourceSentAt,
     ).toISOString(),
   })) as FrontendInsightEventBatch["events"];
   return batch;
@@ -58,7 +59,6 @@ function uniqueOperationBatch(
   source: FrontendInsightEventBatch,
   index: number,
 ): FrontendInsightEventBatch {
-  if (source.schemaVersion !== 2) throw new Error("V2_FIXTURE_REQUIRED");
   const batch = structuredClone(source);
   const suffix = String(index).padStart(2, "0");
   batch.events = batch.events.map((event) => {
@@ -87,7 +87,6 @@ function uniqueObservabilityBatch(
   source: FrontendInsightEventBatch,
   index: number,
 ): FrontendInsightEventBatch {
-  if (source.schemaVersion !== 2) throw new Error("V2_FIXTURE_REQUIRED");
   const batch = structuredClone(source);
   const suffix = String(index).padStart(3, "0");
   batch.projectKey = m5Fixture.projectKey;
@@ -100,6 +99,22 @@ function uniqueObservabilityBatch(
     ...("accountRef" in event && event.accountRef
       ? { accountRef: `opaque-account-m8-${suffix}` }
       : {}),
+  })) as FrontendInsightEventBatch["events"];
+  return batch;
+}
+
+function uniqueP1Batch(index: number): FrontendInsightEventBatch {
+  const batch = structuredClone(
+    p1CollectorsFixture as unknown as FrontendInsightEventBatch,
+  );
+  const suffix = String(index).padStart(3, "0");
+  batch.projectKey = m5Fixture.projectKey;
+  batch.events = batch.events.map((event) => ({
+    ...event,
+    eventId: `${event.eventId}_${suffix}`,
+    visitorId: `vis_p1_integration_${suffix}`,
+    sessionId: `ses_p1_integration_${suffix}`,
+    pageViewId: `pv_p1_integration_${suffix}`,
   })) as FrontendInsightEventBatch["events"];
   return batch;
 }
@@ -175,7 +190,7 @@ async function main(): Promise<void> {
         return batch;
       });
     const operationSource = contractScenarios.find(
-      (scenario) => scenario.valid.schemaVersion === 2,
+      (scenario) => scenario.name === "operation_v2",
     )!.valid;
     const operationSamples = Array.from({ length: 4 }, (_, index) =>
       shiftBatch(
@@ -192,7 +207,15 @@ async function main(): Promise<void> {
         startedAt - 35_000 - index * 1_000,
       ),
     );
-    const batches = [...baseBatches, ...operationSamples, ...observabilitySamples];
+    const p1Samples = Array.from({ length: 20 }, (_, index) =>
+      shiftBatch(uniqueP1Batch(index + 1), startedAt - 60_000 - index * 1_000),
+    );
+    const batches = [
+      ...baseBatches,
+      ...operationSamples,
+      ...observabilitySamples,
+      ...p1Samples,
+    ];
     const logicalEvents = batches.flatMap((batch) => batch.events);
     const expectedVisitors = new Set(logicalEvents.map((event) => event.visitorId))
       .size;
@@ -475,6 +498,51 @@ async function main(): Promise<void> {
       "error detail must retain release/page impact and privacy boundaries",
     );
 
+    const pagePerformance = await jsonRequest(
+      `/api/projects/${projectId}/observability/page-performance?${query}`,
+      { headers: viewerHeaders },
+    );
+    assert(
+      pagePerformance.response.status === 200,
+      `P1 page performance failed: ${JSON.stringify(pagePerformance.body)}`,
+    );
+    const apiEvidence = pagePerformance.body.api as Record<string, unknown>;
+    const resourceEvidence = pagePerformance.body.resources as Record<string, unknown>;
+    const readinessEvidence = pagePerformance.body.readiness as Record<string, unknown>;
+    assert(
+      apiEvidence.status === "available" &&
+        Array.isArray(apiEvidence.items) &&
+        (apiEvidence.items[0] as Record<string, unknown>)?.denominator === 20,
+      "P1 API evidence must retain the request denominator and pass the P90 sample gate",
+    );
+    assert(
+      resourceEvidence.denominator === 240 && resourceEvidence.numerator === 20,
+      "P1 resource evidence must aggregate request and failure denominators",
+    );
+    assert(
+      readinessEvidence.status === "available" &&
+        Array.isArray(readinessEvidence.items),
+      "P1 explicit readiness must be queryable by template",
+    );
+
+    const publicCollectorConfig = await jsonRequest(
+      `/v1/collector-config/${m5Fixture.projectKey}`,
+      { headers: { origin } },
+    );
+    assert(
+      publicCollectorConfig.response.status === 200 &&
+        publicCollectorConfig.body.version === 1,
+      "registered origins must receive the active project collector version",
+    );
+    const blockedCollectorConfig = await jsonRequest(
+      `/v1/collector-config/${m5Fixture.projectKey}`,
+      { headers: { origin: "https://evil.example.test" } },
+    );
+    assert(
+      blockedCollectorConfig.response.status === 403,
+      "unregistered origins must not receive collector configuration",
+    );
+
     const detail = await jsonRequest(
       `/api/projects/${projectId}/analytics/features/${featureIds.operations_wallboard}?${query}`,
       { headers: adminHeaders },
@@ -561,6 +629,7 @@ async function main(): Promise<void> {
           operationalIndex.body.profile as Record<string, unknown>
         )?.version,
         observability: observabilitySummary,
+        p1ApiStatus: apiEvidence.status,
         runId: randomUUID(),
       }),
     );

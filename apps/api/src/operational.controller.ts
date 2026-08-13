@@ -85,6 +85,28 @@ const settingsSchema = z.object({
     .refine((value) => new Set(value).size === value.length, "weekdays must be unique"),
   effectiveFrom: z.string().datetime().optional(),
 });
+const collectorToggleSchema = z.object({
+  enabled: z.boolean(),
+  sampleRate: z.number().min(0).max(1),
+});
+const collectorSettingsSchema = z.object({
+  api: collectorToggleSchema.extend({
+    slowThresholdMs: z.number().int().min(1).max(60_000),
+    globalFetch: z.boolean().default(false),
+  }),
+  resources: collectorToggleSchema,
+  firstScreen: collectorToggleSchema,
+  listRender: collectorToggleSchema,
+  longTasks: collectorToggleSchema,
+  blankScreen: collectorToggleSchema,
+  breadcrumbs: collectorToggleSchema.extend({
+    allowedActionKeys: z
+      .array(z.string().regex(/^[a-z][a-z0-9_.:-]{0,63}$/))
+      .max(100)
+      .refine((items) => new Set(items).size === items.length),
+  }),
+  effectiveFrom: z.string().datetime().optional(),
+});
 
 const dimensionKey = z.enum([
   "usage_coverage",
@@ -372,6 +394,32 @@ export class OperationalController {
     await this.authorize(principal, projectId, true);
     return this.core.mysql.createOperationalSettingsVersion({
       ...parseInput(settingsSchema, body),
+      projectId,
+      actor: principal,
+    });
+  }
+
+  @Get("collector-settings")
+  async collectorSettings(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return {
+      active: await this.core.mysql.getCollectorSettings(projectId),
+      versions: await this.core.mysql.listCollectorSettings(projectId),
+    };
+  }
+
+  @Post("collector-settings/versions")
+  async createCollectorSettings(
+    @Param("projectId") projectId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    return this.core.mysql.createCollectorSettingsVersion({
+      ...parseInput(collectorSettingsSchema, body),
       projectId,
       actor: principal,
     });

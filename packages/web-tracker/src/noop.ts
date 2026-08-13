@@ -32,6 +32,11 @@ export function createNoopTracker(code: string, development = false): Tracker {
     captureApiError() {},
     captureResourceError() {},
     captureWebVital() {},
+    captureApiRequest() {},
+    captureResourceRequest() {},
+    markPageReady() {},
+    startListRender: () => () => {},
+    recordBreadcrumbAction() {},
     flush: async () => {},
     destroy() {
       diagnostics.state = "destroyed";

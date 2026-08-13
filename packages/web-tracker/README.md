@@ -3,11 +3,13 @@
 MVP npm ESM SDK。默认只采集规范化路由和显式事件；不会遍历或读取 Authorization、cookie、表单、DOM 文本、Local/Session Storage 登录内容。
 
 ```ts
-import { createTracker } from "@frontend-insight/web-tracker";
+import { createTrackerWithRemoteConfig } from "@frontend-insight/web-tracker";
 
-const tracker = createTracker({
+const tracker = await createTrackerWithRemoteConfig({
   projectKey: "fi_public_example01",
   endpoint: "https://tracker.internal/v1/events",
+  releaseVersion: "2026.08.1",
+  deploymentEnvironment: "production",
   registeredFeatures: ["sales_dashboard", "report_export"],
   // 仅放稳定、低基数且不含隐私的部署标签；会应用到 page_view 等自动事件。
   staticProperties: { deployment: "production" },
@@ -15,8 +17,6 @@ const tracker = createTracker({
   // M8 为显式 opt-in；发布版本必须由构建/部署过程注入，平台不会猜测。
   observability: {
     enabled: true,
-    releaseVersion: "2026.08.1",
-    deploymentEnvironment: "production",
     captureJsErrors: true,
     captureResourceErrors: true,
     captureApiErrors: false, // 全局 fetch 包装默认关闭，可使用显式方法接入现有请求层。
@@ -42,13 +42,15 @@ try {
 }
 
 // 已有请求封装可以显式上报失败，不传 header、query、body 或响应正文。
-tracker.captureApiError({
+tracker.captureApiRequest({
   method: "GET",
   url: request.url,
   statusCode: response.status,
   durationMs: performance.now() - startedAt,
 });
 ```
+
+`createTrackerWithRemoteConfig` 在启动 SDK 前读取项目的版本化采集配置。读取失败时基础 page/feature 事件继续工作，全部 P1 collector 失败关闭；新项目的七类 collector 也全部默认关闭。只有不接管理端配置的本地实验才应直接使用 `createTracker({ collectors: ... })`。
 
 `operation.cancel()` 表示用户明确取消；成功、失败、取消三个终态只能提交一次，重复调用只增加 `duplicateOperationTerminals` 诊断计数。业务侧不能传入 operation ID。
 
@@ -58,4 +60,4 @@ tracker.captureApiError({
 
 M8 只发送脱敏错误名/消息/首帧、归一化请求路径、状态码、资源类型、Web Vitals、发布版本和环境。URL query/hash、Bearer/JWT、cookie/password/token 赋值、邮箱与动态路径 ID 会在浏览器内删除或替换；不采集请求/响应正文、header、DOM、源码或 SourceMap。自动 API 采集会包装全局 `fetch`，因此默认关闭，建议先在宿主请求层调用 `captureApiError`。
 
-启用 observability 时，标准字段最多占 9 个 property key，因此 `staticProperties` 最多 11 个，且不能使用 release、error、request、vital、browser/OS/viewport 等保留键；冲突会让 tracker fail-closed 为 no-op，而不是覆盖正式证据。SDK v0.3.0 的 gzip 上限仍为 12 KiB。
+启用 observability 时，标准字段最多占 9 个 property key，因此 `staticProperties` 最多 11 个，且不能使用 release、error、request、vital、browser/OS/viewport 等保留键；冲突会让 tracker fail-closed 为 no-op，而不是覆盖正式证据。SDK v0.4.0 的 gzip 上限仍为 12 KiB。

@@ -36,14 +36,16 @@ const opaqueSegment =
 
 export function normalizeObservabilityConfig(
   input: ObservabilityConfig | undefined,
+  releaseVersion: string,
+  deploymentEnvironment: DeploymentEnvironment,
 ): NormalizedObservabilityConfig | null {
   if (!input?.enabled) return null;
-  if (!releasePattern.test(input.releaseVersion)) {
+  if (!releasePattern.test(releaseVersion)) {
     throw new Error("OBSERVABILITY_RELEASE_INVALID");
   }
   return {
-    releaseVersion: input.releaseVersion,
-    deploymentEnvironment: input.deploymentEnvironment ?? "production",
+    releaseVersion,
+    deploymentEnvironment,
     captureJsErrors: input.captureJsErrors ?? true,
     captureResourceErrors: input.captureResourceErrors ?? true,
     captureApiErrors: input.captureApiErrors ?? false,
@@ -303,8 +305,6 @@ export class BrowserObservability {
   private withRelease(properties: EventProperties): EventProperties {
     return {
       ...properties,
-      releaseVersion: this.config.releaseVersion,
-      deploymentEnvironment: this.config.deploymentEnvironment,
       browserFamily: browserFamily(this.runtime.window.navigator.userAgent),
       osFamily: osFamily(this.runtime.window.navigator.userAgent),
       viewportBucket: viewportBucket(this.runtime.window.innerWidth),

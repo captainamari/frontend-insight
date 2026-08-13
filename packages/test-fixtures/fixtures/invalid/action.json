@@ -1,19 +1,24 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "projectKey": "fi_public_m1demo001",
   "sentAt": "2026-07-19T18:00:10.000Z",
-  "sdk": { "name": "web-tracker", "version": "0.1.0" },
+  "sdk": {
+    "name": "web-tracker",
+    "version": "0.4.0"
+  },
   "events": [
     {
       "eventId": "evt_invalid_action_001",
       "eventName": "feature_failed",
-      "eventTime": "2026-07-19T18:00:04.500Z",
       "visitorId": "vis_action_001",
       "sessionId": "ses_action_001",
       "pageViewId": "pv_action_001",
       "route": "/reports/export",
       "featureKey": "report_export",
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T18:00:04.500Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     }
   ]
 }

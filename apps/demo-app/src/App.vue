@@ -98,6 +98,8 @@ function initializeTracker(): void {
   tracker = createTracker({
     projectKey,
     endpoint: `${window.location.origin}/v1/events`,
+    releaseVersion: "2026.08.1-demo",
+    deploymentEnvironment: "production",
     projectTimezone: "UTC",
     registeredFeatures: [
       "sales_dashboard",
@@ -114,12 +116,23 @@ function initializeTracker(): void {
     development: true,
     observability: {
       enabled: true,
-      releaseVersion: "2026.08.1-demo",
-      deploymentEnvironment: "production",
       captureJsErrors: true,
       captureResourceErrors: true,
       captureWebVitals: true,
       captureApiErrors: false,
+    },
+    collectors: {
+      api: { enabled: true, sampleRate: 1 },
+      resources: { enabled: true, sampleRate: 1 },
+      firstScreen: { enabled: true, sampleRate: 1 },
+      listRender: { enabled: true, sampleRate: 1 },
+      longTasks: { enabled: true, sampleRate: 1 },
+      blankScreen: { enabled: true, sampleRate: 1 },
+      breadcrumbs: {
+        enabled: true,
+        sampleRate: 1,
+        allowedActionKeys: ["demo_action"],
+      },
     },
     beforeSend: ({ event }) => {
       record(event);
@@ -186,7 +199,7 @@ function exposeScene(value: Scene): void {
 }
 
 async function captureObservability(
-  kind: "js" | "api" | "resource" | "vital",
+  kind: "js" | "api" | "resource" | "vital" | "readiness" | "list",
 ): Promise<void> {
   if (!tracker) return;
   if (kind === "js") {
@@ -198,7 +211,7 @@ async function captureObservability(
     tracker.captureException(error);
   }
   if (kind === "api") {
-    tracker.captureApiError({
+    tracker.captureApiRequest({
       method: "GET",
       url: "https://park.invalid/api/budgets/984321?token=secret",
       statusCode: 503,
@@ -210,9 +223,26 @@ async function captureObservability(
       resourceType: "script",
       url: "https://park.invalid/assets/energy-chunk.js?signature=secret",
     });
+    tracker.captureResourceRequest({
+      resourceType: "script",
+      url: "https://park.invalid/assets/energy-chunk.js?signature=secret",
+      succeeded: false,
+      durationMs: 420,
+    });
   }
   if (kind === "vital") {
     tracker.captureWebVital({ name: "LCP", value: 4_200, navigationType: "navigate" });
+  }
+  if (kind === "readiness") {
+    tracker.markPageReady({
+      templateKey: "analysis_view",
+      blankCandidate: false,
+    });
+  }
+  if (kind === "list") {
+    const finish = tracker.startListRender("demo-list", 1_200);
+    await new Promise((resolve) => window.setTimeout(resolve, 120));
+    finish();
   }
   await tracker.flush();
 }
@@ -564,6 +594,14 @@ onBeforeUnmount(() => {
             <button type="button" @click="captureObservability('vital')">
               <strong>模拟 LCP poor</strong>
               <small>web_vital · 4200 ms</small>
+            </button>
+            <button type="button" @click="captureObservability('readiness')">
+              <strong>标记首屏就绪</strong>
+              <small>page_readiness · analysis_view</small>
+            </button>
+            <button type="button" @click="captureObservability('list')">
+              <strong>模拟列表渲染</strong>
+              <small>list_render · &gt;1000 行桶</small>
             </button>
           </div>
           <div class="privacy-proof">

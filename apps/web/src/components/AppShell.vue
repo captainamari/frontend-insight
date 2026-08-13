@@ -31,7 +31,7 @@ function isActive(name: string): boolean {
     return current.startsWith("business-") || current === "feature-detail";
   if (name === "page-usage") return current.startsWith("page-");
   if (name === "metrics") return current.startsWith("metric");
-  return current === "settings";
+  return current === "settings" || current === "collector-settings";
 }
 
 function navigate(name: string): void {

@@ -1,4 +1,4 @@
-import type { FrontendInsightEventBatchV2 } from "@frontend-insight/event-contract";
+import type { FrontendInsightEventBatchV3 } from "@frontend-insight/event-contract";
 import {
   CONTRACT_LIMITS,
   CURRENT_SCHEMA_VERSION,
@@ -8,6 +8,7 @@ import {
   BrowserObservability,
   type NormalizedObservabilityConfig,
 } from "./observability.js";
+import { P1Collectors, type NormalizedP1CollectorConfig } from "./collectors.js";
 import {
   applyRestrictedBeforeSend,
   isSafeAccountReference,
@@ -17,6 +18,9 @@ import {
 } from "./privacy.js";
 import type {
   EventProperties,
+  ApiRequestDetails,
+  PageReadinessDetails,
+  ResourceRequestDetails,
   ApiErrorDetails,
   InteractionType,
   OperationHandle,
@@ -32,7 +36,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.3.0";
+const SDK_VERSION = "0.4.0";
 const visitorStorageKey = "frontend-insight.visitor-id.v1";
 
 function id(
@@ -67,6 +71,7 @@ export class BrowserTracker implements Tracker {
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
   private readonly observability: BrowserObservability | null;
+  private readonly collectors: P1Collectors;
   private readonly originalPushState: History["pushState"];
   private readonly originalReplaceState: History["replaceState"];
   private visitorId: string;
@@ -76,6 +81,8 @@ export class BrowserTracker implements Tracker {
   private route: string;
   private lastActivityAt: number;
   private visibleStartedAt: number | null;
+  private visibleDurationMs = 0;
+  private pageFinalized = false;
   private flushTimer: ReturnType<typeof setInterval>;
   private destroyed = false;
   private flushing = false;
@@ -86,6 +93,8 @@ export class BrowserTracker implements Tracker {
         TrackerConfig,
         | "projectKey"
         | "endpoint"
+        | "releaseVersion"
+        | "deploymentEnvironment"
         | "flushIntervalMs"
         | "maximumQueueSize"
         | "sessionTimeoutMs"
@@ -98,6 +107,7 @@ export class BrowserTracker implements Tracker {
       normalizeRoute: TrackerConfig["normalizeRoute"] | undefined;
       beforeSend: TrackerConfig["beforeSend"] | undefined;
       observability: NormalizedObservabilityConfig | null;
+      collectors: NormalizedP1CollectorConfig;
     },
     runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
@@ -116,16 +126,40 @@ export class BrowserTracker implements Tracker {
     this.originalReplaceState = runtime.window.history.replaceState.bind(
       runtime.window.history,
     );
+    this.collectors = new P1Collectors(
+      runtime,
+      config.collectors,
+      config.endpoint,
+      (eventName, properties, extra) => this.emit(eventName, properties, extra),
+      (rate) => this.isPageSampled(rate),
+    );
+    this.collectors.pageStarted(this.route);
     this.observability = config.observability
       ? new BrowserObservability(
           runtime,
           config.observability,
           config.endpoint,
-          (eventName, properties) => this.emit(eventName, properties),
+          (eventName, properties) => {
+            if (eventName === "error_resource") {
+              const resourceType = String(properties.resourceType ?? "other");
+              this.collectors.captureResourceFailure(
+                ["script", "stylesheet", "image", "font", "media"].includes(
+                  resourceType,
+                )
+                  ? (resourceType as ResourceRequestDetails["resourceType"])
+                  : "other",
+              );
+            }
+            const breadcrumbs = eventName.startsWith("error_")
+              ? this.collectors.errorBreadcrumbs()
+              : undefined;
+            this.emit(eventName, properties, breadcrumbs ? { breadcrumbs } : {});
+          },
         )
       : null;
     this.emit("page_view", {}, { title: runtime.document.title.slice(0, 256) });
     this.observability?.start();
+    this.collectors.start();
     this.installLifecycle();
     this.flushTimer = runtime.setInterval(
       () => void this.flush("normal"),
@@ -183,10 +217,13 @@ export class BrowserTracker implements Tracker {
       const now = this.runtime.now();
       if (route === this.route) return;
       this.stopLongViews();
-      this.settleVisiblePage();
+      this.finalizePage();
       this.route = route;
       this.pageViewId = id(this.runtime, "pv");
+      this.visibleDurationMs = 0;
+      this.pageFinalized = false;
       this.visibleStartedAt = this.isVisible() ? now : null;
+      this.collectors.pageStarted(route);
       this.emit("page_view", {}, { title: this.runtime.document.title.slice(0, 256) });
     });
   };
@@ -194,9 +231,9 @@ export class BrowserTracker implements Tracker {
   private readonly handleVisibilityChange = (): void => {
     this.safe(() => {
       if (this.isVisible()) {
-        this.visibleStartedAt = this.runtime.now();
+        if (!this.pageFinalized) this.visibleStartedAt = this.runtime.now();
       } else {
-        this.settleVisiblePage();
+        this.pauseVisiblePage();
         void this.flush("lifecycle");
       }
     });
@@ -205,7 +242,7 @@ export class BrowserTracker implements Tracker {
   private readonly handlePageHide = (): void => {
     this.safe(() => {
       this.stopLongViews();
-      this.settleVisiblePage();
+      this.finalizePage();
       void this.flush("lifecycle");
     });
   };
@@ -223,11 +260,18 @@ export class BrowserTracker implements Tracker {
     return route;
   }
 
-  private settleVisiblePage(): void {
+  private pauseVisiblePage(): void {
     if (this.visibleStartedAt === null) return;
-    const visibleDurationMs = Math.max(0, this.runtime.now() - this.visibleStartedAt);
+    this.visibleDurationMs += Math.max(0, this.runtime.now() - this.visibleStartedAt);
     this.visibleStartedAt = null;
-    this.emit("page_leave", { visibleDurationMs });
+  }
+
+  private finalizePage(): void {
+    if (this.pageFinalized) return;
+    this.pauseVisiblePage();
+    this.collectors.settlePage();
+    this.emit("page_leave", { visibleDurationMs: this.visibleDurationMs });
+    this.pageFinalized = true;
   }
 
   private refreshSession(): void {
@@ -253,7 +297,9 @@ export class BrowserTracker implements Tracker {
     const event: TrackerEvent = {
       eventId: id(this.runtime, "evt"),
       eventName,
-      eventTime: new Date(this.runtime.now()).toISOString(),
+      occurredAt: new Date(this.runtime.now()).toISOString(),
+      deploymentEnvironment: this.config.deploymentEnvironment,
+      releaseVersion: this.config.releaseVersion,
       visitorId: this.visitorId,
       sessionId: this.sessionId,
       pageViewId: this.pageViewId,
@@ -481,6 +527,31 @@ export class BrowserTracker implements Tracker {
     this.safe(() => this.observability?.captureApiError(details));
   }
 
+  captureApiRequest(details: ApiRequestDetails): void {
+    this.safe(() => this.collectors.captureApiRequest(details));
+  }
+
+  captureResourceRequest(details: ResourceRequestDetails): void {
+    this.safe(() => this.collectors.captureResourceRequest(details));
+  }
+
+  markPageReady(details: PageReadinessDetails): void {
+    this.safe(() => this.collectors.markPageReady(details));
+  }
+
+  startListRender(listKey: string, rowCount: number): () => void {
+    try {
+      return this.collectors.startListRender(listKey, rowCount);
+    } catch {
+      this.drop("LIST_RENDER_COLLECTOR_FAILED");
+      return () => {};
+    }
+  }
+
+  recordBreadcrumbAction(actionKey: string): void {
+    this.safe(() => this.collectors.recordBreadcrumbAction(actionKey));
+  }
+
   captureResourceError(details: ResourceErrorDetails): void {
     this.safe(() => this.observability?.captureResourceError(details));
   }
@@ -507,13 +578,13 @@ export class BrowserTracker implements Tracker {
     return { batch: this.makeBatch(events), attempts: 0 };
   }
 
-  private makeBatch(events: TrackerEvent[]): FrontendInsightEventBatchV2 {
+  private makeBatch(events: TrackerEvent[]): FrontendInsightEventBatchV3 {
     return {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       projectKey: this.config.projectKey,
       sentAt: new Date(this.runtime.now()).toISOString(),
       sdk: { name: SDK_NAME, version: SDK_VERSION },
-      events: events as unknown as FrontendInsightEventBatchV2["events"],
+      events: events as unknown as FrontendInsightEventBatchV3["events"],
     };
   }
 
@@ -574,9 +645,10 @@ export class BrowserTracker implements Tracker {
   destroy(): void {
     if (this.destroyed) return;
     this.observability?.stop();
+    this.collectors.stop();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
-    this.settleVisiblePage();
+    this.finalizePage();
     void this.flush("lifecycle");
     this.uninstallLifecycle();
     this.destroyed = true;
@@ -593,6 +665,14 @@ export class BrowserTracker implements Tracker {
       queueSize: this.queue.length,
       warnings: [...this.diagnostics.warnings],
     });
+  }
+
+  private isPageSampled(rate: number): boolean {
+    if (rate >= 1) return true;
+    if (rate <= 0) return false;
+    const suffix = this.pageViewId.replace(/[^a-f0-9]/gi, "").slice(-8);
+    const bucket = Number.parseInt(suffix || "0", 16) / 0xffffffff;
+    return bucket < rate;
   }
 
   private safe(operation: () => void): void {

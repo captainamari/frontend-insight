@@ -4,9 +4,11 @@ import {
   validateForIngestion,
   validateForProducer,
   validateTransportBatch,
-  type FrontendInsightEventBatchV1,
+  type FrontendInsightEventBatchV3,
 } from "@frontend-insight/event-contract";
 import { describe, expect, it } from "vitest";
+import invalidP1Privacy from "../fixtures/invalid/p1-privacy.json" with { type: "json" };
+import validP1Collectors from "../fixtures/valid/p1-collectors.json" with { type: "json" };
 import { contractScenarios } from "../src/index.js";
 
 const boundaries = [validateForProducer, validateForIngestion, validateForConsumer];
@@ -59,7 +61,15 @@ describe("contract limits and rejection codes", () => {
     });
   });
 
-  it("accepts v1, v2 operations and constrained observability events", () => {
+  it.each([1, 2])("rejects retired schema v%s", (schemaVersion) => {
+    const batch = { ...structuredClone(source), schemaVersion };
+    expect(validateTransportBatch(batch)).toMatchObject({
+      ok: false,
+      errors: [{ code: REJECTION_CODES.schemaVersionUnsupported }],
+    });
+  });
+
+  it("accepts v3 operations and constrained observability events", () => {
     expect(validateTransportBatch(contractScenarios[0]!.valid).ok).toBe(true);
     expect(validateTransportBatch(contractScenarios.at(-1)!.valid).ok).toBe(true);
     const operation = contractScenarios.find((item) => item.name === "operation_v2")!;
@@ -68,6 +78,18 @@ describe("contract limits and rejection codes", () => {
     expect(validateTransportBatch(invalid)).toMatchObject({
       ok: false,
       errors: [{ code: REJECTION_CODES.operationInstanceInvalid }],
+    });
+  });
+
+  it("accepts every P1 event family and rejects forbidden breadcrumb detail", () => {
+    expect(
+      validateTransportBatch(validP1Collectors, {
+        nowMs: Date.parse(validP1Collectors.sentAt),
+      }).ok,
+    ).toBe(true);
+    expect(validateTransportBatch(invalidP1Privacy)).toMatchObject({
+      ok: false,
+      errors: [{ code: REJECTION_CODES.credentialDataRejected }],
     });
   });
 
@@ -114,7 +136,7 @@ describe("contract limits and rejection codes", () => {
       errors: [{ code: REJECTION_CODES.duplicateEventId }],
     });
 
-    const tooMany = structuredClone(source) as FrontendInsightEventBatchV1;
+    const tooMany = structuredClone(source) as FrontendInsightEventBatchV3;
     tooMany.events = Array.from({ length: 51 }, (_, index) => ({
       ...structuredClone(source.events[0]!),
       eventId: `evt_batch_limit_${String(index).padStart(3, "0")}`,
@@ -133,7 +155,7 @@ describe("contract limits and rejection codes", () => {
       errors: [{ code: REJECTION_CODES.eventTooLarge }],
     });
 
-    const oversizedBatch = structuredClone(source) as FrontendInsightEventBatchV1;
+    const oversizedBatch = structuredClone(source) as FrontendInsightEventBatchV3;
     const denseProperties = Object.fromEntries(
       Array.from({ length: 20 }, (_, index) => [`property_${index}`, "x".repeat(256)]),
     );

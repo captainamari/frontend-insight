@@ -1,8 +1,7 @@
 import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
 import * as addFormatsModule from "ajv-formats";
 import type { FormatsPlugin } from "ajv-formats";
-import schemaV1 from "../schema/event-batch.schema.json" with { type: "json" };
-import schemaV2 from "../schema/event-batch-v2.schema.json" with { type: "json" };
+import schemaV3 from "../schema/event-batch-v3.schema.json" with { type: "json" };
 import {
   CONTRACT_LIMITS,
   REJECTION_CODES,
@@ -10,12 +9,10 @@ import {
   SUPPORTED_SCHEMA_VERSIONS,
   type RejectionCode,
 } from "./constants.js";
-import type { FrontendInsightEventBatchV1 } from "./generated/event-batch.js";
-import type { FrontendInsightEventBatchV2 } from "./generated/event-batch-v2.js";
+import type { FrontendInsightEventBatchV3 } from "./generated/event-batch-v3.js";
 import { findCredentialLeak } from "./security.js";
 
-export type FrontendInsightEventBatch =
-  FrontendInsightEventBatchV1 | FrontendInsightEventBatchV2;
+export type FrontendInsightEventBatch = FrontendInsightEventBatchV3;
 
 export interface ContractValidationError {
   code: RejectionCode;
@@ -39,13 +36,49 @@ const ajv = new Ajv2020({
 });
 const addFormats = addFormatsModule.default as unknown as FormatsPlugin;
 addFormats(ajv);
-const validateSchemaV1 = ajv.compile<FrontendInsightEventBatchV1>(schemaV1);
-const validateSchemaV2 = ajv.compile<FrontendInsightEventBatchV2>(schemaV2);
+const validateSchemaV3 = ajv.compile<FrontendInsightEventBatchV3>(schemaV3);
 
 const standardEventNames = new Set<string>(STANDARD_EVENT_NAMES);
 const customEventName = /^(?!page_|feature_)[a-z][a-z0-9_]{0,63}$/;
 const operationInstanceId = /^op_[A-Za-z0-9_-]{16,64}$/;
 const operationRequiredEvents = new Set(["feature_started", "feature_canceled"]);
+const p1RequiredProperties: Record<string, readonly string[]> = {
+  page_readiness: [
+    "templateKey",
+    "readinessDurationMs",
+    "readinessState",
+    "firstScreenCollected",
+    "blankDetectionCollected",
+    "sampleRate",
+  ],
+  api_request_summary: [
+    "requestMethod",
+    "requestPath",
+    "statusCode",
+    "durationMs",
+    "requestCount",
+    "errorCount",
+    "successCount",
+    "slowCount",
+    "slowThresholdMs",
+    "sampleRate",
+  ],
+  resource_summary: [
+    "totalCount",
+    "failedCount",
+    "totalDurationMs",
+    "observedPageViews",
+    "sampleRate",
+  ],
+  list_render: ["rowCountBucket", "durationMs", "sampleRate"],
+  long_task_summary: [
+    "longTaskCount",
+    "longTaskDurationMs",
+    "longTaskMaximumMs",
+    "observedPageViews",
+    "sampleRate",
+  ],
+};
 
 function error(
   code: RejectionCode,
@@ -163,7 +196,7 @@ export function validateTransportBatch(
         );
       }
       if (
-        input.schemaVersion === 2 &&
+        input.schemaVersion === 3 &&
         isRecord(event) &&
         typeof event.eventName === "string" &&
         operationRequiredEvents.has(event.eventName) &&
@@ -175,13 +208,39 @@ export function validateTransportBatch(
           "operation lifecycle event requires operationInstanceId",
         );
       }
+      if (isRecord(event) && typeof event.eventName === "string") {
+        const requiredProperties = p1RequiredProperties[event.eventName];
+        if (requiredProperties) {
+          if (!isRecord(event.properties)) {
+            return error(
+              REJECTION_CODES.schemaInvalid,
+              `${path}/properties`,
+              "P1 summary properties must be an object",
+            );
+          }
+          const properties = event.properties;
+          const missing = requiredProperties.find((key) => !(key in properties));
+          if (missing) {
+            return error(
+              REJECTION_CODES.schemaInvalid,
+              `${path}/properties/${missing}`,
+              "required P1 summary property is missing",
+            );
+          }
+        }
+        if ("breadcrumbs" in event && !event.eventName.startsWith("error_")) {
+          return error(
+            REJECTION_CODES.schemaInvalid,
+            `${path}/breadcrumbs`,
+            "breadcrumbs are only allowed on error events",
+          );
+        }
+      }
     }
   }
 
-  const validateSchema =
-    input.schemaVersion === 1 ? validateSchemaV1 : validateSchemaV2;
-  if (!validateSchema(input)) {
-    return { ok: false, errors: schemaErrors(validateSchema.errors) };
+  if (!validateSchemaV3(input)) {
+    return { ok: false, errors: schemaErrors(validateSchemaV3.errors) };
   }
 
   const batch = input as unknown as FrontendInsightEventBatch;
@@ -203,12 +262,12 @@ export function validateTransportBatch(
     eventIds.add(event.eventId);
 
     if (options.nowMs !== undefined) {
-      const eventTimeMs = Date.parse(event.eventTime);
-      if (Math.abs(eventTimeMs - options.nowMs) > maximumClockSkewMs) {
+      const occurredAtMs = Date.parse(event.occurredAt);
+      if (Math.abs(occurredAtMs - options.nowMs) > maximumClockSkewMs) {
         return error(
           REJECTION_CODES.eventTimeOutOfRange,
-          `${path}/eventTime`,
-          "eventTime is outside the accepted clock-skew window",
+          `${path}/occurredAt`,
+          "occurredAt is outside the accepted clock-skew window",
         );
       }
     }

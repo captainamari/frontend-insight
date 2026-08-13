@@ -68,6 +68,16 @@ export class ObservabilityController {
     return this.core.observability.webVitals(projectId, this.range(query));
   }
 
+  @Get("page-performance")
+  async pagePerformance(
+    @Param("projectId") projectId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId);
+    return this.core.observability.pagePerformance(projectId, this.range(query));
+  }
+
   @Get("releases")
   async releases(
     @Param("projectId") projectId: string,

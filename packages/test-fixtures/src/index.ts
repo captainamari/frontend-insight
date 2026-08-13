@@ -1,7 +1,6 @@
 import type {
   FrontendInsightEventBatch,
-  FrontendInsightEventBatchV1,
-  FrontendInsightEventBatchV2,
+  FrontendInsightEventBatchV3,
 } from "@frontend-insight/event-contract";
 import actionGoldenJson from "../fixtures/golden/action.expected.json" with { type: "json" };
 import dataViewGoldenJson from "../fixtures/golden/data-view.expected.json" with { type: "json" };
@@ -37,32 +36,32 @@ export interface ContractScenario {
 export const contractScenarios: ContractScenario[] = [
   {
     name: "data_view",
-    valid: validDataViewJson as unknown as FrontendInsightEventBatchV1,
+    valid: validDataViewJson as unknown as FrontendInsightEventBatchV3,
     invalid: invalidDataViewJson,
     golden: dataViewGoldenJson as GoldenExpectation,
   },
   {
     name: "action",
-    valid: validActionJson as unknown as FrontendInsightEventBatchV1,
+    valid: validActionJson as unknown as FrontendInsightEventBatchV3,
     invalid: invalidActionJson,
     golden: actionGoldenJson as GoldenExpectation,
   },
   {
     name: "long_view",
-    valid: validLongViewJson as unknown as FrontendInsightEventBatchV1,
+    valid: validLongViewJson as unknown as FrontendInsightEventBatchV3,
     invalid: invalidLongViewJson,
     golden: longViewGoldenJson as GoldenExpectation,
   },
   {
     name: "operation_v2",
-    valid: validOperationV2Json as unknown as FrontendInsightEventBatchV2,
+    valid: validOperationV2Json as unknown as FrontendInsightEventBatchV3,
     invalid: invalidOperationV2Json,
     golden: operationV2GoldenJson as GoldenExpectation,
     invalidRejectionCode: "OPERATION_INSTANCE_INVALID",
   },
   {
     name: "observability_v1",
-    valid: validObservabilityV1Json as unknown as FrontendInsightEventBatchV2,
+    valid: validObservabilityV1Json as unknown as FrontendInsightEventBatchV3,
     invalid: invalidObservabilityV1Json,
     golden: observabilityV1GoldenJson as GoldenExpectation,
     invalidRejectionCode: "CREDENTIAL_DATA_REJECTED",

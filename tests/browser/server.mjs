@@ -30,13 +30,13 @@ const page = `<!doctype html>
       window.__tracker = createTracker({
         projectKey: "fi_public_browsercontract01",
         endpoint: "http://127.0.0.1:4318/v1/events",
+        releaseVersion: "browser-contract-1",
+        deploymentEnvironment: "development",
         registeredFeatures: ["sales_dashboard", "report_export", "operations_wallboard"],
         normalizeRoute: (url) => url.pathname.replace(/\\/orders\\/[^/]+/, "/orders/:id"),
         flushIntervalMs: 60000,
         observability: {
           enabled: true,
-          releaseVersion: "browser-contract-1",
-          deploymentEnvironment: "test",
           captureJsErrors: false,
           captureResourceErrors: false,
           captureApiErrors: false,

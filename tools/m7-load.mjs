@@ -71,7 +71,9 @@ function event(sequence, profileName) {
   return {
     eventId: `evt_m7_${suffix}`,
     eventName: "page_view",
-    eventTime: new Date().toISOString(),
+    occurredAt: new Date().toISOString(),
+    deploymentEnvironment: "production",
+    releaseVersion: "m7-load-v3",
     visitorId: `vis_m7_${suffix}`,
     sessionId: `ses_m7_${runId}_${String(sequence % 200).padStart(4, "0")}`,
     pageViewId: `pv_m7_${suffix}`,
@@ -88,7 +90,7 @@ async function sendBatch(events) {
     method: "POST",
     headers: { "content-type": "application/json", origin },
     body: JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       projectKey,
       sentAt: new Date().toISOString(),
       sdk: { name: "m7-load-probe", version: "1.0.0" },

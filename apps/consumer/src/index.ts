@@ -268,7 +268,7 @@ export class EventConsumerRuntime {
         sdk_version: envelope.batch.sdk.version,
         project_id: envelope.projectId,
         event_name: event.eventName,
-        event_time: clickHouseTimestamp(event.eventTime),
+        event_time: clickHouseTimestamp(event.occurredAt),
         received_at: clickHouseTimestamp(envelope.receivedAt),
         visitor_id: event.visitorId,
         session_id: event.sessionId,
@@ -283,8 +283,8 @@ export class EventConsumerRuntime {
           "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
         interaction_type:
           "interactionType" in event ? (event.interactionType ?? null) : null,
-        release_version: propertyString(properties, "releaseVersion"),
-        deployment_environment: propertyString(properties, "deploymentEnvironment"),
+        release_version: event.releaseVersion,
+        deployment_environment: event.deploymentEnvironment,
         browser_family: propertyString(properties, "browserFamily"),
         os_family: propertyString(properties, "osFamily"),
         viewport_bucket: propertyString(properties, "viewportBucket"),
@@ -303,8 +303,40 @@ export class EventConsumerRuntime {
         vital_value: propertyNumber(properties, "vitalValue"),
         vital_rating: propertyString(properties, "vitalRating"),
         navigation_type: propertyString(properties, "navigationType"),
+        collector_sample_rate: propertyNumber(properties, "sampleRate"),
+        request_count: propertyNumber(properties, "requestCount"),
+        request_success_count: propertyNumber(properties, "successCount"),
+        request_error_count: propertyNumber(properties, "errorCount"),
+        request_slow_count: propertyNumber(properties, "slowCount"),
+        slow_threshold_ms: propertyNumber(properties, "slowThresholdMs"),
+        resource_total_count: propertyNumber(properties, "totalCount"),
+        resource_failed_count: propertyNumber(properties, "failedCount"),
+        resource_total_duration_ms: propertyNumber(properties, "totalDurationMs"),
+        readiness_template: propertyString(properties, "templateKey"),
+        readiness_state: propertyString(properties, "readinessState"),
+        first_screen_collected:
+          typeof properties.firstScreenCollected === "boolean"
+            ? properties.firstScreenCollected
+            : null,
+        blank_detection_collected:
+          typeof properties.blankDetectionCollected === "boolean"
+            ? properties.blankDetectionCollected
+            : null,
+        row_count_bucket: propertyString(properties, "rowCountBucket"),
+        long_task_count: propertyNumber(properties, "longTaskCount"),
+        long_task_duration_ms: propertyNumber(properties, "longTaskDurationMs"),
+        long_task_maximum_ms: propertyNumber(properties, "longTaskMaximumMs"),
+        observed_page_views: propertyNumber(properties, "observedPageViews"),
+        breadcrumbs_json:
+          "breadcrumbs" in event && Array.isArray(event.breadcrumbs)
+            ? JSON.stringify(event.breadcrumbs)
+            : null,
         duration_ms:
-          typeof properties.durationMs === "number" ? properties.durationMs : null,
+          typeof properties.durationMs === "number"
+            ? properties.durationMs
+            : typeof properties.readinessDurationMs === "number"
+              ? properties.readinessDurationMs
+              : null,
         route: event.route,
         title: event.title ?? null,
         visible_duration_ms:

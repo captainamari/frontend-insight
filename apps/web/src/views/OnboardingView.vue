@@ -68,11 +68,13 @@ const canCreate = computed(() => auth.state.user?.globalRole === "admin");
 const snippet = computed(() => {
   const integration = resource.data.value?.onboarding.integration;
   if (!integration) return "";
-  return `import { createTracker } from "${integration.package}";
+  return `import { createTrackerWithRemoteConfig } from "${integration.package}";
 
-const tracker = createTracker({
+const tracker = await createTrackerWithRemoteConfig({
   projectKey: "${integration.projectKey}",
   endpoint: "${appOrigin}/v1/events",
+  releaseVersion: "replace-from-your-build",
+  deploymentEnvironment: "production",
   projectTimezone: "${context.project.value?.timezone ?? "UTC"}",
 });
 
@@ -227,15 +229,17 @@ async function sendTestEvent(): Promise<void> {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 3,
         projectKey,
         sentAt: now,
-        sdk: { name: "onboarding-test", version: "0.1.0" },
+        sdk: { name: "onboarding-test", version: "0.4.0" },
         events: [
           {
             eventId: id("evt"),
             eventName: "page_view",
-            eventTime: now,
+            occurredAt: now,
+            deploymentEnvironment: "production",
+            releaseVersion: "onboarding-test",
             visitorId: id("vis"),
             sessionId: id("ses"),
             pageViewId: id("pv"),
@@ -287,6 +291,17 @@ watch(
       title="设置"
       description="管理项目资料、资产、Origin、SDK、成员权限、隐私、保留和审计。"
     >
+      <el-button
+        @click="
+          router.push({
+            name: 'collector-settings',
+            params: { projectId: context.projectId.value },
+            query: route.query,
+          })
+        "
+      >
+        采集开关
+      </el-button>
       <el-button v-if="canCreate" type="primary" @click="createOpen = true">
         创建项目
       </el-button>

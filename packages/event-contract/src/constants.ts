@@ -1,6 +1,6 @@
-export const CURRENT_SCHEMA_VERSION = 2 as const;
-export const MIN_SUPPORTED_SCHEMA_VERSION = 1 as const;
-export const SUPPORTED_SCHEMA_VERSIONS = [1, CURRENT_SCHEMA_VERSION] as const;
+export const CURRENT_SCHEMA_VERSION = 3 as const;
+export const MIN_SUPPORTED_SCHEMA_VERSION = CURRENT_SCHEMA_VERSION;
+export const SUPPORTED_SCHEMA_VERSIONS = [CURRENT_SCHEMA_VERSION] as const;
 
 export const CONTRACT_LIMITS = Object.freeze({
   maximumBatchBytes: 64 * 1024,
@@ -24,6 +24,11 @@ export const STANDARD_EVENT_NAMES = [
   "error_resource",
   "error_api",
   "web_vital",
+  "page_readiness",
+  "api_request_summary",
+  "resource_summary",
+  "list_render",
+  "long_task_summary",
 ] as const;
 
 export const OBSERVABILITY_EVENT_NAMES = [

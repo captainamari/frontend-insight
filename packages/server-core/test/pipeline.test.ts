@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import type {
   FrontendInsightEventBatch,
-  FrontendInsightEventBatchV1,
+  FrontendInsightEventBatchV3,
 } from "@frontend-insight/event-contract";
 import { contractScenarios } from "@frontend-insight/test-fixtures";
 import { describe, expect, it, vi } from "vitest";
@@ -44,15 +44,15 @@ const project: ProjectIngestionConfig = {
   ],
 };
 
-function fixture(): FrontendInsightEventBatchV1 {
+function fixture(): FrontendInsightEventBatchV3 {
   return structuredClone(
-    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 1)!.valid,
-  ) as FrontendInsightEventBatchV1;
+    contractScenarios.find((scenario) => scenario.name === "data_view")!.valid,
+  ) as FrontendInsightEventBatchV3;
 }
 
 function operationFixture(): FrontendInsightEventBatch {
   return structuredClone(
-    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 2)!.valid,
+    contractScenarios.find((scenario) => scenario.name === "operation_v2")!.valid,
   );
 }
 
@@ -130,7 +130,7 @@ describe("ingestion pipeline", () => {
     });
   });
 
-  it("accepts v2 operation events and preserves instance identity", async () => {
+  it("accepts v3 operation events and preserves instance identity", async () => {
     const operationProject: ProjectIngestionConfig = {
       ...project,
       features: [
@@ -145,7 +145,7 @@ describe("ingestion pipeline", () => {
     const { manager, publish } = setup({ projectOverride: operationProject });
     await manager.accept(operationFixture(), context);
     const envelope = publish.mock.calls[0]![0];
-    expect(envelope.batch.schemaVersion).toBe(2);
+    expect(envelope.batch.schemaVersion).toBe(3);
     expect(
       envelope.batch.events.filter((event) => "operationInstanceId" in event),
     ).toHaveLength(4);

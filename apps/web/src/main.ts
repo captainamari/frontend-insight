@@ -9,6 +9,7 @@ import "element-plus/es/components/pagination/style/css";
 import "element-plus/es/components/select/style/css";
 import "element-plus/es/components/skeleton/style/css";
 import "element-plus/es/components/table/style/css";
+import "element-plus/es/components/switch/style/css";
 import "element-plus/es/components/tag/style/css";
 import "element-plus/es/components/tooltip/style/css";
 import "./styles.css";
@@ -27,6 +28,7 @@ import {
   ElSkeleton,
   ElTable,
   ElTableColumn,
+  ElSwitch,
   ElTag,
   ElTooltip,
 } from "element-plus";
@@ -50,6 +52,7 @@ for (const component of [
   ElSkeleton,
   ElTable,
   ElTableColumn,
+  ElSwitch,
   ElTag,
   ElTooltip,
 ]) {

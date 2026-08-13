@@ -47,7 +47,7 @@ async function enqueue(expectedStatus = 202) {
     method: "POST",
     headers: { "content-type": "application/json", origin },
     body: JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 3,
       projectKey,
       sentAt: now.toISOString(),
       sdk: { name: "m7-resilience-probe", version: "1.0.0" },
@@ -55,7 +55,9 @@ async function enqueue(expectedStatus = 202) {
         {
           eventId: `evt_m7_fault_${marker}`,
           eventName: "page_view",
-          eventTime: now.toISOString(),
+          occurredAt: now.toISOString(),
+          deploymentEnvironment: "production",
+          releaseVersion: "m7-resilience-v3",
           visitorId: `vis_m7_fault_${marker}`,
           sessionId: `ses_m7_fault_${marker}`,
           pageViewId: `pv_m7_fault_${marker}`,

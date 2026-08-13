@@ -79,6 +79,31 @@ export interface ProjectOperationalSettings {
   effectiveTo: string | null;
 }
 
+export interface ProjectCollectorSettings {
+  id: string;
+  projectId: string;
+  version: number;
+  api: {
+    enabled: boolean;
+    sampleRate: number;
+    slowThresholdMs: number;
+    globalFetch: boolean;
+  };
+  resources: { enabled: boolean; sampleRate: number };
+  firstScreen: { enabled: boolean; sampleRate: number };
+  listRender: { enabled: boolean; sampleRate: number };
+  longTasks: { enabled: boolean; sampleRate: number };
+  blankScreen: { enabled: boolean; sampleRate: number };
+  breadcrumbs: {
+    enabled: boolean;
+    sampleRate: number;
+    allowedActionKeys: string[];
+  };
+  status: "active" | "superseded";
+  effectiveFrom: string;
+  effectiveTo: string | null;
+}
+
 export type MetricDimensionKey =
   "usage_coverage" | "continuity_depth" | "task_completion" | "usage_efficiency";
 

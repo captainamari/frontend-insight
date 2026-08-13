@@ -22,6 +22,9 @@ function controller(role: "owner" | "viewer" | null) {
     getProjectRole: vi.fn(async () => role),
     listModules: vi.fn(async () => []),
     createModule: vi.fn(async (input) => input),
+    getCollectorSettings: vi.fn(async () => null),
+    listCollectorSettings: vi.fn(async () => []),
+    createCollectorSettingsVersion: vi.fn(async (input) => input),
     retireMetricProfile: vi.fn(async () => undefined),
   };
   const core = { mysql } as unknown as CoreService;
@@ -86,6 +89,63 @@ describe("M6 operational authorization", () => {
     expect(mysql.retireMetricProfile).toHaveBeenCalledWith({
       projectId: "project-1",
       profileId: "profile-1",
+      actor: admin,
+    });
+  });
+
+  it("lets viewers inspect collector versions but not publish them", async () => {
+    const { controller: target, mysql } = controller("viewer");
+    await expect(target.collectorSettings("project-1", viewer)).resolves.toEqual({
+      active: null,
+      versions: [],
+    });
+    await expect(
+      target.createCollectorSettings(
+        "project-1",
+        {
+          api: {
+            enabled: false,
+            sampleRate: 1,
+            slowThresholdMs: 2000,
+            globalFetch: false,
+          },
+          resources: { enabled: false, sampleRate: 1 },
+          firstScreen: { enabled: false, sampleRate: 1 },
+          listRender: { enabled: false, sampleRate: 1 },
+          longTasks: { enabled: false, sampleRate: 1 },
+          blankScreen: { enabled: false, sampleRate: 1 },
+          breadcrumbs: { enabled: false, sampleRate: 1, allowedActionKeys: [] },
+        },
+        viewer,
+      ),
+    ).rejects.toEqual(expect.any(HttpException));
+    expect(mysql.createCollectorSettingsVersion).not.toHaveBeenCalled();
+  });
+
+  it("publishes collector configuration as a clone-on-write version", async () => {
+    const { controller: target, mysql } = controller("owner");
+    const input = {
+      api: {
+        enabled: true,
+        sampleRate: 0.2,
+        slowThresholdMs: 1500,
+        globalFetch: false,
+      },
+      resources: { enabled: false, sampleRate: 1 },
+      firstScreen: { enabled: true, sampleRate: 1 },
+      listRender: { enabled: false, sampleRate: 1 },
+      longTasks: { enabled: false, sampleRate: 1 },
+      blankScreen: { enabled: false, sampleRate: 1 },
+      breadcrumbs: {
+        enabled: true,
+        sampleRate: 0.2,
+        allowedActionKeys: ["report_opened"],
+      },
+    };
+    await target.createCollectorSettings("project-1", input, admin);
+    expect(mysql.createCollectorSettingsVersion).toHaveBeenCalledWith({
+      ...input,
+      projectId: "project-1",
       actor: admin,
     });
   });

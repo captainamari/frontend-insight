@@ -1,55 +1,73 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "projectKey": "fi_public_m1demo001",
   "sentAt": "2026-07-19T18:00:10.000Z",
-  "sdk": { "name": "web-tracker", "version": "0.1.0" },
+  "sdk": {
+    "name": "web-tracker",
+    "version": "0.4.0"
+  },
   "events": [
     {
       "eventId": "evt_action_page_001",
       "eventName": "page_view",
-      "eventTime": "2026-07-19T18:00:00.000Z",
       "visitorId": "vis_action_001",
       "sessionId": "ses_action_001",
       "pageViewId": "pv_action_001",
       "accountRef": "opaque-account-002",
       "route": "/reports/export",
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T18:00:00.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_action_exposed_001",
       "eventName": "feature_exposed",
-      "eventTime": "2026-07-19T18:00:01.000Z",
       "visitorId": "vis_action_001",
       "sessionId": "ses_action_001",
       "pageViewId": "pv_action_001",
       "accountRef": "opaque-account-002",
       "route": "/reports/export",
       "featureKey": "report_export",
-      "properties": {}
+      "properties": {},
+      "occurredAt": "2026-07-19T18:00:01.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_action_started_001",
       "eventName": "feature_started",
-      "eventTime": "2026-07-19T18:00:02.000Z",
       "visitorId": "vis_action_001",
       "sessionId": "ses_action_001",
       "pageViewId": "pv_action_001",
+      "operationInstanceId": "op_action_fixture_0000000000000001",
       "accountRef": "opaque-account-002",
       "route": "/reports/export",
       "featureKey": "report_export",
-      "properties": { "format": "csv" }
+      "properties": {
+        "format": "csv"
+      },
+      "occurredAt": "2026-07-19T18:00:02.000Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     },
     {
       "eventId": "evt_action_success_001",
       "eventName": "feature_succeeded",
-      "eventTime": "2026-07-19T18:00:04.500Z",
       "visitorId": "vis_action_001",
       "sessionId": "ses_action_001",
       "pageViewId": "pv_action_001",
+      "operationInstanceId": "op_action_fixture_0000000000000001",
       "accountRef": "opaque-account-002",
       "route": "/reports/export",
       "featureKey": "report_export",
-      "properties": { "format": "csv", "result": "downloaded" }
+      "properties": {
+        "format": "csv",
+        "result": "downloaded"
+      },
+      "occurredAt": "2026-07-19T18:00:04.500Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "fixture-2026.08"
     }
   ]
 }

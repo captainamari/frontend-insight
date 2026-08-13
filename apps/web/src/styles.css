@@ -242,6 +242,47 @@ input:focus-visible {
   background: #9aa3b2;
 }
 
+.collector-table {
+  display: grid;
+  gap: 0;
+}
+
+.collector-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) 120px 180px;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.collector-row:last-child {
+  border-bottom: 0;
+}
+
+.collector-row p,
+.collector-row small {
+  margin: 5px 0 0;
+  color: var(--muted);
+}
+
+.collector-row label,
+.collector-advanced label {
+  display: grid;
+  gap: 7px;
+}
+
+.collector-advanced {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.collector-advanced h2 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 @media (max-width: 800px) {
   .project-entry-summary,
   .overview-identity {
@@ -250,6 +291,11 @@ input:focus-visible {
 
   .overview-module-card.index-card {
     grid-column: span 1;
+  }
+
+  .collector-row,
+  .collector-advanced {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1455,6 +1501,83 @@ input:focus-visible {
   grid-column: 1 / -1;
 }
 
+.p1-performance {
+  display: grid;
+  gap: 18px;
+}
+
+.p1-performance h3 {
+  margin: 4px 0 0;
+}
+
+.coverage-grid,
+.p1-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.coverage-grid > div,
+.p1-summary-grid > article {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px;
+  background: #f7f9fb;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.coverage-grid span,
+.p1-summary-grid span,
+.coverage-grid small,
+.p1-summary-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.coverage-grid strong,
+.p1-summary-grid strong {
+  font-size: 20px;
+}
+
+.p1-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.collector-status {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 15px;
+  color: #6e4500;
+  background: #fff7e7;
+  border: 1px solid #f0cf8b;
+  border-radius: 7px;
+}
+
+.collector-status span {
+  color: var(--muted);
+}
+
+.collector-status .el-button {
+  margin-left: auto;
+}
+
+.collector-status-error {
+  color: var(--danger);
+  background: #fff2f2;
+  border-color: #e8b4b4;
+}
+
+.compact-empty {
+  min-height: 120px;
+}
+
+.p1-detail-columns {
+  align-items: start;
+}
+
 .observability-heading {
   align-items: end;
 }
@@ -1591,6 +1714,26 @@ input:focus-visible {
 
   .observability-boundary > small {
     grid-column: auto;
+  }
+
+  .coverage-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .coverage-grid,
+  .p1-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .collector-status {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .collector-status .el-button {
+    margin-left: 0;
   }
 }
 

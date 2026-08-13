@@ -1,4 +1,4 @@
-import type { FrontendInsightEventBatchV2 } from "@frontend-insight/event-contract";
+import type { FrontendInsightEventBatchV3 } from "@frontend-insight/event-contract";
 
 export type PropertyValue = string | number | boolean | null;
 export type EventProperties = Record<string, PropertyValue>;
@@ -17,12 +17,58 @@ export type NavigationType =
 
 export interface ObservabilityConfig {
   enabled: boolean;
-  releaseVersion: string;
-  deploymentEnvironment?: DeploymentEnvironment;
   captureJsErrors?: boolean;
   captureResourceErrors?: boolean;
   captureApiErrors?: boolean;
   captureWebVitals?: boolean;
+}
+
+export interface CollectorToggle {
+  enabled?: boolean;
+  sampleRate?: number;
+}
+
+export interface P1CollectorConfig {
+  api?: CollectorToggle & {
+    slowThresholdMs?: number;
+    globalFetch?: boolean;
+  };
+  resources?: CollectorToggle;
+  firstScreen?: CollectorToggle;
+  listRender?: CollectorToggle;
+  longTasks?: CollectorToggle;
+  blankScreen?: CollectorToggle;
+  breadcrumbs?: CollectorToggle & {
+    allowedActionKeys?: readonly string[];
+  };
+}
+
+export interface ApiRequestDetails {
+  method: string;
+  url: string | URL;
+  statusCode: number;
+  durationMs: number;
+}
+
+export interface ResourceRequestDetails {
+  resourceType: ResourceType;
+  url: string | URL;
+  succeeded: boolean;
+  durationMs?: number;
+}
+
+export interface PageReadinessDetails {
+  templateKey: "monitoring_dashboard" | "analysis_view" | "task_operation";
+  blankCandidate?: boolean;
+}
+
+export interface Breadcrumb {
+  kind: "route" | "action" | "api" | "error";
+  occurredAt: string;
+  key: string;
+  method?: RequestMethod;
+  path?: string;
+  statusCode?: number;
 }
 
 export interface ApiErrorDetails {
@@ -47,7 +93,9 @@ export interface WebVitalDetails {
 export interface TrackerEvent {
   eventId: string;
   eventName: string;
-  eventTime: string;
+  occurredAt: string;
+  deploymentEnvironment: Exclude<DeploymentEnvironment, "test">;
+  releaseVersion: string;
   visitorId: string;
   sessionId: string;
   pageViewId: string;
@@ -60,6 +108,7 @@ export interface TrackerEvent {
   operationInstanceId?: string;
   interactionType?: InteractionType;
   properties: EventProperties;
+  breadcrumbs?: Breadcrumb[];
 }
 
 export interface TrackerDiagnostics {
@@ -82,6 +131,8 @@ export interface BeforeSendContext {
 export interface TrackerConfig {
   projectKey: string;
   endpoint: string;
+  releaseVersion: string;
+  deploymentEnvironment?: Exclude<DeploymentEnvironment, "test">;
   projectTimezone?: string;
   registeredFeatures?: readonly string[];
   staticProperties?: EventProperties;
@@ -93,6 +144,7 @@ export interface TrackerConfig {
   longViewSuccessAfterMs?: number;
   longViewHeartbeatMs?: number;
   observability?: ObservabilityConfig;
+  collectors?: P1CollectorConfig;
   development?: boolean;
   runtime?: TrackerRuntime;
 }
@@ -132,6 +184,11 @@ export interface Tracker {
   captureApiError(details: ApiErrorDetails): void;
   captureResourceError(details: ResourceErrorDetails): void;
   captureWebVital(details: WebVitalDetails): void;
+  captureApiRequest(details: ApiRequestDetails): void;
+  captureResourceRequest(details: ResourceRequestDetails): void;
+  markPageReady(details: PageReadinessDetails): void;
+  startListRender(listKey: string, rowCount: number): () => void;
+  recordBreadcrumbAction(actionKey: string): void;
   flush(reason?: "normal" | "lifecycle"): Promise<void>;
   destroy(): void;
   getDiagnostics(): Readonly<TrackerDiagnostics>;
@@ -145,6 +202,6 @@ export interface OperationHandle {
 }
 
 export interface PendingBatch {
-  batch: FrontendInsightEventBatchV2;
+  batch: FrontendInsightEventBatchV3;
   attempts: number;
 }

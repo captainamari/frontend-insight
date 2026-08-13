@@ -28,11 +28,13 @@ v1.7/v1.4 是后续改造目标，不表示 main 上已经实现。评审通过�
 - [ADR-011：指标目录与血缘](adr/ADR-011-metric-catalog-and-lineage.md)；
 - [ADR-012：项目运营指数 v1](adr/ADR-012-operational-index-v1.md)；
 - [ADR-013：M7 生产硬化与 M8 可观测性 v1](adr/ADR-013-m7-production-and-m8-observability-v1.md)；
+- [ADR-016：P1 采集器、分母与隐私边界](adr/ADR-016-p1-collector-privacy-boundaries.md)；
 - [M1 本地工程与迁移验收](guides/m1-local-engineering-macos.md) 与 [M1 实现记录](progress/m1-results.md)；
 - [M2–M4 本地验收指引](guides/m2-m4-local-macos.md) 与 [M2–M4 实现记录](progress/m2-m4-results.md)；
 - [M5 实现与验收记录](progress/m5-results.md)；
 - [M6 本地验收指引](guides/m6-local-acceptance-macos.md)；
 - [M7/M8 本地验收指引](guides/m7-m8-local-acceptance-macos.md) 与 [M7/M8 实现记录](progress/m7-m8-results.md)。
+- [M8.1-B / P1 本地验收指引](guides/m8.1-b-local-acceptance-macos.md) 与 [实现记录](progress/m8.1-b-results.md)。
 
 项目学习与维护：
 

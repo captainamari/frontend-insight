@@ -7,7 +7,7 @@ describe("database migration inventory", () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
       expect(migrations.map((migration) => migration.version)).toEqual(
-        engine === "mysql" ? [1, 2, 3, 4] : [1, 2, 3, 4, 5],
+        engine === "mysql" ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6],
       );
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,

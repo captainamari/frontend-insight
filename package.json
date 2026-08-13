@@ -23,6 +23,7 @@
     "check:workspace": "node tools/check-workspace-boundaries.mjs",
     "contract:generate": "pnpm --filter @frontend-insight/event-contract generate",
     "contract:check": "pnpm --filter @frontend-insight/event-contract generate -- --check",
+    "m8:p1:payload": "node tools/m8-p1-payload-report.mjs",
     "migrate": "pnpm --filter @frontend-insight/database migrate",
     "migrate:verify": "pnpm --filter @frontend-insight/database verify",
     "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"

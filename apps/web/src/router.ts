@@ -85,6 +85,11 @@ export const router = createRouter({
           component: () => import("./views/OperationalConfigView.vue"),
         },
         {
+          path: "projects/:projectId/settings/collectors",
+          name: "collector-settings",
+          component: () => import("./views/CollectorSettingsView.vue"),
+        },
+        {
           path: "projects/:projectId/settings/:section?",
           name: "settings",
           component: () => import("./views/OnboardingView.vue"),

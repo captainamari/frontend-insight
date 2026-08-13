@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 3,
+  "projectKey": "fi_public_p1fixture01",
+  "sentAt": "2026-08-13T12:00:05.000Z",
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_p1_privacy_invalid_01",
+      "eventName": "error_js",
+      "occurredAt": "2026-08-13T12:00:04.500Z",
+      "deploymentEnvironment": "production",
+      "releaseVersion": "2026.08.13",
+      "visitorId": "vis_p1_fixture_0001",
+      "sessionId": "ses_p1_fixture_0001",
+      "pageViewId": "pv_p1_fixture_00001",
+      "route": "/analysis",
+      "properties": {
+        "errorName": "TypeError",
+        "errorMessage": "render failed",
+        "stackTopFrame": "at render (app.js:1:1)"
+      },
+      "breadcrumbs": [
+        {
+          "kind": "action",
+          "occurredAt": "2026-08-13T12:00:01.500Z",
+          "key": "report_opened",
+          "selector": "#customer-email"
+        }
+      ]
+    }
+  ]
+}
