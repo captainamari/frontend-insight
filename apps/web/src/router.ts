@@ -11,50 +11,82 @@ export const router = createRouter({
       path: "/",
       component: AppShell,
       children: [
-        { path: "", redirect: { name: "features" } },
+        { path: "", redirect: { name: "projects" } },
         {
-          path: "features",
-          name: "features",
+          path: "projects",
+          name: "projects",
+          component: () => import("./views/ProjectsView.vue"),
+        },
+        {
+          path: "projects/:projectId/overview",
+          name: "project-overview",
+          component: () => import("./views/ProjectOverviewView.vue"),
+        },
+        {
+          path: "projects/:projectId/business-analysis/features",
+          name: "business-features",
           component: () => import("./views/FeaturesView.vue"),
         },
         {
-          path: "features/:featureId",
+          path: "projects/:projectId/business-analysis/features/:featureId",
           name: "feature-detail",
           component: () => import("./views/FeatureDetailView.vue"),
         },
         {
-          path: "operational",
-          name: "operational-overview",
+          path: "projects/:projectId/business-analysis/:section(tasks|reuse|efficiency)?",
+          name: "business-analysis",
           component: () => import("./views/OperationalOverviewView.vue"),
         },
         {
-          path: "pages",
-          name: "pages",
+          path: "projects/:projectId/page-analysis/usage",
+          name: "page-usage",
           component: () => import("./views/PagesView.vue"),
         },
         {
-          path: "page-detail",
+          path: "projects/:projectId/page-analysis/usage/detail",
           name: "page-detail",
           component: () => import("./views/PageDetailView.vue"),
         },
         {
-          path: "operational-index",
+          path: "projects/:projectId/overview/operational-index",
           name: "operational-index",
           component: () => import("./views/OperationalIndexView.vue"),
         },
         {
-          path: "observability",
-          name: "observability",
+          path: "projects/:projectId/page-analysis/:section(performance|errors|releases)",
+          name: "page-analysis",
           component: () => import("./views/ObservabilityView.vue"),
         },
         {
-          path: "operational-config",
-          name: "operational-config",
+          path: "projects/:projectId/page-analysis",
+          redirect: (to) => ({
+            name: "page-usage",
+            params: to.params,
+            query: to.query,
+          }),
+        },
+        {
+          path: "projects/:projectId/metrics",
+          name: "metrics",
+          redirect: (to) => ({
+            name: "metric-catalog",
+            params: to.params,
+            query: to.query,
+          }),
+        },
+        {
+          path: "projects/:projectId/metrics/:section(catalog|lineage)",
+          name: "metric-catalog",
+          component: () => import("./views/MetricManagementView.vue"),
+        },
+        {
+          path: "projects/:projectId/metrics/:section(profiles|targets)",
+          name: "metric-configuration",
           component: () => import("./views/OperationalConfigView.vue"),
         },
         {
-          path: "onboarding",
-          name: "onboarding",
+          path: "projects/:projectId/settings/:section?",
+          name: "settings",
           component: () => import("./views/OnboardingView.vue"),
         },
       ],
@@ -68,6 +100,6 @@ router.beforeEach(async (to) => {
   if (to.name !== "login" && !auth.isAuthenticated.value) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
-  if (to.name === "login" && auth.isAuthenticated.value) return { name: "features" };
+  if (to.name === "login" && auth.isAuthenticated.value) return { name: "projects" };
   return true;
 });
