@@ -437,12 +437,18 @@ watch(
   <div>
     <PageHeader
       eyebrow="OPERATIONAL CONFIGURATION"
-      title="运营指标配置"
-      description="注册稳定的模块、页面和关键任务，并用版本化目标定义项目运营指数。"
+      title="指标管理"
+      description="查看版本化指标定义与血缘；管理员可治理 profile、目标、阈值和权重。"
     >
       <el-button
         plain
-        @click="router.push({ name: 'operational-index', query: route.query })"
+        @click="
+          router.push({
+            name: 'operational-index',
+            params: { projectId: context.projectId.value },
+            query: route.query,
+          })
+        "
       >
         返回项目运营指数
       </el-button>
