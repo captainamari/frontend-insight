@@ -123,12 +123,18 @@ watch(
   <div>
     <PageHeader
       eyebrow="OPERATIONAL OVERVIEW"
-      title="运营概览"
-      description="从模块、核心页面、关键任务和访问深度判断内部产品是否被持续、有效地使用。"
+      title="业务分析"
+      description="统一查看功能采用、关键任务、持续使用、任务达成和操作效率。"
     >
       <el-button
         plain
-        @click="router.push({ name: 'operational-index', query: route.query })"
+        @click="
+          router.push({
+            name: 'operational-index',
+            params: { projectId: context.projectId.value },
+            query: route.query,
+          })
+        "
       >
         查看项目运营指数
       </el-button>
@@ -353,7 +359,13 @@ watch(
             </div>
             <el-button
               plain
-              @click="router.push({ name: 'operational-config', query: route.query })"
+              @click="
+                router.push({
+                  name: 'metrics',
+                  params: { projectId: context.projectId.value },
+                  query: route.query,
+                })
+              "
             >
               前往配置
             </el-button>
