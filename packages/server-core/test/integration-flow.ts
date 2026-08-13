@@ -217,6 +217,11 @@ async function main(): Promise<void> {
       ...p1Samples,
     ];
     const logicalEvents = batches.flatMap((batch) => batch.events);
+    const expectedPageViews = new Set(
+      logicalEvents
+        .filter((event) => event.eventName === "page_view")
+        .map((event) => event.eventId),
+    ).size;
     const expectedVisitors = new Set(logicalEvents.map((event) => event.visitorId))
       .size;
     const expectedAccounts = new Set(
@@ -310,8 +315,8 @@ async function main(): Promise<void> {
     );
     const current = overview.body.current as Record<string, number>;
     assert(
-      current.pv === 8,
-      `query-side eventId dedupe expected 8 PV, got ${current.pv}`,
+      current.pv === expectedPageViews,
+      `query-side eventId dedupe expected ${expectedPageViews} PV, got ${current.pv}`,
     );
     assert(
       current.visitors === expectedVisitors,
@@ -372,7 +377,8 @@ async function main(): Promise<void> {
       number
     >;
     assert(
-      operationalSummary.pageViews === 8 && operationalSummary.activeAccounts === 8,
+      operationalSummary.pageViews === expectedPageViews &&
+        operationalSummary.activeAccounts === expectedAccounts,
       "operational overview must preserve raw PV and registered valid-account semantics",
     );
     const operationalTasks = operationalOverview.body.keyTasks as Array<
