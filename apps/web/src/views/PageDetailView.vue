@@ -104,7 +104,13 @@ watch(
     >
       <el-button
         plain
-        @click="router.push({ name: 'operational-overview', query: route.query })"
+        @click="
+          router.push({
+            name: 'business-analysis',
+            params: { projectId: context.projectId.value },
+            query: route.query,
+          })
+        "
       >
         返回运营概览
       </el-button>
@@ -131,7 +137,13 @@ watch(
           <el-button
             link
             type="primary"
-            @click="router.push({ name: 'operational-config', query: route.query })"
+            @click="
+              router.push({
+                name: 'settings',
+                params: { projectId: context.projectId.value },
+                query: route.query,
+              })
+            "
           >
             前往页面配置
           </el-button>
