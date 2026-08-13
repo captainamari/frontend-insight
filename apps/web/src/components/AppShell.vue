@@ -8,37 +8,48 @@ import type { RangePreset } from "../types";
 
 const route = useRoute();
 const router = useRouter();
-const selectedProject = computed({
-  get: () => (typeof route.query.project === "string" ? route.query.project : ""),
-  set: (value: string) => {
-    void router.replace({
-      query: {
-        ...route.query,
-        project: value,
-        range: isRangePreset(route.query.range) ? route.query.range : "7d",
-      },
-    });
-  },
-});
+const projectId = computed(() =>
+  typeof route.params.projectId === "string" ? route.params.projectId : null,
+);
+const currentProject = computed(() => projects.find(projectId.value));
+const isProjectScope = computed(() => Boolean(projectId.value));
 const selectedRange = computed<RangePreset>({
   get: () => (isRangePreset(route.query.range) ? route.query.range : "7d"),
-  set: (value) => {
-    void router.replace({ query: { ...route.query, range: value } });
-  },
+  set: (value) => void router.replace({ query: { ...route.query, range: value } }),
 });
-const currentProject = computed(() => projects.find(selectedProject.value));
 
 const navigation = [
-  { route: "features", label: "功能采用", eyebrow: "默认首页" },
-  { route: "operational-overview", label: "运营概览", eyebrow: "持续使用" },
-  { route: "pages", label: "页面访问", eyebrow: "访问证据" },
-  { route: "operational-index", label: "项目运营指数", eyebrow: "可解释摘要" },
-  { route: "observability", label: "前端可观测性", eyebrow: "错误与性能" },
-  { route: "onboarding", label: "项目与接入", eyebrow: "配置和排障" },
+  { route: "business-analysis", label: "业务分析", eyebrow: "采用 · 任务 · 效率" },
+  { route: "page-usage", label: "页面分析", eyebrow: "使用 · 性能 · 错误" },
+  { route: "metrics", label: "指标管理", eyebrow: "定义 · 血缘 · 目标" },
+  { route: "settings", label: "设置", eyebrow: "接入 · 资产 · 权限" },
 ] as const;
 
+function isActive(name: string): boolean {
+  const current = String(route.name ?? "");
+  if (name === "business-analysis")
+    return current.startsWith("business-") || current === "feature-detail";
+  if (name === "page-usage") return current.startsWith("page-");
+  if (name === "metrics") return current.startsWith("metric");
+  return current === "settings";
+}
+
 function navigate(name: string): void {
-  void router.push({ name, query: route.query });
+  if (!projectId.value) return;
+  void router.push({
+    name,
+    params: { projectId: projectId.value },
+    query: route.query,
+  });
+}
+
+function returnToProjects(): void {
+  const target =
+    typeof route.query.fromProjects === "string" &&
+    route.query.fromProjects.startsWith("/projects")
+      ? route.query.fromProjects
+      : "/projects";
+  void router.push(target);
 }
 
 async function logout(): Promise<void> {
@@ -47,7 +58,7 @@ async function logout(): Promise<void> {
   await router.replace({ name: "login" });
 }
 
-onMounted(() => void projects.load(true));
+onMounted(() => void projects.load());
 watch(
   () => auth.isAuthenticated.value,
   (authenticated) => {
@@ -57,47 +68,44 @@ watch(
     }
   },
 );
-watch(
-  () => projects.state.items,
-  (items) => {
-    if (!items.length) return;
-    if (!projects.find(selectedProject.value)) {
-      selectedProject.value = items[0]!.id;
-    }
-  },
-  { deep: true, immediate: true },
-);
 </script>
 
 <template>
-  <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand">
+  <div class="app-shell" :class="{ 'platform-scope': !isProjectScope }">
+    <aside v-if="isProjectScope" class="sidebar">
+      <button class="brand brand-button" type="button" @click="returnToProjects">
         <span class="brand-mark" aria-hidden="true">FI</span>
         <div>
           <strong>Frontend Insight</strong>
-          <small>功能采用分析</small>
+          <small>返回全部项目</small>
         </div>
-      </div>
+      </button>
 
-      <nav aria-label="主导航" class="primary-nav">
+      <button
+        class="project-home"
+        :class="{
+          active:
+            route.name === 'project-overview' || route.name === 'operational-index',
+        }"
+        type="button"
+        @click="
+          router.push({
+            name: 'project-overview',
+            params: { projectId },
+            query: route.query,
+          })
+        "
+      >
+        <span>项目概览</span>
+        <small>{{ currentProject?.name ?? "加载中" }}</small>
+      </button>
+
+      <nav aria-label="项目一级导航" class="primary-nav">
         <button
           v-for="item in navigation"
           :key="item.route"
           class="nav-item"
-          :class="{
-            active:
-              route.name === item.route ||
-              (item.route === 'features' &&
-                route.name === 'feature-detail' &&
-                route.query.evidence !== 'task') ||
-              (item.route === 'operational-overview' &&
-                route.name === 'feature-detail' &&
-                route.query.evidence === 'task') ||
-              (item.route === 'operational-overview' && route.name === 'page-detail') ||
-              (item.route === 'operational-index' &&
-                route.name === 'operational-config'),
-          }"
+          :class="{ active: isActive(item.route) }"
           type="button"
           @click="navigate(item.route)"
         >
@@ -105,43 +113,24 @@ watch(
           <small>{{ item.eyebrow }}</small>
         </button>
       </nav>
-
-      <div class="sidebar-note">
-        <span class="status-dot" aria-hidden="true"></span>
-        <div>
-          <strong>运营指数可下钻</strong>
-          <small>不替代技术 SLO 或人员绩效</small>
-        </div>
-      </div>
     </aside>
 
     <div class="main-column">
       <header class="topbar">
         <div class="toolbar-group">
-          <label>
-            <span>项目</span>
-            <el-select
-              v-model="selectedProject"
-              :loading="projects.state.loading"
-              class="project-select"
-              aria-label="选择项目"
-              placeholder="选择项目"
-            >
-              <el-option
-                v-for="project in projects.state.items"
-                :key="project.id"
-                :label="project.name"
-                :value="project.id"
-              >
-                <span>{{ project.name }}</span>
-                <small class="option-meta">{{
-                  project.status === "active" ? "启用" : "已停用"
-                }}</small>
-              </el-option>
-            </el-select>
-          </label>
+          <button
+            v-if="isProjectScope"
+            class="breadcrumb-projects"
+            type="button"
+            @click="returnToProjects"
+          >
+            全部项目
+          </button>
+          <span v-if="isProjectScope" aria-hidden="true">/</span>
+          <strong v-if="isProjectScope">{{ currentProject?.name ?? "项目" }}</strong>
+          <strong v-else>项目入口</strong>
 
-          <label>
+          <label v-if="isProjectScope">
             <span>时间范围</span>
             <el-select
               v-model="selectedRange"
@@ -156,8 +145,11 @@ watch(
               />
             </el-select>
           </label>
-
-          <div class="timezone-chip" title="所有图表统一使用项目时区">
+          <div
+            v-if="isProjectScope"
+            class="timezone-chip"
+            title="所有图表统一使用项目时区"
+          >
             <span>项目时区</span>
             <strong>{{ currentProject?.timezone ?? "—" }}</strong>
           </div>
@@ -174,9 +166,7 @@ watch(
         </div>
       </header>
 
-      <main class="page-container">
-        <RouterView />
-      </main>
+      <main class="page-container"><RouterView /></main>
     </div>
   </div>
 </template>
