@@ -145,7 +145,13 @@ watch(
         </div>
         <el-button
           type="primary"
-          @click="router.push({ name: 'onboarding', query: route.query })"
+          @click="
+            router.push({
+              name: 'settings',
+              params: { projectId: context.projectId.value },
+              query: route.query,
+            })
+          "
         >
           前往接入验证
         </el-button>
