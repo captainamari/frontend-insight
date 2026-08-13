@@ -391,7 +391,7 @@ async function main(): Promise<void> {
       reportExportTask?.started === 10 &&
         reportExportTask.succeeded === 5 &&
         reportExportTask.failed === 5,
-      "v2 operation instances must pair independently and dedupe duplicate events",
+      `v2 operation instances must pair independently and dedupe duplicate events: ${JSON.stringify(reportExportTask ?? null)}`,
     );
     const pageDetail = await jsonRequest(
       `/api/projects/${projectId}/analytics/page-detail?${query}&route=%2Freports`,
