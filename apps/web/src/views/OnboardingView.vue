@@ -284,8 +284,8 @@ watch(
   <div>
     <PageHeader
       eyebrow="PROJECT ONBOARDING"
-      title="项目与接入"
-      description="创建项目、配置安全边界，并在同一页发送测试事件和完成排障。"
+      title="设置"
+      description="管理项目资料、资产、Origin、SDK、成员权限、隐私、保留和审计。"
     >
       <el-button v-if="canCreate" type="primary" @click="createOpen = true">
         创建项目
