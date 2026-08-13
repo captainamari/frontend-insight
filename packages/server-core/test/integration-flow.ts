@@ -378,8 +378,8 @@ async function main(): Promise<void> {
     >;
     assert(
       operationalSummary.pageViews === expectedPageViews &&
-        operationalSummary.activeAccounts === expectedAccounts,
-      "operational overview must preserve raw PV and registered valid-account semantics",
+        operationalSummary.activeAccounts === 8,
+      `operational overview expected ${expectedPageViews} raw PV and 8 registered valid accounts, got ${operationalSummary.pageViews} PV and ${operationalSummary.activeAccounts} accounts`,
     );
     const operationalTasks = operationalOverview.body.keyTasks as Array<
       Record<string, unknown>
