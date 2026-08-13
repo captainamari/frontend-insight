@@ -83,7 +83,8 @@ watch(
       type="button"
       @click="
         router.push({
-          name: fromTaskEvidence ? 'operational-overview' : 'features',
+          name: fromTaskEvidence ? 'business-analysis' : 'business-features',
+          params: { projectId: context.projectId.value },
           query: route.query,
         })
       "
