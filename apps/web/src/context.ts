@@ -6,9 +6,10 @@ import type { RangePreset } from "./types";
 
 export function useDashboardContext() {
   const route = useRoute();
-  const projectId = computed(() =>
-    typeof route.query.project === "string" ? route.query.project : null,
-  );
+  const projectId = computed(() => {
+    if (typeof route.params.projectId === "string") return route.params.projectId;
+    return typeof route.query.project === "string" ? route.query.project : null;
+  });
   const project = computed(() => projects.find(projectId.value));
   const preset = computed<RangePreset>(() =>
     isRangePreset(route.query.range) ? route.query.range : "7d",
