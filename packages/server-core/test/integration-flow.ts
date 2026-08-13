@@ -250,6 +250,30 @@ async function main(): Promise<void> {
       succeeded: reportExportOperationCount("feature_succeeded"),
       failed: reportExportOperationCount("feature_failed"),
     };
+    const errorEvents = logicalEvents.filter((event) =>
+      event.eventName.startsWith("error_"),
+    );
+    const expectedErrorGroups = new Set(
+      errorEvents.map((event) => {
+        const properties = event.properties as Record<string, unknown>;
+        const statusCode = properties.statusCode;
+        const statusClass =
+          typeof statusCode === "number" ? `${Math.floor(statusCode / 100)}xx` : "";
+        return [
+          event.eventName,
+          properties.errorName,
+          properties.errorMessage,
+          properties.stackTopFrame,
+          properties.resourceType,
+          properties.requestMethod,
+          properties.requestPath,
+          statusClass,
+        ].join("|");
+      }),
+    ).size;
+    const expectedVitalSamples = logicalEvents.filter(
+      (event) => event.eventName === "web_vital",
+    ).length;
     for (const batch of [...batches, ...batches]) {
       const accepted = await jsonRequest("/v1/events", {
         method: "POST",
@@ -494,10 +518,10 @@ async function main(): Promise<void> {
       number
     >;
     assert(
-      observabilitySummary.errorOccurrences === 60 &&
-        observabilitySummary.errorGroups === 3 &&
-        observabilitySummary.vitalSamples === 20,
-      "M8 read model must aggregate three stable error groups and Web Vitals",
+      observabilitySummary.errorOccurrences === errorEvents.length &&
+        observabilitySummary.errorGroups === expectedErrorGroups &&
+        observabilitySummary.vitalSamples === expectedVitalSamples,
+      `M8 read model must match schema v3 error and Web Vital golden events: expected ${errorEvents.length}/${expectedErrorGroups}/${expectedVitalSamples}, got ${observabilitySummary.errorOccurrences}/${observabilitySummary.errorGroups}/${observabilitySummary.vitalSamples}`,
     );
     assert(
       Array.isArray(observabilityOverview.body.alerts) &&
