@@ -15,6 +15,7 @@
     "test:m5:e2e": "playwright test --config playwright.m5.config.ts",
     "test:m6:e2e": "playwright test --config playwright.m6.config.ts",
     "test:m8:e2e": "playwright test --config playwright.m8.config.ts",
+    "test:p0:e2e": "playwright test --config playwright.p0.config.ts",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",
