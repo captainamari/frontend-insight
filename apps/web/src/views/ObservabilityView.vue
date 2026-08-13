@@ -156,8 +156,8 @@ watch(
   <div>
     <PageHeader
       eyebrow="FRONTEND OBSERVABILITY / V1"
-      title="前端可观测性"
-      description="把生产错误、页面性能、影响范围和发布版本放在同一证据面板中，帮助开发在用户反馈前定位问题。"
+      title="页面分析"
+      description="统一查看页面使用、性能、错误和发布影响；可观测性是诊断子域。"
     >
       <el-button type="primary" @click="load">刷新数据</el-button>
     </PageHeader>
