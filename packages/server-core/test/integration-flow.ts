@@ -231,6 +231,25 @@ async function main(): Promise<void> {
     ).size;
     const expectedSessions = new Set(logicalEvents.map((event) => event.sessionId))
       .size;
+    const reportExportOperationCount = (eventName: string) =>
+      new Set(
+        logicalEvents
+          .filter(
+            (event) =>
+              event.featureKey === "report_export" &&
+              event.eventName === eventName &&
+              "operationInstanceId" in event &&
+              typeof event.operationInstanceId === "string",
+          )
+          .map((event) =>
+            "operationInstanceId" in event ? event.operationInstanceId : undefined,
+          ),
+      ).size;
+    const expectedReportExportOperations = {
+      started: reportExportOperationCount("feature_started"),
+      succeeded: reportExportOperationCount("feature_succeeded"),
+      failed: reportExportOperationCount("feature_failed"),
+    };
     for (const batch of [...batches, ...batches]) {
       const accepted = await jsonRequest("/v1/events", {
         method: "POST",
@@ -350,7 +369,7 @@ async function main(): Promise<void> {
     );
     const expectedSuccesses = new Map([
       ["sales_dashboard", 1],
-      ["report_export", 6],
+      ["report_export", expectedReportExportOperations.succeeded],
       ["operations_wallboard", 1],
     ]);
     for (const [featureKey, expectedSuccess] of expectedSuccesses) {
@@ -388,10 +407,10 @@ async function main(): Promise<void> {
       (item) => item.featureKey === "report_export",
     );
     assert(
-      reportExportTask?.started === 10 &&
-        reportExportTask.succeeded === 5 &&
-        reportExportTask.failed === 5,
-      `v2 operation instances must pair independently and dedupe duplicate events: ${JSON.stringify(reportExportTask ?? null)}`,
+      reportExportTask?.started === expectedReportExportOperations.started &&
+        reportExportTask.succeeded === expectedReportExportOperations.succeeded &&
+        reportExportTask.failed === expectedReportExportOperations.failed,
+      `operation instances must match the schema v3 golden events: expected ${JSON.stringify(expectedReportExportOperations)}, got ${JSON.stringify(reportExportTask ?? null)}`,
     );
     const pageDetail = await jsonRequest(
       `/api/projects/${projectId}/analytics/page-detail?${query}&route=%2Freports`,
@@ -410,7 +429,8 @@ async function main(): Promise<void> {
     );
     assert(
       taskDetail.response.status === 200 &&
-        (taskDetail.body.metrics as Record<string, unknown>)?.started === 10 &&
+        (taskDetail.body.metrics as Record<string, unknown>)?.started ===
+          expectedReportExportOperations.started &&
         typeof taskDetail.body.availableFrom === "string",
       "task detail must expose v2 availability and operation metrics",
     );
