@@ -118,7 +118,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
   await expect(page.getByText(/智慧园区运营指数 v1/)).toBeVisible();
 
   await page.getByRole("button", { name: "配置目标与权重" }).click();
-  await expect(page.getByRole("heading", { name: "运营指标配置" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "指标管理" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "模块" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "页面" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "功能与任务元数据" })).toBeVisible();
