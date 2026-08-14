@@ -41,7 +41,10 @@ const validateSchemaV3 = ajv.compile<FrontendInsightEventBatchV3>(schemaV3);
 const standardEventNames = new Set<string>(STANDARD_EVENT_NAMES);
 const customEventName = /^(?!page_|feature_)[a-z][a-z0-9_]{0,63}$/;
 const operationInstanceId = /^op_[A-Za-z0-9_-]{16,64}$/;
-const operationRequiredEvents = new Set(["feature_started", "feature_canceled"]);
+const operationRequiredEvents = new Set([
+  "feature_started",
+  "feature_canceled",
+]);
 const p1RequiredProperties: Record<string, readonly string[]> = {
   page_readiness: [
     "templateKey",
@@ -132,7 +135,11 @@ export function validateTransportBatch(
   try {
     batchBytes = byteLength(input);
   } catch {
-    return error(REJECTION_CODES.schemaInvalid, "$", "batch must be JSON serializable");
+    return error(
+      REJECTION_CODES.schemaInvalid,
+      "$",
+      "batch must be JSON serializable",
+    );
   }
   if (batchBytes > CONTRACT_LIMITS.maximumBatchBytes) {
     return error(
@@ -220,7 +227,9 @@ export function validateTransportBatch(
             );
           }
           const properties = event.properties;
-          const missing = requiredProperties.find((key) => !(key in properties));
+          const missing = requiredProperties.find(
+            (key) => !(key in properties),
+          );
           if (missing) {
             return error(
               REJECTION_CODES.schemaInvalid,

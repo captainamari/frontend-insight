@@ -97,7 +97,10 @@ export function createTracker(config: TrackerConfig): Tracker {
       propertyBudget > 0 &&
       Object.keys(staticProperties).length > 20 - propertyBudget
     ) {
-      return createNoopTracker("OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED", development);
+      return createNoopTracker(
+        "OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED",
+        development,
+      );
     }
     if (
       propertyBudget > 0 &&
@@ -105,7 +108,10 @@ export function createTracker(config: TrackerConfig): Tracker {
         telemetryReservedProperties.has(key),
       )
     ) {
-      return createNoopTracker("OBSERVABILITY_STATIC_PROPERTY_CONFLICT", development);
+      return createNoopTracker(
+        "OBSERVABILITY_STATIC_PROPERTY_CONFLICT",
+        development,
+      );
     }
     const key = trackerKey(config);
     const existing = activeTrackers.get(key);
@@ -164,13 +170,18 @@ export async function createTrackerWithRemoteConfig(
     });
     if (response.ok) {
       const payload = (await response.json()) as { collectors?: unknown };
-      normalizeP1CollectorConfig(payload.collectors as P1CollectorConfig | undefined);
+      normalizeP1CollectorConfig(
+        payload.collectors as P1CollectorConfig | undefined,
+      );
       collectors = payload.collectors as P1CollectorConfig | undefined;
     }
   } catch {
     collectors = undefined;
   }
-  return createTracker({ ...trackerConfig, ...(collectors ? { collectors } : {}) });
+  return createTracker({
+    ...trackerConfig,
+    ...(collectors ? { collectors } : {}),
+  });
 }
 
 export type * from "./types.js";

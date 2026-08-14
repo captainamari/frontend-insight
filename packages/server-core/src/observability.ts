@@ -57,9 +57,13 @@ export interface FixedAlert {
   definitionVersion: typeof OBSERVABILITY_DEFINITION_VERSION;
 }
 
-export type CollectionStatus = "available" | "not_collected" | "insufficient_sample";
+export type CollectionStatus =
+  "available" | "not_collected" | "insufficient_sample";
 
-export function evidenceRate(numerator: number, denominator: number): number | null {
+export function evidenceRate(
+  numerator: number,
+  denominator: number,
+): number | null {
   return denominator > 0 ? numerator / denominator : null;
 }
 
@@ -94,7 +98,9 @@ function nullableNumber(value: unknown): number | null {
 }
 
 function nullableString(value: unknown): string | null {
-  return value === null || value === undefined || value === "" ? null : String(value);
+  return value === null || value === undefined || value === ""
+    ? null
+    : String(value);
 }
 
 function stringArray(value: unknown): string[] {
@@ -191,7 +197,9 @@ export function errorSeverity(input: {
   if (
     input.occurrences >= 50 ||
     input.affectedAccounts >= 10 ||
-    (input.httpStatus !== null && input.httpStatus >= 500 && input.occurrences >= 20)
+    (input.httpStatus !== null &&
+      input.httpStatus >= 500 &&
+      input.occurrences >= 20)
   ) {
     return "critical";
   }
@@ -222,7 +230,11 @@ export function buildFixedAlerts(input: {
     });
   }
   for (const vital of input.vitals) {
-    if (vital.sampleSize < 20 || vital.poorRate === null || vital.poorRate < 0.3) {
+    if (
+      vital.sampleSize < 20 ||
+      vital.poorRate === null ||
+      vital.poorRate < 0.3
+    ) {
       continue;
     }
     const severity: AlertSeverity = vital.poorRate >= 0.5 ? "high" : "warning";
@@ -292,7 +304,9 @@ export class ObservabilityStore {
   }
 
   getMetrics(): { queries: number; failures: number; latencyP95Ms: number } {
-    const sorted = [...this.durationSamples].sort((left, right) => left - right);
+    const sorted = [...this.durationSamples].sort(
+      (left, right) => left - right,
+    );
     return {
       queries: this.durationSamples.length,
       failures: this.queryFailures,
@@ -303,16 +317,23 @@ export class ObservabilityStore {
   async overview(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
-      const [errors, vitals, releases, trend, summary, availability, rawStatus] =
-        await Promise.all([
-          this.errorGroupsQuery(projectId, range, 500),
-          this.webVitalsQuery(projectId, range, 20),
-          this.releasesQuery(projectId, range),
-          this.trendQuery(projectId, range),
-          this.summaryQuery(projectId, range),
-          this.availableFrom(projectId),
-          this.mysql.getDataStatus(projectId),
-        ]);
+      const [
+        errors,
+        vitals,
+        releases,
+        trend,
+        summary,
+        availability,
+        rawStatus,
+      ] = await Promise.all([
+        this.errorGroupsQuery(projectId, range, 500),
+        this.webVitalsQuery(projectId, range, 20),
+        this.releasesQuery(projectId, range),
+        this.trendQuery(projectId, range),
+        this.summaryQuery(projectId, range),
+        this.availableFrom(projectId),
+        this.mysql.getDataStatus(projectId),
+      ]);
       const dataStatus = evaluateDataStatus(rawStatus);
       const alerts = buildFixedAlerts({
         errors,
@@ -332,7 +353,8 @@ export class ObservabilityStore {
           definitionVersion: OBSERVABILITY_DEFINITION_VERSION,
           errorSpike:
             "关注：次数 ≥5 且浏览器 ≥3；高：次数 ≥10 或浏览器 ≥5；严重：次数 ≥50、账号 ≥10，或 5xx 次数 ≥20。",
-          webVitalPoor: "样本至少 20 且 poor 占比 ≥30% 时关注；poor 占比 ≥50% 时为高。",
+          webVitalPoor:
+            "样本至少 20 且 poor 占比 ≥30% 时关注；poor 占比 ≥50% 时为高。",
           lifecycle: "固定只读告警；M8 不包含确认、关闭和通知路由。",
         },
         boundaries: {
@@ -523,40 +545,45 @@ export class ObservabilityStore {
         this.mysql.getDataStatus(projectId),
       ]);
 
-      const coverageRows = await coverageResponse.json<Record<string, unknown>>();
+      const coverageRows =
+        await coverageResponse.json<Record<string, unknown>>();
       const coverage = coverageRows[0] ?? {};
       const pageViews = numberValue(coverage.page_views);
       const resourceRequests = numberValue(coverage.resource_requests);
       const resourceFailures = numberValue(coverage.resource_failures);
-      const longTaskObserved = numberValue(coverage.long_task_observed_page_views);
+      const longTaskObserved = numberValue(
+        coverage.long_task_observed_page_views,
+      );
       const blankObserved = numberValue(coverage.blank_observed_page_views);
       const breadcrumbErrors = numberValue(coverage.breadcrumb_error_events);
       const errorEvents = numberValue(coverage.error_events);
 
-      const apis = (await apiResponse.json<Record<string, unknown>>()).map((row) => {
-        const requests = numberValue(row.requests);
-        const successes = numberValue(row.successes);
-        const errors = numberValue(row.errors);
-        const slowRequests = numberValue(row.slow_requests);
-        return {
-          requestMethod: String(row.request_method),
-          requestPath: String(row.request_path),
-          numerator: { successes, errors, slowRequests },
-          denominator: requests,
-          successRate: evidenceRate(successes, requests),
-          errorRate: evidenceRate(errors, requests),
-          slowRequestRate: evidenceRate(slowRequests, requests),
-          ...durationEvidence(
-            requests,
-            nullableNumber(row.p50_ms),
-            nullableNumber(row.p90_ms),
-          ),
-          sampleRate: nullableNumber(row.sample_rate),
-          sampleSize: requests,
-          availableFrom: nullableString(row.available_from),
-          lastSeenAt: nullableString(row.last_seen_at),
-        };
-      });
+      const apis = (await apiResponse.json<Record<string, unknown>>()).map(
+        (row) => {
+          const requests = numberValue(row.requests);
+          const successes = numberValue(row.successes);
+          const errors = numberValue(row.errors);
+          const slowRequests = numberValue(row.slow_requests);
+          return {
+            requestMethod: String(row.request_method),
+            requestPath: String(row.request_path),
+            numerator: { successes, errors, slowRequests },
+            denominator: requests,
+            successRate: evidenceRate(successes, requests),
+            errorRate: evidenceRate(errors, requests),
+            slowRequestRate: evidenceRate(slowRequests, requests),
+            ...durationEvidence(
+              requests,
+              nullableNumber(row.p50_ms),
+              nullableNumber(row.p90_ms),
+            ),
+            sampleRate: nullableNumber(row.sample_rate),
+            sampleSize: requests,
+            availableFrom: nullableString(row.available_from),
+            lastSeenAt: nullableString(row.last_seen_at),
+          };
+        },
+      );
       const resourceReleases = (
         await resourceReleaseResponse.json<Record<string, unknown>>()
       ).map((row) => {
@@ -767,7 +794,11 @@ export class ObservabilityStore {
     });
   }
 
-  async errorDetail(projectId: string, groupId: string, rangeInput: AnalyticsRange) {
+  async errorDetail(
+    projectId: string,
+    groupId: string,
+    rangeInput: AnalyticsRange,
+  ) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
       const parameters = { projectId, from: range.from, to: range.to, groupId };
@@ -779,7 +810,10 @@ export class ObservabilityStore {
         rawStatus,
       ] = await Promise.all([
         this.client.query({
-          query: this.errorGroupsSql("AND error_group_id = {groupId:String}", 1),
+          query: this.errorGroupsSql(
+            "AND error_group_id = {groupId:String}",
+            1,
+          ),
           query_params: parameters,
           format: "JSONEachRow",
         }),
@@ -1114,7 +1148,8 @@ export class ObservabilityStore {
   }
 
   private async trendQuery(projectId: string, range: AnalyticsRange) {
-    const bucket = range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay";
+    const bucket =
+      range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay";
     const response = await this.client.query({
       query: `
         SELECT
