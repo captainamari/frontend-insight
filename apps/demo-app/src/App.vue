@@ -256,7 +256,7 @@ async function captureObservability(
       await new Promise((resolve) => window.setTimeout(resolve, 120));
       finish();
     }
-    await tracker.flush();
+    if (!acceptanceFast) await tracker.flush();
   } finally {
     busy.value = false;
   }
