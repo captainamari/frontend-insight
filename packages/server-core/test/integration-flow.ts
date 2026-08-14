@@ -577,6 +577,14 @@ async function main(): Promise<void> {
     const apiEvidence = pagePerformance.body.api as Record<string, unknown>;
     const resourceEvidence = pagePerformance.body.resources as Record<string, unknown>;
     const readinessEvidence = pagePerformance.body.readiness as Record<string, unknown>;
+    const coverageEvidence = pagePerformance.body.coverage as {
+      readiness: Record<string, unknown>;
+      blankScreen: Record<string, unknown>;
+    };
+    const blankEvidence = pagePerformance.body.blankScreen as {
+      relatedErrors: Record<string, unknown>;
+      relatedResources: Record<string, unknown>;
+    };
     assert(
       apiEvidence.status === "available" &&
         Array.isArray(apiEvidence.items) &&
@@ -593,13 +601,13 @@ async function main(): Promise<void> {
     assert(
       readinessEvidence.status === "available" &&
         Array.isArray(readinessEvidence.items) &&
-        pagePerformance.body.coverage.readiness.sampleRate === 0.5 &&
-        pagePerformance.body.coverage.blankScreen.sampleRate === 0.25,
+        coverageEvidence.readiness.sampleRate === 0.5 &&
+        coverageEvidence.blankScreen.sampleRate === 0.25,
       "P1 readiness and blank-screen sampling must remain independent",
     );
     assert(
-      pagePerformance.body.blankScreen.relatedErrors.occurrences === 20 &&
-        pagePerformance.body.blankScreen.relatedResources.denominator === 240,
+      blankEvidence.relatedErrors.occurrences === 20 &&
+        blankEvidence.relatedResources.denominator === 240,
       "P1 blank candidates must retain related error and resource evidence",
     );
 
