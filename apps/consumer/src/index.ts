@@ -172,10 +172,7 @@ export class EventConsumerRuntime {
       isRunning,
       pause,
     } = payload;
-    const messages = batch.messages.slice(
-      0,
-      this.environment.CONSUMER_BATCH_SIZE,
-    );
+    const messages = batch.messages.slice(0, this.environment.CONSUMER_BATCH_SIZE);
     const attemptKey = `${batch.topic}:${batch.partition}:${messages[0]?.offset ?? "empty"}`;
     try {
       const envelopes: KafkaEventEnvelope[] = [];
@@ -244,18 +241,12 @@ export class EventConsumerRuntime {
     } catch {
       throw new Error("KAFKA_ENVELOPE_INVALID");
     }
-    if (
-      parsed.envelopeVersion !== 1 ||
-      !parsed.projectId ||
-      !parsed.requestId
-    ) {
+    if (parsed.envelopeVersion !== 1 || !parsed.projectId || !parsed.requestId) {
       throw new Error("KAFKA_ENVELOPE_INVALID");
     }
     const validation = validateForConsumer(parsed.batch);
     if (!validation.ok) throw new Error("KAFKA_EVENT_CONTRACT_INVALID");
-    if (
-      validation.value.events.some((event) => event.accountRef !== undefined)
-    ) {
+    if (validation.value.events.some((event) => event.accountRef !== undefined)) {
       throw new Error("RAW_ACCOUNT_REF_AFTER_INGESTION");
     }
     return parsed;
@@ -266,9 +257,7 @@ export class EventConsumerRuntime {
       envelope.enrichments.map((item) => [item.eventId, item] as const),
     );
     return envelope.batch.events.map((event) => {
-      const enrichment: EventEnrichment | undefined = enrichments.get(
-        event.eventId,
-      );
+      const enrichment: EventEnrichment | undefined = enrichments.get(event.eventId);
       if (!enrichment) throw new Error("EVENT_ENRICHMENT_MISSING");
       const properties = event.properties as Record<string, unknown>;
       const errorGroupId = observabilityGroupId(event.eventName, properties);
@@ -291,9 +280,7 @@ export class EventConsumerRuntime {
           ? event.eventName.slice("feature_".length)
           : null,
         operation_instance_id:
-          "operationInstanceId" in event
-            ? (event.operationInstanceId ?? null)
-            : null,
+          "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
         interaction_type:
           "interactionType" in event ? (event.interactionType ?? null) : null,
         release_version: event.releaseVersion,
@@ -317,10 +304,7 @@ export class EventConsumerRuntime {
         vital_rating: propertyString(properties, "vitalRating"),
         navigation_type: propertyString(properties, "navigationType"),
         collector_sample_rate: propertyNumber(properties, "sampleRate"),
-        first_screen_sample_rate: propertyNumber(
-          properties,
-          "firstScreenSampleRate",
-        ),
+        first_screen_sample_rate: propertyNumber(properties, "firstScreenSampleRate"),
         blank_detection_sample_rate: propertyNumber(
           properties,
           "blankDetectionSampleRate",
@@ -332,10 +316,7 @@ export class EventConsumerRuntime {
         slow_threshold_ms: propertyNumber(properties, "slowThresholdMs"),
         resource_total_count: propertyNumber(properties, "totalCount"),
         resource_failed_count: propertyNumber(properties, "failedCount"),
-        resource_total_duration_ms: propertyNumber(
-          properties,
-          "totalDurationMs",
-        ),
+        resource_total_duration_ms: propertyNumber(properties, "totalDurationMs"),
         readiness_template: propertyString(properties, "templateKey"),
         readiness_state: propertyString(properties, "readinessState"),
         first_screen_collected:
@@ -421,9 +402,7 @@ export class EventConsumerRuntime {
       }
       if (request.url === "/health/ready" && this.metrics.ready) {
         response.writeHead(200, { "content-type": "application/json" });
-        response.end(
-          JSON.stringify({ status: "ready", metrics: this.metrics }),
-        );
+        response.end(JSON.stringify({ status: "ready", metrics: this.metrics }));
         return;
       }
       response.writeHead(503, { "content-type": "application/json" });
@@ -444,10 +423,7 @@ export async function bootstrapConsumer(): Promise<void> {
   await runtime.start();
 }
 
-if (
-  process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
-) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   bootstrapConsumer().catch((cause) => {
     console.error(
       JSON.stringify({
