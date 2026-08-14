@@ -244,6 +244,17 @@ watch(
                 }}</strong>
               </div>
               <div>
+                <span>API 覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.api.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.api.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{ formatPercent(performance.data.value.coverage.api.sampleRate) }}</small
+                >
+              </div>
+              <div>
                 <span>首屏覆盖</span>
                 <strong>{{
                   formatPercent(performance.data.value.coverage.readiness.rate)
@@ -266,6 +277,19 @@ watch(
                   {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
                     formatPercent(performance.data.value.coverage.resources.sampleRate)
+                  }}</small
+                >
+              </div>
+              <div>
+                <span>列表渲染覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.listRender.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.listRender.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
+                  {{
+                    formatPercent(performance.data.value.coverage.listRender.sampleRate)
                   }}</small
                 >
               </div>
@@ -297,6 +321,21 @@ watch(
                   }}</small
                 >
               </div>
+              <div>
+                <span>Breadcrumb 错误覆盖</span>
+                <strong>{{
+                  formatPercent(performance.data.value.coverage.breadcrumbs.rate)
+                }}</strong>
+                <small
+                  >{{ performance.data.value.coverage.breadcrumbs.observedErrors }} /
+                  {{ performance.data.value.coverage.breadcrumbs.errorEvents }} · 采样
+                  {{
+                    formatPercent(
+                      performance.data.value.coverage.breadcrumbs.sampleRate,
+                    )
+                  }}</small
+                >
+              </div>
             </div>
 
             <div
@@ -308,6 +347,7 @@ watch(
                   performance.data.value.listRender.status,
                   performance.data.value.longTasks.status,
                   performance.data.value.blankScreen.status,
+                  performance.data.value.breadcrumbs.status,
                 ].every((status) => status === 'not_collected')
               "
               class="collector-status"
@@ -327,7 +367,10 @@ watch(
                 <small
                   v-if="performance.data.value.resources.status !== 'not_collected'"
                   >{{ performance.data.value.resources.numerator }} /
-                  {{ performance.data.value.resources.denominator }} 次请求</small
+                  {{ performance.data.value.resources.denominator }} 次请求 · 可用起点
+                  {{
+                    formatDateTime(performance.data.value.resources.availableFrom)
+                  }}</small
                 >
               </article>
               <article>
@@ -357,13 +400,37 @@ watch(
                 <small
                   v-if="performance.data.value.blankScreen.status !== 'not_collected'"
                   >{{ performance.data.value.blankScreen.numerator }} /
-                  {{ performance.data.value.blankScreen.denominator }} 个已检测
-                  PV</small
+                  {{ performance.data.value.blankScreen.denominator }} 个已检测 PV ·
+                  关联错误
+                  {{
+                    formatNumber(
+                      performance.data.value.blankScreen.relatedErrors.occurrences,
+                    )
+                  }}
+                  次 · 关联资源失败
+                  {{
+                    formatNumber(
+                      performance.data.value.blankScreen.relatedResources.numerator,
+                    )
+                  }}
+                  /
+                  {{
+                    formatNumber(
+                      performance.data.value.blankScreen.relatedResources.denominator,
+                    )
+                  }}</small
                 >
               </article>
             </div>
 
-            <h3>API 请求汇总</h3>
+            <div class="section-heading">
+              <h3>API 请求汇总</h3>
+              <small
+                >可用起点：{{
+                  formatDateTime(performance.data.value.api.availableFrom)
+                }}</small
+              >
+            </div>
             <el-table
               :data="performance.data.value.api.items"
               empty-text="未采集 API 请求汇总"
@@ -398,9 +465,43 @@ watch(
               </el-table-column>
             </el-table>
 
+            <h3>资源失败率 · 发布版本对比</h3>
+            <el-table
+              :data="performance.data.value.resources.releases"
+              empty-text="未采集资源发布版本对比"
+            >
+              <el-table-column prop="releaseVersion" label="发布版本" min-width="150" />
+              <el-table-column label="失败 / 分母" min-width="150">
+                <template #default="{ row }">
+                  {{ formatNumber(row.numerator) }} /
+                  {{ formatNumber(row.denominator) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="失败率" width="110">
+                <template #default="{ row }">{{
+                  formatPercent(row.failureRate)
+                }}</template>
+              </el-table-column>
+              <el-table-column label="采样率" width="110">
+                <template #default="{ row }">{{
+                  formatPercent(row.sampleRate)
+                }}</template>
+              </el-table-column>
+              <el-table-column label="可用起点" min-width="180">
+                <template #default="{ row }">{{
+                  formatDateTime(row.availableFrom)
+                }}</template>
+              </el-table-column>
+            </el-table>
+
             <div class="overview-columns p1-detail-columns">
               <section>
                 <h3>首屏 readiness（按模板）</h3>
+                <small
+                  >可用起点：{{
+                    formatDateTime(performance.data.value.readiness.availableFrom)
+                  }}</small
+                >
                 <el-table
                   :data="performance.data.value.readiness.items"
                   empty-text="未采集显式 readiness"
@@ -422,6 +523,11 @@ watch(
               </section>
               <section>
                 <h3>列表渲染（按行数桶）</h3>
+                <small
+                  >可用起点：{{
+                    formatDateTime(performance.data.value.listRender.availableFrom)
+                  }}</small
+                >
                 <el-table
                   :data="performance.data.value.listRender.items"
                   empty-text="未采集列表渲染"
@@ -725,6 +831,33 @@ watch(
             <el-table-column prop="occurrences" label="次数" width="80" />
             <el-table-column prop="affectedBrowsers" label="浏览器" width="90" />
           </el-table>
+        </section>
+        <section>
+          <h3>错误前 Breadcrumb 诊断证据</h3>
+          <el-collapse v-if="detail.data.value.breadcrumbSamples.length">
+            <el-collapse-item
+              v-for="(sample, index) in detail.data.value.breadcrumbSamples"
+              :key="`${sample.occurredAt ?? 'unknown'}-${index}`"
+              :title="`${sample.route} · ${sample.releaseVersion} · ${formatDateTime(
+                sample.occurredAt,
+              )}`"
+            >
+              <el-timeline>
+                <el-timeline-item
+                  v-for="(item, itemIndex) in sample.items"
+                  :key="`${item.occurredAt}-${itemIndex}`"
+                  :timestamp="formatDateTime(item.occurredAt)"
+                >
+                  {{ item.kind }} · {{ item.key }}
+                  <code v-if="item.method || item.path">
+                    {{ item.method ?? "" }} {{ item.path ?? "" }}
+                  </code>
+                  <span v-if="item.statusCode"> · {{ item.statusCode }}</span>
+                </el-timeline-item>
+              </el-timeline>
+            </el-collapse-item>
+          </el-collapse>
+          <div v-else class="inline-empty">该错误组未采集 breadcrumb。</div>
         </section>
         <p class="privacy-note">{{ detail.data.value.privacy }}</p>
       </div>
