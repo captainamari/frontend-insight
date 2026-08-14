@@ -153,8 +153,11 @@ watch(
         plain
         @click="
           router.push({
-            name: 'metrics',
-            params: { projectId: context.projectId.value },
+            name: 'metric-configuration',
+            params: {
+              projectId: context.projectId.value,
+              section: 'profiles',
+            },
             query: route.query,
           })
         "
