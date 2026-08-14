@@ -561,6 +561,17 @@ describe("web tracker lifecycle and privacy", () => {
           allowedActionKeys: ["orders_opened"],
         },
       },
+      beforeSend: ({ event }) => ({
+        ...event,
+        properties: { ...event.properties },
+        ...(event.breadcrumbs
+          ? {
+              breadcrumbs: event.breadcrumbs.map((breadcrumb) => ({
+                ...breadcrumb,
+              })),
+            }
+          : {}),
+      }),
     });
     vi.advanceTimersByTime(120);
     tracker.markPageReady({ templateKey: "analysis_view", blankCandidate: true });
