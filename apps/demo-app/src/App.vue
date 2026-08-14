@@ -52,14 +52,12 @@ const diagnostics = computed(() => tracker?.getDiagnostics());
 function sceneFromPath(): Scene {
   if (window.location.pathname.includes("action")) return "action";
   if (window.location.pathname.includes("wallboard")) return "wallboard";
-  if (window.location.pathname.includes("observability"))
-    return "observability";
+  if (window.location.pathname.includes("observability")) return "observability";
   return "data";
 }
 
 function describe(event: Readonly<TrackerEvent>): string {
-  if (event.eventName === "feature_started")
-    return "只表示开始，不计入成功使用";
+  if (event.eventName === "feature_started") return "只表示开始，不计入成功使用";
   if (event.eventName === "feature_succeeded") {
     return event.properties.visibleDurationMs
       ? `达到前台可见阈值，累计 ${event.properties.visibleDurationMs} ms`
@@ -82,8 +80,7 @@ function describe(event: Readonly<TrackerEvent>): string {
   if (event.eventName === "page_leave") return "前台可见停留结算";
   if (event.eventName === "error_js") return "JS 错误已裁剪并按稳定首帧聚类";
   if (event.eventName === "error_api") return "API 路径已去参数并归一化动态 ID";
-  if (event.eventName === "error_resource")
-    return "资源失败只保留类型和脱敏路径";
+  if (event.eventName === "error_resource") return "资源失败只保留类型和脱敏路径";
   if (event.eventName === "web_vital") return "性能样本按固定阈值标记等级";
   return "标准事件";
 }
@@ -287,17 +284,12 @@ async function runData(kind: "success" | "api_failure" | "render_failure") {
 }
 
 async function runAction(
-  featureKey:
-    "report_export" | "data_import" | "settings_save" | "command_dispatch",
+  featureKey: "report_export" | "data_import" | "settings_save" | "command_dispatch",
   result: ResultKind,
 ) {
   if (!tracker) return;
   busy.value = true;
-  const operation = tracker.startOperation(
-    featureKey,
-    { scenario: result },
-    "click",
-  );
+  const operation = tracker.startOperation(featureKey, { scenario: result }, "click");
   await new Promise((resolve) => window.setTimeout(resolve, 350));
   if (result === "success") {
     operation.succeed({ source: "controlled_demo" });
@@ -365,10 +357,7 @@ onBeforeUnmount(() => {
           placeholder="输入任意非空值"
         />
       </label>
-      <button
-        :disabled="!loginForm.username || !loginForm.password"
-        type="submit"
-      >
+      <button :disabled="!loginForm.username || !loginForm.password" type="submit">
         进入场景实验室
       </button>
     </form>
@@ -448,19 +437,11 @@ onBeforeUnmount(() => {
               <strong>请求成功 + 渲染成功</strong>
               <small>预期：feature_succeeded</small>
             </button>
-            <button
-              type="button"
-              :disabled="busy"
-              @click="runData('api_failure')"
-            >
+            <button type="button" :disabled="busy" @click="runData('api_failure')">
               <strong>主要接口失败</strong>
               <small>预期：feature_failed / api_failure</small>
             </button>
-            <button
-              type="button"
-              :disabled="busy"
-              @click="runData('render_failure')"
-            >
+            <button type="button" :disabled="busy" @click="runData('render_failure')">
               <strong>数据成功但渲染失败</strong>
               <small>预期：feature_failed / render_failure</small>
             </button>
@@ -561,18 +542,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div
-          v-else-if="scene === 'wallboard'"
-          class="scene-content wallboard-scene"
-        >
+        <div v-else-if="scene === 'wallboard'" class="scene-content wallboard-scene">
           <div class="scene-title">
             <span class="scene-index">03</span>
             <div>
               <p class="eyebrow">VISIBLE LONG VIEW</p>
               <h1>持续展示大屏</h1>
-              <p>
-                前台累计 30 秒后成功；后台标签页暂停，之后按 60 秒心跳累计。
-              </p>
+              <p>前台累计 30 秒后成功；后台标签页暂停，之后按 60 秒心跳累计。</p>
             </div>
           </div>
           <div class="wallboard">
@@ -592,18 +568,10 @@ onBeforeUnmount(() => {
               </small>
             </div>
             <div class="wallboard-actions">
-              <button
-                type="button"
-                :disabled="wallboardActive"
-                @click="startWallboard"
-              >
+              <button type="button" :disabled="wallboardActive" @click="startWallboard">
                 开始持续展示
               </button>
-              <button
-                type="button"
-                :disabled="!wallboardActive"
-                @click="stopWallboard"
-              >
+              <button type="button" :disabled="!wallboardActive" @click="stopWallboard">
                 结束并结算
               </button>
             </div>
@@ -621,25 +589,16 @@ onBeforeUnmount(() => {
               <p class="eyebrow">OBSERVABILITY / PRIVACY</p>
               <h1>错误、性能与发布证据</h1>
               <p>
-                受控生成四类 M8 事件；SDK 会先删除凭据、URL 参数、邮箱和动态路径
-                ID。
+                受控生成四类 M8 事件；SDK 会先删除凭据、URL 参数、邮箱和动态路径 ID。
               </p>
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
-            <button
-              type="button"
-              :disabled="busy"
-              @click="captureObservability('js')"
-            >
+            <button type="button" :disabled="busy" @click="captureObservability('js')">
               <strong>模拟 JS 异常</strong>
               <small>error_js · TypeError + 脱敏首帧</small>
             </button>
-            <button
-              type="button"
-              :disabled="busy"
-              @click="captureObservability('api')"
-            >
+            <button type="button" :disabled="busy" @click="captureObservability('api')">
               <strong>模拟 API 503</strong>
               <small>error_api · /api/budgets/:id</small>
             </button>
@@ -679,8 +638,8 @@ onBeforeUnmount(() => {
           <div class="privacy-proof">
             <strong>发布边界</strong>
             <p>
-              所有事件显式关联 2026.08.1-demo / production；SourceMap
-              不上传，运营指数 v1 不受影响。
+              所有事件显式关联 2026.08.1-demo / production；SourceMap 不上传，运营指数
+              v1 不受影响。
             </p>
           </div>
         </div>
