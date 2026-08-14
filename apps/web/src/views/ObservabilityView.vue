@@ -7,12 +7,7 @@ import PageHeader from "../components/PageHeader.vue";
 import StatePanel from "../components/StatePanel.vue";
 import TrendChart from "../components/TrendChart.vue";
 import { useDashboardContext } from "../context";
-import {
-  formatDateTime,
-  formatDuration,
-  formatNumber,
-  formatPercent,
-} from "../range";
+import { formatDateTime, formatDuration, formatNumber, formatPercent } from "../range";
 import { useRemoteData } from "../remote";
 import type {
   ErrorGroupDetailResponse,
@@ -33,10 +28,7 @@ const errorType = ref<ObservabilityErrorType | "all">("all");
 const severity = ref<ObservabilitySeverity | "all">("all");
 
 const viewState = computed(() => {
-  if (
-    !context.projectId.value ||
-    (resource.loading.value && !resource.data.value)
-  ) {
+  if (!context.projectId.value || (resource.loading.value && !resource.data.value)) {
     return "loading" as const;
   }
   if (resource.error.value && !resource.data.value) {
@@ -91,9 +83,7 @@ const cards = computed(() => {
     {
       label: "Web Vitals 较差占比",
       value: formatPercent(
-        summary.vitalSamples
-          ? summary.poorVitalSamples / summary.vitalSamples
-          : null,
+        summary.vitalSamples ? summary.poorVitalSamples / summary.vitalSamples : null,
       ),
       definition: `${summary.poorVitalSamples} / ${summary.vitalSamples} 个性能样本由 SDK 按固定阈值判定为 poor。`,
     },
@@ -132,9 +122,7 @@ function severityTagType(value: ObservabilitySeverity) {
 
 function vitalValue(item: WebVitalSummary): string {
   if (item.p75 === null) return "—";
-  return item.vitalName === "CLS"
-    ? item.p75.toFixed(3)
-    : `${Math.round(item.p75)} ms`;
+  return item.vitalName === "CLS" ? item.p75.toFixed(3) : `${Math.round(item.p75)} ms`;
 }
 
 async function load(): Promise<void> {
@@ -187,9 +175,7 @@ watch(
 
     <StatePanel
       :state="viewState"
-      :title="
-        viewState === 'forbidden' ? '无项目访问权限' : '可观测性数据暂不可用'
-      "
+      :title="viewState === 'forbidden' ? '无项目访问权限' : '可观测性数据暂不可用'"
       :message="
         viewState === 'forbidden'
           ? '当前账号未被授予这个项目的查看权限。'
@@ -206,9 +192,7 @@ watch(
           </div>
           <div>
             <strong>SourceMap 暂未启用</strong>
-            <span
-              >先用脱敏首帧验证真实定位需求，再单独评审源码暴露与存储边界。</span
-            >
+            <span>先用脱敏首帧验证真实定位需求，再单独评审源码暴露与存储边界。</span>
           </div>
           <small>{{ resource.data.value.boundaries.causality }}</small>
         </section>
@@ -223,8 +207,8 @@ watch(
               <span class="eyebrow">CONTROLLED COLLECTORS / P1</span>
               <h2>页面性能与操作耗时</h2>
               <p>
-                仅展示显式启用 collector
-                后的证据；没有分母时显示“未采集”，不会用 0 代替。
+                仅展示显式启用 collector 后的证据；没有分母时显示“未采集”，不会用 0
+                代替。
               </p>
             </div>
             <router-link
@@ -268,9 +252,7 @@ watch(
                   >{{ performance.data.value.coverage.api.observedPageViews }} /
                   {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
-                    formatPercent(
-                      performance.data.value.coverage.api.sampleRate,
-                    )
+                    formatPercent(performance.data.value.coverage.api.sampleRate)
                   }}</small
                 >
               </div>
@@ -280,14 +262,10 @@ watch(
                   formatPercent(performance.data.value.coverage.readiness.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.readiness.observedPageViews
-                  }}
-                  / {{ performance.data.value.coverage.pageViews }} · 采样
+                  >{{ performance.data.value.coverage.readiness.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
-                    formatPercent(
-                      performance.data.value.coverage.readiness.sampleRate,
-                    )
+                    formatPercent(performance.data.value.coverage.readiness.sampleRate)
                   }}</small
                 >
               </div>
@@ -297,14 +275,10 @@ watch(
                   formatPercent(performance.data.value.coverage.resources.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.resources.observedPageViews
-                  }}
-                  / {{ performance.data.value.coverage.pageViews }} · 采样
+                  >{{ performance.data.value.coverage.resources.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
-                    formatPercent(
-                      performance.data.value.coverage.resources.sampleRate,
-                    )
+                    formatPercent(performance.data.value.coverage.resources.sampleRate)
                   }}</small
                 >
               </div>
@@ -314,14 +288,10 @@ watch(
                   formatPercent(performance.data.value.coverage.listRender.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.listRender.observedPageViews
-                  }}
-                  / {{ performance.data.value.coverage.pageViews }} · 采样
+                  >{{ performance.data.value.coverage.listRender.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
-                    formatPercent(
-                      performance.data.value.coverage.listRender.sampleRate,
-                    )
+                    formatPercent(performance.data.value.coverage.listRender.sampleRate)
                   }}</small
                 >
               </div>
@@ -331,30 +301,21 @@ watch(
                   formatPercent(performance.data.value.coverage.longTasks.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.longTasks.observedPageViews
-                  }}
-                  / {{ performance.data.value.coverage.pageViews }} · 采样
+                  >{{ performance.data.value.coverage.longTasks.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
-                    formatPercent(
-                      performance.data.value.coverage.longTasks.sampleRate,
-                    )
+                    formatPercent(performance.data.value.coverage.longTasks.sampleRate)
                   }}</small
                 >
               </div>
               <div>
                 <span>白屏候选检测覆盖</span>
                 <strong>{{
-                  formatPercent(
-                    performance.data.value.coverage.blankScreen.rate,
-                  )
+                  formatPercent(performance.data.value.coverage.blankScreen.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.blankScreen
-                      .observedPageViews
-                  }}
-                  / {{ performance.data.value.coverage.pageViews }} · 采样
+                  >{{ performance.data.value.coverage.blankScreen.observedPageViews }} /
+                  {{ performance.data.value.coverage.pageViews }} · 采样
                   {{
                     formatPercent(
                       performance.data.value.coverage.blankScreen.sampleRate,
@@ -365,18 +326,12 @@ watch(
               <div>
                 <span>Breadcrumb 错误覆盖</span>
                 <strong>{{
-                  formatPercent(
-                    performance.data.value.coverage.breadcrumbs.rate,
-                  )
+                  formatPercent(performance.data.value.coverage.breadcrumbs.rate)
                 }}</strong>
                 <small
-                  >{{
-                    performance.data.value.coverage.breadcrumbs.observedErrors
-                  }}
+                  >{{ performance.data.value.coverage.breadcrumbs.observedErrors }}
                   /
-                  {{
-                    performance.data.value.coverage.breadcrumbs.errorEvents
-                  }}
+                  {{ performance.data.value.coverage.breadcrumbs.errorEvents }}
                   · 采样
                   {{
                     formatPercent(
@@ -402,9 +357,7 @@ watch(
               class="collector-status"
             >
               <strong>当前范围未采集 P1 事件</strong>
-              <span
-                >请先在“采集开关”中按项目启用，再按 SDK 接入说明显式上报。</span
-              >
+              <span>请先在“采集开关”中按项目启用，再按 SDK 接入说明显式上报。</span>
             </div>
 
             <div class="p1-summary-grid">
@@ -413,21 +366,14 @@ watch(
                 <strong>{{
                   performance.data.value.resources.status === "not_collected"
                     ? "未采集"
-                    : formatPercent(
-                        performance.data.value.resources.failureRate,
-                      )
+                    : formatPercent(performance.data.value.resources.failureRate)
                 }}</strong>
                 <small
-                  v-if="
-                    performance.data.value.resources.status !== 'not_collected'
-                  "
+                  v-if="performance.data.value.resources.status !== 'not_collected'"
                   >{{ performance.data.value.resources.numerator }} /
-                  {{ performance.data.value.resources.denominator }} 次请求 ·
-                  可用起点
+                  {{ performance.data.value.resources.denominator }} 次请求 · 可用起点
                   {{
-                    formatDateTime(
-                      performance.data.value.resources.availableFrom,
-                    )
+                    formatDateTime(performance.data.value.resources.availableFrom)
                   }}</small
                 >
               </article>
@@ -441,9 +387,7 @@ watch(
                       )
                 }}</strong>
                 <small
-                  v-if="
-                    performance.data.value.longTasks.status !== 'not_collected'
-                  "
+                  v-if="performance.data.value.longTasks.status !== 'not_collected'"
                   >{{ performance.data.value.longTasks.count }} 次 ·
                   {{
                     formatDuration(performance.data.value.longTasks.durationMs)
@@ -455,36 +399,28 @@ watch(
                 <strong>{{
                   performance.data.value.blankScreen.status === "not_collected"
                     ? "未采集"
-                    : formatPercent(
-                        performance.data.value.blankScreen.candidateRate,
-                      )
+                    : formatPercent(performance.data.value.blankScreen.candidateRate)
                 }}</strong>
                 <small
-                  v-if="
-                    performance.data.value.blankScreen.status !==
-                    'not_collected'
-                  "
+                  v-if="performance.data.value.blankScreen.status !== 'not_collected'"
                   >{{ performance.data.value.blankScreen.numerator }} /
-                  {{ performance.data.value.blankScreen.denominator }} 个已检测
-                  PV · 关联错误
+                  {{ performance.data.value.blankScreen.denominator }} 个已检测 PV ·
+                  关联错误
                   {{
                     formatNumber(
-                      performance.data.value.blankScreen.relatedErrors
-                        .occurrences,
+                      performance.data.value.blankScreen.relatedErrors.occurrences,
                     )
                   }}
                   次 · 关联资源失败
                   {{
                     formatNumber(
-                      performance.data.value.blankScreen.relatedResources
-                        .numerator,
+                      performance.data.value.blankScreen.relatedResources.numerator,
                     )
                   }}
                   /
                   {{
                     formatNumber(
-                      performance.data.value.blankScreen.relatedResources
-                        .denominator,
+                      performance.data.value.blankScreen.relatedResources.denominator,
                     )
                   }}</small
                 >
@@ -505,9 +441,7 @@ watch(
             >
               <el-table-column label="接口" min-width="260">
                 <template #default="{ row }"
-                  ><code
-                    >{{ row.requestMethod }} {{ row.requestPath }}</code
-                  ></template
+                  ><code>{{ row.requestMethod }} {{ row.requestPath }}</code></template
                 >
               </el-table-column>
               <el-table-column label="P50 / P90" width="170">
@@ -540,11 +474,7 @@ watch(
               :data="performance.data.value.resources.releases"
               empty-text="未采集资源发布版本对比"
             >
-              <el-table-column
-                prop="releaseVersion"
-                label="发布版本"
-                min-width="150"
-              />
+              <el-table-column prop="releaseVersion" label="发布版本" min-width="150" />
               <el-table-column label="失败 / 分母" min-width="150">
                 <template #default="{ row }">
                   {{ formatNumber(row.numerator) }} /
@@ -573,20 +503,14 @@ watch(
                 <h3>首屏 readiness（按模板）</h3>
                 <small
                   >可用起点：{{
-                    formatDateTime(
-                      performance.data.value.readiness.availableFrom,
-                    )
+                    formatDateTime(performance.data.value.readiness.availableFrom)
                   }}</small
                 >
                 <el-table
                   :data="performance.data.value.readiness.items"
                   empty-text="未采集显式 readiness"
                 >
-                  <el-table-column
-                    prop="templateKey"
-                    label="模板"
-                    min-width="130"
-                  />
+                  <el-table-column prop="templateKey" label="模板" min-width="130" />
                   <el-table-column label="P50 / P90" min-width="150">
                     <template #default="{ row }"
                       >{{ formatDuration(row.p50Ms) }} /
@@ -605,9 +529,7 @@ watch(
                 <h3>列表渲染（按行数桶）</h3>
                 <small
                   >可用起点：{{
-                    formatDateTime(
-                      performance.data.value.listRender.availableFrom,
-                    )
+                    formatDateTime(performance.data.value.listRender.availableFrom)
                   }}</small
                 >
                 <el-table
@@ -615,11 +537,7 @@ watch(
                   empty-text="未采集列表渲染"
                 >
                   <el-table-column prop="route" label="页面" min-width="140" />
-                  <el-table-column
-                    prop="rowCountBucket"
-                    label="行数桶"
-                    width="110"
-                  />
+                  <el-table-column prop="rowCountBucket" label="行数桶" width="110" />
                   <el-table-column label="P50 / P90" min-width="150">
                     <template #default="{ row }"
                       >{{ formatDuration(row.p50Ms) }} /
@@ -631,9 +549,8 @@ watch(
               </section>
             </div>
             <p class="privacy-note">
-              白屏仅表示 adapter
-              判定的候选状态，不等同于事实；API、资源、长任务和 breadcrumb
-              均不采集 query、header/body、DOM、输入内容或业务对象 ID。口径
+              白屏仅表示 adapter 判定的候选状态，不等同于事实；API、资源、长任务和
+              breadcrumb 均不采集 query、header/body、DOM、输入内容或业务对象 ID。口径
               {{ performance.data.value.definitionVersion }}。
             </p>
           </template>
@@ -644,14 +561,10 @@ watch(
             <div>
               <span class="eyebrow">INCIDENT TREND</span>
               <h2>错误与较差性能样本趋势</h2>
-              <p>
-                可与发布版本并列查看，但时间重合只提供排查线索，不自动推断因果。
-              </p>
+              <p>可与发布版本并列查看，但时间重合只提供排查线索，不自动推断因果。</p>
             </div>
             <small>
-              数据可用起点：{{
-                formatDateTime(resource.data.value.availableFrom)
-              }}
+              数据可用起点：{{ formatDateTime(resource.data.value.availableFrom) }}
             </small>
           </div>
           <TrendChart
@@ -669,8 +582,7 @@ watch(
               <span class="eyebrow">ERROR GROUPS</span>
               <h2>错误组与影响范围</h2>
               <p>
-                点击错误组查看页面 × 发布版本下钻；消息、路径和首帧已在 SDK
-                侧裁剪。
+                点击错误组查看页面 × 发布版本下钻；消息、路径和首帧已在 SDK 侧裁剪。
               </p>
             </div>
             <div class="observability-filters">
@@ -719,9 +631,7 @@ watch(
                     </el-tag>
                   </span>
                   <strong>{{ errorHeadline(row) }}</strong>
-                  <small>{{
-                    row.stackTopFrame ?? row.groupId.slice(0, 16)
-                  }}</small>
+                  <small>{{ row.stackTopFrame ?? row.groupId.slice(0, 16) }}</small>
                 </div>
               </template>
             </el-table-column>
@@ -760,9 +670,7 @@ watch(
               <div>
                 <span class="eyebrow">WEB VITALS</span>
                 <h2>页面性能 p75</h2>
-                <p>
-                  按页面、指标和发布版本分组；至少 20 个样本才触发固定告警判断。
-                </p>
+                <p>按页面、指标和发布版本分组；至少 20 个样本才触发固定告警判断。</p>
               </div>
             </div>
             <el-table
@@ -781,11 +689,7 @@ watch(
                   }}
                 </template>
               </el-table-column>
-              <el-table-column
-                prop="releaseVersion"
-                label="发布"
-                min-width="120"
-              />
+              <el-table-column prop="releaseVersion" label="发布" min-width="120" />
             </el-table>
           </section>
 
@@ -794,9 +698,7 @@ watch(
               <div>
                 <span class="eyebrow">FIXED ALERTS</span>
                 <h2>固定告警证据</h2>
-                <p>
-                  当前只读且不可确认/关闭；避免在处理流程验证前引入隐式状态。
-                </p>
+                <p>当前只读且不可确认/关闭；避免在处理流程验证前引入隐式状态。</p>
               </div>
             </div>
             <ol v-if="resource.data.value.alerts.length" class="alert-list">
@@ -830,25 +732,15 @@ watch(
             <div>
               <span class="eyebrow">RELEASE EVIDENCE</span>
               <h2>发布版本关联</h2>
-              <p>
-                releaseVersion 由宿主显式注入；unknown 不会被平台猜测或回填。
-              </p>
+              <p>releaseVersion 由宿主显式注入；unknown 不会被平台猜测或回填。</p>
             </div>
           </div>
           <el-table
             :data="resource.data.value.releases"
             empty-text="所选范围内没有带发布版本的可观测性事件"
           >
-            <el-table-column
-              prop="releaseVersion"
-              label="版本"
-              min-width="150"
-            />
-            <el-table-column
-              prop="deploymentEnvironment"
-              label="环境"
-              width="120"
-            />
+            <el-table-column prop="releaseVersion" label="版本" min-width="150" />
+            <el-table-column prop="deploymentEnvironment" label="环境" width="120" />
             <el-table-column label="错误 / 错误组" width="150">
               <template #default="{ row }">
                 {{ formatNumber(row.errors) }} /
@@ -877,10 +769,7 @@ watch(
     </StatePanel>
 
     <el-drawer v-model="drawerOpen" title="错误组证据" size="min(720px, 92vw)">
-      <div
-        v-if="detail.loading.value && !detail.data.value"
-        class="inline-empty"
-      >
+      <div v-if="detail.loading.value && !detail.data.value" class="inline-empty">
         正在加载错误组…
       </div>
       <div v-else-if="detail.error.value" class="inline-empty">
@@ -903,9 +792,7 @@ watch(
             </el-tag>
           </span>
           <h2>{{ errorHeadline(detail.data.value.item) }}</h2>
-          <code>{{
-            detail.data.value.item.stackTopFrame ?? "没有可用首帧"
-          }}</code>
+          <code>{{ detail.data.value.item.stackTopFrame ?? "没有可用首帧" }}</code>
         </div>
         <dl class="evidence-list">
           <div>
@@ -930,9 +817,7 @@ watch(
           <div>
             <dt>浏览器 / OS 粗粒度</dt>
             <dd>
-              {{
-                detail.data.value.item.browserFamilies.join(", ") || "unknown"
-              }}
+              {{ detail.data.value.item.browserFamilies.join(", ") || "unknown" }}
               /
               {{ detail.data.value.item.osFamilies.join(", ") || "unknown" }}
             </dd>
@@ -940,9 +825,7 @@ watch(
           <div>
             <dt>视口档位</dt>
             <dd>
-              {{
-                detail.data.value.item.viewportBuckets.join(", ") || "unknown"
-              }}
+              {{ detail.data.value.item.viewportBuckets.join(", ") || "unknown" }}
             </dd>
           </div>
         </dl>
@@ -950,17 +833,9 @@ watch(
           <h3>页面 × 发布版本</h3>
           <el-table :data="detail.data.value.impact" empty-text="没有影响明细">
             <el-table-column prop="route" label="页面" min-width="180" />
-            <el-table-column
-              prop="releaseVersion"
-              label="发布"
-              min-width="130"
-            />
+            <el-table-column prop="releaseVersion" label="发布" min-width="130" />
             <el-table-column prop="occurrences" label="次数" width="80" />
-            <el-table-column
-              prop="affectedBrowsers"
-              label="浏览器"
-              width="90"
-            />
+            <el-table-column prop="affectedBrowsers" label="浏览器" width="90" />
           </el-table>
         </section>
         <section>

@@ -48,9 +48,7 @@ function toggle(input: { enabled?: boolean; sampleRate?: number } | undefined) {
 export function normalizeP1CollectorConfig(
   input: P1CollectorConfig | undefined,
 ): NormalizedP1CollectorConfig {
-  const allowedActionKeys = new Set(
-    input?.breadcrumbs?.allowedActionKeys ?? [],
-  );
+  const allowedActionKeys = new Set(input?.breadcrumbs?.allowedActionKeys ?? []);
   if ([...allowedActionKeys].some((key) => !actionKeyPattern.test(key))) {
     throw new Error("BREADCRUMB_ACTION_KEY_INVALID");
   }
@@ -205,8 +203,7 @@ export class P1Collectors {
   }
 
   captureApiRequest(details: ApiRequestDetails): void {
-    if (!this.config.api.enabled || !this.sampled(this.config.api.sampleRate))
-      return;
+    if (!this.config.api.enabled || !this.sampled(this.config.api.sampleRate)) return;
     const requestMethod = method(details.method);
     const requestPath = normalizeRequestPath(
       details.url,
@@ -364,10 +361,7 @@ export class P1Collectors {
       for (const entry of entries) {
         this.longTaskCount += 1;
         this.longTaskDurationMs += entry.duration;
-        this.longTaskMaximumMs = Math.max(
-          this.longTaskMaximumMs,
-          entry.duration,
-        );
+        this.longTaskMaximumMs = Math.max(this.longTaskMaximumMs, entry.duration);
       }
     });
   }
@@ -377,12 +371,9 @@ export class P1Collectors {
       if (!this.sampled(this.config.resources.sampleRate)) return;
       for (const entry of entries as PerformanceResourceTiming[]) {
         const initiator = String(entry.initiatorType);
-        const resourceType: ResourceType = [
-          "script",
-          "link",
-          "img",
-          "font",
-        ].includes(initiator)
+        const resourceType: ResourceType = ["script", "link", "img", "font"].includes(
+          initiator,
+        )
           ? initiator === "link"
             ? "stylesheet"
             : initiator === "img"
@@ -407,20 +398,14 @@ export class P1Collectors {
       this.collectorEndpoint,
       this.runtime.window.location.href,
     );
-    const instrumented = async (
-      input: RequestInfo | URL,
-      init?: RequestInit,
-    ) => {
+    const instrumented = async (input: RequestInfo | URL, init?: RequestInit) => {
       const requestUrl =
         input instanceof Request
           ? input.url
           : input instanceof URL
             ? input.href
             : input;
-      const absolute = new URL(
-        String(requestUrl),
-        this.runtime.window.location.href,
-      );
+      const absolute = new URL(String(requestUrl), this.runtime.window.location.href);
       if (
         absolute.origin === collector.origin &&
         absolute.pathname === collector.pathname
