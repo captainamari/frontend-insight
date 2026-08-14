@@ -10,9 +10,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
-  await page.goto(
-    `${webUrl}/projects/${projectId}/page-analysis/errors?range=7d`,
-  );
+  await page.goto(`${webUrl}/projects/${projectId}/page-analysis/errors?range=7d`);
 }
 
 async function captureDemoEvent(
@@ -44,28 +42,16 @@ test("viewer can triage errors, Web Vitals, releases and fixed alerts", async ({
   await expect(page.getByText("项目运营指数仍为 v1")).toBeVisible();
   await expect(page.getByText("SourceMap 暂未启用")).toBeVisible();
   await expect(page.getByText("错误发生次数")).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "错误组与影响范围" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "页面性能 p75" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "固定告警证据" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "发布版本关联" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("2026.08.1", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "错误组与影响范围" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "页面性能 p75" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "固定告警证据" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "发布版本关联" })).toBeVisible();
+  await expect(page.getByText("2026.08.1", { exact: true }).first()).toBeVisible();
 
   await page.locator(".clickable-table .el-table__row").first().click();
   const drawer = page.getByRole("dialog", { name: "错误组证据" });
   await expect(drawer).toBeVisible();
-  await expect(
-    drawer.getByRole("heading", { name: "页面 × 发布版本" }),
-  ).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "页面 × 发布版本" })).toBeVisible();
   await expect(drawer.getByText(/仅展示 SDK 截断并脱敏/)).toBeVisible();
 });
 
@@ -108,12 +94,7 @@ test("controlled demo proves all four M8 events are sanitized before send", asyn
     .toBe(4);
 
   const events = capturedEvents();
-  for (const eventName of [
-    "error_js",
-    "error_api",
-    "error_resource",
-    "web_vital",
-  ]) {
+  for (const eventName of ["error_js", "error_api", "error_resource", "web_vital"]) {
     expect(events.some((event) => event.eventName === eventName)).toBe(true);
   }
   const serialized = JSON.stringify(events);
