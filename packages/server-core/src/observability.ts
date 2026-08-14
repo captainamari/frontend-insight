@@ -103,6 +103,71 @@ function stringArray(value: unknown): string[] {
     : [];
 }
 
+function aggregateCollectionStatus(
+  items: readonly Array<{ status: CollectionStatus }>,
+): CollectionStatus {
+  if (!items.length || items.every((item) => item.status === "not_collected")) {
+    return "not_collected";
+  }
+  return items.some((item) => item.status === "available")
+    ? "available"
+    : "insufficient_sample";
+}
+
+function earliestString(
+  ...values: Array<string | null | undefined>
+): string | null {
+  const available = values.filter((value): value is string => Boolean(value));
+  if (!available.length) return null;
+  return available.sort((left, right) => {
+    const leftTime = Date.parse(left);
+    const rightTime = Date.parse(right);
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime)) {
+      return leftTime - rightTime;
+    }
+    return left.localeCompare(right);
+  })[0]!;
+}
+
+function parseBreadcrumbs(value: unknown): Array<{
+  kind: "route" | "action" | "api" | "error";
+  occurredAt: string;
+  key: string;
+  method?: string;
+  path?: string;
+  statusCode?: number;
+}> {
+  if (typeof value !== "string" || !value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .slice(0, 50)
+      .filter(
+        (
+          item,
+        ): item is {
+          kind: "route" | "action" | "api" | "error";
+          occurredAt: string;
+          key: string;
+          method?: string;
+          path?: string;
+          statusCode?: number;
+        } =>
+          Boolean(item) &&
+          typeof item === "object" &&
+          ["route", "action", "api", "error"].includes(
+            String((item as Record<string, unknown>).kind),
+          ) &&
+          typeof (item as Record<string, unknown>).occurredAt === "string" &&
+          typeof (item as Record<string, unknown>).key === "string",
+      )
+      .map((item) => ({ ...item }));
+  } catch {
+    return [];
+  }
+}
+
 function observabilityEventsWhere(extra = ""): string {
   return `
     SELECT *
@@ -306,7 +371,8 @@ export class ObservabilityStore {
           AND event_time < parseDateTime64BestEffort({to:String}, 3)
           AND event_name IN (
             'page_view', 'page_readiness', 'api_request_summary',
-            'resource_summary', 'list_render', 'long_task_summary'
+            'resource_summary', 'list_render', 'long_task_summary',
+            'error_js', 'error_resource', 'error_api'
           )
         ORDER BY received_at DESC
         LIMIT 1 BY event_id
@@ -314,28 +380,44 @@ export class ObservabilityStore {
       const [
         coverageResponse,
         apiResponse,
+        resourceReleaseResponse,
         readinessResponse,
         listResponse,
+        blankCorrelationResponse,
         rawStatus,
       ] = await Promise.all([
         this.client.query({
           query: `
               SELECT
                 uniqExactIf(page_view_id, event_name = 'page_view') AS page_views,
+                uniqExactIf(page_view_id, event_name = 'api_request_summary') AS api_observed_page_views,
                 uniqExactIf(page_view_id, event_name = 'page_readiness' AND first_screen_collected = true) AS readiness_page_views,
                 uniqExactIf(page_view_id, event_name = 'page_readiness' AND blank_detection_collected = true) AS blank_observed_page_views,
+                uniqExactIf(page_view_id, event_name = 'list_render') AS list_observed_page_views,
                 sumIf(ifNull(observed_page_views, 0), event_name = 'resource_summary') AS resource_observed_page_views,
                 sumIf(ifNull(observed_page_views, 0), event_name = 'long_task_summary') AS long_task_observed_page_views,
                 sumIf(ifNull(resource_total_count, 0), event_name = 'resource_summary') AS resource_requests,
                 sumIf(ifNull(resource_failed_count, 0), event_name = 'resource_summary') AS resource_failures,
                 sumIf(ifNull(long_task_count, 0), event_name = 'long_task_summary') AS long_task_total_count,
-                sumIf(ifNull(long_task_duration_ms, 0), event_name = 'long_task_summary') AS long_task_duration_ms,
+                sumIf(ifNull(long_task_duration_ms, 0), event_name = 'long_task_summary') AS long_task_total_duration_ms,
                 countIf(event_name = 'long_task_summary' AND ifNull(long_task_count, 0) > 0) AS long_task_affected_page_views,
                 countIf(event_name = 'page_readiness' AND readiness_state = 'blank_candidate' AND blank_detection_collected = true) AS blank_candidates,
-                avgIf(collector_sample_rate, event_name = 'page_readiness') AS readiness_sample_rate,
+                countIf(event_name IN ('error_js', 'error_resource', 'error_api')) AS error_events,
+                countIf(event_name IN ('error_js', 'error_resource', 'error_api') AND breadcrumbs_json IS NOT NULL) AS breadcrumb_error_events,
+                avgIf(collector_sample_rate, event_name = 'api_request_summary') AS api_sample_rate,
+                avgIf(first_screen_sample_rate, event_name = 'page_readiness' AND first_screen_collected = true) AS readiness_sample_rate,
+                avgIf(blank_detection_sample_rate, event_name = 'page_readiness' AND blank_detection_collected = true) AS blank_sample_rate,
                 avgIf(collector_sample_rate, event_name = 'resource_summary') AS resource_sample_rate,
+                avgIf(collector_sample_rate, event_name = 'list_render') AS list_sample_rate,
                 avgIf(collector_sample_rate, event_name = 'long_task_summary') AS long_task_sample_rate,
-                minOrNullIf(event_time, event_name != 'page_view') AS available_from
+                avgIf(collector_sample_rate, event_name IN ('error_js', 'error_resource', 'error_api') AND breadcrumbs_json IS NOT NULL) AS breadcrumb_sample_rate,
+                minOrNullIf(event_time, event_name = 'api_request_summary') AS api_available_from,
+                minOrNullIf(event_time, event_name = 'resource_summary') AS resource_available_from,
+                minOrNullIf(event_time, event_name = 'page_readiness' AND first_screen_collected = true) AS readiness_available_from,
+                minOrNullIf(event_time, event_name = 'list_render') AS list_available_from,
+                minOrNullIf(event_time, event_name = 'long_task_summary') AS long_task_available_from,
+                minOrNullIf(event_time, event_name = 'page_readiness' AND blank_detection_collected = true) AS blank_available_from,
+                minOrNullIf(event_time, event_name IN ('error_js', 'error_resource', 'error_api') AND breadcrumbs_json IS NOT NULL) AS breadcrumb_available_from
               FROM (${base})
             `,
           query_params: parameters,
@@ -353,11 +435,30 @@ export class ObservabilityStore {
                 quantileExactIf(0.5)(duration_ms, duration_ms IS NOT NULL) AS p50_ms,
                 quantileExactIf(0.9)(duration_ms, duration_ms IS NOT NULL) AS p90_ms,
                 avg(collector_sample_rate) AS sample_rate,
+                min(event_time) AS available_from,
                 max(event_time) AS last_seen_at
               FROM (${base})
               WHERE event_name = 'api_request_summary'
               GROUP BY request_method, request_path
-              ORDER BY requests DESC, p90_ms DESC
+              ORDER BY slow_requests DESC, p90_ms DESC, requests DESC
+              LIMIT 50
+            `,
+          query_params: parameters,
+          format: "JSONEachRow",
+        }),
+        this.client.query({
+          query: `
+              SELECT
+                ifNull(release_version, 'unknown') AS release_version,
+                sum(ifNull(resource_total_count, 0)) AS requests,
+                sum(ifNull(resource_failed_count, 0)) AS failures,
+                avg(collector_sample_rate) AS sample_rate,
+                min(event_time) AS available_from,
+                max(event_time) AS last_seen_at
+              FROM (${base})
+              WHERE event_name = 'resource_summary'
+              GROUP BY release_version
+              ORDER BY failures DESC, requests DESC, release_version
               LIMIT 50
             `,
           query_params: parameters,
@@ -371,7 +472,8 @@ export class ObservabilityStore {
                 quantileExactIf(0.5)(duration_ms, first_screen_collected = true AND duration_ms IS NOT NULL) AS p50_ms,
                 quantileExactIf(0.9)(duration_ms, first_screen_collected = true AND duration_ms IS NOT NULL) AS p90_ms,
                 countIf(blank_detection_collected = true) AS blank_observed,
-                countIf(blank_detection_collected = true AND readiness_state = 'blank_candidate') AS blank_candidates
+                countIf(blank_detection_collected = true AND readiness_state = 'blank_candidate') AS blank_candidates,
+                minOrNullIf(event_time, first_screen_collected = true) AS available_from
               FROM (${base})
               WHERE event_name = 'page_readiness'
               GROUP BY template_key
@@ -387,12 +489,33 @@ export class ObservabilityStore {
                 ifNull(row_count_bucket, 'unknown') AS row_count_bucket,
                 count() AS sample_size,
                 quantileExactIf(0.5)(duration_ms, duration_ms IS NOT NULL) AS p50_ms,
-                quantileExactIf(0.9)(duration_ms, duration_ms IS NOT NULL) AS p90_ms
+                quantileExactIf(0.9)(duration_ms, duration_ms IS NOT NULL) AS p90_ms,
+                min(event_time) AS available_from
               FROM (${base})
               WHERE event_name = 'list_render'
               GROUP BY route, row_count_bucket
               ORDER BY sample_size DESC
               LIMIT 50
+            `,
+          query_params: parameters,
+          format: "JSONEachRow",
+        }),
+        this.client.query({
+          query: `
+              SELECT
+                countIf(event_name IN ('error_js', 'error_resource', 'error_api')) AS related_error_occurrences,
+                uniqExactIf(page_view_id, event_name IN ('error_js', 'error_resource', 'error_api')) AS related_error_page_views,
+                sumIf(ifNull(resource_failed_count, 0), event_name = 'resource_summary') AS related_resource_failures,
+                sumIf(ifNull(resource_total_count, 0), event_name = 'resource_summary') AS related_resource_requests
+              FROM (${base})
+              WHERE page_view_id IN (
+                SELECT page_view_id
+                FROM (${base})
+                WHERE event_name = 'page_readiness'
+                  AND blank_detection_collected = true
+                  AND readiness_state = 'blank_candidate'
+                GROUP BY page_view_id
+              )
             `,
           query_params: parameters,
           format: "JSONEachRow",
@@ -407,7 +530,8 @@ export class ObservabilityStore {
       const resourceFailures = numberValue(coverage.resource_failures);
       const longTaskObserved = numberValue(coverage.long_task_observed_page_views);
       const blankObserved = numberValue(coverage.blank_observed_page_views);
-      const availability = nullableString(coverage.available_from);
+      const breadcrumbErrors = numberValue(coverage.breadcrumb_error_events);
+      const errorEvents = numberValue(coverage.error_events);
 
       const apis = (await apiResponse.json<Record<string, unknown>>()).map((row) => {
         const requests = numberValue(row.requests);
@@ -429,59 +553,118 @@ export class ObservabilityStore {
           ),
           sampleRate: nullableNumber(row.sample_rate),
           sampleSize: requests,
+          availableFrom: nullableString(row.available_from),
           lastSeenAt: nullableString(row.last_seen_at),
         };
       });
-      const readiness = (await readinessResponse.json<Record<string, unknown>>()).map(
-        (row) => {
-          const sampleSize = numberValue(row.sample_size);
-          const observed = numberValue(row.blank_observed);
-          const candidates = numberValue(row.blank_candidates);
-          return {
-            templateKey: String(row.template_key),
-            ...durationEvidence(
-              sampleSize,
-              nullableNumber(row.p50_ms),
-              nullableNumber(row.p90_ms),
-            ),
-            sampleSize,
-            blankCandidateRate: evidenceRate(candidates, observed),
-            blankCandidates: candidates,
-            blankObservedPageViews: observed,
-          };
-        },
-      );
-      const lists = (await listResponse.json<Record<string, unknown>>()).map((row) => {
-        const sampleSize = numberValue(row.sample_size);
+      const resourceReleases = (
+        await resourceReleaseResponse.json<Record<string, unknown>>()
+      ).map((row) => {
+        const requests = numberValue(row.requests);
+        const failures = numberValue(row.failures);
         return {
-          route: String(row.route),
-          rowCountBucket: String(row.row_count_bucket),
+          releaseVersion: String(row.release_version),
+          numerator: failures,
+          denominator: requests,
+          failureRate: evidenceRate(failures, requests),
+          sampleRate: nullableNumber(row.sample_rate),
+          availableFrom: nullableString(row.available_from),
+          lastSeenAt: nullableString(row.last_seen_at),
+        };
+      });
+      const readiness = (
+        await readinessResponse.json<Record<string, unknown>>()
+      ).map((row) => {
+        const sampleSize = numberValue(row.sample_size);
+        const observed = numberValue(row.blank_observed);
+        const candidates = numberValue(row.blank_candidates);
+        return {
+          templateKey: String(row.template_key),
           ...durationEvidence(
             sampleSize,
             nullableNumber(row.p50_ms),
             nullableNumber(row.p90_ms),
           ),
           sampleSize,
+          blankCandidateRate: evidenceRate(candidates, observed),
+          blankCandidates: candidates,
+          blankObservedPageViews: observed,
+          availableFrom: nullableString(row.available_from),
         };
       });
+      const lists = (await listResponse.json<Record<string, unknown>>()).map(
+        (row) => {
+          const sampleSize = numberValue(row.sample_size);
+          return {
+            route: String(row.route),
+            rowCountBucket: String(row.row_count_bucket),
+            ...durationEvidence(
+              sampleSize,
+              nullableNumber(row.p50_ms),
+              nullableNumber(row.p90_ms),
+            ),
+            sampleSize,
+            availableFrom: nullableString(row.available_from),
+          };
+        },
+      );
+      const blankCorrelationRows =
+        await blankCorrelationResponse.json<Record<string, unknown>>();
+      const blankCorrelation = blankCorrelationRows[0] ?? {};
+      const relatedResourceFailures = numberValue(
+        blankCorrelation.related_resource_failures,
+      );
+      const relatedResourceRequests = numberValue(
+        blankCorrelation.related_resource_requests,
+      );
+      const availability = earliestString(
+        nullableString(coverage.api_available_from),
+        nullableString(coverage.resource_available_from),
+        nullableString(coverage.readiness_available_from),
+        nullableString(coverage.list_available_from),
+        nullableString(coverage.long_task_available_from),
+        nullableString(coverage.blank_available_from),
+        nullableString(coverage.breadcrumb_available_from),
+      );
 
       return {
         ...this.meta(range, evaluateDataStatus(rawStatus), availability),
         definitionVersion: PAGE_PERFORMANCE_DEFINITION_VERSION,
         coverage: {
           pageViews,
+          api: {
+            observedPageViews: numberValue(coverage.api_observed_page_views),
+            rate: evidenceRate(
+              numberValue(coverage.api_observed_page_views),
+              pageViews,
+            ),
+            sampleRate: nullableNumber(coverage.api_sample_rate),
+          },
           readiness: {
             observedPageViews: numberValue(coverage.readiness_page_views),
-            rate: evidenceRate(numberValue(coverage.readiness_page_views), pageViews),
+            rate: evidenceRate(
+              numberValue(coverage.readiness_page_views),
+              pageViews,
+            ),
             sampleRate: nullableNumber(coverage.readiness_sample_rate),
           },
           resources: {
-            observedPageViews: numberValue(coverage.resource_observed_page_views),
+            observedPageViews: numberValue(
+              coverage.resource_observed_page_views,
+            ),
             rate: evidenceRate(
               numberValue(coverage.resource_observed_page_views),
               pageViews,
             ),
             sampleRate: nullableNumber(coverage.resource_sample_rate),
+          },
+          listRender: {
+            observedPageViews: numberValue(coverage.list_observed_page_views),
+            rate: evidenceRate(
+              numberValue(coverage.list_observed_page_views),
+              pageViews,
+            ),
+            sampleRate: nullableNumber(coverage.list_sample_rate),
           },
           longTasks: {
             observedPageViews: longTaskObserved,
@@ -491,15 +674,20 @@ export class ObservabilityStore {
           blankScreen: {
             observedPageViews: blankObserved,
             rate: evidenceRate(blankObserved, pageViews),
-            sampleRate: nullableNumber(coverage.readiness_sample_rate),
+            sampleRate: nullableNumber(coverage.blank_sample_rate),
+          },
+          breadcrumbs: {
+            observedErrors: breadcrumbErrors,
+            errorEvents,
+            rate: evidenceRate(breadcrumbErrors, errorEvents),
+            sampleRate: nullableNumber(coverage.breadcrumb_sample_rate),
           },
         },
         api: {
-          status: apis.length
-            ? apis.some((item) => item.status === "available")
-              ? "available"
-              : "insufficient_sample"
-            : "not_collected",
+          status: aggregateCollectionStatus(apis),
+          availableFrom: earliestString(
+            ...apis.map((item) => item.availableFrom),
+          ),
           items: apis,
         },
         resources: {
@@ -510,27 +698,27 @@ export class ObservabilityStore {
           denominator: resourceRequests,
           failureRate: evidenceRate(resourceFailures, resourceRequests),
           sampleRate: nullableNumber(coverage.resource_sample_rate),
+          availableFrom: nullableString(coverage.resource_available_from),
+          releases: resourceReleases,
         },
         readiness: {
-          status: readiness.length
-            ? readiness.some((item) => item.status === "available")
-              ? "available"
-              : "insufficient_sample"
-            : "not_collected",
+          status: aggregateCollectionStatus(readiness),
+          availableFrom: earliestString(
+            ...readiness.map((item) => item.availableFrom),
+          ),
           items: readiness,
         },
         listRender: {
-          status: lists.length
-            ? lists.some((item) => item.status === "available")
-              ? "available"
-              : "insufficient_sample"
-            : "not_collected",
+          status: aggregateCollectionStatus(lists),
+          availableFrom: earliestString(
+            ...lists.map((item) => item.availableFrom),
+          ),
           items: lists,
         },
         longTasks: {
           status: longTaskObserved ? "available" : "not_collected",
           count: numberValue(coverage.long_task_total_count),
-          durationMs: numberValue(coverage.long_task_duration_ms),
+          durationMs: numberValue(coverage.long_task_total_duration_ms),
           numerator: numberValue(coverage.long_task_affected_page_views),
           denominator: longTaskObserved,
           affectedPageViewRate: evidenceRate(
@@ -538,6 +726,7 @@ export class ObservabilityStore {
             longTaskObserved,
           ),
           sampleRate: nullableNumber(coverage.long_task_sample_rate),
+          availableFrom: nullableString(coverage.long_task_available_from),
         },
         blankScreen: {
           status: blankObserved ? "available" : "not_collected",
@@ -547,7 +736,32 @@ export class ObservabilityStore {
             numberValue(coverage.blank_candidates),
             blankObserved,
           ),
-          sampleRate: nullableNumber(coverage.readiness_sample_rate),
+          sampleRate: nullableNumber(coverage.blank_sample_rate),
+          availableFrom: nullableString(coverage.blank_available_from),
+          relatedErrors: {
+            occurrences: numberValue(
+              blankCorrelation.related_error_occurrences,
+            ),
+            affectedPageViews: numberValue(
+              blankCorrelation.related_error_page_views,
+            ),
+          },
+          relatedResources: {
+            numerator: relatedResourceFailures,
+            denominator: relatedResourceRequests,
+            failureRate: evidenceRate(
+              relatedResourceFailures,
+              relatedResourceRequests,
+            ),
+          },
+        },
+        breadcrumbs: {
+          status: breadcrumbErrors ? "available" : "not_collected",
+          numerator: breadcrumbErrors,
+          denominator: errorEvents,
+          coverageRate: evidenceRate(breadcrumbErrors, errorEvents),
+          sampleRate: nullableNumber(coverage.breadcrumb_sample_rate),
+          availableFrom: nullableString(coverage.breadcrumb_available_from),
         },
       };
     });
@@ -557,15 +771,20 @@ export class ObservabilityStore {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
       const parameters = { projectId, from: range.from, to: range.to, groupId };
-      const [summaryResponse, trendResponse, impactResponse, rawStatus] =
-        await Promise.all([
-          this.client.query({
-            query: this.errorGroupsSql("AND error_group_id = {groupId:String}", 1),
-            query_params: parameters,
-            format: "JSONEachRow",
-          }),
-          this.client.query({
-            query: `
+      const [
+        summaryResponse,
+        trendResponse,
+        impactResponse,
+        breadcrumbResponse,
+        rawStatus,
+      ] = await Promise.all([
+        this.client.query({
+          query: this.errorGroupsSql("AND error_group_id = {groupId:String}", 1),
+          query_params: parameters,
+          format: "JSONEachRow",
+        }),
+        this.client.query({
+          query: `
               SELECT
                 ${range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay"}(event_time, {timezone:String}) AS bucket,
                 count() AS occurrences,
@@ -575,11 +794,11 @@ export class ObservabilityStore {
               GROUP BY bucket
               ORDER BY bucket
             `,
-            query_params: { ...parameters, timezone: range.timezone },
-            format: "JSONEachRow",
-          }),
-          this.client.query({
-            query: `
+          query_params: { ...parameters, timezone: range.timezone },
+          format: "JSONEachRow",
+        }),
+        this.client.query({
+          query: `
               SELECT
                 route,
                 ifNull(release_version, 'unknown') AS release_version,
@@ -591,11 +810,25 @@ export class ObservabilityStore {
               ORDER BY occurrences DESC, route
               LIMIT 100
             `,
-            query_params: parameters,
-            format: "JSONEachRow",
-          }),
-          this.mysql.getDataStatus(projectId),
-        ]);
+          query_params: parameters,
+          format: "JSONEachRow",
+        }),
+        this.client.query({
+          query: `
+              SELECT
+                event_time,
+                route,
+                ifNull(release_version, 'unknown') AS release_version,
+                breadcrumbs_json
+              FROM (${observabilityEventsWhere("AND error_group_id = {groupId:String} AND breadcrumbs_json IS NOT NULL")})
+              ORDER BY event_time DESC
+              LIMIT 20
+            `,
+          query_params: parameters,
+          format: "JSONEachRow",
+        }),
+        this.mysql.getDataStatus(projectId),
+      ]);
       const summaryRows = await summaryResponse.json<Record<string, unknown>>();
       const item = summaryRows[0] ? this.mapErrorGroup(summaryRows[0]) : null;
       return {
@@ -605,43 +838,35 @@ export class ObservabilityStore {
           await this.availableFrom(projectId),
         ),
         item,
-        trend: (await trendResponse.json<Record<string, unknown>>()).map((row) => ({
-          bucket: String(row.bucket),
-          occurrences: numberValue(row.occurrences),
-          affectedBrowsers: numberValue(row.affected_browsers),
-          affectedAccounts: numberValue(row.affected_accounts),
-        })),
-        impact: (await impactResponse.json<Record<string, unknown>>()).map((row) => ({
-          route: String(row.route),
-          releaseVersion: String(row.release_version),
-          occurrences: numberValue(row.occurrences),
-          affectedBrowsers: numberValue(row.affected_browsers),
-          lastSeenAt: nullableString(row.last_seen_at),
-        })),
+        trend: (await trendResponse.json<Record<string, unknown>>()).map(
+          (row) => ({
+            bucket: String(row.bucket),
+            occurrences: numberValue(row.occurrences),
+            affectedBrowsers: numberValue(row.affected_browsers),
+            affectedAccounts: numberValue(row.affected_accounts),
+          }),
+        ),
+        impact: (await impactResponse.json<Record<string, unknown>>()).map(
+          (row) => ({
+            route: String(row.route),
+            releaseVersion: String(row.release_version),
+            occurrences: numberValue(row.occurrences),
+            affectedBrowsers: numberValue(row.affected_browsers),
+            lastSeenAt: nullableString(row.last_seen_at),
+          }),
+        ),
+        breadcrumbSamples: (
+          await breadcrumbResponse.json<Record<string, unknown>>()
+        )
+          .map((row) => ({
+            occurredAt: nullableString(row.event_time),
+            route: String(row.route),
+            releaseVersion: String(row.release_version),
+            items: parseBreadcrumbs(row.breadcrumbs_json),
+          }))
+          .filter((sample) => sample.items.length > 0),
         privacy:
-          "仅展示 SDK 截断并脱敏的消息/首帧；不含 query、header、正文或原始账号引用。",
-      };
-    });
-  }
-
-  async webVitals(projectId: string, rangeInput: AnalyticsRange) {
-    return this.measure(async () => {
-      const range = validateAnalyticsRange(rangeInput);
-      const [items, availability, rawStatus] = await Promise.all([
-        this.webVitalsQuery(projectId, range, 500),
-        this.availableFrom(projectId),
-        this.mysql.getDataStatus(projectId),
-      ]);
-      return {
-        ...this.meta(range, evaluateDataStatus(rawStatus), availability),
-        items,
-        thresholds: {
-          LCP: { goodMax: 2500, poorAbove: 4000, unit: "ms" },
-          CLS: { goodMax: 0.1, poorAbove: 0.25, unit: "score" },
-          INP: { goodMax: 200, poorAbove: 500, unit: "ms" },
-          FCP: { goodMax: 1800, poorAbove: 3000, unit: "ms" },
-          TTFB: { goodMax: 800, poorAbove: 1800, unit: "ms" },
-        },
+          "Messages, paths and stack frames are sanitized; breadcrumb samples contain only allowlisted route/action/API summaries and never DOM text, selectors, input values, console output, query strings, headers, bodies or business identifiers.",
       };
     });
   }
