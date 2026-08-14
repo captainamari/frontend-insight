@@ -235,7 +235,11 @@ async function captureObservability(
       });
     }
     if (kind === "vital") {
-      tracker.captureWebVital({ name: "LCP", value: 4_200, navigationType: "navigate" });
+      tracker.captureWebVital({
+        name: "LCP",
+        value: 4_200,
+        navigationType: "navigate",
+      });
     }
     if (kind === "readiness") {
       tracker.markPageReady({
