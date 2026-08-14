@@ -2,6 +2,13 @@ import { expect, test } from "@playwright/test";
 
 const webUrl = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
 const demoUrl = process.env.M5_DEMO_URL ?? "http://127.0.0.1:4174";
+const configuredProjectId = "11111111-1111-4111-8111-111111111111";
+
+function projectNavigationButton(page: import("@playwright/test").Page, name: string) {
+  return page
+    .getByRole("navigation", { name: "项目一级导航" })
+    .getByRole("button", { name: new RegExp(`^${name}`) });
+}
 
 test("three controlled scenarios keep simulated credentials out of telemetry", async ({
   page,
@@ -66,24 +73,35 @@ test("admin can finish the URL-preserving product loop", async ({ page }) => {
   await page.getByLabel("密码").fill("LocalAdmin-1234");
   await page.getByRole("button", { name: "登录" }).click();
 
+  await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
+  const projectCard = page.getByRole("button", { name: /销售数据看板/ });
+  await expect(projectCard).toBeVisible({ timeout: 15_000 });
+  await projectCard.click();
+  await expect(
+    page.getByRole("heading", { name: "销售数据看板" }),
+  ).toBeVisible();
+  await page.goto(
+    `${webUrl}/projects/${configuredProjectId}/business-analysis/features?range=7d`,
+  );
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-  await expect(page.getByText("销售数据看板")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText("曝光后使用率（账号）")).toBeVisible();
   await expect(page.getByText("重复账号 / 浏览器")).toBeVisible();
 
   const url = new URL(page.url());
-  expect(url.searchParams.get("project")).toBeTruthy();
+  expect(url.pathname).toBe(
+    `/projects/${configuredProjectId}/business-analysis/features`,
+  );
   expect(url.searchParams.get("range")).toBe("7d");
   const preservedQuery = url.search;
   await page.reload();
   await expect.poll(() => new URL(page.url()).search).toBe(preservedQuery);
   await expect(page.getByText("销售数据看板")).toBeVisible();
 
-  await page.getByRole("button", { name: /页面访问/ }).click();
+  await projectNavigationButton(page, "页面分析").click();
   await expect(page.getByText("昨日同时段", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("归一化路由", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: /项目与接入/ }).click();
+  await projectNavigationButton(page, "设置").click();
   await expect(page.getByText("fi_public_m1demo001", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "发送测试事件" })).toBeVisible();
   await expect(
@@ -98,9 +116,14 @@ test("viewer sees project evidence but cannot mutate configuration", async ({
   await page.getByLabel("邮箱").fill("viewer@example.invalid");
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-
-  await page.getByRole("button", { name: /项目与接入/ }).click();
+  await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
+  const projectCard = page.getByRole("button", { name: /销售数据看板/ });
+  await expect(projectCard).toBeVisible({ timeout: 15_000 });
+  await projectCard.click();
+  await expect(
+    page.getByRole("heading", { name: "销售数据看板" }),
+  ).toBeVisible();
+  await projectNavigationButton(page, "设置").click();
   await expect(page.getByText("当前账号为只读权限")).toBeVisible();
   await expect(page.getByRole("button", { name: "创建项目" })).toHaveCount(0);
   await expect(page.getByLabel("项目名称")).toBeDisabled();
