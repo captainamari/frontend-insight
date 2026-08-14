@@ -586,27 +586,51 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
-            <button type="button" :disabled="busy" @click="captureObservability('js')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('js')"
+            >
               <strong>模拟 JS 异常</strong>
               <small>error_js · TypeError + 脱敏首帧</small>
             </button>
-            <button type="button" :disabled="busy" @click="captureObservability('api')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('api')"
+            >
               <strong>模拟 API 503</strong>
               <small>error_api · /api/budgets/:id</small>
             </button>
-            <button type="button" :disabled="busy" @click="captureObservability('resource')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('resource')"
+            >
               <strong>模拟资源失败</strong>
               <small>error_resource · script</small>
             </button>
-            <button type="button" :disabled="busy" @click="captureObservability('vital')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('vital')"
+            >
               <strong>模拟 LCP poor</strong>
               <small>web_vital · 4200 ms</small>
             </button>
-            <button type="button" :disabled="busy" @click="captureObservability('readiness')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('readiness')"
+            >
               <strong>标记首屏就绪</strong>
               <small>page_readiness · analysis_view</small>
             </button>
-            <button type="button" :disabled="busy" @click="captureObservability('list')">
+            <button
+              type="button"
+              :disabled="busy"
+              @click="captureObservability('list')"
+            >
               <strong>模拟列表渲染</strong>
               <small>list_render · &gt;1000 行桶</small>
             </button>
