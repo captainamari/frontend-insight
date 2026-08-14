@@ -51,6 +51,7 @@ test("controlled demo proves all four M8 events are sanitized before send", asyn
   await page.getByRole("button", { name: "模拟 API 503" }).click();
   await page.getByRole("button", { name: "模拟资源失败" }).click();
   await page.getByRole("button", { name: "模拟 LCP poor" }).click();
+  await page.getByRole("button", { name: "立即发送" }).click();
   await expect(page.locator(".event-list")).toContainText("error_js");
   const capturedEvents = () =>
     payloads.flatMap(
