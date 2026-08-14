@@ -10,9 +10,7 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
-  await page.goto(
-    `${webUrl}/projects/${projectId}/page-analysis/errors?range=7d`,
-  );
+  await page.goto(`${webUrl}/projects/${projectId}/page-analysis/errors?range=7d`);
 }
 
 test("viewer can triage errors, Web Vitals, releases and fixed alerts", async ({
