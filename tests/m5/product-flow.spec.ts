@@ -77,7 +77,9 @@ test("admin can finish the URL-preserving product loop", async ({ page }) => {
   const projectCard = page.getByRole("button", { name: /Frontend Insight M5 Demo/ });
   await expect(projectCard).toBeVisible({ timeout: 15_000 });
   await projectCard.click();
-  await expect(page.getByRole("heading", { name: "Frontend Insight M5 Demo" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Frontend Insight M5 Demo" }),
+  ).toBeVisible();
   await page.goto(
     `${webUrl}/projects/${configuredProjectId}/business-analysis/features?range=7d`,
   );
@@ -118,7 +120,9 @@ test("viewer sees project evidence but cannot mutate configuration", async ({
   const projectCard = page.getByRole("button", { name: /Frontend Insight M5 Demo/ });
   await expect(projectCard).toBeVisible({ timeout: 15_000 });
   await projectCard.click();
-  await expect(page.getByRole("heading", { name: "Frontend Insight M5 Demo" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Frontend Insight M5 Demo" }),
+  ).toBeVisible();
   await projectNavigationButton(page, "设置").click();
   await expect(page.getByText("当前账号为只读权限")).toBeVisible();
   await expect(page.getByRole("button", { name: "创建项目" })).toHaveCount(0);
