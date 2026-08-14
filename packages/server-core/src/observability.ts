@@ -328,7 +328,7 @@ export class ObservabilityStore {
                 sumIf(ifNull(observed_page_views, 0), event_name = 'long_task_summary') AS long_task_observed_page_views,
                 sumIf(ifNull(resource_total_count, 0), event_name = 'resource_summary') AS resource_requests,
                 sumIf(ifNull(resource_failed_count, 0), event_name = 'resource_summary') AS resource_failures,
-                sumIf(ifNull(long_task_count, 0), event_name = 'long_task_summary') AS long_task_count,
+                sumIf(ifNull(long_task_count, 0), event_name = 'long_task_summary') AS long_task_total_count,
                 sumIf(ifNull(long_task_duration_ms, 0), event_name = 'long_task_summary') AS long_task_duration_ms,
                 countIf(event_name = 'long_task_summary' AND ifNull(long_task_count, 0) > 0) AS long_task_affected_page_views,
                 countIf(event_name = 'page_readiness' AND readiness_state = 'blank_candidate' AND blank_detection_collected = true) AS blank_candidates,
@@ -529,7 +529,7 @@ export class ObservabilityStore {
         },
         longTasks: {
           status: longTaskObserved ? "available" : "not_collected",
-          count: numberValue(coverage.long_task_count),
+          count: numberValue(coverage.long_task_total_count),
           durationMs: numberValue(coverage.long_task_duration_ms),
           numerator: numberValue(coverage.long_task_affected_page_views),
           denominator: longTaskObserved,
