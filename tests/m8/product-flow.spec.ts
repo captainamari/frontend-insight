@@ -9,15 +9,17 @@ async function login(page: Page): Promise<void> {
   await page.getByLabel("邮箱").fill("viewer@example.invalid");
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-  await page.goto(`${webUrl}/observability?project=${projectId}&range=7d`);
+  await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
+  await page.goto(
+    `${webUrl}/projects/${projectId}/page-analysis/errors?range=7d`,
+  );
 }
 
 test("viewer can triage errors, Web Vitals, releases and fixed alerts", async ({
   page,
 }) => {
   await login(page);
-  await expect(page.getByRole("heading", { name: "前端可观测性" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "页面分析" })).toBeVisible();
   await expect(page.getByText("项目运营指数仍为 v1")).toBeVisible();
   await expect(page.getByText("SourceMap 暂未启用")).toBeVisible();
   await expect(page.getByText("错误发生次数")).toBeVisible();
@@ -52,11 +54,27 @@ test("controlled demo proves all four M8 events are sanitized before send", asyn
   await page.getByRole("button", { name: "模拟资源失败" }).click();
   await page.getByRole("button", { name: "模拟 LCP poor" }).click();
   await expect(page.locator(".event-list")).toContainText("error_js");
-  await expect.poll(() => payloads.length).toBeGreaterThanOrEqual(4);
+  const capturedEvents = () =>
+    payloads.flatMap(
+      (payload) => (payload.events as Array<Record<string, unknown>>) ?? [],
+    );
+  await expect
+    .poll(
+      () =>
+        new Set(
+          capturedEvents()
+            .map((event) => String(event.eventName))
+            .filter((eventName) =>
+              ["error_js", "error_api", "error_resource", "web_vital"].includes(
+                eventName,
+              ),
+            ),
+        ).size,
+      { timeout: 8_000 },
+    )
+    .toBe(4);
 
-  const events = payloads.flatMap(
-    (payload) => (payload.events as Array<Record<string, unknown>>) ?? [],
-  );
+  const events = capturedEvents();
   for (const eventName of ["error_js", "error_api", "error_resource", "web_vital"]) {
     expect(events.some((event) => event.eventName === eventName)).toBe(true);
   }
