@@ -18,7 +18,7 @@ async function submit(): Promise<void> {
   try {
     await auth.login(form.email, form.password);
     const redirect =
-      typeof route.query.redirect === "string" ? route.query.redirect : "/features";
+      typeof route.query.redirect === "string" ? route.query.redirect : "/projects";
     await router.replace(redirect);
   } catch (cause) {
     const apiError = cause instanceof ApiError ? cause : null;
