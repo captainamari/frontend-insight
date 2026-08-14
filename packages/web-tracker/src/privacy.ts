@@ -61,7 +61,13 @@ export function applyRestrictedBeforeSend(
   if (candidate === null) return null;
   for (const key of Object.keys(original) as Array<keyof TrackerEvent>) {
     if (mutableBeforeSendFields.has(key)) continue;
-    if (candidate[key] !== original[key]) return null;
+    if (
+      candidate[key] !== original[key] &&
+      (key !== "breadcrumbs" ||
+        JSON.stringify(candidate.breadcrumbs) !== JSON.stringify(original.breadcrumbs))
+    ) {
+      return null;
+    }
   }
   for (const key of Object.keys(candidate)) {
     if (!(key in original)) return null;
