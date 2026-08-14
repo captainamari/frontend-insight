@@ -15,10 +15,10 @@
 2. SDK `0.4.0` / schema v3 是唯一运行时契约。项目配置使用 clone-on-write 版本；SDK 推荐在启动前通过注册 Origin 拉取有效版本。读取失败时基础 page/feature 采集继续，P1 全部失败关闭。
 3. API 优先使用宿主请求层显式 `captureApiRequest`；全局 `fetch` 包装必须另行启用，默认关闭，且不能截获 collector 自身请求。只发送 method、归一化 path、status、duration、慢阈值、分子、分母和采样率；不发送 query、header/body 或主机名。
 4. 资源和长任务在 pageView 结束时各发送一个汇总。资源保留总请求/失败请求/总耗时/观测 PV；长任务保留数量/总时长/最大时长/观测 PV。不发送资源原 URL、脚本 URL或 attribution。
-5. 首屏与白屏共享业务显式 `markPageReady` 适配点，但保留两个独立开关与 collected 标记。白屏只能叫“候选”；Canvas、Cesium、骨架或异步页面没有模板 adapter 时保持关闭。每个 pageView 只接受第一次 readiness。
+5. 首屏与白屏共享业务显式 `markPageReady` 适配点，但保留两个独立开关、独立采样率与 collected 标记。白屏只能叫“候选”；Canvas、Cesium、骨架或异步页面没有模板 adapter 时保持关闭。每个 pageView 只接受第一次 readiness。
 6. 列表渲染由组件显式 begin/end，只发送页面 route、duration 和 `<100`、`100-1000`、`>1000` 行数桶；list key 和行内容不发送。
 7. breadcrumb 使用最多 50 条的内存环，仅允许 route change、allowlist action key、归一化 API path/method/status；只附在错误事件上。禁止 DOM 文本、selector、输入/剪贴板、console、query、header/body、原始 URL 和业务对象 ID。
-8. 比率必须同时返回分子和分母；采样结果必须返回采样率与相对 pageView coverage。未启用/无观测返回 `not_collected`，分母为 0 返回 null 比率，不能显示成 0。时长 P50 至少 5 样本，P90 至少 20 样本，否则返回 null 与 `insufficient_sample`。
+8. 比率必须同时返回分子和分母；七类 collector 分别返回采样率、coverage、`not_collected` 和 `availableFrom`。资源汇总提供发布版本对比，白屏候选提供同一 PV 的关联错误/资源汇总，breadcrumb 在错误详情提供脱敏诊断时间线。未启用/无观测返回 `not_collected`，分母为 0 返回 null 比率，不能显示成 0。时长 P50 至少 5 样本，P90 至少 20 样本，否则返回 null 与 `insufficient_sample`。
 9. P1 不进入项目运营指数 v1。它是页面分析的独立证据层；相关性不自动解释为因果。
 
 ## 客户端与容量边界
