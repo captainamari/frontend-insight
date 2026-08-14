@@ -9,14 +9,16 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await page.getByLabel("邮箱").fill(email);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-  await page.goto(`${webUrl}/features?project=${configuredProjectId}&range=7d`);
+  await expect(page.getByRole("heading", { name: "全部项目" })).toBeVisible();
+  await page.goto(
+    `${webUrl}/projects/${configuredProjectId}/business-analysis/features?range=7d`,
+  );
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
 function navigationButton(page: Page, name: string) {
   return page
-    .getByRole("navigation", { name: "主导航" })
+    .getByRole("navigation", { name: "项目一级导航" })
     .getByRole("button", { name: new RegExp(`^${name}`) });
 }
 
@@ -77,8 +79,8 @@ test("admin can follow overview, page detail, index and versioned configuration"
 }) => {
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
 
-  await navigationButton(page, "运营概览").click();
-  await expect(page.getByRole("heading", { name: "运营概览" })).toBeVisible();
+  await navigationButton(page, "业务分析").click();
+  await expect(page.getByRole("heading", { name: "业务分析" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "模块使用" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "核心页面" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "关键任务" })).toBeVisible();
@@ -93,7 +95,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
       page.getByRole("heading", { name: "任务实例与使用效率" }),
     ).toBeVisible();
     await expect(page.getByText("成功耗时 p50 / p75")).toBeVisible();
-    await navigationButton(page, "运营概览").click();
+    await navigationButton(page, "业务分析").click();
   }
 
   const reports = page.getByRole("button", { name: /经营分析/ });
@@ -106,7 +108,9 @@ test("admin can follow overview, page detail, index and versioned configuration"
     await expect(page.getByText("会话模块广度 p50 / p75")).toBeVisible();
   }
 
-  await navigationButton(page, "项目运营指数").click();
+  await page.goto(
+    `${webUrl}/projects/${configuredProjectId}/overview/operational-index?range=7d`,
+  );
   await expect(page.getByRole("heading", { name: "项目运营指数" })).toBeVisible();
   await expect(page.getByText("叶子权重覆盖")).toBeVisible();
   await expect(page.getByText("四维等价明细")).toBeVisible();
@@ -141,12 +145,13 @@ test("viewer sees M6 evidence but cannot write operational configuration", async
   page,
 }) => {
   await login(page, "viewer@example.invalid", "LocalViewer-1234");
-  await navigationButton(page, "项目运营指数").click();
+  await page.goto(
+    `${webUrl}/projects/${configuredProjectId}/overview/operational-index?range=7d`,
+  );
   await expect(page.getByText("配置目标与权重")).toHaveCount(0);
 
-  const url = new URL(page.url());
   await page.goto(
-    `${webUrl}/operational-config?project=${url.searchParams.get("project")}&range=7d`,
+    `${webUrl}/projects/${configuredProjectId}/metrics/profiles?range=7d`,
   );
   await expect(page.getByText("当前账号为只读权限")).toBeVisible();
   await expect(page.getByRole("button", { name: "新建模块" })).toHaveCount(0);
@@ -169,7 +174,7 @@ test("viewer sees M6 evidence but cannot write operational configuration", async
       },
     );
     return response.status;
-  }, url.searchParams.get("project"));
+  }, configuredProjectId);
   expect(responseStatus).toBe(403);
 });
 
@@ -196,11 +201,15 @@ test("an unconfigured project keeps the M5 loop and refuses to invent an index",
     return String((await response.json()).id);
   });
 
-  await page.goto(`${webUrl}/features?project=${projectId}&range=7d`);
+  await page.goto(
+    `${webUrl}/projects/${projectId}/business-analysis/features?range=7d`,
+  );
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
   await expect(page.getByText("这个项目还没有收到事件")).toBeVisible();
 
-  await page.goto(`${webUrl}/operational-index?project=${projectId}&range=7d`);
+  await page.goto(
+    `${webUrl}/projects/${projectId}/overview/operational-index?range=7d`,
+  );
   await expect(page.getByRole("heading", { name: "项目运营指数" })).toBeVisible();
   await expect(page.getByText("尚未激活 profile")).toBeVisible();
   await expect(page.getByText("尚未激活指标 profile").first()).toBeVisible();
