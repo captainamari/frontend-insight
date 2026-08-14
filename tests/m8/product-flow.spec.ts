@@ -19,18 +19,11 @@ async function captureDemoEvent(
   eventName: string,
 ): Promise<void> {
   const button = page.getByRole("button", { name: buttonName });
-  const responsePromise = page.waitForResponse((response) => {
-    const request = response.request();
-    if (!request.url().endsWith("/v1/events") || request.method() !== "POST") {
-      return false;
-    }
-    const payload = request.postDataJSON() as Record<string, unknown> | null;
-    const events = (payload?.events as Array<Record<string, unknown>>) ?? [];
-    return events.some((event) => event.eventName === eventName);
-  });
-
   await button.click();
-  await responsePromise;
+  await expect(page.locator(".event-list")).toContainText(eventName);
+  await page.evaluate(
+    () => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve())),
+  );
   await expect(button).toBeEnabled();
 }
 
@@ -72,6 +65,7 @@ test("controlled demo proves all four M8 events are sanitized before send", asyn
   await captureDemoEvent(page, "模拟 API 503", "error_api");
   await captureDemoEvent(page, "模拟资源失败", "error_resource");
   await captureDemoEvent(page, "模拟 LCP poor", "web_vital");
+  await page.getByRole("button", { name: "立即发送" }).click();
   await expect(page.locator(".event-list")).toContainText("error_js");
   const capturedEvents = () =>
     payloads.flatMap(
