@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const webUrl = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
 const demoUrl = process.env.M5_DEMO_URL ?? "http://127.0.0.1:4174";
 const configuredProjectId = "11111111-1111-4111-8111-111111111111";
 
-function projectNavigationButton(page: import("@playwright/test").Page, name: string) {
+function projectNavigationButton(page: Page, name: string) {
   return page
     .getByRole("navigation", { name: "项目一级导航" })
     .getByRole("button", { name: new RegExp(`^${name}`) });
