@@ -103,7 +103,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
     await reports.first().click();
     await expect(page.getByRole("heading", { name: "经营分析" })).toBeVisible();
     await expect(page.getByText("可见时长 p50 / p75")).toBeVisible();
-    await expect(page.getByText("时长覆盖率")).toBeVisible();
+    await expect(page.getByText("时长覆盖率", { exact: true })).toBeVisible();
     await expect(page.getByText("本页 PV 与活跃浏览器趋势")).toBeVisible();
     await expect(page.getByText("会话模块广度 p50 / p75")).toBeVisible();
   }
