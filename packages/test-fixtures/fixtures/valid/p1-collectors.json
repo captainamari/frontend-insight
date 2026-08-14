@@ -29,10 +29,11 @@
       "properties": {
         "templateKey": "analysis_view",
         "readinessDurationMs": 840,
-        "readinessState": "ready",
+        "readinessState": "blank_candidate",
         "firstScreenCollected": true,
         "blankDetectionCollected": true,
-        "sampleRate": 0.5
+        "firstScreenSampleRate": 0.5,
+        "blankDetectionSampleRate": 0.25
       }
     },
     {

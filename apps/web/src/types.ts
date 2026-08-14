@@ -527,12 +527,22 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
   definitionVersion: string;
   coverage: {
     pageViews: number;
+    api: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
     readiness: {
       observedPageViews: number;
       rate: number | null;
       sampleRate: number | null;
     };
     resources: {
+      observedPageViews: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
+    listRender: {
       observedPageViews: number;
       rate: number | null;
       sampleRate: number | null;
@@ -547,9 +557,16 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
       rate: number | null;
       sampleRate: number | null;
     };
+    breadcrumbs: {
+      observedErrors: number;
+      errorEvents: number;
+      rate: number | null;
+      sampleRate: number | null;
+    };
   };
   api: {
     status: "available" | "not_collected" | "insufficient_sample";
+    availableFrom: string | null;
     items: Array<{
       requestMethod: string;
       requestPath: string;
@@ -563,6 +580,7 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
       sampleRate: number | null;
       sampleSize: number;
       status: "available" | "not_collected" | "insufficient_sample";
+      availableFrom: string | null;
       lastSeenAt: string | null;
     }>;
   };
@@ -572,9 +590,20 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
     denominator: number;
     failureRate: number | null;
     sampleRate: number | null;
+    availableFrom: string | null;
+    releases: Array<{
+      releaseVersion: string;
+      numerator: number;
+      denominator: number;
+      failureRate: number | null;
+      sampleRate: number | null;
+      availableFrom: string | null;
+      lastSeenAt: string | null;
+    }>;
   };
   readiness: {
     status: "available" | "not_collected" | "insufficient_sample";
+    availableFrom: string | null;
     items: Array<{
       templateKey: string;
       p50Ms: number | null;
@@ -584,10 +613,12 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
       blankCandidateRate: number | null;
       blankCandidates: number;
       blankObservedPageViews: number;
+      availableFrom: string | null;
     }>;
   };
   listRender: {
     status: "available" | "not_collected" | "insufficient_sample";
+    availableFrom: string | null;
     items: Array<{
       route: string;
       rowCountBucket: string;
@@ -595,6 +626,7 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
       p90Ms: number | null;
       sampleSize: number;
       status: "available" | "not_collected" | "insufficient_sample";
+      availableFrom: string | null;
     }>;
   };
   longTasks: {
@@ -605,6 +637,7 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
     denominator: number;
     affectedPageViewRate: number | null;
     sampleRate: number | null;
+    availableFrom: string | null;
   };
   blankScreen: {
     status: "available" | "not_collected";
@@ -612,6 +645,24 @@ export interface PagePerformanceResponse extends ObservabilityMeta {
     denominator: number;
     candidateRate: number | null;
     sampleRate: number | null;
+    availableFrom: string | null;
+    relatedErrors: {
+      occurrences: number;
+      affectedPageViews: number;
+    };
+    relatedResources: {
+      numerator: number;
+      denominator: number;
+      failureRate: number | null;
+    };
+  };
+  breadcrumbs: {
+    status: "available" | "not_collected";
+    numerator: number;
+    denominator: number;
+    coverageRate: number | null;
+    sampleRate: number | null;
+    availableFrom: string | null;
   };
 }
 
@@ -709,6 +760,15 @@ export interface ObservabilityOverviewResponse extends ObservabilityMeta {
   };
 }
 
+export interface ErrorBreadcrumb {
+  kind: "route" | "action" | "api" | "error";
+  occurredAt: string;
+  key: string;
+  method?: string;
+  path?: string;
+  statusCode?: number;
+}
+
 export interface ErrorGroupDetailResponse extends ObservabilityMeta {
   item: ErrorGroupSummary;
   trend: Array<{
@@ -723,6 +783,12 @@ export interface ErrorGroupDetailResponse extends ObservabilityMeta {
     occurrences: number;
     affectedBrowsers: number;
     lastSeenAt: string | null;
+  }>;
+  breadcrumbSamples: Array<{
+    occurredAt: string | null;
+    route: string;
+    releaseVersion: string;
+    items: ErrorBreadcrumb[];
   }>;
   privacy: string;
 }

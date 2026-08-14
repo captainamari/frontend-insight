@@ -276,10 +276,8 @@ export class P1Collectors {
       readinessState: details.blankCandidate ? "blank_candidate" : "ready",
       firstScreenCollected: firstScreen,
       blankDetectionCollected: blank,
-      sampleRate: Math.min(
-        firstScreen ? this.config.firstScreen.sampleRate : 1,
-        blank ? this.config.blankScreen.sampleRate : 1,
-      ),
+      firstScreenSampleRate: this.config.firstScreen.sampleRate,
+      blankDetectionSampleRate: this.config.blankScreen.sampleRate,
     });
   }
 
@@ -318,7 +316,9 @@ export class P1Collectors {
     });
   }
 
-  errorBreadcrumbs(): Breadcrumb[] | undefined {
+  errorBreadcrumbs():
+    | { items: Breadcrumb[]; sampleRate: number }
+    | undefined {
     if (
       !this.config.breadcrumbs.enabled ||
       !this.sampled(this.config.breadcrumbs.sampleRate) ||
@@ -326,7 +326,10 @@ export class P1Collectors {
     ) {
       return undefined;
     }
-    return this.breadcrumbs.map((item) => ({ ...item }));
+    return {
+      items: this.breadcrumbs.map((item) => ({ ...item })),
+      sampleRate: this.config.breadcrumbs.sampleRate,
+    };
   }
 
   private recordBreadcrumb(item: Breadcrumb): void {

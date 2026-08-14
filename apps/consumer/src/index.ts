@@ -304,6 +304,14 @@ export class EventConsumerRuntime {
         vital_rating: propertyString(properties, "vitalRating"),
         navigation_type: propertyString(properties, "navigationType"),
         collector_sample_rate: propertyNumber(properties, "sampleRate"),
+        first_screen_sample_rate: propertyNumber(
+          properties,
+          "firstScreenSampleRate",
+        ),
+        blank_detection_sample_rate: propertyNumber(
+          properties,
+          "blankDetectionSampleRate",
+        ),
         request_count: propertyNumber(properties, "requestCount"),
         request_success_count: propertyNumber(properties, "successCount"),
         request_error_count: propertyNumber(properties, "errorCount"),

@@ -7,7 +7,7 @@ describe("database migration inventory", () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
       expect(migrations.map((migration) => migration.version)).toEqual(
-        engine === "mysql" ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6],
+        engine === "mysql" ? [1, 2, 3, 4, 5] : [1, 2, 3, 4, 5, 6, 7],
       );
       expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
         true,
@@ -80,6 +80,13 @@ describe("database migration inventory", () => {
     expect(migration.sql).toContain("browser_family");
     expect(migration.sql).toContain("os_family");
     expect(splitClickHouseStatements(migration.sql)).toHaveLength(3);
+  });
+
+  it("keeps readiness and blank-screen sample rates independent", async () => {
+    const migration = (await discoverMigrations("clickhouse"))[6]!;
+    expect(migration.name).toBe("p1_readiness_sampling");
+    expect(migration.sql).toContain("first_screen_sample_rate");
+    expect(migration.sql).toContain("blank_detection_sample_rate");
   });
 
   it("keeps migration files readable from both source and compiled locations", async () => {

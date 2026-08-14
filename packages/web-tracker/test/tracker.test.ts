@@ -473,6 +473,35 @@ describe("web tracker lifecycle and privacy", () => {
     window.fetch = originalFetch;
   });
 
+  it("restores nested M8 and P1 fetch wrappers in host-safe order", async () => {
+    const originalFetch = window.fetch;
+    const hostFetch = vi.fn(async () => new Response(null, { status: 502 }));
+    window.fetch = hostFetch as unknown as typeof fetch;
+    const { runtime } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "nested-fetch01"),
+      observability: {
+        enabled: true,
+        captureJsErrors: false,
+        captureResourceErrors: false,
+        captureApiErrors: true,
+        captureWebVitals: false,
+      },
+      collectors: {
+        api: {
+          enabled: true,
+          sampleRate: 1,
+          slowThresholdMs: 100,
+          globalFetch: true,
+        },
+      },
+    });
+    await window.fetch("/api/alarms/987654?authorization=hidden");
+    tracker.destroy();
+    expect(window.fetch).toBe(hostFetch);
+    window.fetch = originalFetch;
+  });
+
   it("keeps every P1 collector disabled by default", async () => {
     const { runtime, fetchMock } = createRuntime();
     const tracker = createTracker(config(runtime, "p1-default-off01"));
@@ -574,6 +603,8 @@ describe("web tracker lifecycle and privacy", () => {
       readinessState: "blank_candidate",
       firstScreenCollected: true,
       blankDetectionCollected: true,
+      firstScreenSampleRate: 1,
+      blankDetectionSampleRate: 1,
     });
     expect(byName("list_render")?.properties).toMatchObject({
       rowCountBucket: ">1000",
@@ -691,6 +722,15 @@ describe("web tracker lifecycle and privacy", () => {
       staticProperties: { releaseVersion: "overridden" },
     });
     expect(conflict.getDiagnostics().lastErrorCode).toBe(
+      "OBSERVABILITY_STATIC_PROPERTY_CONFLICT",
+    );
+
+    const p1Conflict = createTracker({
+      ...config(runtime, "p1-static-conflict01"),
+      staticProperties: { requestCount: 99 },
+      collectors: { api: { enabled: true, sampleRate: 1 } },
+    });
+    expect(p1Conflict.getDiagnostics().lastErrorCode).toBe(
       "OBSERVABILITY_STATIC_PROPERTY_CONFLICT",
     );
   });

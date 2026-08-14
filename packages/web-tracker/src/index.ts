@@ -8,7 +8,8 @@ import type { P1CollectorConfig, Tracker, TrackerConfig } from "./types.js";
 
 const activeTrackers = new Map<string, Tracker>();
 const observabilityPropertyBudget = 9;
-const observabilityReservedProperties = new Set([
+const p1PropertyBudget = 10;
+const telemetryReservedProperties = new Set([
   "releaseVersion",
   "deploymentEnvironment",
   "browserFamily",
@@ -26,6 +27,27 @@ const observabilityReservedProperties = new Set([
   "vitalValue",
   "vitalRating",
   "navigationType",
+  "templateKey",
+  "readinessDurationMs",
+  "readinessState",
+  "firstScreenCollected",
+  "blankDetectionCollected",
+  "firstScreenSampleRate",
+  "blankDetectionSampleRate",
+  "requestCount",
+  "errorCount",
+  "successCount",
+  "slowCount",
+  "slowThresholdMs",
+  "sampleRate",
+  "totalCount",
+  "failedCount",
+  "totalDurationMs",
+  "observedPageViews",
+  "rowCountBucket",
+  "longTaskCount",
+  "longTaskDurationMs",
+  "longTaskMaximumMs",
 ]);
 
 function trackerKey(
@@ -58,16 +80,29 @@ export function createTracker(config: TrackerConfig): Tracker {
       deploymentEnvironment,
     );
     const collectors = normalizeP1CollectorConfig(config.collectors);
+    const p1Enabled = [
+      collectors.api,
+      collectors.resources,
+      collectors.firstScreen,
+      collectors.listRender,
+      collectors.longTasks,
+      collectors.blankScreen,
+      collectors.breadcrumbs,
+    ].some((collector) => collector.enabled);
+    const propertyBudget = Math.max(
+      observability ? observabilityPropertyBudget : 0,
+      p1Enabled ? p1PropertyBudget : 0,
+    );
     if (
-      observability &&
-      Object.keys(staticProperties).length > 20 - observabilityPropertyBudget
+      propertyBudget > 0 &&
+      Object.keys(staticProperties).length > 20 - propertyBudget
     ) {
       return createNoopTracker("OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED", development);
     }
     if (
-      observability &&
+      propertyBudget > 0 &&
       Object.keys(staticProperties).some((key) =>
-        observabilityReservedProperties.has(key),
+        telemetryReservedProperties.has(key),
       )
     ) {
       return createNoopTracker("OBSERVABILITY_STATIC_PROPERTY_CONFLICT", development);

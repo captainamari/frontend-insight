@@ -49,7 +49,8 @@ const p1RequiredProperties: Record<string, readonly string[]> = {
     "readinessState",
     "firstScreenCollected",
     "blankDetectionCollected",
-    "sampleRate",
+    "firstScreenSampleRate",
+    "blankDetectionSampleRate",
   ],
   api_request_summary: [
     "requestMethod",
@@ -225,6 +226,16 @@ export function validateTransportBatch(
               REJECTION_CODES.schemaInvalid,
               `${path}/properties/${missing}`,
               "required P1 summary property is missing",
+            );
+          }
+          if (
+            event.eventName === "page_readiness" &&
+            "sampleRate" in properties
+          ) {
+            return error(
+              REJECTION_CODES.schemaInvalid,
+              `${path}/properties/sampleRate`,
+              "page_readiness requires independent first-screen and blank-detection sample rates",
             );
           }
         }

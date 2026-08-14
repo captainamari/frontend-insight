@@ -408,7 +408,8 @@
                   "readinessState",
                   "firstScreenCollected",
                   "blankDetectionCollected",
-                  "sampleRate"
+                  "firstScreenSampleRate",
+                  "blankDetectionSampleRate"
                 ],
                 "properties": {
                   "templateKey": {
@@ -428,7 +429,12 @@
                   "blankDetectionCollected": {
                     "type": "boolean"
                   },
-                  "sampleRate": {
+                  "firstScreenSampleRate": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "blankDetectionSampleRate": {
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1

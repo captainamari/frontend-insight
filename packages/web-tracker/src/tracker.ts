@@ -150,16 +150,25 @@ export class BrowserTracker implements Tracker {
                   : "other",
               );
             }
-            const breadcrumbs = eventName.startsWith("error_")
+            const breadcrumbEvidence = eventName.startsWith("error_")
               ? this.collectors.errorBreadcrumbs()
               : undefined;
-            this.emit(eventName, properties, breadcrumbs ? { breadcrumbs } : {});
+            this.emit(
+              eventName,
+              breadcrumbEvidence
+                ? {
+                    ...properties,
+                    sampleRate: breadcrumbEvidence.sampleRate,
+                  }
+                : properties,
+              breadcrumbEvidence ? { breadcrumbs: breadcrumbEvidence.items } : {},
+            );
           },
         )
       : null;
     this.emit("page_view", {}, { title: runtime.document.title.slice(0, 256) });
-    this.observability?.start();
     this.collectors.start();
+    this.observability?.start();
     this.installLifecycle();
     this.flushTimer = runtime.setInterval(
       () => void this.flush("normal"),

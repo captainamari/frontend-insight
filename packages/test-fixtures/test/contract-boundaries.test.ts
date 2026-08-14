@@ -91,6 +91,19 @@ describe("contract limits and rejection codes", () => {
       ok: false,
       errors: [{ code: REJECTION_CODES.credentialDataRejected }],
     });
+
+    const legacyReadiness = structuredClone(validP1Collectors);
+    const readiness = legacyReadiness.events.find(
+      (event) => event.eventName === "page_readiness",
+    )!;
+    const properties = readiness.properties as Record<string, unknown>;
+    delete properties.firstScreenSampleRate;
+    delete properties.blankDetectionSampleRate;
+    properties.sampleRate = 0.5;
+    expect(validateTransportBatch(legacyReadiness)).toMatchObject({
+      ok: false,
+      errors: [{ code: REJECTION_CODES.schemaInvalid }],
+    });
   });
 
   it("rejects credential fields and values without returning their values", () => {

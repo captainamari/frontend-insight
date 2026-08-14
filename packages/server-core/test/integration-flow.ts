@@ -533,9 +533,10 @@ async function main(): Promise<void> {
         ?.operationalIndexVersion === "operational_v1_unchanged",
       "M8 must not silently change the operational index v1 formula",
     );
-    const firstError = (
-      observabilityOverview.body.errors as Array<Record<string, unknown>>
-    )[0];
+    const errorItems = observabilityOverview.body.errors as Array<
+      Record<string, unknown>
+    >;
+    const firstError = errorItems[0];
     assert(typeof firstError?.groupId === "string", "M8 must expose an error group");
     const errorDetail = await jsonRequest(
       `/api/projects/${projectId}/observability/errors/${firstError.groupId}?${query}`,
@@ -546,6 +547,23 @@ async function main(): Promise<void> {
         Array.isArray(errorDetail.body.impact) &&
         typeof errorDetail.body.privacy === "string",
       "error detail must retain release/page impact and privacy boundaries",
+    );
+    const breadcrumbError = errorItems.find(
+      (item) =>
+        item.message === "render failed" &&
+        Array.isArray(item.pages) &&
+        item.pages.includes("/analysis"),
+    );
+    assert(breadcrumbError, "P1 breadcrumb error group must remain queryable");
+    const breadcrumbDetail = await jsonRequest(
+      `/api/projects/${projectId}/observability/errors/${breadcrumbError.groupId}?${query}`,
+      { headers: viewerHeaders },
+    );
+    assert(
+      breadcrumbDetail.response.status === 200 &&
+        Array.isArray(breadcrumbDetail.body.breadcrumbSamples) &&
+        breadcrumbDetail.body.breadcrumbSamples.length > 0,
+      "P1 breadcrumb evidence must be returned by the error detail read model",
     );
 
     const pagePerformance = await jsonRequest(
@@ -566,13 +584,23 @@ async function main(): Promise<void> {
       "P1 API evidence must retain the request denominator and pass the P90 sample gate",
     );
     assert(
-      resourceEvidence.denominator === 240 && resourceEvidence.numerator === 20,
-      "P1 resource evidence must aggregate request and failure denominators",
+      resourceEvidence.denominator === 240 &&
+        resourceEvidence.numerator === 20 &&
+        Array.isArray(resourceEvidence.releases) &&
+        resourceEvidence.releases[0]?.denominator === 240,
+      "P1 resource evidence must aggregate denominators and retain release comparison",
     );
     assert(
       readinessEvidence.status === "available" &&
-        Array.isArray(readinessEvidence.items),
-      "P1 explicit readiness must be queryable by template",
+        Array.isArray(readinessEvidence.items) &&
+        pagePerformance.body.coverage.readiness.sampleRate === 0.5 &&
+        pagePerformance.body.coverage.blankScreen.sampleRate === 0.25,
+      "P1 readiness and blank-screen sampling must remain independent",
+    );
+    assert(
+      pagePerformance.body.blankScreen.relatedErrors.occurrences === 20 &&
+        pagePerformance.body.blankScreen.relatedResources.denominator === 240,
+      "P1 blank candidates must retain related error and resource evidence",
     );
 
     const publicCollectorConfig = await jsonRequest(
