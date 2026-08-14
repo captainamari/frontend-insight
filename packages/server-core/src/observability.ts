@@ -838,7 +838,7 @@ export class ObservabilityStore {
           }))
           .filter((sample) => sample.items.length > 0),
         privacy:
-          "Messages, paths and stack frames are sanitized; breadcrumb samples contain only allowlisted route/action/API summaries and never DOM text, selectors, input values, console output, query strings, headers, bodies or business identifiers.",
+          "仅展示 SDK 截断并脱敏的消息、路径和首帧；breadcrumb 只包含白名单 route/action/API 摘要，不包含 DOM 文本、selector、输入值、console、query、header/body 或业务标识。",
       };
     });
   }
