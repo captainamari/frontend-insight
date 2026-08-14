@@ -104,7 +104,7 @@ function stringArray(value: unknown): string[] {
 }
 
 function aggregateCollectionStatus(
-  items: readonly Array<{ status: CollectionStatus }>,
+  items: ReadonlyArray<{ status: CollectionStatus }>,
 ): CollectionStatus {
   if (!items.length || items.every((item) => item.status === "not_collected")) {
     return "not_collected";
@@ -867,6 +867,28 @@ export class ObservabilityStore {
           .filter((sample) => sample.items.length > 0),
         privacy:
           "Messages, paths and stack frames are sanitized; breadcrumb samples contain only allowlisted route/action/API summaries and never DOM text, selectors, input values, console output, query strings, headers, bodies or business identifiers.",
+      };
+    });
+  }
+
+  async webVitals(projectId: string, rangeInput: AnalyticsRange) {
+    return this.measure(async () => {
+      const range = validateAnalyticsRange(rangeInput);
+      const [items, availability, rawStatus] = await Promise.all([
+        this.webVitalsQuery(projectId, range, 500),
+        this.availableFrom(projectId),
+        this.mysql.getDataStatus(projectId),
+      ]);
+      return {
+        ...this.meta(range, evaluateDataStatus(rawStatus), availability),
+        items,
+        thresholds: {
+          LCP: { goodMax: 2_500, poorAbove: 4_000, unit: "ms" },
+          CLS: { goodMax: 0.1, poorAbove: 0.25, unit: "score" },
+          INP: { goodMax: 200, poorAbove: 500, unit: "ms" },
+          FCP: { goodMax: 1_800, poorAbove: 3_000, unit: "ms" },
+          TTFB: { goodMax: 800, poorAbove: 1_800, unit: "ms" },
+        },
       };
     });
   }
