@@ -6,17 +6,21 @@
 > 历史产品基线：[需求文档 v1.6](requirements-v1.6.md)<br>
 > 对应开发计划：[MVP 开发计划 v1.5](../planning/mvp-plan-v1.5.md)<br>
 > 新需求来源：`前端监测平台-2026年08月18日-来自【得到大脑】.docx`<br>
+> 命名与指标来源：`内部系统前端监测指标字典(1).md`（《内部业务操作系统 · 前端监测指标字典》v1.0）<br>
 > 废弃文档：`requirements-v1.7.md`、`mvp-plan-v1.4.md`，不得作为实现或验收依据
 
 ## 0. 文档定位与事实优先级
 
 v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修订。发生冲突时按以下顺序处理：
 
-1. 本文已经明确的产品决策；
-2. 2026-08-18 附件中的业务目标和页面意图；
-3. `main` 的真实代码、数据能力和安全边界；
-4. v1.6/v1.3 中仍被本文保留的指标语义、权限、隐私和工程原则；
-5. 其他历史文档仅用于追溯，不构成验收条件。
+1. 《内部业务操作系统 · 前端监测指标字典》v1.0 对字段名、事件名、指标 key、计算口径和上报时机的定义；
+2. 本文对产品边界、安全约束及两个附件之间歧义的明确决策，但不得另造名称替换第 1 项的规范名；
+3. 2026-08-18 附件中的业务目标、页面名称和页面意图；
+4. `main` 的真实代码、数据能力和安全边界；
+5. v1.6/v1.3 中仍被本文保留的权限、隐私和工程原则；
+6. 其他历史文档仅用于追溯，不构成验收条件。
+
+`requirements-v1.7.md` 曾将附件中的 `appId`、`env`、`release`、`event`、`timestamp`、`pageRoute`、`userId`、`deviceId`、`vv`、`uv` 等改写为当前实现使用的其他名称。该决策随 v1.7 一并废弃。本版以附件名称为准，不再以“沿用现有代码”为理由反向修改指标字典。
 
 当前项目仍处于开发阶段，未正式上线，也没有需要保留的生产数据。因此本轮重构采用 **Pre-1.0 重置策略**：
 
@@ -38,11 +42,13 @@ v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修�
 8. 指标面向用户分为“原子指标”和“业务指标”。内部仍可保留 fact/atomic/derived/composite 分层。
 9. 用户可以基于受控指标和受控运算符创建业务指标与分数，但不能提交任意 SQL、任意字段、任意 group by 或任意代码。
 10. 指标启用、停用或修改必须先形成新的草稿版本；激活后版本不可原地编辑，版本是当时指标配置的完整快照。
-11. 业务分析以“业务域”为聚合单位。现有 module 能力升级并统一命名为 business domain。
+11. 业务分析以“功能模块”为聚合单位；UI 使用“功能模块”，代码和接口使用 `moduleId/moduleKey`，不再引入 business domain/业务域作为同义概念。
 12. 现有单次 operation 生命周期扩展为可选的多阶段工作流追踪；核心 SDK 继续使用显式语义事件，不默认抓取任意 DOM。
 13. 页面分析默认打开“质量分析”，并可切换到“运营分析”。
 14. 设置页包含接入指南、探针版本管理和接口管理；第三方接口默认关闭并使用独立的受限凭证。
 15. 重构按页面或模块分批交付，每一批独立自动化验证、手工验收并合入后再开始下一批。
+16. SDK、事件契约、API、MetricCatalog、数据库语义列、UI 和测试统一使用附件规范名；物理数据库列允许 snake_case 映射，但不得形成第二套业务术语。
+17. 规范指标 key 固定使用附件中的 snake_case，例如 `pv`、`uv`、`vv`、`module_penetration`、`task_duration`、`js_error_rate`；当前 `page_views`、`active_accounts`、`sessions` 等只能出现在重构差异说明和删除测试中。
 
 ## 2. 当前 `main` 基线与重构差异
 
@@ -53,9 +59,9 @@ v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修�
 | 工程 | pnpm/TypeScript monorepo，lint/typecheck/test/build，Chromium/WebKit E2E | 保留 |
 | 采集 | 页面/SPA、功能、long-view、operation v2、错误、Web Vitals | 保留并扩展工作流步骤 |
 | 链路 | ingestion → Kafka → consumer → ClickHouse | 保留 |
-| 元数据 | MySQL 项目、成员、模块、页面、任务、profile、审计 | 重命名和重组，允许重建测试库 |
+| 元数据 | MySQL 项目、成员、模块、页面、任务、profile、审计 | 按附件规范统一字段，保留功能模块语义，允许重建测试库 |
 | 权限 | admin/viewer、项目级授权、服务端拦截、审计 | 保留 |
-| 运营分析 | PV、账号、浏览器、会话、停留、深度、持续使用、任务达成 | 作为运营指标来源 |
+| 运营分析 | PV、账号、浏览器、会话、停留、深度、持续使用、任务达成 | 作为指标事实来源；对外 key 改为附件的 `pv/uv/vv/...` |
 | 运营评分 | 30/25/30/15 四维运营指数、目标、权重、gate、血缘 | UI 改称运营分数并接入新页面 |
 | 质量证据 | JS/资源/API 错误、错误组、影响范围、Web Vitals、发布版本、固定告警 | 纳入质量指标与页面质量分析 |
 | 数据状态 | healthy/delayed/no_data/broken、更新时间、缺口说明 | 保留并统一到所有新页面 |
@@ -79,10 +85,138 @@ v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修�
 - 全局时间范围只有 24 小时、7 天和 30 天，缺少 3 个月、半年和 1 年；
 - 运营分数和质量证据分离，尚无质量分数；
 - 指标目录固定在代码中，尚无受控业务指标公式编辑器和完整指标版本库；
-- module 只有概览聚合，尚无独立业务分析页和业务域趋势；
+- module 只有概览聚合，尚无独立业务分析页和功能模块趋势；
 - operation 只有开始/终态，不能表达附件中的多阶段工作流；
 - 页面质量分析以错误组汇总为主，尚无附件要求的路径/时间/类别/复现条件筛选与明细；
 - 项目与接入页尚未覆盖探针版本策略和第三方接口启停管理。
+
+### 2.4 `main` 命名审计与唯一规范名
+
+以下差异来自 `main` @ `a79fa5368b806c9808242eb65c6d076d5d1464eb` 的事件 schema、SDK、ClickHouse raw table、MetricCatalog、API DTO、路由和页面代码。右列是 v1.8 唯一允许的新名称。
+
+| 层级 | 当前 `main` | v1.8 唯一规范名 | 处理规则 |
+| --- | --- | --- | --- |
+| 应用维度 | `projectKey`；内部 `projectId` | `appId` | SDK/ingest/事件和面向接入方的 API 使用 `appId`；内部关系主键可保留 `projectId`，但不得代替事件维度 |
+| 环境 | `deploymentEnvironment`，且只在可观测 payload 中出现 | `env`：`prod/staging/dev` | 所有事件必带；看板默认 `prod` |
+| 发布版本 | `releaseVersion`，且只在可观测 payload 中出现 | `release` | 所有事件必带，由构建/接入配置注入 |
+| 事件类型 | `eventName` | `event` | 只使用 `page_view/page_leave/performance/api/error/custom`；具体自定义动作放入 `payload.name` |
+| 事件时间 | `eventTime` ISO string | `timestamp` epoch milliseconds | 服务端另存 `receivedAt`，不得覆盖客户端时间 |
+| 页面 URL | 未采集 | `pageUrl` | 保留该字段名；值按 13.1 脱敏，默认移除 query/hash 中非白名单内容 |
+| 页面聚合键 | `route`、`normalizedRoute` | `pageRoute` | SPA 归一化路由，是页面聚合主键 |
+| 用户 | `accountRef` → `accountId` | `userId` | SDK 字段名为 `userId`；持久化前项目级不可逆处理，未登录值使用匿名标识并按 `deviceId` 兜底 |
+| 组织 | 无通用事件字段 | `deptId`、`roleId` | 优先由受治理目录在服务端补充；禁止上传姓名等直接标识 |
+| 设备 | `visitorId` | `deviceId` | 浏览器生成的稳定匿名标识，不宣称是真实硬件指纹 |
+| 终端 | `browserFamily/osFamily/viewportBucket`，只在可观测事件中 | `ua`、`os`、`browser` | 所有事件使用同一字段；值执行白名单、长度和隐私限制 |
+| 会话 | `sessionId` | `sessionId` | 保留；30 分钟无操作重新生成 |
+| 业务载荷 | `properties` | `payload` | 按事件类型使用受控 schema，禁止任意嵌套对象 |
+| 页面浏览量 | `page_views`、`pageViews`、部分 DTO 的 `pv` | `pv` | MetricCatalog、API、趋势、UI 绑定和 fixture 全部统一 |
+| 活跃用户 | `active_accounts`、`active_browsers`、`visitors` | `uv` | 以 `userId` 去重，未登录按 `deviceId` 兜底；账号/设备拆分只可作为附加诊断指标 |
+| 会话数 | `sessions` | `vv` | UI 显示“会话数（VV）”，不得只显示含义不明的 VV |
+| 运营评分 | `project_operational_index`、项目运营指数 | `operational_score`、运营分数 | 公式可复用，key、API 和 UI 同步重命名 |
+| 质量评分 | 尚无 | `quality_score`、质量分数 | 与运营分数独立定义和版本 |
+| 分组实体 | module 与新增设计中的 business domain 混用 | `moduleId/moduleKey`、功能模块 | 复用当前 module 模型，不新建同义 business domain 模型 |
+
+允许保留的技术字段仅用于可靠性和追踪，例如 `schemaVersion`、`eventId`、`pageViewId`、`receivedAt`、`requestId`、SDK 名称/版本。这些扩展不得替代上表中的规范业务字段。
+
+### 2.5 v1.8 事件模型
+
+规范事件结构如下；batch envelope 可以补充批次发送时间和 SDK 信息，但不得把必填公共维度只放在 batch 层而让事件失去自描述能力。
+
+```json
+{
+  "event": "page_view | page_leave | performance | api | error | custom",
+  "appId": "ops-admin",
+  "env": "prod",
+  "release": "1.4.2",
+  "pageUrl": "https://example.internal/order/list",
+  "pageRoute": "/order/list",
+  "userId": "u_xxx",
+  "deptId": "dept_xxx",
+  "roleId": "role_xxx",
+  "sessionId": "s_xxx",
+  "deviceId": "d_xxx",
+  "ua": "allowlisted-user-agent",
+  "os": "macOS",
+  "browser": "Chrome",
+  "timestamp": 1787155200000,
+  "payload": {}
+}
+```
+
+事件映射规则：
+
+| 当前事件 | v1.8 事件 |
+| --- | --- |
+| `page_view`、`page_leave` | 保持相同 `event` 值 |
+| `web_vital` | `event=performance`，`payload.metric` 使用 `lcp`、`inp`、`cls`、`fcp`、`ttfb` |
+| `error_js`、`error_resource` | `event=error`，`payload.errorType=js/resource` |
+| `error_api` | `event=api`，通过 `payload.success=false` 和失败类型表达；正常请求也必须上报受控汇总以形成分母 |
+| `feature_*`、long-view、workflow 事件 | `event=custom`，具体名称放入 `payload.name`；名称仍受 registry 和 schema 限制 |
+
+R0 完成后只接受 contract v3，不接受 v1/v2 或上述旧字段别名。
+
+### 2.6 指标字典对照与交付状态
+
+附件中的指标 key 与口径是系统默认 MetricCatalog 的保留定义。用户业务指标不得覆盖、改义或复用这些 key。当前代码中的近似指标如果公式不同，只能作为独立扩展指标保留，不能声称已实现附件指标。
+
+#### 2.6.1 使用情况类
+
+| 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
+| --- | --- | --- | --- |
+| `pv` | `page_view` 计数，不去重 | 已实现为 `page_views/pageViews/pv` 多套名称 | R0/R1-B 统一 key；R6 验证路由切换先 leave 后 view |
+| `uv` | `userId` 去重，未登录按 `deviceId` 兜底 | 拆为账号、浏览器、visitors，口径不同 | R0 补字段；R6 实现规范 UV，并保留口径拆分作为诊断元数据 |
+| `dau`、`wau`、`mau` | 自然日/周/月去重活跃用户 | 无规范指标 | R1-B 注册，R6 实现；项目时区自然窗口 |
+| `vv` | `sessionId` 去重；30 分钟无操作切分 | 会话事实和 `sessions` DTO 已有 | 重命名为 `vv`，R6 补 golden fixture |
+| `module_penetration` | 模块去重用户数 / 系统总用户数 | 功能采用率、核心页面覆盖率均不等价 | R4-A 实现并返回分母来源；90 日活跃近似必须显式标注 |
+| `avg_usage_duration` | 有效会话时长之和 / UV | 当前是页面可见时长分位数和覆盖率 | R6 新增规范指标；现有页面时长指标作为独立诊断指标 |
+| `hourly_distribution` | 按小时的 PV/UV 分布 | 未实现 | R6 实现，使用项目时区 |
+| `bounce_rate` | 单页会话数 / 总会话数 | 未实现 | R6 实现；UI 名称“跳出率（单页会话率）”，不默认告警 |
+
+#### 2.6.2 操作效率类
+
+| 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
+| --- | --- | --- | --- |
+| `task_duration` | 进入操作页到提交成功，按任务类型输出 P50/P90 | operation 成功耗时只有 P50/P75，且名称不同 | R4-B 复用实例关联并补 P90/任务类型 |
+| `form_efficiency` | 修改次数/提交、重置率、校验报错率三个子指标 | 未实现 | R4-C 增加脱敏汇总事件，不采集字段值 |
+| `operation_fail_rate` | 业务码非成功次数 / 操作总次数 | 当前任务失败终态不等价 | R4-C 增加显式业务适配器，与 `api_error_rate` 分离 |
+| `repeated_operation_rate` | 同一用户对同一业务对象 24h 内操作 ≥3 的相关会话占比 | 当前 repeat feature 使用不等价 | R4-C 使用短期不可逆业务对象引用并单独隐私评审 |
+| `path_steps` | 以任务完成为终点回溯会话页面序列，统计去重页面数与总步数 | 当前 session depth 不等价 | R4-B 随工作流实现，保留回退步数 |
+
+#### 2.6.3 性能类
+
+| 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
+| --- | --- | --- | --- |
+| `lcp`、`inp`、`cls` | 按 `pageRoute`；核心展示 P75，LCP 同时提供 P90 | 已采集但通过 `web_vital` + 大写 vitalName，查询主要是 P75 | R5-A 重命名并补规定分位数、样本和阈值版本 |
+| `fcp`、`ttfb`、`first_screen_time` | FCP/TTFB/业务首屏，默认 P90 | FCP/TTFB 已采集；业务首屏未实现 | R5-A 统一 key并增加 `first_screen_time` 显式 API |
+| `api_duration`、`api_slow_top` | 所有受控 API 的 P50/P90、成功率和慢请求率；TOP 按 P90 | 当前主要采集失败请求，缺少成功请求分母 | R5-A 增加显式适配器；全局 fetch 包装默认关闭 |
+| `list_render_duration` | 页面 × 行数分桶的渲染 P90 | 未实现 | R5-A 提供组件层显式计时 API |
+| `longtask_count`、`longtask_total` | 页面长任务次数与总时长；>50ms | 未实现 | R5-A 使用 `PerformanceObserver(longtask)`，页面离开汇总 |
+
+#### 2.6.4 稳定性类
+
+| 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
+| --- | --- | --- | --- |
+| `js_error_rate` | JS 异常次数 / PV；指纹聚合并返回影响用户 | 已有 JS 错误分子和 PV，但无规范 rate | R5-A 注册分母和 rate；R5-B 展示组与实例 |
+| `api_error_rate` | HTTP/网络/超时异常请求 / 请求总数 | 只有失败事件，没有总请求分母 | R5-A 与 `api_duration` 共用 API 汇总事实 |
+| `resource_error_rate` | 资源失败请求 / 资源请求总数 | 只有失败分子 | R5-A 增加资源请求汇总分母后才能称为 rate |
+| `blank_screen_rate` | 判定白屏的 PV / 启用检测的 PV | 未实现 | R5-A 按页面模板 opt-in；UI同时给出规则和覆盖率 |
+| `breadcrumb` | 错误前最多 50 条安全操作，仅随错误发送 | 未实现 | R5-A 环形缓冲；R5-B 只显示白名单语义动作 |
+
+#### 2.6.5 组织与异常类
+
+| 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
+| --- | --- | --- | --- |
+| `dept_usage`、`role_usage` | 部门/角色活跃人数 / 编制人数及功能分布 | 未实现 | R4-C 由服务端目录聚合，必须返回目录版本与分母来源 |
+| `role_feature_profile` | 角色 × 功能模块的 PV 与时长 Top N | 未实现 | R4-C 聚合；小群体保护和最小人数门槛 |
+| `abnormal_access` | 非工作时间、高频、多设备或越权访问规则 | 未实现 | R7 只提供经管理层评审的固定规则和审计，不用于个人绩效 |
+
+通用统计规则：
+
+- 耗时类输出 P50/P75/P90/P99，页面默认 P90；具体指标明确指定 P75 时按该指标定义覆盖默认值；
+- 比率必须同时返回 numerator、denominator、sample size、coverage、status 和 definition version；分母为 0 返回不可用，不返回 0%；
+- 实时看板按 5 分钟粒度，自然日/周/月按项目时区；
+- `main` 已实现但不在附件中的指标可以保留为版本化扩展指标，但不得占用或改义附件保留 key；
+- 所有规范指标先在 R1-B 注册定义与实施状态，再由对应页面/模块里程碑补齐事实和查询；未实现时显示 `not_collected`，不得显示 0。
 
 ## 3. 产品定义
 
@@ -91,7 +225,7 @@ v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修�
 Frontend Insight 是面向内部 Web 产品的前端监测平台。它通过用户行为、任务生命周期、浏览器错误和性能事实，为项目负责人、产品工程师和研发提供三类支撑：
 
 1. **项目级判断**：项目在运行生命周期内的运营情况、前端质量和资产状态；
-2. **业务级判断**：某个业务域、功能或工作流是否被使用、是否完成、耗时是否合理；
+2. **业务级判断**：某个功能模块、功能或工作流是否被使用、是否完成、耗时是否合理；
 3. **页面级判断**：某个页面的运营指标、错误、性能和复现上下文。
 
 平台提供证据、偏离信号和调查优先级，不仅凭遥测自动宣布设计“好/坏”，也不用于人员绩效评价。
@@ -101,7 +235,7 @@ Frontend Insight 是面向内部 Web 产品的前端监测平台。它通过用�
 | 角色 | 核心任务 | 权限 |
 | --- | --- | --- |
 | 项目负责人/Supervisor | 快速判断项目运营和质量状态，下钻低分原因 | viewer |
-| 产品/运营 | 查看业务域、页面、功能和工作流的使用与趋势 | viewer |
+| 产品/运营 | 查看功能模块、页面、功能和工作流的使用与趋势 | viewer |
 | 业务开发者 | 定位错误、性能问题和复现上下文，验证埋点 | viewer 或 admin |
 | 项目管理员 | 管理项目、分析对象、指标、分数、探针和接口 | admin |
 | 平台维护者 | 部署、链路健康、备份恢复和容量管理 | 运维权限 |
@@ -150,7 +284,7 @@ flowchart TD
 - `/projects/:projectId/metrics`：指标管理；
 - `/projects/:projectId/settings`：设置。
 
-详情优先使用抽屉或弹窗，避免形成第四层入口。URL 必须保留项目、时间范围、TAB 和业务域/页面筛选，刷新和分享后状态不丢失。
+详情优先使用抽屉或弹窗，避免形成第四层入口。URL 必须保留项目、时间范围、TAB 和功能模块/页面筛选，刷新和分享后状态不丢失。
 
 ### 4.2 项目内页面框架
 
@@ -271,7 +405,7 @@ flowchart TD
 - 雷达图只展示 0–100 的维度分，不直接混入 PV、人数、毫秒等不同单位；
 - 总分、维度、原始指标、目标、样本、版本和加权贡献可下钻。
 
-v1.8 UI 使用“运营分数”，内部旧 `project_operational_index` 可在重构时统一重命名；不保留面向用户的双术语。
+v1.8 UI 使用“运营分数”，规范 key 为 `operational_score`；内部旧 `project_operational_index` 在对应模块重构时同步删除，不保留别名或面向用户的双术语。
 
 ### 6.4 质量分数
 
@@ -279,10 +413,10 @@ v1.8 UI 使用“运营分数”，内部旧 `project_operational_index` 可在�
 
 | 维度 | 默认输入 | 方向 |
 | --- | --- | --- |
-| JS 稳定性 | 每千 PV 的 JS 错误影响率 | lower_better |
-| 资源稳定性 | 每千 PV 的资源加载错误影响率 | lower_better |
-| API 稳定性 | 每千 PV 的 API 错误影响率 | lower_better |
-| 页面性能 | Web Vitals poor 样本率及 p75 目标符合度 | lower_better/target_range |
+| JS 稳定性 | `js_error_rate` | lower_better |
+| 资源稳定性 | `resource_error_rate` | lower_better |
+| API 稳定性 | `api_error_rate` | lower_better |
+| 页面性能 | `lcp`、`inp`、`cls` 的规定分位数与目标符合度 | lower_better/target_range |
 
 默认公式等价于“100 分基线减去错误和性能扣分”，但实际扣分阈值、上限和权重来自激活的质量分数版本，不硬编码在页面。
 
@@ -306,23 +440,23 @@ v1.8 UI 使用“运营分数”，内部旧 `project_operational_index` 可在�
 
 ## 7. 业务分析
 
-### 7.1 业务域
+### 7.1 功能模块
 
-业务域是用户定义的稳定业务分组，例如能源管理、设备管理、报警管理。现有 module 数据模型在 v1.8 中重命名为 business domain：
+功能模块是用户定义的稳定业务分组，例如能源管理、设备管理、报警管理。现有 module 数据模型与附件 `module_penetration` 的语义一致，因此继续使用 module：
 
-- 每个页面属于一个业务域；
-- 业务域由 admin 显式配置，不从 URL 自动推断；
+- 每个页面属于一个功能模块；
+- 功能模块由 admin 显式配置，不从 URL 自动推断；
 - 可设置顺序、状态和关键度；
-- 未归类页面继续显示基础数据，但不进入业务域聚合和分数。
+- 未归类页面继续显示基础数据，但不进入功能模块聚合和分数。
 
 ### 7.2 页面结构
 
-1. 筛选层：业务域单选、公共时间范围；
-2. 业务运营指标：从当前运营指标版本选择的业务域指标卡；
+1. 筛选层：功能模块单选、公共时间范围；
+2. 业务运营指标：从当前运营指标版本选择的功能模块指标卡；
 3. 指标变化趋势：与指标卡同源；
-4. 工作流追踪：展示所选业务域内关键工作流的开始、阶段达成、终态、耗时和异常。
+4. 工作流追踪：展示所选功能模块内关键工作流的开始、阶段达成、终态、耗时和异常。
 
-默认指标至少包括业务域 PV、活跃账号/浏览器、页面覆盖、任务达成、产品稳定性和平均/分位操作耗时。只有单位和聚合语义兼容的页面指标才能汇总为业务域指标。
+默认指标使用字典规范 key，至少包括 `pv`、`uv`、`module_penetration`、`task_duration`、`operation_fail_rate` 和相关页面稳定性指标。只有单位、分母和聚合语义兼容的页面指标才能汇总为功能模块指标，不显示“产品稳定性”等没有固定公式的模糊指标名。
 
 ### 7.3 工作流定义
 
@@ -331,7 +465,7 @@ v1.8 UI 使用“运营分数”，内部旧 `project_operational_index` 可在�
 | 字段 | 说明 |
 | --- | --- |
 | workflowKey/name | 稳定标识与业务名称 |
-| businessDomainId | 所属业务域 |
+| moduleId | 所属功能模块 |
 | startPolicy | 如何创建匿名 workflow instance |
 | steps | 2–20 个有序步骤 |
 | terminalPolicy | 成功、失败、取消、超时 |
@@ -371,7 +505,7 @@ flowchart LR
 - completed/failed/canceled/approximate abandoned；
 - 总耗时 p50/p75；
 - 相邻阶段耗时 p50/p75；
-- 完成前页面数和业务域跨度；
+- 完成前页面数和功能模块跨度；
 - 指标可用起始时间和定义版本。
 
 点击按钮只表示步骤发生，不自动代表业务成功。网络请求成功也只有在工作流定义明确时才可作为终态。
@@ -386,7 +520,7 @@ flowchart LR
 - 开始/结束时间：默认最近 7 天；
 - 筛选写入 URL；
 - 仅返回当前项目已授权数据；
-- 路径使用归一化 route，不暴露 query/hash。
+- 路径使用规范 `pageRoute`，不暴露 query/hash。
 
 ### 8.2 质量分析
 
@@ -407,7 +541,7 @@ flowchart LR
 
 | 列 | 要求 |
 | --- | --- |
-| 路径 | 归一化 route |
+| 路径 | 归一化 `pageRoute` |
 | 时间 | 项目时区，精确到秒 |
 | 堆栈信息 | 脱敏且截断的首帧/有限帧 |
 | 复现条件 | 结构化安全上下文，点击打开抽屉 |
@@ -417,7 +551,7 @@ flowchart LR
 
 “复现条件”只能包含：
 
-- 页面 route、release、environment；
+- `pageRoute`、`release`、`env`；
 - 浏览器/OS 家族和视口档位；
 - navigation/lifecycle 类型；
 - API 方法、脱敏路径和状态码；
@@ -430,11 +564,11 @@ flowchart LR
 
 1. 页面运营指标卡：从指标管理中选择的页面级运营指标；
 2. 指标趋势：与卡片同源；
-3. 页面模板、所属业务域、核心状态和可用起始时间；
+3. 页面模板、所属功能模块、核心状态和可用起始时间；
 4. 页面内关键工作流/任务；
 5. 未归类页面的 admin 配置入口。
 
-默认保留 PV、活跃账号/浏览器/会话、平均/p50/p75 可见时长、时长覆盖率、访问深度和关键任务达成。缺失 leave 不按 0 参与时长。
+默认保留 `pv`、`uv`、`vv`、`avg_usage_duration`、`hourly_distribution`、`bounce_rate` 以及按页面配置的工作流/任务指标。页面可见时长分位数、时长覆盖率和访问深度可作为扩展诊断指标保留，但不能替代字典指标；缺失 `page_leave` 不按 0 参与时长。
 
 ## 9. 指标管理
 
@@ -444,7 +578,7 @@ flowchart LR
 
 页面包含：
 
-1. 分析对象：业务域、页面、工作流；
+1. 分析对象：功能模块、页面、工作流；
 2. 运营指标；
 3. 质量指标；
 4. 分数管理；
@@ -454,8 +588,8 @@ flowchart LR
 
 | UI 术语 | 内部实现 | 示例 |
 | --- | --- | --- |
-| 原子指标 | fact/atomic 固定查询 | PV、错误次数、Web Vital p75 |
-| 业务指标 | derived/composite DAG | 任务达成率、每千 PV 错误率 |
+| 原子指标 | fact/atomic 固定查询 | `pv`、`lcp`、错误次数 |
+| 业务指标 | derived/composite DAG | `uv`、`module_penetration`、`js_error_rate` |
 | 分数 | 0–100 composite | 运营分数、质量分数 |
 
 系统默认原子指标由代码和固定查询提供。用户不能修改其底层 SQL，但可以在新版本中启用、停用、调整展示和引用。
@@ -494,7 +628,7 @@ flowchart LR
 - 总分展示 gate；
 - 颜色分段；
 - 雷达展示维度；
-- 适用项目/业务域；
+- 适用项目/功能模块；
 - definition version 和 metric set version。
 
 权重总和必须为 100%。未达到 minimum sample、缺少目标或数据延迟的分项不按 0；总分是否可显示由覆盖门槛决定。
@@ -539,7 +673,7 @@ stateDiagram-v2
 
 ### 10.1 接入指南
 
-- 展示项目 key、接收 endpoint、允许 Origin 和 CSP；
+- 展示 `appId`、接收 endpoint、允许 Origin 和 CSP；
 - 按当前探针版本生成最小接入代码；
 - 支持发送测试事件和查看链路状态；
 - 明确 SDK 不读取 Authorization、Cookie、Local/Session Storage token、表单、DOM 文本和 URL query；
@@ -578,7 +712,7 @@ stateDiagram-v2
 - 最近调用；
 - 启用/停用。
 
-支持分页。接口默认关闭；启用时创建独立、可撤销、按项目/接口/范围授权的访问凭证，数据库只保存 hash。`projectKey` 不是接口凭证。
+支持分页。接口默认关闭；启用时创建独立、可撤销、按项目/接口/范围授权的访问凭证，数据库只保存 hash。`appId` 是应用标识，不是接口凭证。
 
 所有外部接口必须：
 
@@ -623,7 +757,7 @@ flowchart LR
 
 - `GET /api/projects/summary`：入口页项目卡片，支持搜索和分页；
 - `GET /api/projects/:id/overview`：项目概览；
-- `GET /api/projects/:id/business-domains/:domainId/analysis`；
+- `GET /api/projects/:id/modules/:moduleId/analysis`；
 - `GET /api/projects/:id/workflows/:workflowId/analysis`；
 - `GET /api/projects/:id/page-analysis/quality`；
 - `GET /api/projects/:id/page-analysis/operations`；
@@ -633,7 +767,7 @@ flowchart LR
 - `GET /api/projects/:id/settings/probe-versions`；
 - `GET /api/projects/:id/settings/export-interfaces`。
 
-管理接口覆盖业务域、页面、工作流、指标草稿、版本激活、分数、项目设置、探针策略和接口启停。
+管理接口覆盖功能模块、页面、工作流、指标草稿、版本激活、分数、项目设置、探针策略和接口启停。
 
 所有接口执行：
 
@@ -703,7 +837,7 @@ flowchart LR
 
 ### 15.3 业务分析
 
-- [ ] 业务域聚合不包含未归类页面；
+- [ ] 功能模块聚合不包含未归类页面；
 - [ ] 指标卡和趋势同源；
 - [ ] 并发 workflow instance 不串联；
 - [ ] 每阶段、终态和耗时与固定 fixture 手算一致；
@@ -740,6 +874,16 @@ flowchart LR
 - [ ] 启停、轮换、限流和审计通过；
 - [ ] Prometheus 无高基数/敏感标签。
 
+### 15.7 命名与指标契约
+
+- [ ] SDK、ingest、consumer、ClickHouse 语义列、API DTO、MetricCatalog、UI、seed 和测试使用同一规范名；
+- [ ] contract v3 每个事件包含 2.5 的公共维度，技术扩展字段不替代公共维度；
+- [ ] `pv`、`uv`、`dau`、`wau`、`mau`、`vv`、`module_penetration`、`avg_usage_duration`、`hourly_distribution`、`bounce_rate` 等附件保留 key 均已注册；
+- [ ] `page_views/active_accounts/active_browsers/sessions/project_operational_index` 等旧 key 的生产代码引用为 0；
+- [ ] 未交付指标返回 `not_collected`，不会用近似指标、0 或空趋势伪装已实现；
+- [ ] 指标详情可以查看分子、分母、去重键、分位数、上报时机、版本和实施状态；
+- [ ] 全仓负向契约测试证明 v1/v2 和旧字段/旧 key 不再被接受或返回。
+
 ## 16. 明确不在本轮
 
 - 任意 SQL、任意 group by 和自助 BI；
@@ -766,6 +910,9 @@ AI 分析助手仍可在本轮数据与页面稳定后单独评审，不能与�
 | 错误“复现条件越多越好” | 只增加结构化、脱敏、白名单上下文，不突破隐私边界 |
 | 运营告警可合理舍弃 | P0 复用固定告警摘要；可配置告警展示为 P1 |
 | 80 分状态与 85/60 颜色 | 状态门槛按 80；颜色分段按 85/60，二者分别标注 |
+| 附件名与 `main` 名冲突 | 以附件 `appId/event/timestamp/pageRoute/userId/deviceId/pv/uv/vv` 等为准，不沿用旧名作为规范名 |
+| 业务域与功能模块 | 统一为“功能模块”和 `moduleId/moduleKey`；业务分析是页面名，不再创建 business domain 同义模型 |
+| UV 与账号/浏览器拆分 | `uv` 按 `userId`、未登录按 `deviceId` 兜底；账号/设备拆分只作附加诊断，不替代规范 UV |
 
 ## 18. 产品评审 Go / No-Go
 
