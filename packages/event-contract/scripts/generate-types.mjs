@@ -31,6 +31,7 @@ assertUnique(
   manifest.metricKeys.map(({ key }) => key),
   "metric keys",
 );
+assertUnique(Object.values(manifest.uiChineseNames), "UI Chinese names");
 if (manifest.contractVersion !== 3) {
   throw new Error("R0 only generates contract v3");
 }
@@ -284,6 +285,7 @@ export const CANONICAL_CUSTOM_EVENT_NAMES = ${asConst(manifest.customEventNames)
 export const CANONICAL_ENVIRONMENTS = ${asConst(manifest.environments)};
 export const CANONICAL_PERFORMANCE_METRICS = ${asConst(manifest.performanceMetrics)};
 export const CANONICAL_METRIC_KEYS = ${asConst(manifest.metricKeys.map(({ key }) => key))};
+export const CANONICAL_UI_CHINESE_NAMES = ${JSON.stringify(manifest.uiChineseNames, null, 2)} as const;
 export const CANONICAL_ROUTES = ${JSON.stringify(manifest.routes, null, 2)} as const;
 export const CANONICAL_API_NAMES = ${JSON.stringify(manifest.apiNames, null, 2)} as const;
 export const CANONICAL_RANGES = ${JSON.stringify(manifest.ranges, null, 2)} as const;
@@ -380,6 +382,14 @@ ${manifest.publicFields.map(({ key, label }) => `| \`${key}\` | ${label} |`).joi
 ## 事件类型
 
 ${manifest.eventNames.map((name) => `- \`${name}\``).join("\n")}
+
+## UI 中文名
+
+| key | 中文名 |
+| --- | --- |
+${Object.entries(manifest.uiChineseNames)
+  .map(([key, label]) => `| \`${key}\` | ${label} |`)
+  .join("\n")}
 
 ## 附件保留指标 key
 

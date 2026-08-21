@@ -20,7 +20,7 @@ function navigationButton(page: Page, name: string) {
     .getByRole("button", { name: new RegExp(`^${name}`) });
 }
 
-test("operation demo emits independently paired v2 terminal events", async ({
+test("operation demo emits independently paired v3 terminal events", async ({
   page,
 }) => {
   const payloads: Array<Record<string, unknown>> = [];
@@ -50,22 +50,26 @@ test("operation demo emits independently paired v2 terminal events", async ({
       "feature_succeeded",
       "feature_failed",
       "feature_canceled",
-    ].includes(String(event.event)),
+    ].includes(String((event.payload as Record<string, unknown> | undefined)?.name)),
   );
-  expect(payloads.some((payload) => payload.schemaVersion === 2)).toBe(true);
-  const starts = operationEvents.filter((event) => event.event === "feature_started");
+  expect(payloads.some((payload) => payload.schemaVersion === 3)).toBe(true);
+  const starts = operationEvents.filter(
+    (event) =>
+      (event.payload as Record<string, unknown> | undefined)?.name ===
+      "feature_started",
+  );
   const terminals = operationEvents.filter((event) =>
     ["feature_succeeded", "feature_failed", "feature_canceled"].includes(
-      String(event.event),
+      String((event.payload as Record<string, unknown> | undefined)?.name),
     ),
   );
-  expect(new Set(starts.map((event) => event.operationInstanceId)).size).toBe(3);
+  const operationId = (event: Record<string, unknown>) =>
+    (event.payload as Record<string, unknown> | undefined)?.operationInstanceId;
+  expect(new Set(starts.map(operationId)).size).toBe(3);
   expect(terminals).toHaveLength(3);
   for (const start of starts) {
     expect(
-      terminals.filter(
-        (terminal) => terminal.operationInstanceId === start.operationInstanceId,
-      ),
+      terminals.filter((terminal) => operationId(terminal) === operationId(start)),
     ).toHaveLength(1);
   }
 });
@@ -161,7 +165,7 @@ test("viewer sees M6 evidence but cannot write operational configuration", async
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          targetAccounts: 99,
+          targetUsers: 99,
           expectedActiveWeekdays: [1, 2, 3, 4, 5],
         }),
       },

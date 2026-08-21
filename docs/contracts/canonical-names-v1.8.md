@@ -32,6 +32,24 @@
 - `error`
 - `custom`
 
+## UI 中文名
+
+| key | 中文名 |
+| --- | --- |
+| `projects` | 全部项目 |
+| `projectOverview` | 项目概览 |
+| `projectBusiness` | 业务分析 |
+| `projectPages` | 页面分析 |
+| `projectMetrics` | 指标管理 |
+| `projectSettings` | 设置 |
+| `module` | 功能模块 |
+| `pageQualityTab` | 质量分析 |
+| `pageOperationsTab` | 运营分析 |
+| `operationalScore` | 运营分数 |
+| `qualityScore` | 质量分数 |
+| `activeUser` | 活跃用户 |
+| `sessionCount` | 会话数（VV） |
+
 ## 附件保留指标 key
 
 | key | 中文名 | 类别 | 实施状态 | 交付里程碑 |

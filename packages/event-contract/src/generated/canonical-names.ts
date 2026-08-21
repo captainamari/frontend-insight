@@ -92,6 +92,21 @@ export const CANONICAL_METRIC_KEYS = [
   "operational_score",
   "quality_score"
 ] as const;
+export const CANONICAL_UI_CHINESE_NAMES = {
+  "projects": "全部项目",
+  "projectOverview": "项目概览",
+  "projectBusiness": "业务分析",
+  "projectPages": "页面分析",
+  "projectMetrics": "指标管理",
+  "projectSettings": "设置",
+  "module": "功能模块",
+  "pageQualityTab": "质量分析",
+  "pageOperationsTab": "运营分析",
+  "operationalScore": "运营分数",
+  "qualityScore": "质量分数",
+  "activeUser": "活跃用户",
+  "sessionCount": "会话数（VV）"
+} as const;
 export const CANONICAL_ROUTES = {
   "projects": "/projects",
   "projectOverview": "/projects/:projectId/overview",
