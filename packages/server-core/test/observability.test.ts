@@ -19,7 +19,7 @@ function errorGroup(overrides: Partial<ErrorGroupSummary> = {}): ErrorGroupSumma
     httpStatus: null,
     resourceType: null,
     occurrences: 5,
-    affectedAccounts: 1,
+    affectedUsers: 1,
     affectedBrowsers: 3,
     affectedPages: 1,
     pages: ["/dashboard"],
@@ -36,9 +36,9 @@ function errorGroup(overrides: Partial<ErrorGroupSummary> = {}): ErrorGroupSumma
 
 function vital(overrides: Partial<WebVitalSummary> = {}): WebVitalSummary {
   return {
-    route: "/dashboard",
-    vitalName: "LCP",
-    releaseVersion: "release-1",
+    pageRoute: "/dashboard",
+    vitalName: "lcp",
+    release: "release-1",
     sampleSize: 20,
     p75: 4_200,
     poorSamples: 8,
@@ -53,7 +53,7 @@ describe("fixed observability alerts", () => {
     expect(
       errorSeverity({
         occurrences: 4,
-        affectedAccounts: 0,
+        affectedUsers: 0,
         affectedBrowsers: 3,
         httpStatus: null,
       }),
@@ -61,7 +61,7 @@ describe("fixed observability alerts", () => {
     expect(
       errorSeverity({
         occurrences: 5,
-        affectedAccounts: 1,
+        affectedUsers: 1,
         affectedBrowsers: 3,
         httpStatus: null,
       }),
@@ -69,7 +69,7 @@ describe("fixed observability alerts", () => {
     expect(
       errorSeverity({
         occurrences: 20,
-        affectedAccounts: 2,
+        affectedUsers: 2,
         affectedBrowsers: 4,
         httpStatus: 503,
       }),

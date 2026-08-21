@@ -48,7 +48,7 @@ function createPool(mysqlUrl: string): Pool {
 function projectFromRow(row: RowDataPacket, origins: string[] = []): ProjectRecord {
   return {
     id: String(row.id),
-    projectKey: String(row.project_key),
+    appId: String(row.app_id),
     name: String(row.name),
     timezone: String(row.timezone),
     status: row.status as "active" | "disabled",
@@ -103,7 +103,7 @@ function pageFromRow(row: RowDataPacket): PageDefinitionRecord {
     id: String(row.id),
     projectId: String(row.project_id),
     moduleId: String(row.module_id),
-    normalizedRoute: String(row.normalized_route),
+    pageRoute: String(row.page_route),
     name: String(row.name),
     templateKey: row.template_key as PageTemplate,
     isCore: Boolean(row.is_core),
@@ -128,7 +128,7 @@ function operationalSettingsFromRow(row: RowDataPacket): ProjectOperationalSetti
     id: String(row.id),
     projectId: String(row.project_id),
     version: Number(row.version),
-    targetAccounts: row.target_accounts === null ? null : Number(row.target_accounts),
+    targetUsers: row.target_users === null ? null : Number(row.target_users),
     expectedActiveWeekdays: parseWeekdays(row.expected_active_weekdays),
     status: row.status as "active" | "superseded",
     effectiveFrom: new Date(row.effective_from as string).toISOString(),
@@ -493,17 +493,17 @@ export class MySqlStore {
     actor: Principal;
   }): Promise<ProjectRecord> {
     const id = randomUUID();
-    const projectKey = `fi_public_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
+    const appId = `fi_public_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
       await connection.execute(
         `INSERT INTO projects
-           (id, project_key, name, timezone, status, retention_days, created_by_user_id)
+           (id, app_id, name, timezone, status, retention_days, created_by_user_id)
          VALUES (?, ?, ?, ?, 'active', ?, ?)`,
         [
           id,
-          projectKey,
+          appId,
           input.name,
           input.timezone,
           input.retentionDays,
@@ -530,7 +530,7 @@ export class MySqlStore {
       await connection.commit();
       return {
         id,
-        projectKey,
+        appId,
         name: input.name,
         timezone: input.timezone,
         status: "active",
@@ -639,7 +639,7 @@ export class MySqlStore {
 
   async listModules(projectId: string): Promise<ModuleRecord[]> {
     const [rows] = await this.pool.query<RowDataPacket[]>(
-      `SELECT * FROM project_modules
+      `SELECT * FROM modules
        WHERE project_id = ?
        ORDER BY display_order, name, id`,
       [projectId],
@@ -658,7 +658,7 @@ export class MySqlStore {
   }): Promise<ModuleRecord> {
     const id = randomUUID();
     await this.pool.execute(
-      `INSERT INTO project_modules
+      `INSERT INTO modules
          (id, project_id, module_key, name, criticality_weight, display_order,
           status, effective_from)
        VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
@@ -721,7 +721,7 @@ export class MySqlStore {
     }
     if (assignments.length) {
       const [result] = await this.pool.execute(
-        `UPDATE project_modules SET ${assignments.join(", ")}
+        `UPDATE modules SET ${assignments.join(", ")}
          WHERE id = ? AND project_id = ?`,
         [...values, moduleId, projectId],
       );
@@ -748,7 +748,7 @@ export class MySqlStore {
     const [rows] = await this.pool.query<RowDataPacket[]>(
       `SELECT * FROM page_definitions
        WHERE project_id = ?
-       ORDER BY name, normalized_route, id`,
+       ORDER BY name, page_route, id`,
       [projectId],
     );
     return rows.map(pageFromRow);
@@ -757,7 +757,7 @@ export class MySqlStore {
   async createPageDefinition(input: {
     projectId: string;
     moduleId: string;
-    normalizedRoute: string;
+    pageRoute: string;
     name: string;
     templateKey: PageTemplate;
     isCore: boolean;
@@ -773,14 +773,14 @@ export class MySqlStore {
     const id = randomUUID();
     await this.pool.execute(
       `INSERT INTO page_definitions
-         (id, project_id, module_id, normalized_route, name, template_key,
+         (id, project_id, module_id, page_route, name, template_key,
           is_core, criticality_weight, expected_frequency, status, effective_from)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
       [
         id,
         input.projectId,
         input.moduleId,
-        input.normalizedRoute,
+        input.pageRoute,
         input.name,
         input.templateKey,
         input.isCore,
@@ -796,7 +796,7 @@ export class MySqlStore {
       entityType: "page",
       entityId: id,
       metadata: {
-        normalizedRoute: input.normalizedRoute,
+        pageRoute: input.pageRoute,
         templateKey: input.templateKey,
       },
     });
@@ -903,7 +903,7 @@ export class MySqlStore {
 
   async createOperationalSettingsVersion(input: {
     projectId: string;
-    targetAccounts: number | null;
+    targetUsers: number | null;
     expectedActiveWeekdays: number[];
     effectiveFrom?: string | undefined;
     actor: Principal;
@@ -942,14 +942,14 @@ export class MySqlStore {
       );
       await connection.execute(
         `INSERT INTO project_operational_settings
-           (id, project_id, version, target_accounts, expected_active_weekdays,
+           (id, project_id, version, target_users, expected_active_weekdays,
             status, effective_from, created_by_user_id)
          VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
         [
           id,
           input.projectId,
           version,
-          input.targetAccounts,
+          input.targetUsers,
           JSON.stringify(input.expectedActiveWeekdays),
           effectiveFrom,
           input.actor.userId,
@@ -964,7 +964,7 @@ export class MySqlStore {
         metadata: {
           version,
           effectiveFrom: effectiveFrom.toISOString(),
-          targetAccountsConfigured: input.targetAccounts !== null,
+          targetUsersConfigured: input.targetUsers !== null,
           expectedActiveWeekdays: input.expectedActiveWeekdays,
         },
       });
@@ -973,7 +973,7 @@ export class MySqlStore {
         id,
         projectId: input.projectId,
         version,
-        targetAccounts: input.targetAccounts,
+        targetUsers: input.targetUsers,
         expectedActiveWeekdays: [...input.expectedActiveWeekdays],
         status: "active",
         effectiveFrom: effectiveFrom.toISOString(),
@@ -1478,12 +1478,10 @@ export class MySqlStore {
     return feature;
   }
 
-  async getIngestionProject(
-    projectKey: string,
-  ): Promise<ProjectIngestionConfig | null> {
+  async getIngestionProject(appId: string): Promise<ProjectIngestionConfig | null> {
     const [rows] = await this.pool.query<RowDataPacket[]>(
-      "SELECT * FROM projects WHERE project_key = ? LIMIT 1",
-      [projectKey],
+      "SELECT * FROM projects WHERE app_id = ? LIMIT 1",
+      [appId],
     );
     const row = rows[0];
     if (!row) return null;

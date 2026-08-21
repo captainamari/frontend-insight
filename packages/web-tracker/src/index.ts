@@ -1,85 +1,59 @@
 import { createNoopTracker } from "./noop.js";
 import { normalizeObservabilityConfig } from "./observability.js";
-import { normalizeProperties } from "./privacy.js";
+import { normalizePayload } from "./privacy.js";
 import { browserRuntime } from "./runtime.js";
 import { BrowserTracker } from "./tracker.js";
 import type { Tracker, TrackerConfig } from "./types.js";
 
 const activeTrackers = new Map<string, Tracker>();
-const observabilityPropertyBudget = 9;
-const observabilityReservedProperties = new Set([
-  "releaseVersion",
-  "deploymentEnvironment",
-  "browserFamily",
-  "osFamily",
-  "viewportBucket",
-  "errorName",
-  "errorMessage",
-  "stackTopFrame",
-  "resourceType",
-  "requestMethod",
-  "requestPath",
-  "statusCode",
-  "durationMs",
-  "vitalName",
-  "vitalValue",
-  "vitalRating",
-  "navigationType",
-]);
 
 function trackerKey(
-  config: Pick<TrackerConfig, "projectKey" | "endpoint" | "observability">,
+  config: Pick<TrackerConfig, "appId" | "env" | "release" | "endpoint">,
 ): string {
-  return `${config.projectKey}\u0000${config.endpoint}\u0000${config.observability?.releaseVersion ?? "none"}`;
+  return `${config.appId}\u0000${config.env}\u0000${config.release}\u0000${config.endpoint}`;
 }
 
 export function createTracker(config: TrackerConfig): Tracker {
   const development = config.development ?? false;
   try {
-    if (!/^fi_public_[A-Za-z0-9_-]{8,64}$/.test(config.projectKey)) {
-      return createNoopTracker("PROJECT_KEY_INVALID", development);
+    if (!/^[a-z][a-z0-9_-]{2,63}$/.test(config.appId)) {
+      return createNoopTracker("APP_ID_INVALID", development);
+    }
+    if (!["prod", "staging", "dev"].includes(config.env)) {
+      return createNoopTracker("ENV_INVALID", development);
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(config.release)) {
+      return createNoopTracker("RELEASE_INVALID", development);
     }
     const endpoint = new URL(config.endpoint);
     if (!/^https?:$/.test(endpoint.protocol)) {
       return createNoopTracker("ENDPOINT_INVALID", development);
     }
-    const staticProperties = normalizeProperties(config.staticProperties);
-    if (!staticProperties) {
-      return createNoopTracker("STATIC_PROPERTIES_INVALID", development);
-    }
-    const observability = normalizeObservabilityConfig(config.observability);
-    if (
-      observability &&
-      Object.keys(staticProperties).length > 20 - observabilityPropertyBudget
-    ) {
-      return createNoopTracker("OBSERVABILITY_PROPERTY_BUDGET_EXCEEDED", development);
-    }
-    if (
-      observability &&
-      Object.keys(staticProperties).some((key) =>
-        observabilityReservedProperties.has(key),
-      )
-    ) {
-      return createNoopTracker("OBSERVABILITY_STATIC_PROPERTY_CONFLICT", development);
+    const staticPayload = normalizePayload(config.staticPayload);
+    if (!staticPayload) {
+      return createNoopTracker("STATIC_PAYLOAD_INVALID", development);
     }
     const key = trackerKey(config);
     const existing = activeTrackers.get(key);
     if (existing?.getDiagnostics().state === "active") return existing;
-
     const tracker = new BrowserTracker(
       {
-        projectKey: config.projectKey,
+        appId: config.appId,
+        env: config.env,
+        release: config.release,
         endpoint: endpoint.toString(),
+        deptId: config.deptId ?? null,
+        roleId: config.roleId ?? null,
         flushIntervalMs: config.flushIntervalMs ?? 10_000,
         maximumQueueSize: Math.min(config.maximumQueueSize ?? 100, 100),
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
         longViewSuccessAfterMs: config.longViewSuccessAfterMs ?? 30_000,
         longViewHeartbeatMs: config.longViewHeartbeatMs ?? 60_000,
-        staticProperties,
+        staticPayload,
         development,
-        normalizeRoute: config.normalizeRoute,
+        normalizePageRoute: config.normalizePageRoute,
         beforeSend: config.beforeSend,
-        observability,
+        observability: normalizeObservabilityConfig(config.observability),
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,

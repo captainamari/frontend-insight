@@ -15,7 +15,7 @@ export function createNoopTracker(code: string, development = false): Tracker {
   };
   if (development) console.warn(`[frontend-insight] tracker disabled: ${code}`);
   return {
-    setAccount() {},
+    setUser() {},
     track() {},
     featureExposed() {},
     featureStarted() {},

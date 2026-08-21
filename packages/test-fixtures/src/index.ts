@@ -1,74 +1,57 @@
-import type {
-  FrontendInsightEventBatch,
-  FrontendInsightEventBatchV1,
-  FrontendInsightEventBatchV2,
-} from "@frontend-insight/event-contract";
-import actionGoldenJson from "../fixtures/golden/action.expected.json" with { type: "json" };
-import dataViewGoldenJson from "../fixtures/golden/data-view.expected.json" with { type: "json" };
-import longViewGoldenJson from "../fixtures/golden/long-view.expected.json" with { type: "json" };
-import operationV2GoldenJson from "../fixtures/golden/operation-v2.expected.json" with { type: "json" };
-import observabilityV1GoldenJson from "../fixtures/golden/observability-v1.expected.json" with { type: "json" };
-import invalidActionJson from "../fixtures/invalid/action.json" with { type: "json" };
-import invalidDataViewJson from "../fixtures/invalid/data-view.json" with { type: "json" };
-import invalidLongViewJson from "../fixtures/invalid/long-view.json" with { type: "json" };
-import invalidOperationV2Json from "../fixtures/invalid/operation-v2.json" with { type: "json" };
-import invalidObservabilityV1Json from "../fixtures/invalid/observability-v1.json" with { type: "json" };
-import validActionJson from "../fixtures/valid/action.json" with { type: "json" };
-import validDataViewJson from "../fixtures/valid/data-view.json" with { type: "json" };
-import validLongViewJson from "../fixtures/valid/long-view.json" with { type: "json" };
-import validOperationV2Json from "../fixtures/valid/operation-v2.json" with { type: "json" };
-import validObservabilityV1Json from "../fixtures/valid/observability-v1.json" with { type: "json" };
+import type { FrontendInsightEventBatchV3 } from "@frontend-insight/event-contract";
+import pageUsageGoldenJson from "../fixtures/golden/page-usage-v3.expected.json" with { type: "json" };
+import qualityGoldenJson from "../fixtures/golden/quality-v3.expected.json" with { type: "json" };
+import workflowGoldenJson from "../fixtures/golden/workflow-v3.expected.json" with { type: "json" };
+import legacyV1Json from "../fixtures/invalid/legacy-v1.json" with { type: "json" };
+import legacyV2Json from "../fixtures/invalid/legacy-v2.json" with { type: "json" };
+import oldEventAliasJson from "../fixtures/invalid/old-event-alias-v3.json" with { type: "json" };
+import oldFieldsJson from "../fixtures/invalid/old-fields-v3.json" with { type: "json" };
+import privacyJson from "../fixtures/invalid/privacy-v3.json" with { type: "json" };
+import pageUsageJson from "../fixtures/valid/page-usage-v3.json" with { type: "json" };
+import qualityJson from "../fixtures/valid/quality-v3.json" with { type: "json" };
+import workflowJson from "../fixtures/valid/workflow-v3.json" with { type: "json" };
 
 export interface GoldenExpectation {
-  scenario: "data_view" | "action" | "long_view" | "operation_v2" | "observability_v1";
+  scenario: "page_usage_v3" | "quality_v3" | "workflow_v3";
   eventCount: number;
-  featureKey?: string;
-  eventNames: string[];
+  events: string[];
+  customEvents?: string[];
 }
 
 export interface ContractScenario {
   name: GoldenExpectation["scenario"];
-  valid: FrontendInsightEventBatch;
+  valid: FrontendInsightEventBatchV3;
   invalid: unknown;
   golden: GoldenExpectation;
-  invalidRejectionCode?: string;
+  invalidRejectionCode: string;
 }
 
 export const contractScenarios: ContractScenario[] = [
   {
-    name: "data_view",
-    valid: validDataViewJson as unknown as FrontendInsightEventBatchV1,
-    invalid: invalidDataViewJson,
-    golden: dataViewGoldenJson as GoldenExpectation,
+    name: "page_usage_v3",
+    valid: pageUsageJson as FrontendInsightEventBatchV3,
+    invalid: legacyV1Json,
+    golden: pageUsageGoldenJson as GoldenExpectation,
+    invalidRejectionCode: "SCHEMA_VERSION_UNSUPPORTED",
   },
   {
-    name: "action",
-    valid: validActionJson as unknown as FrontendInsightEventBatchV1,
-    invalid: invalidActionJson,
-    golden: actionGoldenJson as GoldenExpectation,
+    name: "quality_v3",
+    valid: qualityJson as FrontendInsightEventBatchV3,
+    invalid: oldEventAliasJson,
+    golden: qualityGoldenJson as GoldenExpectation,
+    invalidRejectionCode: "SCHEMA_INVALID",
   },
   {
-    name: "long_view",
-    valid: validLongViewJson as unknown as FrontendInsightEventBatchV1,
-    invalid: invalidLongViewJson,
-    golden: longViewGoldenJson as GoldenExpectation,
-  },
-  {
-    name: "operation_v2",
-    valid: validOperationV2Json as unknown as FrontendInsightEventBatchV2,
-    invalid: invalidOperationV2Json,
-    golden: operationV2GoldenJson as GoldenExpectation,
-    invalidRejectionCode: "OPERATION_INSTANCE_INVALID",
-  },
-  {
-    name: "observability_v1",
-    valid: validObservabilityV1Json as unknown as FrontendInsightEventBatchV2,
-    invalid: invalidObservabilityV1Json,
-    golden: observabilityV1GoldenJson as GoldenExpectation,
-    invalidRejectionCode: "CREDENTIAL_DATA_REJECTED",
+    name: "workflow_v3",
+    valid: workflowJson as FrontendInsightEventBatchV3,
+    invalid: oldFieldsJson,
+    golden: workflowGoldenJson as GoldenExpectation,
+    invalidRejectionCode: "SCHEMA_INVALID",
   },
 ];
 
+export const invalidLegacyBatches = Object.freeze([legacyV1Json, legacyV2Json]);
+export const invalidPrivacyBatch = privacyJson;
 export const validBatches = Object.freeze(
   contractScenarios.map((scenario) => scenario.valid),
 );

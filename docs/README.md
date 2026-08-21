@@ -1,6 +1,14 @@
 # Frontend Insight 文档索引
 
-当前实现基线：2026-08-04。M0–M8 已合并 `main`；M6–M8 的已实现行为仍以需求文档 v1.6、MVP 开发计划 v1.3 和对应 ADR/验收记录为依据。
+`main` 当前实现基线：2026-08-04。M0–M8 已合并；M6–M8 的已实现行为仍以需求文档 v1.6、MVP 开发计划 v1.3 和对应 ADR/验收记录为依据。
+
+v1.8 R0 重构分支基线：
+
+- [需求文档 v1.8](product/requirements-v1.8.md) 与 [开发计划 v1.5](planning/mvp-plan-v1.5.md)：Pre-1.0 重置、唯一规范名和 R0 范围；
+- [canonical names v1.8](contracts/canonical-names-v1.8.md) 与 [事件契约 v3](contracts/event-contract-v3.md)：manifest 生成的规范字典及传输边界；
+- [R0 新旧术语与删除清单](contracts/v1.8-r0-deletion-checklist.md)：本批已删除项及后续页面替代里程碑；
+- [v1.8 R0 本地验收指引](guides/v1.8-r0-local-acceptance-macos.md)：空库重置、seed、定向测试和人工签字项；
+- [ADR-014](adr/ADR-014-canonical-contract-v3.md) 至 [ADR-018](adr/ADR-018-quality-export-and-prometheus-boundaries.md)：R0 必须冻结的架构边界。
 
 当前待评审产品与修改基线：
 

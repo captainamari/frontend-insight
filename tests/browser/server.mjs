@@ -14,7 +14,7 @@ const page = `<!doctype html>
       const runtime = {
         window,
         document,
-        navigator: { sendBeacon: () => false },
+        navigator: { sendBeacon: () => false, userAgent: navigator.userAgent },
         storage: window.localStorage,
         fetch: async (_url, options) => {
           window.__batches.push(JSON.parse(String(options.body)));
@@ -28,15 +28,15 @@ const page = `<!doctype html>
         clearInterval: window.clearInterval.bind(window),
       };
       window.__tracker = createTracker({
-        projectKey: "fi_public_browsercontract01",
+        appId: "fi_public_browsercontract01",
+        env: "dev",
+        release: "browser-contract-1",
         endpoint: "http://127.0.0.1:4318/v1/events",
         registeredFeatures: ["sales_dashboard", "report_export", "operations_wallboard"],
-        normalizeRoute: (url) => url.pathname.replace(/\\/orders\\/[^/]+/, "/orders/:id"),
+        normalizePageRoute: (url) => url.pathname.replace(/\\/orders\\/[^/]+/, "/orders/:id"),
         flushIntervalMs: 60000,
         observability: {
           enabled: true,
-          releaseVersion: "browser-contract-1",
-          deploymentEnvironment: "test",
           captureJsErrors: false,
           captureResourceErrors: false,
           captureApiErrors: false,

@@ -1,7 +1,5 @@
 import type {
   ApiErrorDetails,
-  DeploymentEnvironment,
-  EventProperties,
   NavigationType,
   ObservabilityConfig,
   RequestMethod,
@@ -14,17 +12,17 @@ import type {
 } from "./types.js";
 
 export interface NormalizedObservabilityConfig {
-  releaseVersion: string;
-  deploymentEnvironment: DeploymentEnvironment;
   captureJsErrors: boolean;
   captureResourceErrors: boolean;
   captureApiErrors: boolean;
   captureWebVitals: boolean;
 }
 
-type Emit = (eventName: string, properties: EventProperties) => void;
+type Emit = (
+  event: "api" | "error" | "performance",
+  payload: Record<string, string | number | boolean>,
+) => void;
 
-const releasePattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const credentialAssignment =
   /\b(?:token|password|passwd|secret|authorization|cookie)\s*[:=]\s*[^\s,;]+/gi;
 const bearer = /\bbearer\s+[A-Za-z0-9._~+/-]+/gi;
@@ -38,12 +36,7 @@ export function normalizeObservabilityConfig(
   input: ObservabilityConfig | undefined,
 ): NormalizedObservabilityConfig | null {
   if (!input?.enabled) return null;
-  if (!releasePattern.test(input.releaseVersion)) {
-    throw new Error("OBSERVABILITY_RELEASE_INVALID");
-  }
   return {
-    releaseVersion: input.releaseVersion,
-    deploymentEnvironment: input.deploymentEnvironment ?? "production",
     captureJsErrors: input.captureJsErrors ?? true,
     captureResourceErrors: input.captureResourceErrors ?? true,
     captureApiErrors: input.captureApiErrors ?? false,
@@ -111,36 +104,13 @@ function navigationType(runtime: TrackerRuntime): NavigationType {
     : "unknown";
 }
 
-function browserFamily(userAgent: string): string {
-  if (/Edg\//i.test(userAgent)) return "Edge";
-  if (/Firefox\//i.test(userAgent)) return "Firefox";
-  if (/(?:Chrome|CriOS)\//i.test(userAgent)) return "Chrome";
-  if (/Safari\//i.test(userAgent) && /Version\//i.test(userAgent)) return "Safari";
-  return "Other";
-}
-
-function osFamily(userAgent: string): string {
-  if (/Android/i.test(userAgent)) return "Android";
-  if (/(?:iPhone|iPad|iPod)/i.test(userAgent)) return "iOS";
-  if (/Windows/i.test(userAgent)) return "Windows";
-  if (/Macintosh|Mac OS X/i.test(userAgent)) return "macOS";
-  if (/Linux/i.test(userAgent)) return "Linux";
-  return "Other";
-}
-
-function viewportBucket(width: number): string {
-  if (width < 768) return "compact";
-  if (width < 1280) return "standard";
-  return "wide";
-}
-
 export function rateWebVital(name: WebVitalName, value: number): WebVitalRating {
   const thresholds: Record<WebVitalName, readonly [number, number]> = {
-    LCP: [2500, 4000],
-    CLS: [0.1, 0.25],
-    INP: [200, 500],
-    FCP: [1800, 3000],
-    TTFB: [800, 1800],
+    lcp: [2500, 4000],
+    cls: [0.1, 0.25],
+    inp: [200, 500],
+    fcp: [1800, 3000],
+    ttfb: [800, 1800],
   };
   const [good, poor] = thresholds[name];
   if (value <= good) return "good";
@@ -236,49 +206,42 @@ export class BrowserObservability {
   }
 
   captureException(error: unknown): void {
-    this.emit("error_js", this.withRelease(errorDetails(error)));
+    this.emit("error", {
+      errorType: "js",
+      errorCategory: "js",
+      ...errorDetails(error),
+    });
   }
 
   captureApiError(details: ApiErrorDetails): void {
-    this.emit(
-      "error_api",
-      this.withRelease({
-        requestMethod: requestMethod(details.method),
-        requestPath: normalizeRequestPath(
-          details.url,
-          this.runtime.window.location.href,
-        ),
-        statusCode: Math.max(0, Math.min(599, Math.trunc(details.statusCode))),
-        durationMs: Math.max(0, Math.min(86_400_000, Math.round(details.durationMs))),
-      }),
-    );
+    this.emit("api", {
+      success: false,
+      requestMethod: requestMethod(details.method),
+      requestPath: normalizeRequestPath(details.url, this.runtime.window.location.href),
+      statusCode: Math.max(0, Math.min(599, Math.trunc(details.statusCode))),
+      durationMs: Math.max(0, Math.min(86_400_000, Math.round(details.durationMs))),
+      failureType: details.failureType ?? "http",
+    });
   }
 
   captureResourceError(details: ResourceErrorDetails): void {
-    this.emit(
-      "error_resource",
-      this.withRelease({
-        resourceType: details.resourceType,
-        requestPath: normalizeRequestPath(
-          details.url,
-          this.runtime.window.location.href,
-        ),
-      }),
-    );
+    this.emit("error", {
+      errorType: "resource",
+      errorCategory: "resource",
+      resourceType: details.resourceType,
+      requestPath: normalizeRequestPath(details.url, this.runtime.window.location.href),
+    });
   }
 
   captureWebVital(details: WebVitalDetails): void {
     if (!Number.isFinite(details.value) || details.value < 0) return;
     const value = Math.min(86_400_000, details.value);
-    this.emit(
-      "web_vital",
-      this.withRelease({
-        vitalName: details.name,
-        vitalValue: value,
-        vitalRating: details.rating ?? rateWebVital(details.name, value),
-        navigationType: details.navigationType ?? navigationType(this.runtime),
-      }),
-    );
+    this.emit("performance", {
+      metric: details.name,
+      value,
+      rating: details.rating ?? rateWebVital(details.name, value),
+      navigationType: details.navigationType ?? navigationType(this.runtime),
+    });
   }
 
   private readonly handleError = (event: Event): void => {
@@ -299,17 +262,6 @@ export class BrowserObservability {
   private readonly handleUnhandledRejection = (event: PromiseRejectionEvent): void => {
     this.captureException(event.reason ?? "Unhandled promise rejection");
   };
-
-  private withRelease(properties: EventProperties): EventProperties {
-    return {
-      ...properties,
-      releaseVersion: this.config.releaseVersion,
-      deploymentEnvironment: this.config.deploymentEnvironment,
-      browserFamily: browserFamily(this.runtime.window.navigator.userAgent),
-      osFamily: osFamily(this.runtime.window.navigator.userAgent),
-      viewportBucket: viewportBucket(this.runtime.window.innerWidth),
-    };
-  }
 
   private installFetchInstrumentation(): void {
     const original = this.runtime.window.fetch;
@@ -386,13 +338,13 @@ export class BrowserObservability {
   private installWebVitals(): void {
     this.observe("paint", (entries) => {
       const fcp = entries.find((entry) => entry.name === "first-contentful-paint");
-      if (fcp) this.captureWebVital({ name: "FCP", value: fcp.startTime });
+      if (fcp) this.captureWebVital({ name: "fcp", value: fcp.startTime });
     });
     const navigation = this.runtime.window.performance.getEntriesByType(
       "navigation",
     )[0] as PerformanceNavigationTiming | undefined;
     if (navigation?.responseStart !== undefined) {
-      this.captureWebVital({ name: "TTFB", value: navigation.responseStart });
+      this.captureWebVital({ name: "ttfb", value: navigation.responseStart });
     }
     this.observe("largest-contentful-paint", (entries) => {
       const candidate = entries.at(-1);
@@ -424,9 +376,9 @@ export class BrowserObservability {
   private readonly flushVitals = (): void => {
     if (this.vitalFlushed) return;
     this.vitalFlushed = true;
-    if (this.lcp > 0) this.captureWebVital({ name: "LCP", value: this.lcp });
-    if (this.clsSupported) this.captureWebVital({ name: "CLS", value: this.cls });
-    if (this.inp > 0) this.captureWebVital({ name: "INP", value: this.inp });
+    if (this.lcp > 0) this.captureWebVital({ name: "lcp", value: this.lcp });
+    if (this.clsSupported) this.captureWebVital({ name: "cls", value: this.cls });
+    if (this.inp > 0) this.captureWebVital({ name: "inp", value: this.inp });
     this.runtime.window.removeEventListener("pagehide", this.flushVitals);
     this.runtime.document.removeEventListener(
       "visibilitychange",

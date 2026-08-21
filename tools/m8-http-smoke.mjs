@@ -64,7 +64,7 @@ const [vitals, releases, alerts] = await Promise.all([
 if (!vitals.items?.some((item) => item.vitalName === "LCP" && item.sampleSize >= 20)) {
   throw new Error("M8 LCP read model is missing");
 }
-if (!releases.items?.some((item) => item.releaseVersion === "2026.08.1")) {
+if (!releases.items?.some((item) => item.release === "2026.08.1")) {
   throw new Error("M8 release association is missing");
 }
 if (!alerts.items?.some((item) => item.ruleKey === "error_spike")) {

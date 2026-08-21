@@ -1,6 +1,0 @@
-{
-  "scenario": "action",
-  "eventCount": 4,
-  "featureKey": "report_export",
-  "eventNames": ["page_view", "feature_exposed", "feature_started", "feature_succeeded"]
-}

@@ -50,15 +50,13 @@ test("operation demo emits independently paired v2 terminal events", async ({
       "feature_succeeded",
       "feature_failed",
       "feature_canceled",
-    ].includes(String(event.eventName)),
+    ].includes(String(event.event)),
   );
   expect(payloads.some((payload) => payload.schemaVersion === 2)).toBe(true);
-  const starts = operationEvents.filter(
-    (event) => event.eventName === "feature_started",
-  );
+  const starts = operationEvents.filter((event) => event.event === "feature_started");
   const terminals = operationEvents.filter((event) =>
     ["feature_succeeded", "feature_failed", "feature_canceled"].includes(
-      String(event.eventName),
+      String(event.event),
     ),
   );
   expect(new Set(starts.map((event) => event.operationInstanceId)).size).toBe(3);

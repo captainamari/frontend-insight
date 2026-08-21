@@ -1,0 +1,5 @@
+{
+  "scenario": "quality_v3",
+  "eventCount": 3,
+  "events": ["performance", "api", "error"]
+}

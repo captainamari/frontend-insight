@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 3,
+  "sentAt": 1787155220000,
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_workstart001",
+      "event": "custom",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/admin/models",
+      "pageRoute": "/admin/models",
+      "userId": "user-002",
+      "deptId": "dept-platform",
+      "roleId": "role-operator",
+      "sessionId": "ses_workflow0001",
+      "deviceId": "dev_workflow0001",
+      "pageViewId": "pv_workflow00001",
+      "ua": "Mozilla/5.0 Safari",
+      "os": "macOS",
+      "browser": "Safari",
+      "timestamp": 1787155206000,
+      "payload": {
+        "name": "workflow_started",
+        "workflowInstanceId": "wf_0000000000000001",
+        "workflowKey": "admin_model_download",
+        "workflowDefinitionVersion": 1,
+        "workflowStepKey": "download_requested",
+        "workflowStepOrder": 0,
+        "interactionType": "click"
+      }
+    },
+    {
+      "eventId": "evt_workstep0001",
+      "event": "custom",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/admin/models",
+      "pageRoute": "/admin/models",
+      "userId": "user-002",
+      "deptId": "dept-platform",
+      "roleId": "role-operator",
+      "sessionId": "ses_workflow0001",
+      "deviceId": "dev_workflow0001",
+      "pageViewId": "pv_workflow00001",
+      "ua": "Mozilla/5.0 Safari",
+      "os": "macOS",
+      "browser": "Safari",
+      "timestamp": 1787155207000,
+      "payload": {
+        "name": "workflow_step_reached",
+        "workflowInstanceId": "wf_0000000000000001",
+        "workflowKey": "admin_model_download",
+        "workflowDefinitionVersion": 1,
+        "workflowStepKey": "transfer_started",
+        "workflowStepOrder": 1
+      }
+    },
+    {
+      "eventId": "evt_workdone0001",
+      "event": "custom",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/admin/models",
+      "pageRoute": "/admin/models",
+      "userId": "user-002",
+      "deptId": "dept-platform",
+      "roleId": "role-operator",
+      "sessionId": "ses_workflow0001",
+      "deviceId": "dev_workflow0001",
+      "pageViewId": "pv_workflow00001",
+      "ua": "Mozilla/5.0 Safari",
+      "os": "macOS",
+      "browser": "Safari",
+      "timestamp": 1787155210000,
+      "payload": {
+        "name": "workflow_completed",
+        "workflowInstanceId": "wf_0000000000000001",
+        "workflowKey": "admin_model_download",
+        "workflowDefinitionVersion": 1,
+        "workflowStepKey": "transfer_completed",
+        "workflowStepOrder": 2
+      }
+    }
+  ]
+}

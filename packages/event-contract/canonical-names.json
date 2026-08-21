@@ -1,0 +1,366 @@
+{
+  "version": "1.8.0",
+  "contractVersion": 3,
+  "publicFields": [
+    { "key": "appId", "label": "应用 ID" },
+    { "key": "env", "label": "环境" },
+    { "key": "release", "label": "发布版本" },
+    { "key": "event", "label": "事件类型" },
+    { "key": "timestamp", "label": "事件时间" },
+    { "key": "pageUrl", "label": "页面 URL" },
+    { "key": "pageRoute", "label": "页面路由" },
+    { "key": "userId", "label": "用户 ID" },
+    { "key": "deptId", "label": "部门 ID" },
+    { "key": "roleId", "label": "角色 ID" },
+    { "key": "sessionId", "label": "会话 ID" },
+    { "key": "deviceId", "label": "设备 ID" },
+    { "key": "ua", "label": "受控 User-Agent" },
+    { "key": "os", "label": "操作系统" },
+    { "key": "browser", "label": "浏览器" },
+    { "key": "payload", "label": "受控业务载荷" }
+  ],
+  "eventNames": ["page_view", "page_leave", "performance", "api", "error", "custom"],
+  "customEventNames": [
+    "feature_exposed",
+    "feature_started",
+    "feature_succeeded",
+    "feature_failed",
+    "feature_canceled",
+    "feature_long_view_started",
+    "feature_long_view_heartbeat",
+    "feature_long_view_ended",
+    "workflow_started",
+    "workflow_step_reached",
+    "workflow_completed",
+    "workflow_failed",
+    "workflow_canceled"
+  ],
+  "environments": ["prod", "staging", "dev"],
+  "performanceMetrics": ["lcp", "inp", "cls", "fcp", "ttfb"],
+  "metricKeys": [
+    {
+      "key": "pv",
+      "label": "页面浏览量",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "uv",
+      "label": "活跃用户数",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "dau",
+      "label": "日活跃用户数",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "wau",
+      "label": "周活跃用户数",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "mau",
+      "label": "月活跃用户数",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "vv",
+      "label": "会话数（VV）",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "module_penetration",
+      "label": "功能模块渗透率",
+      "category": "usage",
+      "milestone": "R4-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "avg_usage_duration",
+      "label": "人均使用时长",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "hourly_distribution",
+      "label": "时段分布",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "bounce_rate",
+      "label": "跳出率（单页会话率）",
+      "category": "usage",
+      "milestone": "R6",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "task_duration",
+      "label": "任务耗时",
+      "category": "operation",
+      "milestone": "R4-B",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "form_efficiency",
+      "label": "表单效率",
+      "category": "operation",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "operation_fail_rate",
+      "label": "操作失败率",
+      "category": "operation",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "repeated_operation_rate",
+      "label": "重复操作率",
+      "category": "operation",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "path_steps",
+      "label": "操作路径步数",
+      "category": "operation",
+      "milestone": "R4-B",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "lcp",
+      "label": "最大内容绘制",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "inp",
+      "label": "交互到下次绘制",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "cls",
+      "label": "累积布局偏移",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "fcp",
+      "label": "首次内容绘制",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "ttfb",
+      "label": "首字节时间",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "first_screen_time",
+      "label": "业务首屏时间",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "api_duration",
+      "label": "接口耗时",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "api_slow_top",
+      "label": "慢接口 TOP",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "list_render_duration",
+      "label": "列表渲染耗时",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "longtask_count",
+      "label": "长任务次数",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "longtask_total",
+      "label": "长任务总时长",
+      "category": "performance",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "js_error_rate",
+      "label": "JS 错误率",
+      "category": "stability",
+      "milestone": "R5-A",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "api_error_rate",
+      "label": "API 错误率",
+      "category": "stability",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "resource_error_rate",
+      "label": "资源错误率",
+      "category": "stability",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "blank_screen_rate",
+      "label": "白屏率",
+      "category": "stability",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "breadcrumb",
+      "label": "安全操作面包屑",
+      "category": "stability",
+      "milestone": "R5-A",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "dept_usage",
+      "label": "部门使用率",
+      "category": "organization",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "role_usage",
+      "label": "角色使用率",
+      "category": "organization",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "role_feature_profile",
+      "label": "角色功能画像",
+      "category": "organization",
+      "milestone": "R4-C",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "abnormal_access",
+      "label": "异常访问",
+      "category": "organization",
+      "milestone": "R7",
+      "implementationStatus": "not_collected"
+    },
+    {
+      "key": "operational_score",
+      "label": "运营分数",
+      "category": "score",
+      "milestone": "R1-C",
+      "implementationStatus": "partial"
+    },
+    {
+      "key": "quality_score",
+      "label": "质量分数",
+      "category": "score",
+      "milestone": "R1-C",
+      "implementationStatus": "not_collected"
+    }
+  ],
+  "routes": {
+    "projects": "/projects",
+    "projectOverview": "/projects/:projectId/overview",
+    "projectBusiness": "/projects/:projectId/business",
+    "projectPages": "/projects/:projectId/pages",
+    "projectMetrics": "/projects/:projectId/metrics",
+    "projectSettings": "/projects/:projectId/settings"
+  },
+  "apiNames": {
+    "projectSummary": "/api/projects/summary",
+    "projectOverview": "/api/projects/:projectId/overview",
+    "moduleAnalysis": "/api/projects/:projectId/modules/:moduleId/analysis",
+    "workflowAnalysis": "/api/projects/:projectId/workflows/:workflowId/analysis",
+    "pageQuality": "/api/projects/:projectId/page-analysis/quality",
+    "pageOperations": "/api/projects/:projectId/page-analysis/operations",
+    "metricCatalog": "/api/projects/:projectId/metrics/catalog",
+    "metricVersions": "/api/projects/:projectId/metrics/versions",
+    "score": "/api/projects/:projectId/scores/:scoreKey",
+    "probeVersions": "/api/projects/:projectId/settings/probe-versions",
+    "exportInterfaces": "/api/projects/:projectId/settings/export-interfaces"
+  },
+  "ranges": [
+    { "key": "7d", "granularity": "day", "days": 7 },
+    { "key": "30d", "granularity": "day", "days": 30 },
+    { "key": "90d", "granularity": "week", "days": 90 },
+    { "key": "180d", "granularity": "month", "days": 180 },
+    { "key": "365d", "granularity": "month", "days": 365 },
+    { "key": "custom", "granularity": "adaptive", "maximumMonths": 13 }
+  ],
+  "forbiddenAliases": {
+    "publicFields": [
+      "projectKey",
+      "eventName",
+      "eventTime",
+      "visitorId",
+      "accountRef",
+      "route",
+      "properties",
+      "releaseVersion",
+      "deploymentEnvironment",
+      "browserFamily",
+      "osFamily"
+    ],
+    "eventNames": [
+      "web_vital",
+      "error_js",
+      "error_resource",
+      "error_api",
+      "feature_exposed",
+      "feature_started",
+      "feature_succeeded",
+      "feature_failed",
+      "feature_canceled",
+      "feature_long_view_started",
+      "feature_long_view_heartbeat",
+      "feature_long_view_ended"
+    ],
+    "metricKeys": [
+      "page_views",
+      "active_accounts",
+      "active_browsers",
+      "sessions",
+      "project_operational_index"
+    ]
+  }
+}

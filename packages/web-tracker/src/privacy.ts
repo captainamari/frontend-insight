@@ -1,39 +1,37 @@
 import { findCredentialLeak } from "@frontend-insight/event-contract/security";
-import type { EventProperties, TrackerEvent } from "./types.js";
+import type { EventPayload, TrackerEvent } from "./types.js";
 
-const eventNamePattern = /^(?!page_|feature_)[a-z][a-z0-9_]{0,63}$/;
-const propertyKeyPattern = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
+const customNamePattern = /^[a-z][a-z0-9_]{0,63}$/;
+const payloadKeyPattern = /^[a-zA-Z][a-zA-Z0-9_]{0,63}$/;
 const emailLike = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneLike = /^\+?[0-9][0-9\s()-]{7,}$/;
 
-export function defaultNormalizeRoute(url: URL): string {
+export function defaultNormalizePageRoute(url: URL): string {
   return url.pathname || "/";
 }
 
-export function normalizeAndValidateRoute(
+export function normalizeAndValidatePageRoute(
   url: URL,
   normalize: ((url: URL) => string) | undefined,
 ): string | null {
-  const route = (normalize ?? defaultNormalizeRoute)(url);
-  if (!route.startsWith("/") || route.length > 512) return null;
-  if (route.includes("?") || route.includes("#")) return null;
-  return route;
+  const pageRoute = (normalize ?? defaultNormalizePageRoute)(url);
+  if (!pageRoute.startsWith("/") || pageRoute.length > 512) return null;
+  if (/[?#]/.test(pageRoute)) return null;
+  return pageRoute;
 }
 
-export function isSafeAccountReference(value: string): boolean {
-  if (!value || value.length > 256) return false;
+export function isSafeUserReference(value: string): boolean {
+  if (!value || value.length > 128) return false;
   if (emailLike.test(value) || phoneLike.test(value)) return false;
-  return findCredentialLeak({ accountRef: value }) === null;
+  return findCredentialLeak({ userId: value }) === null;
 }
 
-export function normalizeProperties(
-  input: EventProperties = {},
-): EventProperties | null {
+export function normalizePayload(input: EventPayload = {}): EventPayload | null {
   const entries = Object.entries(input);
-  if (entries.length > 20) return null;
-  const output: EventProperties = {};
+  if (entries.length > 12) return null;
+  const output: EventPayload = {};
   for (const [key, value] of entries) {
-    if (!propertyKeyPattern.test(key)) return null;
+    if (!payloadKeyPattern.test(key)) return null;
     if (
       value !== null &&
       typeof value !== "string" &&
@@ -48,11 +46,11 @@ export function normalizeProperties(
   return findCredentialLeak(output) === null ? output : null;
 }
 
-export function isValidCustomEventName(name: string): boolean {
-  return eventNamePattern.test(name);
+export function isValidCustomName(name: string): boolean {
+  return customNamePattern.test(name);
 }
 
-const mutableBeforeSendFields = new Set(["route", "title", "properties"]);
+const mutableBeforeSendFields = new Set(["pageRoute", "payload"]);
 
 export function applyRestrictedBeforeSend(
   original: TrackerEvent,
@@ -66,13 +64,13 @@ export function applyRestrictedBeforeSend(
   for (const key of Object.keys(candidate)) {
     if (!(key in original)) return null;
   }
-  const route = candidate.route;
-  if (!route.startsWith("/") || route.length > 512 || /[?#]/.test(route)) return null;
-  if (candidate.title !== undefined && candidate.title.length > 256) return null;
-  const properties = normalizeProperties(candidate.properties);
-  if (!properties) return null;
-  for (const key of Object.keys(properties)) {
-    if (!(key in original.properties)) return null;
+  if (
+    !candidate.pageRoute.startsWith("/") ||
+    candidate.pageRoute.length > 512 ||
+    /[?#]/.test(candidate.pageRoute)
+  ) {
+    return null;
   }
-  return { ...candidate, properties };
+  if (findCredentialLeak(candidate.payload)) return null;
+  return candidate;
 }

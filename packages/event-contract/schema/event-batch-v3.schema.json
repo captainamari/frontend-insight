@@ -1,0 +1,1073 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://frontend-insight.internal/schemas/event-batch-v3.json",
+  "title": "Frontend Insight Event Batch v3",
+  "description": "Canonical Pre-1.0 browser-to-ingestion contract. Every event is self-describing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "sentAt",
+    "sdk",
+    "events"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 3
+    },
+    "sentAt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "sdk": {
+      "$ref": "#/$defs/sdk"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
+  },
+  "$defs": {
+    "sdk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
+        }
+      }
+    },
+    "event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "page_view"
+            },
+            "payload": {
+              "$ref": "#/$defs/emptyPayload"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "page_leave"
+            },
+            "payload": {
+              "$ref": "#/$defs/pageLeavePayload"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "performance"
+            },
+            "payload": {
+              "$ref": "#/$defs/performancePayload"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "api"
+            },
+            "payload": {
+              "$ref": "#/$defs/apiPayload"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "error"
+            },
+            "payload": {
+              "$ref": "#/$defs/errorPayload"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "event",
+            "eventId",
+            "appId",
+            "env",
+            "release",
+            "timestamp",
+            "pageUrl",
+            "pageRoute",
+            "userId",
+            "deptId",
+            "roleId",
+            "sessionId",
+            "deviceId",
+            "ua",
+            "os",
+            "browser",
+            "payload",
+            "pageViewId"
+          ],
+          "properties": {
+            "eventId": {
+              "type": "string",
+              "pattern": "^evt_[A-Za-z0-9_-]{8,64}$"
+            },
+            "appId": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{2,63}$"
+            },
+            "env": {
+              "enum": [
+                "prod",
+                "staging",
+                "dev"
+              ]
+            },
+            "release": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+            },
+            "pageUrl": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 1024,
+              "pattern": "^[^?#]+$"
+            },
+            "pageRoute": {
+              "type": "string",
+              "pattern": "^/[^?#]*$",
+              "maxLength": 512
+            },
+            "userId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "deptId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "roleId": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "sessionId": {
+              "type": "string",
+              "pattern": "^ses_[A-Za-z0-9_-]{8,64}$"
+            },
+            "deviceId": {
+              "type": "string",
+              "pattern": "^dev_[A-Za-z0-9_-]{8,64}$"
+            },
+            "pageViewId": {
+              "type": "string",
+              "pattern": "^pv_[A-Za-z0-9_-]{8,64}$"
+            },
+            "ua": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "os": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "browser": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "event": {
+              "const": "custom"
+            },
+            "payload": {
+              "$ref": "#/$defs/customPayload"
+            }
+          }
+        }
+      ]
+    },
+    "emptyPayload": {
+      "type": "object",
+      "additionalProperties": false
+    },
+    "pageLeavePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "visibleDurationMs"
+      ],
+      "properties": {
+        "visibleDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        }
+      }
+    },
+    "performancePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "value",
+        "rating",
+        "navigationType"
+      ],
+      "properties": {
+        "metric": {
+          "enum": [
+            "lcp",
+            "inp",
+            "cls",
+            "fcp",
+            "ttfb"
+          ]
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "rating": {
+          "enum": [
+            "good",
+            "needs_improvement",
+            "poor"
+          ]
+        },
+        "navigationType": {
+          "enum": [
+            "navigate",
+            "reload",
+            "back_forward",
+            "prerender",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "apiPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "success",
+        "requestMethod",
+        "requestPath",
+        "statusCode",
+        "durationMs"
+      ],
+      "properties": {
+        "success": {
+          "type": "boolean"
+        },
+        "requestMethod": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD",
+            "OPTIONS",
+            "OTHER"
+          ]
+        },
+        "requestPath": {
+          "type": "string",
+          "pattern": "^/[^?#]*$",
+          "maxLength": 256
+        },
+        "statusCode": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 599
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "failureType": {
+          "enum": [
+            "http",
+            "network",
+            "timeout",
+            "aborted",
+            "business",
+            "none"
+          ]
+        }
+      }
+    },
+    "errorPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "errorType",
+        "errorCategory"
+      ],
+      "properties": {
+        "errorType": {
+          "enum": [
+            "js",
+            "resource"
+          ]
+        },
+        "errorCategory": {
+          "enum": [
+            "resource",
+            "vue",
+            "react",
+            "promise",
+            "js",
+            "other"
+          ]
+        },
+        "errorName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "errorMessage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "stackTopFrame": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "resourceType": {
+          "enum": [
+            "script",
+            "stylesheet",
+            "image",
+            "font",
+            "media",
+            "other"
+          ]
+        },
+        "requestPath": {
+          "type": "string",
+          "pattern": "^/[^?#]*$",
+          "maxLength": 256
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "errorType": {
+                "const": "js"
+              }
+            },
+            "required": [
+              "errorType"
+            ]
+          },
+          "then": {
+            "required": [
+              "errorName",
+              "errorMessage",
+              "stackTopFrame"
+            ],
+            "properties": {
+              "errorName": true,
+              "errorMessage": true,
+              "stackTopFrame": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "errorType": {
+                "const": "resource"
+              }
+            },
+            "required": [
+              "errorType"
+            ]
+          },
+          "then": {
+            "required": [
+              "resourceType",
+              "requestPath"
+            ],
+            "properties": {
+              "resourceType": true,
+              "requestPath": true
+            }
+          }
+        }
+      ]
+    },
+    "customPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "enum": [
+            "feature_exposed",
+            "feature_started",
+            "feature_succeeded",
+            "feature_failed",
+            "feature_canceled",
+            "feature_long_view_started",
+            "feature_long_view_heartbeat",
+            "feature_long_view_ended",
+            "workflow_started",
+            "workflow_step_reached",
+            "workflow_completed",
+            "workflow_failed",
+            "workflow_canceled"
+          ]
+        },
+        "featureKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "reasonCode": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "visibleDurationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 604800000
+        },
+        "operationInstanceId": {
+          "type": "string",
+          "pattern": "^op_[A-Za-z0-9_-]{16,64}$"
+        },
+        "workflowInstanceId": {
+          "type": "string",
+          "pattern": "^wf_[A-Za-z0-9_-]{16,64}$"
+        },
+        "workflowKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "workflowDefinitionVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workflowStepKey": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "workflowStepOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 19
+        },
+        "interactionType": {
+          "enum": [
+            "click",
+            "submit",
+            "keyboard",
+            "programmatic",
+            "automatic"
+          ]
+        },
+        "labels": {
+          "type": "object",
+          "maxProperties": 12,
+          "propertyNames": {
+            "pattern": "^[a-z][A-Za-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "maxLength": 256
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

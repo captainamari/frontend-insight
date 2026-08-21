@@ -143,7 +143,7 @@ watch(
               <dt>已识别账号</dt>
               <dd>
                 {{
-                  formatNumber(resource.data.value?.adoption.metrics.succeeded_accounts)
+                  formatNumber(resource.data.value?.adoption.metrics.succeeded_users)
                 }}
               </dd>
             </div>
@@ -158,9 +158,7 @@ watch(
             <div>
               <dt>重复使用账号</dt>
               <dd>
-                {{
-                  formatNumber(resource.data.value?.adoption.metrics.repeat_accounts)
-                }}
+                {{ formatNumber(resource.data.value?.adoption.metrics.repeat_users) }}
               </dd>
             </div>
             <div>

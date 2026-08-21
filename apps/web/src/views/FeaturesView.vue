@@ -190,7 +190,7 @@ watch(
                   <small>{{ row.featureKey }}</small>
                   <small
                     v-if="
-                      (row.exposed_accounts ?? 0) === 0 &&
+                      (row.exposed_users ?? 0) === 0 &&
                       (row.exposed_visitors ?? 0) === 0
                     "
                     class="never-exposed"
@@ -207,14 +207,14 @@ watch(
             </el-table-column>
             <el-table-column label="曝光账号 / 浏览器" min-width="150">
               <template #default="{ row }">
-                {{ formatNumber(row.exposed_accounts) }} /
+                {{ formatNumber(row.exposed_users) }} /
                 {{ formatNumber(row.exposed_visitors) }}
               </template>
             </el-table-column>
             <el-table-column label="成功账号 / 浏览器" min-width="150">
               <template #default="{ row }">
                 <span v-if="(row.success_count ?? 0) > 0">
-                  {{ formatNumber(row.succeeded_accounts) }} /
+                  {{ formatNumber(row.succeeded_users) }} /
                   {{ formatNumber(row.succeeded_visitors) }}
                 </span>
                 <span v-else class="muted">尚无成功使用</span>
@@ -227,12 +227,12 @@ watch(
             </el-table-column>
             <el-table-column label="曝光后使用率（账号）" min-width="160">
               <template #default="{ row }">
-                {{ formatPercent(row.accountConversionRate) }}
+                {{ formatPercent(row.userConversionRate) }}
               </template>
             </el-table-column>
             <el-table-column label="重复账号 / 浏览器" min-width="150">
               <template #default="{ row }">
-                {{ formatNumber(row.repeat_accounts) }} /
+                {{ formatNumber(row.repeat_users) }} /
                 {{ formatNumber(row.repeat_visitors) }}
               </template>
             </el-table-column>

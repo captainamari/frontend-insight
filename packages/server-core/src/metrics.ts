@@ -149,9 +149,9 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     ...factDefaults,
     metricKey: "fact.operation_started",
     displayName: "任务开始事实",
-    businessQuestion: "哪些 v2 任务实例真实开始？",
+    businessQuestion: "哪些 v3 任务实例真实开始？",
     formulaDescription:
-      "feature_started events grouped by SDK-generated operationInstanceId.",
+      "custom events with payload.name=feature started, grouped by SDK-generated operationInstanceId.",
     deduplicationKey: "operationInstanceId + eventId",
   }),
   definition({
@@ -159,7 +159,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     metricKey: "fact.operation_succeeded",
     displayName: "任务成功事实",
     businessQuestion: "哪些已开始任务到达成功终态？",
-    formulaDescription: "First feature_succeeded terminal per operationInstanceId.",
+    formulaDescription: "First custom succeeded terminal per operationInstanceId.",
     deduplicationKey: "operationInstanceId",
   }),
   definition({
@@ -167,7 +167,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     metricKey: "fact.operation_failed",
     displayName: "任务失败事实",
     businessQuestion: "哪些已开始任务到达明确失败终态？",
-    formulaDescription: "First feature_failed terminal per operationInstanceId.",
+    formulaDescription: "First custom failed terminal per operationInstanceId.",
     deduplicationKey: "operationInstanceId",
   }),
   definition({
@@ -175,7 +175,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     metricKey: "fact.operation_canceled",
     displayName: "任务取消事实",
     businessQuestion: "哪些任务由用户明确取消？",
-    formulaDescription: "First feature_canceled terminal per operationInstanceId.",
+    formulaDescription: "First custom canceled terminal per operationInstanceId.",
     deduplicationKey: "operationInstanceId",
   }),
   definition({
@@ -187,7 +187,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
       "Registered page views and successful registered feature/task activity; onboarding, demo and unclassified routes are excluded.",
   }),
   definition({
-    metricKey: "page_views",
+    metricKey: "pv",
     displayName: "页面访问量",
     businessQuestion: "页面在所选时间内被打开多少次？",
     entityType: "page",
@@ -204,24 +204,24 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     minimumSample: 0,
   }),
   definition({
-    metricKey: "active_accounts",
+    metricKey: "uv",
     displayName: "活跃账号",
     businessQuestion: "有多少已识别业务账号在使用产品？",
     entityType: "project",
     valueType: "count",
-    unit: "accounts",
+    unit: "users",
     layer: "atomic",
     inputKeys: ["fact.valid_activity"],
-    formulaDescription: "uniq(account_id) over valid registered activity",
+    formulaDescription: "uniq(user_id) over valid registered activity",
     denominatorDescription: "not applicable",
-    deduplicationKey: "project-HMACed account_id",
+    deduplicationKey: "project-HMACed user_id",
     missingValuePolicy:
-      "Accounts without an account reference are not replaced with browser identifiers.",
+      "Accounts without an user reference are not replaced with browser identifiers.",
     scoreDirection: "higher_better",
     minimumSample: 1,
   }),
   definition({
-    metricKey: "active_browsers",
+    metricKey: "unique_devices",
     displayName: "活跃浏览器",
     businessQuestion: "有多少浏览器存储实例在使用产品？",
     entityType: "project",
@@ -229,9 +229,9 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     unit: "browser instances",
     layer: "atomic",
     inputKeys: ["fact.valid_activity"],
-    formulaDescription: "uniq(visitor_id) over valid registered activity",
+    formulaDescription: "uniq(device_id) over valid registered activity",
     denominatorDescription: "not applicable",
-    deduplicationKey: "visitorId",
+    deduplicationKey: "deviceId",
     missingValuePolicy: "Browser instances are not described as people.",
     scoreDirection: "none",
     minimumSample: 1,
@@ -261,7 +261,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     valueType: "ratio",
     unit: "ratio",
     layer: "derived",
-    inputKeys: ["page_duration_samples", "page_views"],
+    inputKeys: ["page_duration_samples", "pv"],
     formulaDescription: "page views with valid duration ÷ all page views",
     denominatorDescription: "All page_view instances in the same scope and range.",
     deduplicationKey: "pageViewId",
@@ -320,17 +320,17 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     minimumSample: 5,
   }),
   definition({
-    metricKey: "active_account_target_attainment",
+    metricKey: "active_user_target_attainment",
     displayName: "活跃账号目标达成",
     businessQuestion: "实际活跃账号是否达到管理员配置的业务目标？",
     entityType: "project",
     valueType: "ratio",
     unit: "ratio",
     layer: "derived",
-    inputKeys: ["active_accounts"],
-    formulaDescription: "active accounts ÷ configured target accounts",
-    denominatorDescription: "Versioned configured target accounts.",
-    deduplicationKey: "project-HMACed account_id",
+    inputKeys: ["uv"],
+    formulaDescription: "active users ÷ configured target users",
+    denominatorDescription: "Versioned configured target users.",
+    deduplicationKey: "project-HMACed user_id",
     missingValuePolicy:
       "A missing target returns missing_target; browsers are never substituted.",
     scoreDirection: "higher_better",
@@ -344,7 +344,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     valueType: "ratio",
     unit: "ratio",
     layer: "derived",
-    inputKeys: ["page_views"],
+    inputKeys: ["pv"],
     formulaDescription:
       "sum(weight of used active core pages) ÷ sum(weight of active core pages)",
     denominatorDescription: "Configured weight of all active core pages.",
@@ -379,12 +379,12 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     valueType: "ratio",
     unit: "ratio",
     layer: "derived",
-    inputKeys: ["fact.valid_activity", "active_accounts"],
+    inputKeys: ["fact.valid_activity", "uv"],
     formulaDescription:
-      "accounts active on at least two project-local dates ÷ active accounts",
-    denominatorDescription: "Active identified accounts in the same range.",
-    deduplicationKey: "account_id + project local date",
-    missingValuePolicy: "A zero account denominator returns metric_not_available.",
+      "users active on at least two project-local dates ÷ active users",
+    denominatorDescription: "Active identified users in the same range.",
+    deduplicationKey: "user_id + project local date",
+    missingValuePolicy: "A zero user denominator returns metric_not_available.",
     scoreDirection: "higher_better",
     minimumSample: 2,
   }),
@@ -399,9 +399,9 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     inputKeys: ["fact.operation_started", "fact.operation_succeeded"],
     formulaDescription:
       "task-weighted succeeded operation instances ÷ task-weighted started instances",
-    denominatorDescription: "Started v2 instances for active key tasks.",
+    denominatorDescription: "Started v3 instances for active key tasks.",
     deduplicationKey: "operationInstanceId",
-    missingValuePolicy: "No v2 started instance returns metric_not_available.",
+    missingValuePolicy: "No v3 started instance returns metric_not_available.",
     scoreDirection: "higher_better",
     minimumSample: 5,
   }),
@@ -421,7 +421,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     ],
     formulaDescription:
       "task-weighted (failed + canceled + timed-out open instances) ÷ task-weighted started instances",
-    denominatorDescription: "Started v2 instances for active key tasks.",
+    denominatorDescription: "Started v3 instances for active key tasks.",
     deduplicationKey: "operationInstanceId",
     missingValuePolicy:
       "Open instances become approximate abandonment only after task timeout.",
@@ -439,7 +439,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     inputKeys: ["fact.operation_started", "fact.operation_succeeded"],
     formulaDescription:
       "task-weighted p50(first succeeded time - started time) by operationInstanceId",
-    denominatorDescription: "Successfully paired v2 key-task instances.",
+    denominatorDescription: "Successfully paired v3 key-task instances.",
     deduplicationKey: "operationInstanceId",
     missingValuePolicy: "Failed, canceled and open instances are not duration samples.",
     scoreDirection: "lower_better",
@@ -473,7 +473,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     inputKeys: ["session_distinct_pages_p50"],
     formulaDescription:
       "Normalize session distinct-page p50 against the profile target range.",
-    denominatorDescription: "Qualifying sessions.",
+    denominatorDescription: "Qualifying vv.",
     deduplicationKey: "sessionId + normalized route",
     missingValuePolicy: "No session sample returns metric_not_available.",
     scoreDirection: "target_range",
@@ -515,7 +515,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
       inputKeys:
         metricKey === "dimension.usage_coverage"
           ? [
-              "active_account_target_attainment",
+              "active_user_target_attainment",
               "core_page_coverage",
               "active_day_coverage",
             ]
@@ -538,7 +538,7 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
     }),
   ),
   definition({
-    metricKey: "project_operational_index",
+    metricKey: "operational_score",
     displayName: "项目运营指数",
     businessQuestion: "项目的使用覆盖、持续性、任务达成和使用效率总体如何？",
     entityType: "project",
@@ -705,7 +705,7 @@ export type DefaultProfileItem = Omit<MetricProfileItem, "id" | "profileId">;
 
 export const DEFAULT_OPERATIONAL_PROFILE_ITEMS: readonly DefaultProfileItem[] = [
   {
-    metricKey: "active_account_target_attainment",
+    metricKey: "active_user_target_attainment",
     dimensionKey: "usage_coverage",
     dimensionWeight: 0.3,
     metricWeight: 0.4,

@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 2,
+  "appId": "fi_public_legacy002",
+  "sentAt": "2026-08-20T00:00:00.000Z",
+  "sdk": { "name": "web-tracker", "version": "0.3.0" },
+  "events": []
+}

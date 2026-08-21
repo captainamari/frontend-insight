@@ -15,7 +15,7 @@ export interface Principal {
 
 export interface ProjectRecord {
   id: string;
-  projectKey: string;
+  appId: string;
   name: string;
   timezone: string;
   status: "active" | "disabled";
@@ -58,7 +58,7 @@ export interface PageDefinitionRecord {
   id: string;
   projectId: string;
   moduleId: string;
-  normalizedRoute: string;
+  pageRoute: string;
   name: string;
   templateKey: PageTemplate;
   isCore: boolean;
@@ -72,7 +72,7 @@ export interface ProjectOperationalSettings {
   id: string;
   projectId: string;
   version: number;
-  targetAccounts: number | null;
+  targetUsers: number | null;
   expectedActiveWeekdays: number[];
   status: "active" | "superseded";
   effectiveFrom: string;
@@ -118,7 +118,7 @@ export interface ProjectIngestionConfig extends ProjectRecord {
 
 export interface EventEnrichment {
   eventId: string;
-  accountId: string | null;
+  userId: string | null;
   featureId: string | null;
 }
 

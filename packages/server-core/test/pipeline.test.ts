@@ -1,9 +1,9 @@
 import { createHmac } from "node:crypto";
-import type {
-  FrontendInsightEventBatch,
-  FrontendInsightEventBatchV1,
-} from "@frontend-insight/event-contract";
-import { contractScenarios } from "@frontend-insight/test-fixtures";
+import type { FrontendInsightEventBatchV3 } from "@frontend-insight/event-contract";
+import {
+  contractScenarios,
+  invalidLegacyBatches,
+} from "@frontend-insight/test-fixtures";
 import { describe, expect, it, vi } from "vitest";
 import type { KafkaEventEnvelope, ProjectIngestionConfig } from "../src/model.js";
 import type { MySqlStore } from "../src/mysql-store.js";
@@ -13,10 +13,10 @@ import {
   type IngestionError,
 } from "../src/pipeline.js";
 
-const nowMs = Date.parse("2026-07-19T17:10:00.000Z");
+const nowMs = Date.parse("2026-08-19T16:00:02.000Z");
 const project: ProjectIngestionConfig = {
   id: "11111111-1111-4111-8111-111111111111",
-  projectKey: "fi_public_m1demo001",
+  appId: "ops-admin",
   name: "Fixture",
   timezone: "UTC",
   status: "active",
@@ -35,7 +35,7 @@ const project: ProjectIngestionConfig = {
       taskWeight: 1,
       taskTimeoutSeconds: 900,
       operationLifecycleEnabled: false,
-      configurationEffectiveFrom: "2026-07-01T00:00:00.000Z",
+      configurationEffectiveFrom: "2026-08-01T00:00:00.000Z",
       longViewSuccessAfterMs: 30_000,
       heartbeatIntervalMs: 60_000,
       launchedAt: null,
@@ -44,16 +44,21 @@ const project: ProjectIngestionConfig = {
   ],
 };
 
-function fixture(): FrontendInsightEventBatchV1 {
-  return structuredClone(
-    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 1)!.valid,
-  ) as FrontendInsightEventBatchV1;
+function fixture(): FrontendInsightEventBatchV3 {
+  return structuredClone(contractScenarios[0]!.valid);
 }
 
-function operationFixture(): FrontendInsightEventBatch {
-  return structuredClone(
-    contractScenarios.find((scenario) => scenario.valid.schemaVersion === 2)!.valid,
-  );
+function featureFixture(name = "feature_exposed"): FrontendInsightEventBatchV3 {
+  const source = fixture();
+  source.events = [
+    {
+      ...source.events[0]!,
+      eventId: "evt_feature000001",
+      event: "custom",
+      payload: { name, featureKey: "sales_dashboard" },
+    },
+  ];
+  return source;
 }
 
 function setup(
@@ -70,11 +75,12 @@ function setup(
     void _envelope;
     if (options.publishError) throw new Error("offline");
   });
-  const publisher = { publish } as EnvelopePublisher;
-  const manager = new IngestionManager(store, publisher, "h".repeat(32), {
-    now: () => nowMs,
-    maximumRequestsPerMinute: 2,
-  });
+  const manager = new IngestionManager(
+    store,
+    { publish } as EnvelopePublisher,
+    "h".repeat(32),
+    { now: () => nowMs, maximumRequestsPerMinute: 2 },
+  );
   return { manager, publish, markReceived, markRejected };
 }
 
@@ -84,71 +90,60 @@ const context = {
   nowMs,
 };
 
-describe("ingestion pipeline", () => {
-  it("HMACs account references and removes them before Kafka", async () => {
+describe("contract v3 ingestion pipeline", () => {
+  it("HMACs userId in-place before Kafka and retains no raw reference", async () => {
+    const source = fixture();
+    const rawUserId = source.events[0]!.userId!;
     const { manager, publish, markReceived } = setup();
-    const result = await manager.accept(fixture(), context);
-    expect(result.acceptedEvents).toBe(3);
+    const result = await manager.accept(source, context);
+    expect(result).toMatchObject({ acceptedEvents: 2, supportedSchemaVersions: [3] });
     const envelope = publish.mock.calls[0]![0];
-    expect(envelope.batch.events.every((event) => event.accountRef === undefined)).toBe(
-      true,
-    );
-    expect(envelope.enrichments[0]?.accountId).toBe(
-      createHmac("sha256", "h".repeat(32))
-        .update(`${project.id}:opaque-account-001`)
-        .digest("hex"),
-    );
-    expect(JSON.stringify(envelope)).not.toContain("opaque-account-001");
+    const expected = createHmac("sha256", "h".repeat(32))
+      .update(`${project.id}:${rawUserId}`)
+      .digest("hex");
+    expect(envelope.batch.events[0]?.userId).toBe(expected);
+    expect(envelope.enrichments[0]?.userId).toBe(expected);
+    expect(JSON.stringify(envelope)).not.toContain(rawUserId);
     expect(markReceived).toHaveBeenCalledOnce();
-    expect(manager.getMetrics()).toMatchObject({ requests: 1, acceptedEvents: 3 });
   });
 
-  it.each([
-    [
-      "origin",
-      { ...context, origin: "https://evil.example.test" },
-      "ORIGIN_NOT_ALLOWED",
-    ],
-    ["missing origin", { ...context, origin: undefined }, "ORIGIN_NOT_ALLOWED"],
-  ])("rejects %s before publishing", async (_name, requestContext, code) => {
-    const { manager, publish, markRejected } = setup();
-    await expect(manager.accept(fixture(), requestContext)).rejects.toMatchObject({
-      code,
-      statusCode: 403,
-    });
-    expect(publish).not.toHaveBeenCalled();
-    expect(markRejected).toHaveBeenCalledOnce();
-  });
+  it.each(invalidLegacyBatches)(
+    "rejects legacy contract without normalization",
+    async (legacy) => {
+      const { manager, publish } = setup();
+      await expect(manager.accept(legacy, context)).rejects.toMatchObject({
+        code: "SCHEMA_VERSION_UNSUPPORTED",
+        statusCode: 400,
+      });
+      expect(publish).not.toHaveBeenCalled();
+    },
+  );
 
-  it("rejects a stage that is invalid for the registered feature type", async () => {
-    const { manager } = setup();
-    const batch = fixture();
-    batch.events[1]!.eventName = "feature_long_view_started";
-    await expect(manager.accept(batch, context)).rejects.toMatchObject({
+  it("validates controlled feature stages from custom payload names", async () => {
+    const { manager, publish } = setup();
+    await manager.accept(featureFixture(), context);
+    expect(publish).toHaveBeenCalledOnce();
+
+    const longView = featureFixture("feature_long_view_started");
+    await expect(manager.accept(longView, context)).rejects.toMatchObject({
       code: "FEATURE_STAGE_INVALID",
       statusCode: 400,
     });
   });
 
-  it("accepts v2 operation events and preserves instance identity", async () => {
-    const operationProject: ProjectIngestionConfig = {
-      ...project,
-      features: [
-        {
-          ...project.features[0]!,
-          featureKey: "report_export",
-          featureType: "action",
-          operationLifecycleEnabled: true,
-        },
-      ],
-    };
-    const { manager, publish } = setup({ projectOverride: operationProject });
-    await manager.accept(operationFixture(), context);
-    const envelope = publish.mock.calls[0]![0];
-    expect(envelope.batch.schemaVersion).toBe(2);
-    expect(
-      envelope.batch.events.filter((event) => "operationInstanceId" in event),
-    ).toHaveLength(4);
+  it.each([
+    ["https://evil.example.test", "ORIGIN_NOT_ALLOWED"],
+    [undefined, "ORIGIN_NOT_ALLOWED"],
+  ])("rejects a disallowed origin before publishing", async (origin, code) => {
+    const { manager, publish, markRejected } = setup();
+    await expect(
+      manager.accept(fixture(), { ...context, origin }),
+    ).rejects.toMatchObject({
+      code,
+      statusCode: 403,
+    });
+    expect(publish).not.toHaveBeenCalled();
+    expect(markRejected).toHaveBeenCalledOnce();
   });
 
   it("returns a stable 503 only when Kafka persistence fails", async () => {
@@ -159,27 +154,6 @@ describe("ingestion pipeline", () => {
         statusCode: 503,
       }),
     );
-    expect(manager.getMetrics().kafkaFailures).toBe(1);
-  });
-
-  it("rejects malformed project keys before touching the project cache", async () => {
-    const { manager, publish } = setup();
-    const batch = fixture();
-    batch.projectKey = "fi_public_short";
-    await expect(manager.accept(batch, context)).rejects.toMatchObject({
-      code: "PROJECT_KEY_INVALID",
-      statusCode: 400,
-    });
-    expect(publish).not.toHaveBeenCalled();
-    expect(manager.getMetrics()).toMatchObject({ requests: 1, rejectedEvents: 3 });
-  });
-
-  it("accounts for over-size rejections in operational metrics", async () => {
-    const { manager } = setup();
-    await expect(
-      manager.accept({ ...fixture(), padding: "x".repeat(70 * 1024) }, context),
-    ).rejects.toMatchObject({ code: "BATCH_TOO_LARGE", statusCode: 413 });
-    expect(manager.getMetrics().rejectionCodes.BATCH_TOO_LARGE).toBe(1);
   });
 
   it("enforces the project, origin and IP rate-limit key", async () => {

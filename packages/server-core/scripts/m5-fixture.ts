@@ -4,7 +4,7 @@ import mysql from "mysql2/promise";
 
 export const m5Fixture = {
   projectId: "11111111-1111-4111-8111-111111111111",
-  projectKey: "fi_public_m1demo001",
+  appId: "fi_public_m1demo001",
   admin: {
     id: "55555555-5555-4555-8555-555555555555",
     identityId: "66666666-6666-4666-8666-666666666666",
@@ -107,13 +107,13 @@ export async function seedM5Fixture(
 
     await pool.execute(
       `INSERT INTO projects
-         (id, project_key, name, timezone, status, retention_days, created_by_user_id)
+         (id, app_id, name, timezone, status, retention_days, created_by_user_id)
        VALUES (?, ?, 'Frontend Insight M5 Demo', 'UTC', 'active', 90, ?)
        ON DUPLICATE KEY UPDATE
          name = VALUES(name),
          status = 'active',
          disabled_at = NULL`,
-      [m5Fixture.projectId, m5Fixture.projectKey, m5Fixture.admin.id],
+      [m5Fixture.projectId, m5Fixture.appId, m5Fixture.admin.id],
     );
 
     for (const origin of [...new Set(options.origins)]) {

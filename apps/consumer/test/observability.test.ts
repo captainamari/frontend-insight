@@ -3,12 +3,14 @@ import { observabilityGroupId } from "../src/index.js";
 
 describe("observability error grouping", () => {
   it("keeps dynamic numbers out of a stable JS error group", () => {
-    const first = observabilityGroupId("error_js", {
+    const first = observabilityGroupId("error", {
+      errorType: "js",
       errorName: "TypeError",
       errorMessage: "Cannot render device 123456",
       stackTopFrame: "at render (/assets/app.aabbccddeeff0011.js:10:20)",
     });
-    const second = observabilityGroupId("error_js", {
+    const second = observabilityGroupId("error", {
+      errorType: "js",
       errorName: "TypeError",
       errorMessage: "Cannot render device 987654",
       stackTopFrame: "at render (/assets/app.1122334455667788.js:90:4)",
@@ -18,17 +20,20 @@ describe("observability error grouping", () => {
   });
 
   it("groups API errors by method, normalized path and status class", () => {
-    const first = observabilityGroupId("error_api", {
+    const first = observabilityGroupId("api", {
+      success: false,
       requestMethod: "GET",
       requestPath: "/api/devices/:id",
       statusCode: 500,
     });
-    const second = observabilityGroupId("error_api", {
+    const second = observabilityGroupId("api", {
+      success: false,
       requestMethod: "GET",
       requestPath: "/api/devices/:id",
       statusCode: 503,
     });
-    const notFound = observabilityGroupId("error_api", {
+    const notFound = observabilityGroupId("api", {
+      success: false,
       requestMethod: "GET",
       requestPath: "/api/devices/:id",
       statusCode: 404,

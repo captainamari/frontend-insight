@@ -128,7 +128,7 @@ export class ProjectsController {
       ...body,
       actor: principal,
     });
-    this.core.ingestion.invalidateProject(current.projectKey);
+    this.core.ingestion.invalidateProject(current.appId);
     return updated;
   }
 
@@ -156,7 +156,7 @@ export class ProjectsController {
       actor: principal,
     });
     const project = await this.core.mysql.getProject(projectId);
-    if (project) this.core.ingestion.invalidateProject(project.projectKey);
+    if (project) this.core.ingestion.invalidateProject(project.appId);
     return feature;
   }
 
@@ -174,7 +174,7 @@ export class ProjectsController {
       actor: principal,
     });
     const project = await this.core.mysql.getProject(projectId);
-    if (project) this.core.ingestion.invalidateProject(project.projectKey);
+    if (project) this.core.ingestion.invalidateProject(project.appId);
     return feature;
   }
 
@@ -192,7 +192,7 @@ export class ProjectsController {
       integration: {
         package: "@frontend-insight/web-tracker",
         endpoint: "/v1/events",
-        projectKey: project.projectKey,
+        appId: project.appId,
         csp: "connect-src 'self' <frontend-insight-api-origin>",
       },
     };

@@ -22,7 +22,7 @@ function profileItems(): MetricProfileItem[] {
 
 function availableResults() {
   const values: Record<string, number> = {
-    active_account_target_attainment: 1,
+    active_user_target_attainment: 1,
     core_page_coverage: 0.8,
     active_day_coverage: 1,
     cross_day_continuity: 0.5,
@@ -76,11 +76,11 @@ describe("MetricCatalog", () => {
   });
 
   it("builds JSON lineage through L0 facts", () => {
-    const lineage = metricLineage("project_operational_index");
+    const lineage = metricLineage("operational_score");
     expect(lineage?.nodes.some((node) => node.layer === "fact")).toBe(true);
     expect(lineage?.edges).toContainEqual({
       from: "dimension.usage_coverage",
-      to: "project_operational_index",
+      to: "operational_score",
     });
   });
 });
@@ -197,7 +197,7 @@ describe("project operational index", () => {
     if (coverage === 0.7) {
       keys.clear();
       for (const key of [
-        "active_account_target_attainment",
+        "active_user_target_attainment",
         "core_page_coverage",
         "active_day_coverage",
         "cross_day_continuity",
@@ -244,7 +244,7 @@ describe("project operational index", () => {
 
   it("does not substitute missing account targets or insufficient samples", () => {
     const results = availableResults().map((result) =>
-      result.metricKey === "active_account_target_attainment"
+      result.metricKey === "active_user_target_attainment"
         ? {
             ...result,
             value: null,
@@ -262,8 +262,7 @@ describe("project operational index", () => {
     });
     const leaf = output.dimensions.flatMap((item) => item.items);
     expect(
-      leaf.find((item) => item.metricKey === "active_account_target_attainment")
-        ?.status,
+      leaf.find((item) => item.metricKey === "active_user_target_attainment")?.status,
     ).toBe("missing_target");
     expect(
       leaf.find((item) => item.metricKey === "key_task_completion_rate")?.status,

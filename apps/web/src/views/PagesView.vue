@@ -38,13 +38,9 @@ const cards = computed(() => {
   if (!current || !previous) return [];
   const definitions: Array<[keyof OverviewMetrics, string, string]> = [
     ["pv", "PV", "page_view 事件数；刷新和重复访问会重复计数。"],
-    ["visitors", "活跃浏览器", "去重 visitorId，表示浏览器存储实例，不是真实人数。"],
-    [
-      "accounts",
-      "已识别账号",
-      "业务显式账号引用经项目级 HMAC 后去重；共享账号只算一个。",
-    ],
-    ["sessions", "会话", "标签页内连续活动，30 分钟无活动后新建。"],
+    ["visitors", "活跃浏览器", "去重 deviceId，表示浏览器存储实例，不是真实人数。"],
+    ["users", "已识别账号", "业务显式账号引用经项目级 HMAC 后去重；共享账号只算一个。"],
+    ["vv", "会话", "标签页内连续活动，30 分钟无活动后新建。"],
   ];
   return definitions.map(([key, label, definition]) => ({
     label,
@@ -214,11 +210,11 @@ watch(
                   @click="
                     router.push({
                       name: 'page-detail',
-                      query: { ...route.query, route: row.route },
+                      query: { ...route.query, pageRoute: row.pageRoute },
                     })
                   "
                 >
-                  <strong>{{ row.route }}</strong>
+                  <strong>{{ row.pageRoute }}</strong>
                   <small>查看停留、深度与页面任务</small>
                 </button>
               </template>
@@ -230,7 +226,7 @@ watch(
               <template #default="{ row }">{{ formatNumber(row.visitors) }}</template>
             </el-table-column>
             <el-table-column label="会话" width="100">
-              <template #default="{ row }">{{ formatNumber(row.sessions) }}</template>
+              <template #default="{ row }">{{ formatNumber(row.vv) }}</template>
             </el-table-column>
             <el-table-column label="最后访问" min-width="170">
               <template #default="{ row }">

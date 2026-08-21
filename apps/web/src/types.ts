@@ -23,7 +23,7 @@ export interface User {
 
 export interface Project {
   id: string;
-  projectKey: string;
+  appId: string;
   name: string;
   timezone: string;
   status: "active" | "disabled";
@@ -66,7 +66,7 @@ export interface PageDefinition {
   id: string;
   projectId: string;
   moduleId: string;
-  normalizedRoute: string;
+  pageRoute: string;
   name: string;
   templateKey: PageTemplate;
   isCore: boolean;
@@ -80,7 +80,7 @@ export interface ProjectOperationalSettings {
   id: string;
   projectId: string;
   version: number;
-  targetAccounts: number | null;
+  targetUsers: number | null;
   expectedActiveWeekdays: number[];
   status: "active" | "superseded";
   effectiveFrom: string;
@@ -142,8 +142,8 @@ export interface RangeQuery {
 export interface OverviewMetrics {
   pv: number;
   visitors: number;
-  accounts: number;
-  sessions: number;
+  users: number;
+  vv: number;
   last_received_at: string | null;
 }
 
@@ -156,8 +156,8 @@ export interface OverviewResponse {
   };
   semantics: {
     visitors: string;
-    accounts: string;
-    sessions: string;
+    users: string;
+    vv: string;
   };
   sdkVersions: SdkVersionUsage[];
 }
@@ -175,7 +175,7 @@ export interface TrendPoint {
   visitors?: number;
   exposed?: number;
   succeeded?: number;
-  succeeded_accounts?: number;
+  succeeded_users?: number;
   succeeded_visitors?: number;
 }
 
@@ -187,15 +187,15 @@ export interface TrendResponse {
 
 export interface FeatureAnalytics extends Feature {
   feature_key?: string;
-  exposed_accounts?: number;
+  exposed_users?: number;
   exposed_visitors?: number;
-  succeeded_accounts?: number;
+  succeeded_users?: number;
   succeeded_visitors?: number;
   success_count?: number;
-  repeat_accounts?: number;
+  repeat_users?: number;
   repeat_visitors?: number;
   last_succeeded_at?: string | null;
-  accountConversionRate: number | null;
+  userConversionRate: number | null;
   visitorConversionRate: number | null;
 }
 
@@ -208,10 +208,10 @@ export interface FeaturesResponse {
 }
 
 export interface PageAnalytics {
-  route: string;
+  pageRoute: string;
   pv: number;
   visitors: number;
-  sessions: number;
+  vv: number;
   last_visit_at: string;
   last_received_at: string;
 }
@@ -232,9 +232,9 @@ export interface FeatureDetailResponse {
     started: number;
     succeeded: number;
     failed: number;
-    succeeded_accounts: number;
+    succeeded_users: number;
     succeeded_visitors: number;
-    repeat_accounts: number;
+    repeat_users: number;
     repeat_visitors: number;
     visible_duration_ms: number;
   };
@@ -249,7 +249,7 @@ export interface OnboardingResponse {
   integration: {
     package: string;
     endpoint: string;
-    projectKey: string;
+    appId: string;
     csp: string;
   };
 }
@@ -262,11 +262,11 @@ export interface M6ReadModelMeta {
 }
 
 export interface PageOperationalMetrics {
-  route: string;
+  pageRoute: string;
   pageViews: number;
-  accounts: number;
+  users: number;
   browsers: number;
-  sessions: number;
+  vv: number;
   lastVisitAt: string | null;
   durationSamples: number;
   durationAverageMs: number | null;
@@ -291,8 +291,8 @@ export interface OperationalOverviewResponse extends M6ReadModelMeta {
   settingsVersion: number | null;
   summary: {
     pageViews: number;
-    activeAccounts: number;
-    crossDayAccounts: number;
+    activeUsers: number;
+    crossDayUsers: number;
     activeDates: number;
     expectedActiveDays: number;
     activeExpectedDays: number;
@@ -310,9 +310,9 @@ export interface OperationalOverviewResponse extends M6ReadModelMeta {
     moduleKey: string;
     name: string;
     pageViews: number;
-    accounts: number;
+    users: number;
     browsers: number;
-    sessions: number;
+    vv: number;
     lastVisitAt: string | null;
     usedPages: number;
     configuredPages: number;
@@ -335,11 +335,11 @@ export interface OperationalOverviewResponse extends M6ReadModelMeta {
   };
   taskSummary: TaskOperationalMetrics;
   unclassified: Array<{
-    route: string;
+    pageRoute: string;
     pageViews: number;
-    accounts: number;
+    users: number;
     browsers: number;
-    sessions: number;
+    vv: number;
     lastVisitAt: string | null;
   }>;
 }
@@ -510,7 +510,7 @@ export interface ErrorGroupSummary {
   httpStatus: number | null;
   resourceType: string | null;
   occurrences: number;
-  affectedAccounts: number;
+  affectedUsers: number;
   affectedBrowsers: number;
   affectedPages: number;
   pages: string[];
@@ -524,9 +524,9 @@ export interface ErrorGroupSummary {
 }
 
 export interface WebVitalSummary {
-  route: string;
-  vitalName: "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
-  releaseVersion: string;
+  pageRoute: string;
+  vitalName: "lcp" | "cls" | "inp" | "fcp" | "ttfb";
+  release: string;
   sampleSize: number;
   p75: number | null;
   poorSamples: number;
@@ -535,8 +535,8 @@ export interface WebVitalSummary {
 }
 
 export interface ReleaseObservabilitySummary {
-  releaseVersion: string;
-  deploymentEnvironment: string | null;
+  release: string;
+  env: string | null;
   observabilityEvents: number;
   errors: number;
   errorGroups: number;
@@ -562,7 +562,7 @@ export interface ObservabilityOverviewResponse extends ObservabilityMeta {
   summary: {
     errorOccurrences: number;
     errorGroups: number;
-    affectedAccounts: number;
+    affectedUsers: number;
     affectedBrowsers: number;
     vitalSamples: number;
     poorVitalSamples: number;
@@ -599,11 +599,11 @@ export interface ErrorGroupDetailResponse extends ObservabilityMeta {
     bucket: string;
     occurrences: number;
     affectedBrowsers: number;
-    affectedAccounts: number;
+    affectedUsers: number;
   }>;
   impact: Array<{
-    route: string;
-    releaseVersion: string;
+    pageRoute: string;
+    release: string;
     occurrences: number;
     affectedBrowsers: number;
     lastSeenAt: string | null;

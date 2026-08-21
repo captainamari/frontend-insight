@@ -44,7 +44,7 @@ const updateModuleSchema = z
   })
   .refine((value) => Object.keys(value).length > 0);
 
-const normalizedRoute = z
+const pageRoute = z
   .string()
   .trim()
   .min(1)
@@ -60,7 +60,7 @@ const pageFields = {
   effectiveFrom: z.string().datetime().optional(),
 };
 const createPageSchema = z.object({
-  normalizedRoute,
+  pageRoute,
   ...pageFields,
 });
 const updatePageSchema = z
@@ -77,7 +77,7 @@ const updatePageSchema = z
   .refine((value) => Object.keys(value).length > 0);
 
 const settingsSchema = z.object({
-  targetAccounts: z.number().int().positive().max(100_000_000).nullable(),
+  targetUsers: z.number().int().positive().max(100_000_000).nullable(),
   expectedActiveWeekdays: z
     .array(z.number().int().min(1).max(7))
     .min(1)

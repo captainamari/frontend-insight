@@ -131,11 +131,11 @@ export function validateAnalyticsRange(input: AnalyticsRange): AnalyticsRange {
 
 function deduplicatedEventsWhere(extra = ""): string {
   return `
-    SELECT *
+    SELECT *, page_route AS pageRoute
     FROM raw_events
     WHERE project_id = {projectId:UUID}
-      AND event_time >= parseDateTime64BestEffort({from:String}, 3)
-      AND event_time < parseDateTime64BestEffort({to:String}, 3)
+      AND timestamp >= parseDateTime64BestEffort({from:String}, 3)
+      AND timestamp < parseDateTime64BestEffort({to:String}, 3)
       ${extra}
     ORDER BY received_at DESC
     LIMIT 1 BY event_id
@@ -195,11 +195,11 @@ function weightedPercentile(
 }
 
 export interface PageOperationalRow {
-  route: string;
+  pageRoute: string;
   pageViews: number;
-  accounts: number;
+  users: number;
   browsers: number;
-  sessions: number;
+  vv: number;
   lastVisitAt: string | null;
   durationSamples: number;
   durationAverageMs: number | null;
@@ -211,9 +211,9 @@ export interface PageOperationalRow {
 interface ModuleOperationalRow {
   moduleId: string;
   pageViews: number;
-  accounts: number;
+  users: number;
   browsers: number;
-  sessions: number;
+  vv: number;
   lastVisitAt: string | null;
 }
 
@@ -222,7 +222,7 @@ interface OperationInstanceRow {
   featureKey: string;
   startedAtMs: number;
   terminalAtMs: number | null;
-  terminalName: "feature_succeeded" | "feature_failed" | "feature_canceled" | null;
+  terminalName: "succeeded" | "failed" | "canceled" | null;
 }
 
 export class AnalyticsStore {
@@ -280,8 +280,8 @@ export class AnalyticsStore {
         },
         semantics: {
           visitors: "anonymous browser storage instances, not people",
-          accounts: "project-HMACed business account references",
-          sessions: "tab-scoped sessions with 30-minute inactivity timeout",
+          users: "project-HMACed business user references",
+          vv: "tab-scoped vv with 30-minute inactivity timeout",
         },
         sdkVersions,
       };
@@ -292,10 +292,10 @@ export class AnalyticsStore {
     const response = await this.client.query({
       query: `
         SELECT
-          countIf(event_name = 'page_view') AS pv,
-          uniqExact(visitor_id) AS visitors,
-          uniqExactIf(account_id, account_id IS NOT NULL) AS accounts,
-          uniqExact(session_id) AS sessions,
+          countIf(event = 'page_view') AS pv,
+          uniqExact(device_id) AS visitors,
+          uniqExactIf(user_id, user_id IS NOT NULL) AS users,
+          uniqExact(session_id) AS vv,
           max(received_at) AS last_received_at
         FROM (${deduplicatedEventsWhere()})
       `,
@@ -313,9 +313,9 @@ export class AnalyticsStore {
       const response = await this.client.query({
         query: `
         SELECT
-          ${bucket}(event_time, {timezone:String}) AS bucket,
-          countIf(event_name = 'page_view') AS pv,
-          uniqExact(visitor_id) AS visitors
+          ${bucket}(timestamp, {timezone:String}) AS bucket,
+          countIf(event = 'page_view') AS pv,
+          uniqExact(device_id) AS visitors
         FROM (${deduplicatedEventsWhere()})
         GROUP BY bucket
         ORDER BY bucket
@@ -344,7 +344,7 @@ export class AnalyticsStore {
       search?: string;
       page?: number;
       pageSize?: number;
-      sort?: "pv" | "visitors" | "sessions" | "lastVisitAt";
+      sort?: "pv" | "visitors" | "vv" | "lastVisitAt";
       direction?: "asc" | "desc";
     } = {},
   ) {
@@ -355,14 +355,14 @@ export class AnalyticsStore {
       const sortColumns = {
         pv: "pv",
         visitors: "visitors",
-        sessions: "sessions",
+        vv: "vv",
         lastVisitAt: "last_visit_at",
       } as const;
       const sort = sortColumns[options.sort ?? "pv"];
       const direction = options.direction === "asc" ? "ASC" : "DESC";
       const search = options.search?.trim() ?? "";
       const extra = search
-        ? "AND positionCaseInsensitive(route, {search:String}) > 0"
+        ? "AND positionCaseInsensitive(pageRoute, {search:String}) > 0"
         : "";
       const queryParams = {
         projectId,
@@ -375,15 +375,15 @@ export class AnalyticsStore {
       const response = await this.client.query({
         query: `
         SELECT
-          route,
+          pageRoute,
           count() AS pv,
-          uniqExact(visitor_id) AS visitors,
-          uniqExact(session_id) AS sessions,
-          max(event_time) AS last_visit_at,
+          uniqExact(device_id) AS visitors,
+          uniqExact(session_id) AS vv,
+          max(timestamp) AS last_visit_at,
           max(received_at) AS last_received_at
-        FROM (${deduplicatedEventsWhere(`AND event_name = 'page_view' ${extra}`)})
-        GROUP BY route
-        ORDER BY ${sort} ${direction}, route ASC
+        FROM (${deduplicatedEventsWhere(`AND event = 'page_view' ${extra}`)})
+        GROUP BY pageRoute
+        ORDER BY ${sort} ${direction}, pageRoute ASC
         LIMIT {limit:UInt32} OFFSET {offset:UInt32}
       `,
         query_params: queryParams,
@@ -391,8 +391,8 @@ export class AnalyticsStore {
       });
       const totalResponse = await this.client.query({
         query: `
-        SELECT uniqExact(route) AS total
-        FROM (${deduplicatedEventsWhere(`AND event_name = 'page_view' ${extra}`)})
+        SELECT uniqExact(pageRoute) AS total
+        FROM (${deduplicatedEventsWhere(`AND event = 'page_view' ${extra}`)})
       `,
         query_params: queryParams,
         format: "JSONEachRow",
@@ -417,23 +417,23 @@ export class AnalyticsStore {
         query: `
         SELECT
           feature_key,
-          uniqExactIf(account_id, event_name = 'feature_exposed' AND account_id IS NOT NULL) AS exposed_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_exposed') AS exposed_visitors,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL) AS succeeded_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded') AS succeeded_visitors,
-          countIf(event_name = 'feature_succeeded') AS success_count,
-          maxIf(event_time, event_name = 'feature_succeeded') AS last_succeeded_at,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL AND
-            (ifNull(account_id, ''), ifNull(feature_key, '')) IN (
-            SELECT ifNull(account_id, ''), ifNull(feature_key, '')
-            FROM (${deduplicatedEventsWhere("AND event_name = 'feature_succeeded' AND account_id IS NOT NULL AND feature_key IS NOT NULL")})
-            GROUP BY account_id, feature_key HAVING uniqExact(session_id) >= 2
-          )) AS repeat_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded' AND
-            (visitor_id, ifNull(feature_key, '')) IN (
-            SELECT visitor_id, ifNull(feature_key, '')
-            FROM (${deduplicatedEventsWhere("AND event_name = 'feature_succeeded' AND feature_key IS NOT NULL")})
-            GROUP BY visitor_id, feature_key HAVING uniqExact(session_id) >= 2
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'exposed') AND user_id IS NOT NULL) AS exposed_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'exposed')) AS exposed_visitors,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL) AS succeeded_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded')) AS succeeded_visitors,
+          countIf((event = 'custom' AND feature_stage = 'succeeded')) AS success_count,
+          maxIf(timestamp, (event = 'custom' AND feature_stage = 'succeeded')) AS last_succeeded_at,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL AND
+            (ifNull(user_id, ''), ifNull(feature_key, '')) IN (
+            SELECT ifNull(user_id, ''), ifNull(feature_key, '')
+            FROM (${deduplicatedEventsWhere("AND (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL AND feature_key IS NOT NULL")})
+            GROUP BY user_id, feature_key HAVING uniqExact(session_id) >= 2
+          )) AS repeat_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded') AND
+            (device_id, ifNull(feature_key, '')) IN (
+            SELECT device_id, ifNull(feature_key, '')
+            FROM (${deduplicatedEventsWhere("AND (event = 'custom' AND feature_stage = 'succeeded') AND feature_key IS NOT NULL")})
+            GROUP BY device_id, feature_key HAVING uniqExact(session_id) >= 2
           )) AS repeat_visitors
         FROM (${deduplicatedEventsWhere("AND feature_key IS NOT NULL")})
         GROUP BY feature_key
@@ -445,11 +445,11 @@ export class AnalyticsStore {
       const trendResponse = await this.client.query({
         query: `
         SELECT
-          ${bucket}(event_time, {timezone:String}) AS bucket,
-          countIf(event_name = 'feature_exposed') AS exposed,
-          countIf(event_name = 'feature_succeeded') AS succeeded,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL) AS succeeded_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded') AS succeeded_visitors
+          ${bucket}(timestamp, {timezone:String}) AS bucket,
+          countIf((event = 'custom' AND feature_stage = 'exposed')) AS exposed,
+          countIf((event = 'custom' AND feature_stage = 'succeeded')) AS succeeded,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL) AS succeeded_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded')) AS succeeded_visitors
         FROM (${deduplicatedEventsWhere("AND feature_key IS NOT NULL")})
         GROUP BY bucket
         ORDER BY bucket
@@ -473,14 +473,14 @@ export class AnalyticsStore {
         range,
         items: definitions.map((feature) => {
           const metric = metrics.get(feature.featureKey) ?? {};
-          const exposedAccounts = Number(metric.exposed_accounts ?? 0);
-          const succeededAccounts = Number(metric.succeeded_accounts ?? 0);
+          const exposedAccounts = Number(metric.exposed_users ?? 0);
+          const succeededAccounts = Number(metric.succeeded_users ?? 0);
           const exposedVisitors = Number(metric.exposed_visitors ?? 0);
           const succeededVisitors = Number(metric.succeeded_visitors ?? 0);
           return {
             ...feature,
             ...metric,
-            accountConversionRate:
+            userConversionRate:
               exposedAccounts > 0 ? succeededAccounts / exposedAccounts : null,
             visitorConversionRate:
               exposedVisitors > 0 ? succeededVisitors / exposedVisitors : null,
@@ -514,21 +514,21 @@ export class AnalyticsStore {
       const response = await this.client.query({
         query: `
         SELECT
-          countIf(event_name = 'feature_exposed') AS exposed,
-          countIf(event_name = 'feature_started') AS started,
-          countIf(event_name = 'feature_succeeded') AS succeeded,
-          countIf(event_name = 'feature_failed') AS failed,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL) AS succeeded_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded') AS succeeded_visitors,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL AND account_id IN (
-            SELECT account_id
-            FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND event_name = 'feature_succeeded' AND account_id IS NOT NULL")})
-            GROUP BY account_id HAVING uniqExact(session_id) >= 2
-          )) AS repeat_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded' AND visitor_id IN (
-            SELECT visitor_id
-            FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND event_name = 'feature_succeeded'")})
-            GROUP BY visitor_id HAVING uniqExact(session_id) >= 2
+          countIf((event = 'custom' AND feature_stage = 'exposed')) AS exposed,
+          countIf((event = 'custom' AND feature_stage = 'started')) AS started,
+          countIf((event = 'custom' AND feature_stage = 'succeeded')) AS succeeded,
+          countIf((event = 'custom' AND feature_stage = 'failed')) AS failed,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL) AS succeeded_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded')) AS succeeded_visitors,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL AND user_id IN (
+            SELECT user_id
+            FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL")})
+            GROUP BY user_id HAVING uniqExact(session_id) >= 2
+          )) AS repeat_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded') AND device_id IN (
+            SELECT device_id
+            FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND (event = 'custom' AND feature_stage = 'succeeded')")})
+            GROUP BY device_id HAVING uniqExact(session_id) >= 2
           )) AS repeat_visitors
         FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String}")})
       `,
@@ -539,11 +539,11 @@ export class AnalyticsStore {
       const trendResponse = await this.client.query({
         query: `
         SELECT
-          ${bucket}(event_time, {timezone:String}) AS bucket,
-          countIf(event_name = 'feature_exposed') AS exposed,
-          countIf(event_name = 'feature_succeeded') AS succeeded,
-          uniqExactIf(account_id, event_name = 'feature_succeeded' AND account_id IS NOT NULL) AS succeeded_accounts,
-          uniqExactIf(visitor_id, event_name = 'feature_succeeded') AS succeeded_visitors
+          ${bucket}(timestamp, {timezone:String}) AS bucket,
+          countIf((event = 'custom' AND feature_stage = 'exposed')) AS exposed,
+          countIf((event = 'custom' AND feature_stage = 'succeeded')) AS succeeded,
+          uniqExactIf(user_id, (event = 'custom' AND feature_stage = 'succeeded') AND user_id IS NOT NULL) AS succeeded_users,
+          uniqExactIf(device_id, (event = 'custom' AND feature_stage = 'succeeded')) AS succeeded_visitors
         FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String}")})
         GROUP BY bucket
         ORDER BY bucket
@@ -556,12 +556,12 @@ export class AnalyticsStore {
         SELECT sum(instance_duration_ms) AS visible_duration_ms
         FROM (
           SELECT
-            visitor_id,
+            device_id,
             session_id,
             page_view_id,
             max(ifNull(visible_duration_ms, 0)) AS instance_duration_ms
-          FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND event_name IN ('feature_long_view_heartbeat', 'feature_long_view_ended')")})
-          GROUP BY visitor_id, session_id, page_view_id
+          FROM (${deduplicatedEventsWhere("AND feature_key = {featureKey:String} AND (event = 'custom' AND feature_stage IN ('long_view_heartbeat', 'long_view_ended'))")})
+          GROUP BY device_id, session_id, page_view_id
         )
       `,
         query_params: queryParams,
@@ -613,9 +613,9 @@ export class AnalyticsStore {
         moduleRows.map((row) => [row.moduleId, row] as const),
       );
       const pageByRoute = new Map(
-        activePages.map((page) => [page.normalizedRoute, page] as const),
+        activePages.map((page) => [page.pageRoute, page] as const),
       );
-      const rowByRoute = new Map(rows.map((row) => [row.route, row] as const));
+      const rowByRoute = new Map(rows.map((row) => [row.pageRoute, row] as const));
       return {
         ...this.readModelMeta(range, status),
         items: activeModules.map((module) => {
@@ -627,7 +627,7 @@ export class AnalyticsStore {
           const usedWeight = modulePages.reduce(
             (sum, page) =>
               sum +
-              ((rowByRoute.get(page.normalizedRoute)?.pageViews ?? 0) > 0
+              ((rowByRoute.get(page.pageRoute)?.pageViews ?? 0) > 0
                 ? page.criticalityWeight
                 : 0),
             0,
@@ -636,26 +636,26 @@ export class AnalyticsStore {
             ...module,
             ...(moduleRowById.get(module.id) ?? {
               pageViews: 0,
-              accounts: 0,
+              users: 0,
               browsers: 0,
-              sessions: 0,
+              vv: 0,
               lastVisitAt: null,
             }),
             configuredPages: modulePages.length,
             usedPages: modulePages.filter(
-              (page) => (rowByRoute.get(page.normalizedRoute)?.pageViews ?? 0) > 0,
+              (page) => (rowByRoute.get(page.pageRoute)?.pageViews ?? 0) > 0,
             ).length,
             pageCoverage: configuredWeight > 0 ? usedWeight / configuredWeight : null,
           };
         }),
         unclassified: rows
-          .filter((row) => !pageByRoute.has(row.route))
+          .filter((row) => !pageByRoute.has(row.pageRoute))
           .map((row) => ({
-            route: row.route,
+            pageRoute: row.pageRoute,
             pageViews: row.pageViews,
-            accounts: row.accounts,
+            users: row.users,
             browsers: row.browsers,
-            sessions: row.sessions,
+            vv: row.vv,
             lastVisitAt: row.lastVisitAt,
           })),
       };
@@ -665,7 +665,7 @@ export class AnalyticsStore {
   async operationalOverview(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
-      const [modules, pages, features, rows, sessions, operations, status, settings] =
+      const [modules, pages, features, rows, vv, operations, status, settings] =
         await Promise.all([
           this.mysql.listModules(projectId),
           this.mysql.listPageDefinitions(projectId),
@@ -682,9 +682,9 @@ export class AnalyticsStore {
           Date.parse(page.effectiveFrom) < Date.parse(range.to),
       );
       const pageByRoute = new Map(
-        activePages.map((page) => [page.normalizedRoute, page] as const),
+        activePages.map((page) => [page.pageRoute, page] as const),
       );
-      const rowByRoute = new Map(rows.map((row) => [row.route, row] as const));
+      const rowByRoute = new Map(rows.map((row) => [row.pageRoute, row] as const));
       const activeModules = modules.filter(
         (module) =>
           module.status === "active" &&
@@ -703,15 +703,15 @@ export class AnalyticsStore {
         moduleRows.map((row) => [row.moduleId, row] as const),
       );
       const taskSummary = this.taskSummary(activeFeatures, operations, range);
-      const sessionSummary = this.sessionSummary(sessions, pageByRoute);
+      const sessionSummary = this.sessionSummary(vv, pageByRoute);
       const corePages = activePages.filter((page) => page.isCore);
       const keyTasks = activeFeatures.filter((feature) => feature.isKeyTask);
       const usedCorePages = corePages.filter(
-        (page) => (rowByRoute.get(page.normalizedRoute)?.pageViews ?? 0) > 0,
+        (page) => (rowByRoute.get(page.pageRoute)?.pageViews ?? 0) > 0,
       );
       const usedKeyTasks = new Set(
         operations
-          .filter((operation) => operation.terminalName === "feature_succeeded")
+          .filter((operation) => operation.terminalName === "succeeded")
           .map((operation) => operation.featureKey),
       );
       const expectedDates = this.expectedLocalDates(
@@ -727,8 +727,8 @@ export class AnalyticsStore {
         settingsVersion: settings?.version ?? null,
         summary: {
           pageViews: rows.reduce((sum, row) => sum + row.pageViews, 0),
-          activeAccounts: validUsage.activeAccounts,
-          crossDayAccounts: validUsage.crossDayAccounts,
+          activeUsers: validUsage.activeUsers,
+          crossDayUsers: validUsage.crossDayUsers,
           activeDates: validUsage.activeDates.length,
           expectedActiveDays: expectedDates.length,
           activeExpectedDays,
@@ -741,7 +741,8 @@ export class AnalyticsStore {
           keyTasks: keyTasks.length,
           usedKeyTasks: keyTasks.filter((task) => usedKeyTasks.has(task.featureKey))
             .length,
-          unclassifiedRoutes: rows.filter((row) => !pageByRoute.has(row.route)).length,
+          unclassifiedRoutes: rows.filter((row) => !pageByRoute.has(row.pageRoute))
+            .length,
         },
         modules: activeModules.map((module) => {
           const modulePages = activePages.filter((page) => page.moduleId === module.id);
@@ -751,20 +752,20 @@ export class AnalyticsStore {
             name: module.name,
             ...(moduleRowById.get(module.id) ?? {
               pageViews: 0,
-              accounts: 0,
+              users: 0,
               browsers: 0,
-              sessions: 0,
+              vv: 0,
               lastVisitAt: null,
             }),
             usedPages: modulePages.filter(
-              (page) => (rowByRoute.get(page.normalizedRoute)?.pageViews ?? 0) > 0,
+              (page) => (rowByRoute.get(page.pageRoute)?.pageViews ?? 0) > 0,
             ).length,
             configuredPages: modulePages.length,
           };
         }),
         corePages: corePages.map((page) => ({
           ...page,
-          metrics: rowByRoute.get(page.normalizedRoute) ?? null,
+          metrics: rowByRoute.get(page.pageRoute) ?? null,
         })),
         keyTasks: keyTasks.map((feature) => ({
           ...feature,
@@ -773,43 +774,42 @@ export class AnalyticsStore {
         depth: sessionSummary,
         taskSummary: taskSummary.overall,
         unclassified: rows
-          .filter((row) => !pageByRoute.has(row.route))
+          .filter((row) => !pageByRoute.has(row.pageRoute))
           .map((row) => ({
-            route: row.route,
+            pageRoute: row.pageRoute,
             pageViews: row.pageViews,
-            accounts: row.accounts,
+            users: row.users,
             browsers: row.browsers,
-            sessions: row.sessions,
+            vv: row.vv,
             lastVisitAt: row.lastVisitAt,
           })),
       };
     });
   }
 
-  async pageDetail(projectId: string, route: string, rangeInput: AnalyticsRange) {
+  async pageDetail(projectId: string, pageRoute: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
-      const [modules, pages, features, rows, sessions, trend, status] =
-        await Promise.all([
-          this.mysql.listModules(projectId),
-          this.mysql.listPageDefinitions(projectId),
-          this.mysql.listFeatures(projectId),
-          this.pageOperationalRows(projectId, range),
-          this.sessionOperationalRows(projectId, range),
-          this.pageOperationalTrend(projectId, route, range),
-          this.projectDataStatus(projectId),
-        ]);
+      const [modules, pages, features, rows, vv, trend, status] = await Promise.all([
+        this.mysql.listModules(projectId),
+        this.mysql.listPageDefinitions(projectId),
+        this.mysql.listFeatures(projectId),
+        this.pageOperationalRows(projectId, range),
+        this.sessionOperationalRows(projectId, range),
+        this.pageOperationalTrend(projectId, pageRoute, range),
+        this.projectDataStatus(projectId),
+      ]);
       const page =
         pages.find(
           (item) =>
-            item.normalizedRoute === route &&
+            item.pageRoute === pageRoute &&
             item.status === "active" &&
             Date.parse(item.effectiveFrom) < Date.parse(range.to),
         ) ?? null;
       const activePageByRoute = new Map(
         pages
           .filter((definition) => definition.status === "active")
-          .map((definition) => [definition.normalizedRoute, definition] as const),
+          .map((definition) => [definition.pageRoute, definition] as const),
       );
       const module = page
         ? (modules.find(
@@ -817,13 +817,13 @@ export class AnalyticsStore {
           ) ?? null)
         : null;
       const metrics =
-        rows.find((item) => item.route === route) ??
+        rows.find((item) => item.pageRoute === pageRoute) ??
         ({
-          route,
+          pageRoute,
           pageViews: 0,
-          accounts: 0,
+          users: 0,
           browsers: 0,
-          sessions: 0,
+          vv: 0,
           lastVisitAt: null,
           durationSamples: 0,
           durationAverageMs: null,
@@ -831,11 +831,11 @@ export class AnalyticsStore {
           durationP75Ms: null,
           durationCoverage: null,
         } satisfies PageOperationalRow);
-      const sessionDepths = sessions
-        .filter((session) => session.routes.includes(route))
+      const sessionDepths = vv
+        .filter((session) => session.routes.includes(pageRoute))
         .map((session) => session.routes.length);
-      const sessionModuleBreadths = sessions
-        .filter((session) => session.routes.includes(route))
+      const sessionModuleBreadths = vv
+        .filter((session) => session.routes.includes(pageRoute))
         .map((session) => {
           const moduleIds = new Set(
             session.routes
@@ -885,7 +885,7 @@ export class AnalyticsStore {
             )
           : [],
         definitions: [
-          metricDefinition("page_views"),
+          metricDefinition("pv"),
           metricDefinition("page_visible_duration_p50"),
           metricDefinition("page_duration_coverage"),
         ].filter((item): item is NonNullable<typeof item> => item !== null),
@@ -966,26 +966,23 @@ export class AnalyticsStore {
           Math.max(Date.parse(range.from), ...configurationBoundaries),
         ).toISOString(),
       };
-      const [pageRows, sessions, operations, validUsage, availableFrom] =
-        await Promise.all([
-          this.pageOperationalRows(projectId, evaluationRange),
-          this.sessionOperationalRows(projectId, evaluationRange),
-          this.operationInstances(projectId, evaluationRange),
-          this.validUsageFacts(projectId, evaluationRange, activePages, activeFeatures),
-          this.operationAvailableFrom(
-            projectId,
-            activeFeatures
-              .filter(
-                (feature) => feature.isKeyTask && feature.operationLifecycleEnabled,
-              )
-              .map((feature) => feature.featureKey),
-          ),
-        ]);
+      const [pageRows, vv, operations, validUsage, availableFrom] = await Promise.all([
+        this.pageOperationalRows(projectId, evaluationRange),
+        this.sessionOperationalRows(projectId, evaluationRange),
+        this.operationInstances(projectId, evaluationRange),
+        this.validUsageFacts(projectId, evaluationRange, activePages, activeFeatures),
+        this.operationAvailableFrom(
+          projectId,
+          activeFeatures
+            .filter((feature) => feature.isKeyTask && feature.operationLifecycleEnabled)
+            .map((feature) => feature.featureKey),
+        ),
+      ]);
       const pageByRoute = new Map(
-        activePages.map((page) => [page.normalizedRoute, page] as const),
+        activePages.map((page) => [page.pageRoute, page] as const),
       );
-      const rowByRoute = new Map(pageRows.map((row) => [row.route, row] as const));
-      const sessionSummary = this.sessionSummary(sessions, pageByRoute);
+      const rowByRoute = new Map(pageRows.map((row) => [row.pageRoute, row] as const));
+      const sessionSummary = this.sessionSummary(vv, pageByRoute);
       const taskSummary = this.taskSummary(
         activeFeatures,
         operations,
@@ -999,7 +996,7 @@ export class AnalyticsStore {
       const usedCoreWeight = corePages.reduce(
         (sum, page) =>
           sum +
-          ((rowByRoute.get(page.normalizedRoute)?.pageViews ?? 0) > 0
+          ((rowByRoute.get(page.pageRoute)?.pageViews ?? 0) > 0
             ? page.criticalityWeight
             : 0),
         0,
@@ -1015,13 +1012,13 @@ export class AnalyticsStore {
       const durationPages = corePages
         .map((page) => ({
           page,
-          row: rowByRoute.get(page.normalizedRoute),
+          row: rowByRoute.get(page.pageRoute),
           fit:
-            rowByRoute.get(page.normalizedRoute)?.durationP50Ms === null ||
-            rowByRoute.get(page.normalizedRoute)?.durationP50Ms === undefined
+            rowByRoute.get(page.pageRoute)?.durationP50Ms === null ||
+            rowByRoute.get(page.pageRoute)?.durationP50Ms === undefined
               ? null
               : normalizeMetricScore(
-                  rowByRoute.get(page.normalizedRoute)!.durationP50Ms!,
+                  rowByRoute.get(page.pageRoute)!.durationP50Ms!,
                   "target_range",
                   PAGE_TEMPLATE_DURATION_TARGETS[page.templateKey],
                 ),
@@ -1052,21 +1049,21 @@ export class AnalyticsStore {
           : null;
       const results: MetricResult[] = [
         metricResult({
-          metricKey: "active_account_target_attainment",
+          metricKey: "active_user_target_attainment",
           value:
-            settings?.targetAccounts && settings.targetAccounts > 0
-              ? validUsage.activeAccounts / settings.targetAccounts
+            settings?.targetUsers && settings.targetUsers > 0
+              ? validUsage.activeUsers / settings.targetUsers
               : null,
-          sampleSize: validUsage.activeAccounts,
+          sampleSize: validUsage.activeUsers,
           status:
-            settings?.targetAccounts && settings.targetAccounts > 0
+            settings?.targetUsers && settings.targetUsers > 0
               ? "available"
               : "missing_target",
           reason:
-            settings?.targetAccounts && settings.targetAccounts > 0
+            settings?.targetUsers && settings.targetUsers > 0
               ? null
               : "TARGET_ACCOUNTS_NOT_CONFIGURED",
-          inputs: [{ metricKey: "active_accounts", value: validUsage.activeAccounts }],
+          inputs: [{ metricKey: "uv", value: validUsage.activeUsers }],
         }),
         metricResult({
           metricKey: "core_page_coverage",
@@ -1099,12 +1096,11 @@ export class AnalyticsStore {
         metricResult({
           metricKey: "cross_day_continuity",
           value:
-            validUsage.activeAccounts > 0
-              ? validUsage.crossDayAccounts / validUsage.activeAccounts
+            validUsage.activeUsers > 0
+              ? validUsage.crossDayUsers / validUsage.activeUsers
               : null,
-          sampleSize: validUsage.activeAccounts,
-          reason:
-            validUsage.activeAccounts > 0 ? null : "NO_IDENTIFIED_ACTIVE_ACCOUNTS",
+          sampleSize: validUsage.activeUsers,
+          reason: validUsage.activeUsers > 0 ? null : "NO_IDENTIFIED_ACTIVE_ACCOUNTS",
         }),
         metricResult({
           metricKey: "session_distinct_pages_fit",
@@ -1179,8 +1175,7 @@ export class AnalyticsStore {
             eligibleDimensions: 0,
             weightCoverage: 0,
             dimensions: [],
-            definitionVersion: metricDefinition("project_operational_index")!
-              .definitionVersion,
+            definitionVersion: metricDefinition("operational_score")!.definitionVersion,
           };
       return {
         ...this.readModelMeta(range, status),
@@ -1231,8 +1226,7 @@ export class AnalyticsStore {
       range,
       dataStatus: evaluated,
       updatedAt: status.lastQueryableAt,
-      definitionVersion: metricDefinition("project_operational_index")!
-        .definitionVersion,
+      definitionVersion: metricDefinition("operational_score")!.definitionVersion,
     };
   }
 
@@ -1245,15 +1239,15 @@ export class AnalyticsStore {
       this.client.query({
         query: `
           SELECT
-            route,
-            count() AS page_views,
-            uniqExactIf(account_id, account_id IS NOT NULL) AS accounts,
-            uniqExact(visitor_id) AS browsers,
-            uniqExact(session_id) AS sessions,
-            max(event_time) AS last_visit_at
-          FROM (${deduplicatedEventsWhere("AND event_name = 'page_view'")})
-          GROUP BY route
-          ORDER BY page_views DESC, route
+            pageRoute,
+            count() AS pv,
+            uniqExactIf(user_id, user_id IS NOT NULL) AS users,
+            uniqExact(device_id) AS browsers,
+            uniqExact(session_id) AS vv,
+            max(timestamp) AS last_visit_at
+          FROM (${deduplicatedEventsWhere("AND event = 'page_view'")})
+          GROUP BY pageRoute
+          ORDER BY pv DESC, pageRoute
         `,
         query_params: parameters,
         format: "JSONEachRow",
@@ -1261,22 +1255,22 @@ export class AnalyticsStore {
       this.client.query({
         query: `
           SELECT
-            route,
+            pageRoute,
             count() AS duration_samples,
             avg(page_duration_ms) AS duration_average_ms,
             quantileExact(0.5)(page_duration_ms) AS duration_p50_ms,
             quantileExact(0.75)(page_duration_ms) AS duration_p75_ms
           FROM (
             SELECT
-              route,
+              pageRoute,
               page_view_id,
               sum(visible_duration_ms) AS page_duration_ms
             FROM (${deduplicatedEventsWhere(
-              "AND event_name = 'page_leave' AND visible_duration_ms IS NOT NULL",
+              "AND event = 'page_leave' AND visible_duration_ms IS NOT NULL",
             )})
-            GROUP BY route, page_view_id
+            GROUP BY pageRoute, page_view_id
           )
-          GROUP BY route
+          GROUP BY pageRoute
         `,
         query_params: parameters,
         format: "JSONEachRow",
@@ -1285,19 +1279,19 @@ export class AnalyticsStore {
     const basicRows = await basicResponse.json<Record<string, unknown>>();
     const durations = new Map(
       (await durationResponse.json<Record<string, unknown>>()).map(
-        (row) => [String(row.route), row] as const,
+        (row) => [String(row.pageRoute), row] as const,
       ),
     );
     return basicRows.map((row) => {
-      const duration = durations.get(String(row.route));
-      const pageViews = numeric(row.page_views);
+      const duration = durations.get(String(row.pageRoute));
+      const pageViews = numeric(row.pv);
       const durationSamples = numeric(duration?.duration_samples);
       return {
-        route: String(row.route),
+        pageRoute: String(row.pageRoute),
         pageViews,
-        accounts: numeric(row.accounts),
+        users: numeric(row.users),
         browsers: numeric(row.browsers),
-        sessions: numeric(row.sessions),
+        vv: numeric(row.vv),
         lastVisitAt: row.last_visit_at ? String(row.last_visit_at) : null,
         durationSamples,
         durationAverageMs: nullableNumeric(duration?.duration_average_ms),
@@ -1315,22 +1309,22 @@ export class AnalyticsStore {
     pages: PageDefinitionRecord[],
   ): Promise<ModuleOperationalRow[]> {
     if (!pages.length) return [];
-    const routes = pages.map((page) => page.normalizedRoute);
+    const routes = pages.map((page) => page.pageRoute);
     const moduleIds = pages.map((page) => page.moduleId);
     const response = await this.client.query({
       query: `
         SELECT
           arrayElement(
             {moduleIds:Array(String)},
-            indexOf({routes:Array(String)}, route)
+            indexOf({routes:Array(String)}, pageRoute)
           ) AS module_id,
-          count() AS page_views,
-          uniqExactIf(account_id, account_id IS NOT NULL) AS accounts,
-          uniqExact(visitor_id) AS browsers,
-          uniqExact(session_id) AS sessions,
-          max(event_time) AS last_visit_at
+          count() AS pv,
+          uniqExactIf(user_id, user_id IS NOT NULL) AS users,
+          uniqExact(device_id) AS browsers,
+          uniqExact(session_id) AS vv,
+          max(timestamp) AS last_visit_at
         FROM (${deduplicatedEventsWhere(
-          "AND event_name = 'page_view' AND has({routes:Array(String)}, route)",
+          "AND event = 'page_view' AND has({routes:Array(String)}, pageRoute)",
         )})
         GROUP BY module_id
         ORDER BY module_id
@@ -1347,28 +1341,28 @@ export class AnalyticsStore {
     const rows = await response.json<Record<string, unknown>>();
     return rows.map((row) => ({
       moduleId: String(row.module_id),
-      pageViews: numeric(row.page_views),
-      accounts: numeric(row.accounts),
+      pageViews: numeric(row.pv),
+      users: numeric(row.users),
       browsers: numeric(row.browsers),
-      sessions: numeric(row.sessions),
+      vv: numeric(row.vv),
       lastVisitAt: row.last_visit_at ? String(row.last_visit_at) : null,
     }));
   }
 
   private async pageOperationalTrend(
     projectId: string,
-    route: string,
+    pageRoute: string,
     range: AnalyticsRange,
   ): Promise<Array<Record<string, number | string | null>>> {
     const bucket = range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay";
     const response = await this.client.query({
       query: `
         SELECT
-          ${bucket}(event_time, {timezone:String}) AS bucket,
+          ${bucket}(timestamp, {timezone:String}) AS bucket,
           count() AS pv,
-          uniqExact(visitor_id) AS visitors
+          uniqExact(device_id) AS visitors
         FROM (${deduplicatedEventsWhere(
-          "AND event_name = 'page_view' AND route = {route:String}",
+          "AND event = 'page_view' AND pageRoute = {pageRoute:String}",
         )})
         GROUP BY bucket
         ORDER BY bucket
@@ -1378,7 +1372,7 @@ export class AnalyticsStore {
         from: range.from,
         to: range.to,
         timezone: range.timezone,
-        route,
+        pageRoute,
       },
       format: "JSONEachRow",
     });
@@ -1394,9 +1388,9 @@ export class AnalyticsStore {
       query: `
         SELECT
           session_id,
-          count() AS page_views,
-          groupUniqArray(route) AS routes
-        FROM (${deduplicatedEventsWhere("AND event_name = 'page_view'")})
+          count() AS pv,
+          groupUniqArray(pageRoute) AS routes
+        FROM (${deduplicatedEventsWhere("AND event = 'page_view'")})
         GROUP BY session_id
       `,
       query_params: { projectId, from: range.from, to: range.to },
@@ -1405,29 +1399,29 @@ export class AnalyticsStore {
     const rows = await response.json<Record<string, unknown>>();
     return rows.map((row) => ({
       sessionId: String(row.session_id),
-      pageViews: numeric(row.page_views),
+      pageViews: numeric(row.pv),
       routes: Array.isArray(row.routes) ? row.routes.map(String) : [],
     }));
   }
 
   private sessionSummary(
-    sessions: Array<{ sessionId: string; pageViews: number; routes: string[] }>,
+    vv: Array<{ sessionId: string; pageViews: number; routes: string[] }>,
     pageByRoute: ReadonlyMap<string, PageDefinitionRecord>,
   ) {
-    const visits = sessions.map((session) => session.pageViews);
-    const distinctPages = sessions.map((session) => session.routes.length);
-    const moduleBreadths = sessions
+    const visits = vv.map((session) => session.pageViews);
+    const distinctPages = vv.map((session) => session.routes.length);
+    const moduleBreadths = vv
       .map((session) => {
         const modules = new Set(
           session.routes
-            .map((route) => pageByRoute.get(route)?.moduleId)
+            .map((pageRoute) => pageByRoute.get(pageRoute)?.moduleId)
             .filter((id): id is string => Boolean(id)),
         );
         return modules.size;
       })
       .filter((value) => value > 0);
     return {
-      sampleSize: sessions.length,
+      sampleSize: vv.length,
       classifiedSampleSize: moduleBreadths.length,
       pageViewsP50: percentile(visits, 0.5),
       pageViewsP75: percentile(visits, 0.75),
@@ -1448,20 +1442,20 @@ export class AnalyticsStore {
           operation_instance_id,
           any(feature_key) AS feature_key,
           minIf(
-            toUnixTimestamp64Milli(event_time),
-            event_name = 'feature_started'
+            toUnixTimestamp64Milli(timestamp),
+            (event = 'custom' AND feature_stage = 'started')
           ) AS started_at_ms,
           minIf(
-            toUnixTimestamp64Milli(event_time),
-            event_name IN ('feature_succeeded', 'feature_failed', 'feature_canceled')
+            toUnixTimestamp64Milli(timestamp),
+            (event = 'custom' AND feature_stage IN ('succeeded', 'failed', 'canceled'))
           ) AS terminal_at_ms,
           argMinIf(
-            event_name,
-            event_time,
-            event_name IN ('feature_succeeded', 'feature_failed', 'feature_canceled')
+            feature_stage,
+            timestamp,
+            (event = 'custom' AND feature_stage IN ('succeeded', 'failed', 'canceled'))
           ) AS terminal_name
         FROM (${deduplicatedEventsWhere(
-          "AND schema_version = 2 AND operation_instance_id IS NOT NULL AND feature_key IS NOT NULL",
+          "AND schema_version = 3 AND operation_instance_id IS NOT NULL AND feature_key IS NOT NULL",
         )})
         GROUP BY operation_instance_id
         HAVING started_at_ms > 0
@@ -1478,11 +1472,7 @@ export class AnalyticsStore {
         featureKey: String(row.feature_key),
         startedAtMs: numeric(row.started_at_ms),
         terminalAtMs: terminalAtMs > 0 ? terminalAtMs : null,
-        terminalName: [
-          "feature_succeeded",
-          "feature_failed",
-          "feature_canceled",
-        ].includes(terminalName)
+        terminalName: ["succeeded", "failed", "canceled"].includes(terminalName)
           ? (terminalName as OperationInstanceRow["terminalName"])
           : null,
       };
@@ -1497,11 +1487,11 @@ export class AnalyticsStore {
     const response = await this.client.query({
       query: `
         SELECT
-          toUnixTimestamp64Milli(minOrNull(event_time)) AS available_from_ms
+          toUnixTimestamp64Milli(minOrNull(timestamp)) AS available_from_ms
         FROM raw_events
         WHERE project_id = {projectId:UUID}
-          AND schema_version = 2
-          AND event_name = 'feature_started'
+          AND schema_version = 3
+          AND (event = 'custom' AND feature_stage = 'started')
           AND operation_instance_id IS NOT NULL
           AND feature_key IN {featureKeys:Array(String)}
       `,
@@ -1546,8 +1536,7 @@ export class AnalyticsStore {
           feature,
           abandoned,
           durationMs:
-            operation.terminalName === "feature_succeeded" &&
-            operation.terminalAtMs !== null
+            operation.terminalName === "succeeded" && operation.terminalAtMs !== null
               ? Math.max(0, operation.terminalAtMs - operation.startedAtMs)
               : null,
         };
@@ -1558,21 +1547,18 @@ export class AnalyticsStore {
       const items = states.filter(
         (item) => item.feature.featureKey === feature.featureKey,
       );
-      const succeeded = items.filter(
-        (item) => item.terminalName === "feature_succeeded",
-      );
+      const succeeded = items.filter((item) => item.terminalName === "succeeded");
       const adverse = items.filter(
         (item) =>
-          item.terminalName === "feature_failed" ||
-          item.terminalName === "feature_canceled" ||
+          item.terminalName === "failed" ||
+          item.terminalName === "canceled" ||
           item.abandoned,
       );
       byFeature.set(feature.featureKey, {
         started: items.length,
         succeeded: succeeded.length,
-        failed: items.filter((item) => item.terminalName === "feature_failed").length,
-        canceled: items.filter((item) => item.terminalName === "feature_canceled")
-          .length,
+        failed: items.filter((item) => item.terminalName === "failed").length,
+        canceled: items.filter((item) => item.terminalName === "canceled").length,
         abandoned: items.filter((item) => item.abandoned).length,
         completionRate: items.length > 0 ? succeeded.length / items.length : null,
         adverseOutcomeRate: items.length > 0 ? adverse.length / items.length : null,
@@ -1594,13 +1580,11 @@ export class AnalyticsStore {
       (sum, item) => sum + item.feature.taskWeight,
       0,
     );
-    const succeededStates = states.filter(
-      (item) => item.terminalName === "feature_succeeded",
-    );
+    const succeededStates = states.filter((item) => item.terminalName === "succeeded");
     const adverseStates = states.filter(
       (item) =>
-        item.terminalName === "feature_failed" ||
-        item.terminalName === "feature_canceled" ||
+        item.terminalName === "failed" ||
+        item.terminalName === "canceled" ||
         item.abandoned,
     );
     const durationSamples = succeededStates
@@ -1614,9 +1598,8 @@ export class AnalyticsStore {
       overall: {
         started: states.length,
         succeeded: succeededStates.length,
-        failed: states.filter((item) => item.terminalName === "feature_failed").length,
-        canceled: states.filter((item) => item.terminalName === "feature_canceled")
-          .length,
+        failed: states.filter((item) => item.terminalName === "failed").length,
+        canceled: states.filter((item) => item.terminalName === "canceled").length,
         abandoned: states.filter((item) => item.abandoned).length,
         completionRate:
           startedWeight > 0
@@ -1640,19 +1623,19 @@ export class AnalyticsStore {
     pages: PageDefinitionRecord[],
     features: FeatureRecord[],
   ) {
-    const routes = pages.map((page) => page.normalizedRoute);
+    const routes = pages.map((page) => page.pageRoute);
     const featureKeys = features.map((feature) => feature.featureKey);
     if (!routes.length && !featureKeys.length) {
-      return { activeAccounts: 0, crossDayAccounts: 0, activeDates: [] as string[] };
+      return { activeUsers: 0, crossDayUsers: 0, activeDates: [] as string[] };
     }
     const validCondition = `
       (
-        (event_name = 'page_view' AND route IN {routes:Array(String)})
+        (event = 'page_view' AND pageRoute IN {routes:Array(String)})
         OR
-        (event_name = 'feature_succeeded' AND feature_key IN {featureKeys:Array(String)})
+        ((event = 'custom' AND feature_stage = 'succeeded') AND feature_key IN {featureKeys:Array(String)})
       )
-      AND position(properties_json, '"source":"onboarding"') = 0
-      AND position(properties_json, '"demo":true') = 0
+      AND position(payload_json, '"source":"onboarding"') = 0
+      AND position(payload_json, '"demo":true') = 0
     `;
     const queryParams = {
       projectId,
@@ -1665,7 +1648,7 @@ export class AnalyticsStore {
     const [summaryResponse, repeatResponse, datesResponse] = await Promise.all([
       this.client.query({
         query: `
-          SELECT uniqExactIf(account_id, account_id IS NOT NULL) AS active_accounts
+          SELECT uniqExactIf(user_id, user_id IS NOT NULL) AS uv
           FROM (${deduplicatedEventsWhere(`AND ${validCondition}`)})
         `,
         query_params: queryParams,
@@ -1676,12 +1659,12 @@ export class AnalyticsStore {
           SELECT countIf(active_days >= 2) AS cross_day_accounts
           FROM (
             SELECT
-              account_id,
-              uniqExact(toDate(event_time, {timezone:String})) AS active_days
+              user_id,
+              uniqExact(toDate(timestamp, {timezone:String})) AS active_days
             FROM (${deduplicatedEventsWhere(
-              `AND account_id IS NOT NULL AND ${validCondition}`,
+              `AND user_id IS NOT NULL AND ${validCondition}`,
             )})
-            GROUP BY account_id
+            GROUP BY user_id
           )
         `,
         query_params: queryParams,
@@ -1689,7 +1672,7 @@ export class AnalyticsStore {
       }),
       this.client.query({
         query: `
-          SELECT toString(toDate(event_time, {timezone:String})) AS active_date
+          SELECT toString(toDate(timestamp, {timezone:String})) AS active_date
           FROM (${deduplicatedEventsWhere(`AND ${validCondition}`)})
           GROUP BY active_date
           ORDER BY active_date
@@ -1702,8 +1685,8 @@ export class AnalyticsStore {
     const repeat = await repeatResponse.json<Record<string, unknown>>();
     const dates = await datesResponse.json<Record<string, unknown>>();
     return {
-      activeAccounts: numeric(summary[0]?.active_accounts),
-      crossDayAccounts: numeric(repeat[0]?.cross_day_accounts),
+      activeUsers: numeric(summary[0]?.uv),
+      crossDayUsers: numeric(repeat[0]?.cross_day_accounts),
       activeDates: dates.map((row) => String(row.active_date)),
     };
   }

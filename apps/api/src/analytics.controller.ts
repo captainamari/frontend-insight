@@ -15,12 +15,12 @@ const pagesSchema = rangeSchema.extend({
   search: z.string().max(512).optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
-  sort: z.enum(["pv", "visitors", "sessions", "lastVisitAt"]).default("pv"),
+  sort: z.enum(["pv", "visitors", "vv", "lastVisitAt"]).default("pv"),
   direction: z.enum(["asc", "desc"]).default("desc"),
 });
 
 const pageDetailSchema = rangeSchema.extend({
-  route: z.string().min(1).max(512),
+  pageRoute: z.string().min(1).max(512),
 });
 
 @Controller("api/projects/:projectId/analytics")
@@ -114,7 +114,7 @@ export class AnalyticsController {
   ) {
     await this.authorize(principal, projectId);
     const parsed = parseInput(pageDetailSchema, query);
-    return this.core.analytics.pageDetail(projectId, parsed.route, parsed);
+    return this.core.analytics.pageDetail(projectId, parsed.pageRoute, parsed);
   }
 
   @Get("tasks/:featureId")

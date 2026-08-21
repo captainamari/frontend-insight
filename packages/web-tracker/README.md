@@ -6,7 +6,7 @@ MVP npm ESM SDK。默认只采集规范化路由和显式事件；不会遍历�
 import { createTracker } from "@frontend-insight/web-tracker";
 
 const tracker = createTracker({
-  projectKey: "fi_public_example01",
+  appId: "fi_public_example01",
   endpoint: "https://tracker.internal/v1/events",
   registeredFeatures: ["sales_dashboard", "report_export"],
   // 仅放稳定、低基数且不含隐私的部署标签；会应用到 page_view 等自动事件。
@@ -15,8 +15,8 @@ const tracker = createTracker({
   // M8 为显式 opt-in；发布版本必须由构建/部署过程注入，平台不会猜测。
   observability: {
     enabled: true,
-    releaseVersion: "2026.08.1",
-    deploymentEnvironment: "production",
+    release: "2026.08.1",
+    env: "production",
     captureJsErrors: true,
     captureResourceErrors: true,
     captureApiErrors: false, // 全局 fetch 包装默认关闭，可使用显式方法接入现有请求层。

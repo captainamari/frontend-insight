@@ -15,16 +15,19 @@
     "test:m5:e2e": "playwright test --config playwright.m5.config.ts",
     "test:m6:e2e": "playwright test --config playwright.m6.config.ts",
     "test:m8:e2e": "playwright test --config playwright.m8.config.ts",
+    "test:r0:e2e": "playwright test --config playwright.r0.config.ts",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:workspace": "node tools/check-workspace-boundaries.mjs",
+    "canonical:check": "node tools/check-canonical-names.mjs",
     "contract:generate": "pnpm --filter @frontend-insight/event-contract generate",
     "contract:check": "pnpm --filter @frontend-insight/event-contract generate -- --check",
     "migrate": "pnpm --filter @frontend-insight/database migrate",
     "migrate:verify": "pnpm --filter @frontend-insight/database verify",
-    "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "test:r0": "vitest run packages/event-contract packages/test-fixtures packages/database apps/consumer packages/server-core/test/pipeline.test.ts",
+    "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm canonical:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

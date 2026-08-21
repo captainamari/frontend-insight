@@ -6,7 +6,7 @@ interface BrowserState {
   __tracker: {
     track(
       name: string,
-      properties?: Record<string, string | number | boolean | null>,
+      payload?: Record<string, string | number | boolean | null>,
     ): void;
     featureExposed(key: string): void;
     featureSucceeded(key: string): void;
@@ -41,14 +41,19 @@ test("captures lifecycle and feature events without URL credentials", async ({
   });
   const serialized = JSON.stringify(result);
   const events = result.flatMap((batch) => batch.events);
-  expect(events.map((event) => event.eventName)).toEqual([
+  expect(
+    events.map(
+      (event) =>
+        (event.payload as Record<string, unknown> | undefined)?.name ?? event.event,
+    ),
+  ).toEqual([
     "page_view",
     "page_leave",
     "page_view",
     "feature_exposed",
     "feature_succeeded",
   ]);
-  expect(events[0]?.route).toBe("/orders/:id");
+  expect(events[0]?.pageRoute).toBe("/orders/:id");
   expect(serialized).not.toContain("must-not-leak");
   expect(serialized).not.toContain("private");
 });
@@ -92,14 +97,14 @@ test("sanitizes explicit M8 errors in a real browser before transport", async ({
   });
   const events = result
     .flatMap((batch) => batch.events)
-    .filter((event) => String(event.eventName).startsWith("error_"));
+    .filter((event) => ["error", "api"].includes(String(event.event)));
   const serialized = JSON.stringify(events);
-  expect(events.map((event) => event.eventName)).toEqual(["error_js", "error_api"]);
+  expect(events.map((event) => event.event)).toEqual(["error", "api"]);
   expect(serialized).not.toContain("browser@example.invalid");
   expect(serialized).not.toContain("Bearer secret");
   expect(serialized).not.toContain("token=secret");
   expect(serialized).not.toContain("host.invalid");
-  expect((events[1]?.properties as Record<string, unknown>).requestPath).toBe(
+  expect((events[1]?.payload as Record<string, unknown>).requestPath).toBe(
     "/api/budgets/:id",
   );
 });
