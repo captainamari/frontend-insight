@@ -106,18 +106,27 @@ bootstrap() {
   info "v1.8 R0 local configuration is ready"
 }
 
+run_seed() {
+  compose run --rm --build seed || return 1
+  info "R0 users, project, canonical entities, workflow and metric definitions are ready"
+  info "Local admin: admin@example.invalid / LocalAdmin-1234 (ASCII '-' hyphen)"
+}
+
 seed() {
   ensure_env
   require_command docker
-  compose run --rm seed
-  info "R0 users, project, canonical entities, workflow and metric definitions are ready"
+  run_seed || \
+    fail "R0 seed failed. Do not continue to login or acceptance checks; inspect the seed output above."
 }
 
 up() {
   doctor
   info "Building and starting the v1.8 R0 local baseline"
   compose up --detach --build --wait --wait-timeout 360 api consumer web demo
-  seed
+  if ! run_seed; then
+    compose stop api consumer web demo >/dev/null 2>&1 || true
+    fail "R0 startup stopped because seed did not complete"
+  fi
   info "Management UI: http://localhost:4173"
   info "Scenario demo: http://localhost:4174"
 }
@@ -125,7 +134,9 @@ up() {
 smoke() {
   ensure_env
   require_command docker
-  compose run --rm --no-deps verifier
+  if ! compose run --rm --build --no-deps verifier; then
+    fail "R0 smoke failed. The seed snapshot, documented login, or v3 data flow is invalid."
+  fi
   info "R0 empty-baseline, contract rejection and canonical data-flow smoke checks passed"
 }
 

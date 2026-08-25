@@ -54,7 +54,7 @@ jobs:
       - name: Install R0 browser engine
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Rebuild and start the empty R0 baseline
+      - name: Rebuild, seed and verify the empty R0 baseline
         run: |
           ./scripts/dev reset --confirm-local-data-loss
           ./scripts/dev bootstrap
@@ -65,6 +65,15 @@ jobs:
       - name: Run R0 HTTP acceptance
         run: pnpm test:r0:e2e
 
+      - name: Reuse the local stack and repeat tool-image acceptance
+        run: |
+          ./scripts/dev seed
+          ./scripts/dev smoke
+
       - name: Capture service logs on failure
         if: failure()
         run: ./scripts/dev logs
+
+      - name: Stop R0 services
+        if: always()
+        run: ./scripts/dev down

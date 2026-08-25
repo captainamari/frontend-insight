@@ -4,8 +4,10 @@ import {
   contractScenarios,
   invalidLegacyBatches,
 } from "@frontend-insight/test-fixtures";
+import type { RowDataPacket } from "mysql2/promise";
+import mysql from "mysql2/promise";
 import { m5Fixture } from "../scripts/m5-fixture.js";
-import { seedM6Fixture } from "../scripts/m6-fixture.js";
+import { SYSTEM_METRIC_SEED } from "../src/generated/system-metric-seed.js";
 
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const mysqlUrl = process.env.MYSQL_URL;
@@ -60,14 +62,98 @@ async function waitFor(description: string, operation: () => Promise<boolean>) {
   throw new Error(`R0_FLOW_TIMEOUT:${description}`);
 }
 
-await seedM6Fixture(mysqlUrl, {
-  origins: [
-    origin,
-    "http://127.0.0.1:4173",
-    "http://localhost:4174",
-    "http://127.0.0.1:4174",
-  ],
-});
+async function verifySeedSnapshot() {
+  const pool = mysql.createPool(mysqlUrl!);
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM users
+          WHERE id IN (?, ?) AND status = 'active') AS users,
+         (SELECT COUNT(*) FROM identities
+          WHERE provider = 'local' AND subject IN (?, ?)
+            AND password_hash IS NOT NULL) AS identities,
+         (SELECT COUNT(*) FROM projects
+          WHERE id = ? AND app_id = ? AND status = 'active') AS projects,
+         (SELECT COUNT(*) FROM modules
+          WHERE project_id = ? AND status = 'active') AS modules,
+         (SELECT COUNT(*) FROM page_definitions
+          WHERE project_id = ? AND status = 'active') AS pages,
+         (SELECT COUNT(*) FROM workflow_definitions
+          WHERE project_id = ? AND status = 'active') AS workflows,
+         (SELECT COUNT(*) FROM metric_definitions md
+          JOIN metric_library_versions mlv ON mlv.id = md.library_version_id
+          WHERE mlv.manifest_version = '1.8.0' AND mlv.status = 'active') AS metrics,
+         (SELECT COUNT(*) FROM score_definitions sd
+          JOIN metric_library_versions mlv ON mlv.id = sd.library_version_id
+          WHERE mlv.manifest_version = '1.8.0' AND sd.status = 'active') AS scores`,
+      [
+        m5Fixture.admin.id,
+        m5Fixture.viewer.id,
+        m5Fixture.admin.email,
+        m5Fixture.viewer.email,
+        m5Fixture.projectId,
+        m5Fixture.appId,
+        m5Fixture.projectId,
+        m5Fixture.projectId,
+        m5Fixture.projectId,
+      ],
+    );
+    const row = rows[0];
+    const actual = {
+      users: Number(row?.users),
+      identities: Number(row?.identities),
+      projects: Number(row?.projects),
+      modules: Number(row?.modules),
+      pages: Number(row?.pages),
+      workflows: Number(row?.workflows),
+      metrics: Number(row?.metrics),
+      scores: Number(row?.scores),
+    };
+    assert(actual.users === 2, "R0 seed must create both local users");
+    assert(actual.identities === 2, "R0 seed must create both password identities");
+    assert(actual.projects === 1, "R0 seed must create the documented appId");
+    assert(actual.modules === 2, "R0 seed must create two fixture modules");
+    assert(actual.pages === 3, "R0 seed must create three fixture pages");
+    assert(actual.workflows === 1, "R0 seed must create the workflow definition");
+    assert(
+      actual.metrics === SYSTEM_METRIC_SEED.length,
+      "R0 seed must create every canonical metric",
+    );
+    assert(actual.scores === 2, "R0 seed must create operational and quality scores");
+    return actual;
+  } finally {
+    await pool.end();
+  }
+}
+
+async function verifyDocumentedLogins() {
+  const evidence = [];
+  for (const fixture of [m5Fixture.admin, m5Fixture.viewer]) {
+    const login = await jsonRequest("/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: fixture.email, password: fixture.password }),
+    });
+    assert(
+      login.response.status === 200,
+      `documented login failed for ${fixture.email}: ${JSON.stringify(login.body)}`,
+    );
+    const user = login.body.user as Record<string, unknown> | undefined;
+    assert(
+      user?.email === fixture.email,
+      `login returned the wrong user for ${fixture.email}`,
+    );
+    assert(
+      typeof login.body.accessToken === "string",
+      "login must return an access token",
+    );
+    evidence.push({ email: fixture.email, status: login.response.status });
+  }
+  return evidence;
+}
+
+const seedSnapshot = await verifySeedSnapshot();
+const documentedLogins = await verifyDocumentedLogins();
 
 const startedAt = Date.now();
 const batches = contractScenarios.map((scenario, index) =>
@@ -162,5 +248,7 @@ console.log(
     acceptedBatches: batches.length,
     acceptedEvents: eventIds.length,
     rejectedLegacyBatches: invalidLegacyBatches.length,
+    seedSnapshot,
+    documentedLogins,
   }),
 );

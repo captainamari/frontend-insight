@@ -2,6 +2,22 @@ import { expect, test } from "@playwright/test";
 import legacy from "../../../packages/test-fixtures/fixtures/invalid/legacy-v2.json" with { type: "json" };
 import valid from "../../../packages/test-fixtures/fixtures/valid/page-usage-v3.json" with { type: "json" };
 
+test("documented local administrator can log in after R0 seed", async ({ request }) => {
+  const response = await request.post("/api/auth/login", {
+    data: {
+      email: "admin@example.invalid",
+      password: "LocalAdmin-1234",
+    },
+  });
+  expect(response.status()).toBe(200);
+  expect(await response.json()).toMatchObject({
+    user: {
+      email: "admin@example.invalid",
+      globalRole: "admin",
+    },
+  });
+});
+
 test("empty-stack smoke accepts v3 and rejects the legacy contract", async ({
   request,
 }) => {
