@@ -53,6 +53,11 @@ export const router = createRouter({
           component: () => import("./views/OperationalConfigView.vue"),
         },
         {
+          path: "projects/:projectId/metrics",
+          name: "project-metrics",
+          component: () => import("./views/MetricsView.vue"),
+        },
+        {
           path: "onboarding",
           name: "onboarding",
           component: () => import("./views/OnboardingView.vue"),

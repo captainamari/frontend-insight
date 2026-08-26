@@ -353,7 +353,17 @@ watch(
             </div>
             <el-button
               plain
-              @click="router.push({ name: 'operational-config', query: route.query })"
+              @click="
+                router.push({
+                  name: 'project-metrics',
+                  params: { projectId: context.projectId.value },
+                  query: {
+                    range: context.preset.value,
+                    tab: 'analysis-objects',
+                    object: 'pages',
+                  },
+                })
+              "
             >
               前往配置
             </el-button>

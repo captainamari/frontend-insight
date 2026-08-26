@@ -1,4 +1,18 @@
 services:
+  r1a-verifier:
+    build:
+      context: ../..
+      dockerfile: infra/docker/app.Dockerfile
+    command: [pnpm, --filter, "@frontend-insight/server-core", verify:r1a]
+    environment:
+      MYSQL_URL: mysql://frontend_insight:${M24_MYSQL_PASSWORD:-m5-mysql-local-only}@mysql:3306/frontend_insight
+      FI_API_URL: http://api:3000
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles: [tools]
+    networks: [m24]
+
   seed:
     build:
       context: ../..

@@ -18,6 +18,14 @@ import type {
   ProjectOperationalSettings,
   ProjectRecord,
   ProjectRole,
+  WorkflowDefinitionRecord,
+  WorkflowDefinitionVersionRecord,
+  WorkflowStartPolicy,
+  WorkflowStepInput,
+  WorkflowStepRecord,
+  WorkflowTerminalPolicy,
+  WorkflowTriggerKind,
+  WorkflowVersionStatus,
 } from "./model.js";
 
 interface UserRow extends RowDataPacket {
@@ -111,6 +119,44 @@ function pageFromRow(row: RowDataPacket): PageDefinitionRecord {
     expectedFrequency: row.expected_frequency as ExpectedFrequency,
     status: row.status as "active" | "disabled",
     effectiveFrom: new Date(row.effective_from as string).toISOString(),
+  };
+}
+
+function jsonObject<T>(value: unknown): T {
+  if (typeof value === "string") return JSON.parse(value) as T;
+  return value as T;
+}
+
+function workflowStepFromRow(row: RowDataPacket): WorkflowStepRecord {
+  return {
+    id: String(row.id),
+    workflowDefinitionVersionId: String(row.workflow_definition_version_id),
+    stepKey: String(row.step_key),
+    name: String(row.name),
+    stepOrder: Number(row.step_order),
+    triggerKind: row.trigger_kind as WorkflowTriggerKind,
+    triggerConfig: jsonObject<Record<string, string | boolean>>(row.trigger_config),
+  };
+}
+
+function workflowVersionFromRow(
+  row: RowDataPacket,
+  steps: WorkflowStepRecord[],
+): WorkflowDefinitionVersionRecord {
+  return {
+    id: String(row.id),
+    workflowDefinitionId: String(row.workflow_definition_id),
+    version: Number(row.version),
+    startPolicy: row.start_policy as WorkflowStartPolicy,
+    terminalPolicy: jsonObject<WorkflowTerminalPolicy>(row.terminal_policy),
+    timeoutSeconds: Number(row.timeout_seconds),
+    status: row.status as WorkflowVersionStatus,
+    activatedAt: row.activated_at
+      ? new Date(row.activated_at as string).toISOString()
+      : null,
+    createdAt: new Date(row.created_at as string).toISOString(),
+    updatedAt: new Date(row.updated_at as string).toISOString(),
+    steps,
   };
 }
 
@@ -873,6 +919,356 @@ export class MySqlStore {
     );
     if (!page) throw new Error("PAGE_DEFINITION_NOT_FOUND");
     return page;
+  }
+
+  async listWorkflowDefinitions(
+    projectId: string,
+  ): Promise<WorkflowDefinitionRecord[]> {
+    const [definitionRows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM workflow_definitions
+       WHERE project_id = ?
+       ORDER BY name, workflow_key, id`,
+      [projectId],
+    );
+    if (!definitionRows.length) return [];
+    const definitionIds = definitionRows.map((row) => String(row.id));
+    const placeholders = definitionIds.map(() => "?").join(", ");
+    const [versionRows] = await this.pool.query<RowDataPacket[]>(
+      `SELECT * FROM workflow_definition_versions
+       WHERE workflow_definition_id IN (${placeholders})
+       ORDER BY workflow_definition_id, version DESC`,
+      definitionIds,
+    );
+    const latestRows = new Map<string, RowDataPacket>();
+    for (const row of versionRows) {
+      const definitionId = String(row.workflow_definition_id);
+      if (!latestRows.has(definitionId)) latestRows.set(definitionId, row);
+    }
+    const versionIds = [...latestRows.values()].map((row) => String(row.id));
+    const stepsByVersion = new Map<string, WorkflowStepRecord[]>();
+    if (versionIds.length) {
+      const versionPlaceholders = versionIds.map(() => "?").join(", ");
+      const [stepRows] = await this.pool.query<RowDataPacket[]>(
+        `SELECT * FROM workflow_steps
+         WHERE workflow_definition_version_id IN (${versionPlaceholders})
+         ORDER BY workflow_definition_version_id, step_order, id`,
+        versionIds,
+      );
+      for (const row of stepRows) {
+        const versionId = String(row.workflow_definition_version_id);
+        const current = stepsByVersion.get(versionId) ?? [];
+        current.push(workflowStepFromRow(row));
+        stepsByVersion.set(versionId, current);
+      }
+    }
+    return definitionRows.map((row) => {
+      const latest = latestRows.get(String(row.id));
+      return {
+        id: String(row.id),
+        projectId: String(row.project_id),
+        moduleId: String(row.module_id),
+        workflowKey: String(row.workflow_key),
+        name: String(row.name),
+        status: row.status as "active" | "disabled",
+        createdAt: new Date(row.created_at as string).toISOString(),
+        updatedAt: new Date(row.updated_at as string).toISOString(),
+        latestVersion: latest
+          ? workflowVersionFromRow(latest, stepsByVersion.get(String(latest.id)) ?? [])
+          : null,
+      };
+    });
+  }
+
+  async createWorkflowDefinition(input: {
+    projectId: string;
+    moduleId: string;
+    workflowKey: string;
+    name: string;
+    startPolicy: WorkflowStartPolicy;
+    terminalPolicy: WorkflowTerminalPolicy;
+    timeoutSeconds: number;
+    steps: WorkflowStepInput[];
+    actor: Principal;
+  }): Promise<WorkflowDefinitionRecord> {
+    const connection = await this.pool.getConnection();
+    const workflowId = randomUUID();
+    const versionId = randomUUID();
+    try {
+      await connection.beginTransaction();
+      await this.requireProjectModule(connection, input.projectId, input.moduleId);
+      await connection.execute(
+        `INSERT INTO workflow_definitions
+           (id, project_id, module_id, workflow_key, name, status)
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        [workflowId, input.projectId, input.moduleId, input.workflowKey, input.name],
+      );
+      await connection.execute(
+        `INSERT INTO workflow_definition_versions
+           (id, workflow_definition_id, version, start_policy, terminal_policy,
+            timeout_seconds, status)
+         VALUES (?, ?, 1, ?, ?, ?, 'draft')`,
+        [
+          versionId,
+          workflowId,
+          input.startPolicy,
+          JSON.stringify(input.terminalPolicy),
+          input.timeoutSeconds,
+        ],
+      );
+      await this.replaceWorkflowSteps(connection, versionId, input.steps);
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.created",
+        entityType: "workflow",
+        entityId: workflowId,
+        metadata: {
+          workflowKey: input.workflowKey,
+          moduleId: input.moduleId,
+          version: 1,
+          stepCount: input.steps.length,
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    const workflow = (await this.listWorkflowDefinitions(input.projectId)).find(
+      (item) => item.id === workflowId,
+    );
+    if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+    return workflow;
+  }
+
+  async updateWorkflowDefinition(
+    projectId: string,
+    workflowId: string,
+    input: {
+      moduleId?: string | undefined;
+      name?: string | undefined;
+      status?: "active" | "disabled" | undefined;
+      actor: Principal;
+    },
+  ): Promise<WorkflowDefinitionRecord> {
+    if (input.moduleId) {
+      await this.requireProjectModule(this.pool, projectId, input.moduleId);
+    }
+    const assignments: string[] = [];
+    const values: Array<string | Date | null> = [];
+    if (input.moduleId !== undefined) {
+      assignments.push("module_id = ?");
+      values.push(input.moduleId);
+    }
+    if (input.name !== undefined) {
+      assignments.push("name = ?");
+      values.push(input.name);
+    }
+    if (input.status !== undefined) {
+      assignments.push("status = ?", "disabled_at = ?");
+      values.push(input.status, input.status === "disabled" ? new Date() : null);
+    }
+    const [result] = await this.pool.execute(
+      `UPDATE workflow_definitions SET ${assignments.join(", ")}
+       WHERE id = ? AND project_id = ?`,
+      [...values, workflowId, projectId],
+    );
+    if ((result as { affectedRows: number }).affectedRows !== 1) {
+      throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+    }
+    await this.audit({
+      projectId,
+      actorUserId: input.actor.userId,
+      action: "workflow_definition.updated",
+      entityType: "workflow",
+      entityId: workflowId,
+      metadata: {
+        changedFields: Object.keys(input).filter((key) => key !== "actor"),
+      },
+    });
+    const workflow = (await this.listWorkflowDefinitions(projectId)).find(
+      (item) => item.id === workflowId,
+    );
+    if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+    return workflow;
+  }
+
+  async saveWorkflowDraft(input: {
+    projectId: string;
+    workflowId: string;
+    startPolicy: WorkflowStartPolicy;
+    terminalPolicy: WorkflowTerminalPolicy;
+    timeoutSeconds: number;
+    steps: WorkflowStepInput[];
+    actor: Principal;
+  }): Promise<WorkflowDefinitionRecord> {
+    const connection = await this.pool.getConnection();
+    let version: number;
+    let versionId: string;
+    try {
+      await connection.beginTransaction();
+      const [definitionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM workflow_definitions
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.workflowId, input.projectId],
+      );
+      if (!definitionRows.length) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      const [versionRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id, version, status FROM workflow_definition_versions
+         WHERE workflow_definition_id = ?
+         ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+        [input.workflowId],
+      );
+      const latest = versionRows[0];
+      if (latest?.status === "draft") {
+        version = Number(latest.version);
+        versionId = String(latest.id);
+        await connection.execute(
+          `UPDATE workflow_definition_versions
+           SET start_policy = ?, terminal_policy = ?, timeout_seconds = ?
+           WHERE id = ?`,
+          [
+            input.startPolicy,
+            JSON.stringify(input.terminalPolicy),
+            input.timeoutSeconds,
+            versionId,
+          ],
+        );
+      } else {
+        version = Number(latest?.version ?? 0) + 1;
+        versionId = randomUUID();
+        await connection.execute(
+          `INSERT INTO workflow_definition_versions
+             (id, workflow_definition_id, version, start_policy,
+              terminal_policy, timeout_seconds, status)
+           VALUES (?, ?, ?, ?, ?, ?, 'draft')`,
+          [
+            versionId,
+            input.workflowId,
+            version,
+            input.startPolicy,
+            JSON.stringify(input.terminalPolicy),
+            input.timeoutSeconds,
+          ],
+        );
+      }
+      await this.replaceWorkflowSteps(connection, versionId, input.steps);
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.draft_saved",
+        entityType: "workflow",
+        entityId: input.workflowId,
+        metadata: { version, stepCount: input.steps.length },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    const workflow = (await this.listWorkflowDefinitions(input.projectId)).find(
+      (item) => item.id === input.workflowId,
+    );
+    if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+    return workflow;
+  }
+
+  async activateWorkflowDefinitionVersion(input: {
+    projectId: string;
+    workflowId: string;
+    versionId: string;
+    actor: Principal;
+  }): Promise<WorkflowDefinitionRecord> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT version.id
+         FROM workflow_definition_versions version
+         INNER JOIN workflow_definitions definition
+           ON definition.id = version.workflow_definition_id
+         WHERE version.id = ? AND version.workflow_definition_id = ?
+           AND definition.project_id = ? AND version.status = 'draft'
+         FOR UPDATE`,
+        [input.versionId, input.workflowId, input.projectId],
+      );
+      if (!rows.length) throw new Error("WORKFLOW_DRAFT_NOT_FOUND");
+      await connection.execute(
+        `UPDATE workflow_definition_versions
+         SET status = 'retired'
+         WHERE workflow_definition_id = ? AND status = 'active'`,
+        [input.workflowId],
+      );
+      await connection.execute(
+        `UPDATE workflow_definition_versions
+         SET status = 'active', activated_at = CURRENT_TIMESTAMP(3)
+         WHERE id = ?`,
+        [input.versionId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.activated",
+        entityType: "workflow",
+        entityId: input.workflowId,
+        metadata: { versionId: input.versionId },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    const workflow = (await this.listWorkflowDefinitions(input.projectId)).find(
+      (item) => item.id === input.workflowId,
+    );
+    if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+    return workflow;
+  }
+
+  private async requireProjectModule(
+    executor: Pick<Pool | PoolConnection, "query">,
+    projectId: string,
+    moduleId: string,
+  ): Promise<void> {
+    const [rows] = await executor.query<RowDataPacket[]>(
+      `SELECT id FROM modules WHERE id = ? AND project_id = ? LIMIT 1`,
+      [moduleId, projectId],
+    );
+    if (!rows.length) throw new Error("MODULE_NOT_FOUND");
+  }
+
+  private async replaceWorkflowSteps(
+    connection: PoolConnection,
+    versionId: string,
+    steps: WorkflowStepInput[],
+  ): Promise<void> {
+    await connection.execute(
+      "DELETE FROM workflow_steps WHERE workflow_definition_version_id = ?",
+      [versionId],
+    );
+    for (const step of steps) {
+      await connection.execute(
+        `INSERT INTO workflow_steps
+           (id, workflow_definition_version_id, step_key, name, step_order,
+            trigger_kind, trigger_config)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          randomUUID(),
+          versionId,
+          step.stepKey,
+          step.name,
+          step.stepOrder,
+          step.triggerKind,
+          JSON.stringify(step.triggerConfig),
+        ],
+      );
+    }
   }
 
   async getOperationalSettings(

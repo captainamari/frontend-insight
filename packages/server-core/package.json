@@ -15,6 +15,7 @@
     "seed:m5": "tsx scripts/seed-m5.ts",
     "seed:m6": "tsx scripts/seed-m6.ts",
     "seed:r0": "tsx scripts/seed-v18-r0.ts",
+    "verify:r1a": "tsx test/r1a-integration.ts",
     "verify:flow": "tsx test/integration-flow.ts"
   },
   "dependencies": {

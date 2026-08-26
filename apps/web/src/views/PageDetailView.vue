@@ -131,7 +131,19 @@ watch(
           <el-button
             link
             type="primary"
-            @click="router.push({ name: 'operational-config', query: route.query })"
+            @click="
+              router.push({
+                name: 'project-metrics',
+                params: { projectId: context.projectId.value },
+                query: {
+                  range: context.preset.value,
+                  tab: 'analysis-objects',
+                  object: 'pages',
+                  create: 'page',
+                  pageRoute: routeValue,
+                },
+              })
+            "
           >
             前往页面配置
           </el-button>
