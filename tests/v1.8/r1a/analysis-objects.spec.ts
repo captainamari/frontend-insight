@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 
@@ -8,6 +8,13 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录" }).click();
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
+}
+
+async function openSelect(container: Locator, label: string): Promise<void> {
+  await container
+    .getByLabel(label)
+    .locator("xpath=ancestor::div[contains(@class, 'el-select__wrapper')][1]")
+    .click();
 }
 
 test("admin completes function module, page and workflow metadata in metric center", async ({
@@ -36,7 +43,7 @@ test("admin completes function module, page and workflow metadata in metric cent
   await pageDialog.getByLabel("观测或模板 route").fill(`/orders/${suffix}`);
   await expect(pageDialog.getByText("保存为：/orders/:id")).toBeVisible();
   await pageDialog.getByLabel("页面名称").fill(`订单详情 ${suffix}`);
-  await pageDialog.getByLabel("所属功能模块").click();
+  await openSelect(pageDialog, "所属功能模块");
   await page.getByRole("option", { name: moduleName }).click();
   await pageDialog.getByRole("button", { name: "创建" }).click();
   await expect(page.getByRole("row").filter({ hasText: "/orders/:id" })).toBeVisible();
@@ -46,10 +53,10 @@ test("admin completes function module, page and workflow metadata in metric cent
   const workflowDialog = page.getByRole("dialog", { name: "新建工作流" });
   await workflowDialog.getByLabel("workflowKey").fill(`order_review_${suffix}`);
   await workflowDialog.getByLabel("工作流名称").fill(`订单审核 ${suffix}`);
-  await workflowDialog.getByLabel("所属功能模块").click();
+  await openSelect(workflowDialog, "所属功能模块");
   await page.getByRole("option", { name: moduleName }).click();
   const firstStep = workflowDialog.locator(".workflow-editor-step").first();
-  await firstStep.getByLabel("触发类型").click();
+  await openSelect(firstStep, "触发类型");
   await page.getByRole("option", { name: "稳定选择器适配器" }).click();
   await firstStep.getByLabel("选择器").fill(".review-button");
   await expect(workflowDialog.getByText(/普通 class 容易随样式变化/)).toBeVisible();
