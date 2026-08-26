@@ -49,7 +49,9 @@ test("admin completes function module, page and workflow metadata in metric cent
   await openSelect(pageDialog, "所属功能模块");
   await page.getByRole("option", { name: moduleName }).click();
   await pageDialog.getByRole("button", { name: "创建" }).click();
-  await expect(\n    page.getByRole("row").filter({ hasText: normalizedRoute }),\n  ).toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: normalizedRoute }),
+  ).toBeVisible();
 
   await page.getByRole("tab", { name: "工作流" }).click();
   await page.getByRole("button", { name: "新建工作流" }).click();
