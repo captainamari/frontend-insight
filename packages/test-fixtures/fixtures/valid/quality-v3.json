@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 3,
+  "sentAt": 1787155210000,
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_performance01",
+      "event": "performance",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/orders",
+      "pageRoute": "/orders",
+      "userId": null,
+      "deptId": null,
+      "roleId": null,
+      "sessionId": "ses_quality00001",
+      "deviceId": "dev_quality00001",
+      "pageViewId": "pv_quality000001",
+      "ua": "Mozilla/5.0 Chrome",
+      "os": "Windows",
+      "browser": "Chrome",
+      "timestamp": 1787155203000,
+      "payload": {
+        "metric": "lcp",
+        "value": 2400,
+        "rating": "good",
+        "navigationType": "navigate"
+      }
+    },
+    {
+      "eventId": "evt_apifailure01",
+      "event": "api",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/orders",
+      "pageRoute": "/orders",
+      "userId": null,
+      "deptId": null,
+      "roleId": null,
+      "sessionId": "ses_quality00001",
+      "deviceId": "dev_quality00001",
+      "pageViewId": "pv_quality000001",
+      "ua": "Mozilla/5.0 Chrome",
+      "os": "Windows",
+      "browser": "Chrome",
+      "timestamp": 1787155204000,
+      "payload": {
+        "success": false,
+        "requestMethod": "GET",
+        "requestPath": "/api/orders/:id",
+        "statusCode": 503,
+        "durationMs": 850,
+        "failureType": "http"
+      }
+    },
+    {
+      "eventId": "evt_jserror0001",
+      "event": "error",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/orders",
+      "pageRoute": "/orders",
+      "userId": null,
+      "deptId": null,
+      "roleId": null,
+      "sessionId": "ses_quality00001",
+      "deviceId": "dev_quality00001",
+      "pageViewId": "pv_quality000001",
+      "ua": "Mozilla/5.0 Chrome",
+      "os": "Windows",
+      "browser": "Chrome",
+      "timestamp": 1787155205000,
+      "payload": {
+        "errorType": "js",
+        "errorCategory": "js",
+        "errorName": "TypeError",
+        "errorMessage": "Cannot render order :id",
+        "stackTopFrame": "at render (/assets/app.:hash.js:line:column)"
+      }
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "workflow_v3",
+  "eventCount": 3,
+  "events": ["custom", "custom", "custom"],
+  "customEvents": ["workflow_started", "workflow_step_reached", "workflow_completed"]
+}

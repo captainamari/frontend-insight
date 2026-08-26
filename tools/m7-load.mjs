@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const origin = process.env.M7_ORIGIN ?? "http://localhost:4173";
-const projectKey = process.env.M7_PROJECT_KEY ?? "fi_public_m1demo001";
+const appId = process.env.M7_APP_ID ?? "fi_public_m1demo001";
 const projectId = process.env.M7_PROJECT_ID ?? "11111111-1111-4111-8111-111111111111";
 const modeIndex = process.argv.indexOf("--mode");
 const mode = modeIndex >= 0 ? process.argv[modeIndex + 1] : "full";
@@ -66,19 +66,27 @@ async function pageViews(token) {
   return Number((await response.json()).current?.pv ?? 0);
 }
 
-function event(sequence, profileName) {
+function event(sequence) {
   const suffix = `${runId}_${String(sequence).padStart(8, "0")}`;
   return {
     eventId: `evt_m7_${suffix}`,
-    eventName: "page_view",
-    eventTime: new Date().toISOString(),
-    visitorId: `vis_m7_${suffix}`,
+    event: "page_view",
+    appId,
+    env: "prod",
+    release: "m7-load-v3",
+    timestamp: Date.now(),
+    pageUrl: `${origin}/m7/load`,
+    pageRoute: "/m7/load",
+    userId: `m7-load-user-${sequence % 50}`,
+    deptId: null,
+    roleId: null,
+    deviceId: `dev_m7_${suffix}`,
     sessionId: `ses_m7_${runId}_${String(sequence % 200).padStart(4, "0")}`,
     pageViewId: `pv_m7_${suffix}`,
-    accountRef: `m7-load-account-${sequence % 50}`,
-    route: "/m7/load",
-    timezoneOffsetMinutes: 0,
-    properties: { loadProfile: profileName },
+    ua: "m7-load-probe",
+    os: "Other",
+    browser: "Other",
+    payload: {},
   };
 }
 
@@ -88,9 +96,8 @@ async function sendBatch(events) {
     method: "POST",
     headers: { "content-type": "application/json", origin },
     body: JSON.stringify({
-      schemaVersion: 2,
-      projectKey,
-      sentAt: new Date().toISOString(),
+      schemaVersion: 3,
+      sentAt: Date.now(),
       sdk: { name: "m7-load-probe", version: "1.0.0" },
       events,
     }),
@@ -112,7 +119,7 @@ async function runProfile(profile, sequenceStart) {
     const dueAt = startedAt + second * 1_000;
     if (performance.now() < dueAt) await wait(dueAt - performance.now());
     const events = Array.from({ length: profile.eventsPerSecond }, () =>
-      event(sequence++, profile.name),
+      event(sequence++),
     );
     const requests = [];
     while (events.length) requests.push(sendBatch(events.splice(0, 50)));

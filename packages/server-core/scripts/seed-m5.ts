@@ -16,7 +16,7 @@ console.log(
   JSON.stringify({
     status: "seeded",
     projectId: m5Fixture.projectId,
-    projectKey: m5Fixture.projectKey,
+    appId: m5Fixture.appId,
     origins,
     users: [m5Fixture.admin.email, m5Fixture.viewer.email],
   }),

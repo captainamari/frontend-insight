@@ -194,22 +194,22 @@ export class IngestionManager {
   constructor(
     private readonly store: MySqlStore,
     private readonly publisher: EnvelopePublisher,
-    private readonly accountHmacKey: string,
+    private readonly userHmacKey: string,
     private readonly options: {
       projectCacheTtlMs?: number;
       maximumRequestsPerMinute?: number;
       now?: () => number;
     } = {},
   ) {
-    if (accountHmacKey.length < 32) throw new Error("ACCOUNT_HMAC_KEY_TOO_SHORT");
+    if (userHmacKey.length < 32) throw new Error("USER_HMAC_KEY_TOO_SHORT");
     this.limiter = new IngestionRateLimiter(
       options.maximumRequestsPerMinute ?? 600,
       options.now ?? Date.now,
     );
   }
 
-  invalidateProject(projectKey: string): void {
-    this.cache.delete(projectKey);
+  invalidateProject(appId: string): void {
+    this.cache.delete(appId);
   }
 
   getMetrics(): IngestionMetricsSnapshot {
@@ -244,24 +244,18 @@ export class IngestionManager {
       if ((context.contentLength ?? rawBytes) > 64 * 1024 || rawBytes > 64 * 1024) {
         throw new IngestionError("BATCH_TOO_LARGE", 413);
       }
-      const projectKey =
-        typeof input === "object" && input !== null && "projectKey" in input
-          ? String((input as { projectKey: unknown }).projectKey)
-          : "";
-      if (!/^fi_public_[A-Za-z0-9_-]{8,64}$/.test(projectKey)) {
-        throw new IngestionError("PROJECT_KEY_INVALID", 400);
-      }
-      project = await this.project(projectKey, nowMs);
-      if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
-      this.assertProject(project, context);
-      const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
-      if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
       const validation = validateForIngestion(input, { nowMs });
       if (!validation.ok) {
         throw new IngestionError(validation.errors[0]?.code ?? "SCHEMA_INVALID", 400, {
           path: validation.errors[0]?.path,
         });
       }
+      const appId = validation.value.events[0]?.appId ?? "";
+      project = await this.project(appId, nowMs);
+      if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
+      this.assertProject(project, context);
+      const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
+      if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
       const { batch, enrichments } = this.sanitize(project, validation.value);
       const requestId = randomUUID();
       const envelope: KafkaEventEnvelope = {
@@ -317,20 +311,20 @@ export class IngestionManager {
   }
 
   private async project(
-    projectKey: string,
+    appId: string,
     nowMs: number,
   ): Promise<ProjectIngestionConfig | null> {
-    if (!projectKey) return null;
-    const cached = this.cache.get(projectKey);
+    if (!appId) return null;
+    const cached = this.cache.get(appId);
     if (cached && cached.expiresAt > nowMs) return cached.project;
-    const project = await this.store.getIngestionProject(projectKey);
+    const project = await this.store.getIngestionProject(appId);
     if (this.cache.size >= 1_000) {
       for (const [candidate, value] of this.cache) {
         if (value.expiresAt <= nowMs) this.cache.delete(candidate);
       }
       if (this.cache.size >= 1_000) this.cache.delete(this.cache.keys().next().value!);
     }
-    this.cache.set(projectKey, {
+    this.cache.set(appId, {
       project,
       expiresAt: nowMs + (this.options.projectCacheTtlMs ?? 30_000),
     });
@@ -357,28 +351,30 @@ export class IngestionManager {
     const enrichments: EventEnrichment[] = [];
     const events = source.events.map((sourceEvent) => {
       const event = structuredClone(sourceEvent);
-      const feature = event.featureKey ? features.get(event.featureKey) : undefined;
-      const operationInstanceId =
-        "operationInstanceId" in event && typeof event.operationInstanceId === "string"
-          ? event.operationInstanceId
+      const payload = event.payload as Record<string, unknown>;
+      const featureKey =
+        typeof payload.featureKey === "string" ? payload.featureKey : undefined;
+      const customName =
+        event.event === "custom" && typeof payload.name === "string"
+          ? payload.name
           : undefined;
-      if (event.featureKey) {
-        this.assertFeature(
-          event.eventName,
-          feature,
-          source.schemaVersion,
-          operationInstanceId,
-        );
+      const feature = featureKey ? features.get(featureKey) : undefined;
+      const operationInstanceId =
+        typeof payload.operationInstanceId === "string"
+          ? payload.operationInstanceId
+          : undefined;
+      if (customName?.startsWith("feature_")) {
+        this.assertFeature(customName, feature, operationInstanceId);
       }
-      const accountId = event.accountRef
-        ? createHmac("sha256", this.accountHmacKey)
-            .update(`${project.id}:${event.accountRef}`)
+      const userId = event.userId
+        ? createHmac("sha256", this.userHmacKey)
+            .update(`${project.id}:${event.userId}`)
             .digest("hex")
         : null;
-      delete event.accountRef;
+      event.userId = userId;
       enrichments.push({
         eventId: event.eventId,
-        accountId,
+        userId,
         featureId: feature?.id ?? null,
       });
       return event;
@@ -393,29 +389,27 @@ export class IngestionManager {
   }
 
   private assertFeature(
-    eventName: string,
+    customName: string,
     feature: FeatureRecord | undefined,
-    schemaVersion: number,
     operationInstanceId: string | undefined,
   ): void {
     if (!feature) throw new IngestionError("FEATURE_NOT_FOUND", 400);
     if (feature.status !== "active") throw new IngestionError("FEATURE_DISABLED", 403);
-    if (!stageByFeatureType[feature.featureType]?.has(eventName)) {
+    if (!stageByFeatureType[feature.featureType]?.has(customName)) {
       throw new IngestionError("FEATURE_STAGE_INVALID", 400, {
         featureType: feature.featureType,
-        eventName,
+        customName,
       });
     }
     if (
-      schemaVersion === 2 &&
       feature.operationLifecycleEnabled &&
       feature.featureType !== "long_view" &&
-      operationLifecycleEvents.has(eventName) &&
+      operationLifecycleEvents.has(customName) &&
       !operationInstanceId
     ) {
       throw new IngestionError("OPERATION_INSTANCE_REQUIRED", 400, {
         featureType: feature.featureType,
-        eventName,
+        customName,
       });
     }
   }

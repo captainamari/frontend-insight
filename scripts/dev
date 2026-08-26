@@ -8,8 +8,8 @@ ENV_FILE="$ROOT_DIR/.env.m5"
 ENV_EXAMPLE="$ROOT_DIR/.env.m5.example"
 PROJECT_NAME="frontend-insight-m5"
 
-info() { printf '[frontend-insight:m5] %s\n' "$*"; }
-fail() { printf '[frontend-insight:m5] ERROR: %s\n' "$*" >&2; exit 1; }
+info() { printf '[frontend-insight:r0] %s\n' "$*"; }
+fail() { printf '[frontend-insight:r0] ERROR: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
@@ -25,7 +25,7 @@ Commands:
   logs [service]                 Show recent logs for all or one service
   down                           Stop containers and preserve named data volumes
   reset --confirm-local-data-loss
-                                 Delete only this M5 stack and its named data volumes
+                                 Delete only this local stack and its named data volumes
 USAGE
 }
 
@@ -73,7 +73,7 @@ doctor() {
   docker_arch="$(docker info --format '{{.Architecture}}')"
   if [[ "${M5_ALLOW_NON_ARM64:-0}" != "1" ]]; then
     [[ "$host_arch" == "arm64" ]] || \
-      fail "M5 target is Apple Silicon arm64; detected host architecture: $host_arch"
+      fail "R0 target is Apple Silicon arm64; detected host architecture: $host_arch"
     [[ "$docker_arch" == "aarch64" || "$docker_arch" == "arm64" ]] || \
       fail "Docker is not using a native arm64 engine: $docker_arch"
   else
@@ -103,21 +103,30 @@ bootstrap() {
   require_command docker
   docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
   compose config --quiet
-  info "M5 local configuration is ready"
+  info "v1.8 R0 local configuration is ready"
+}
+
+run_seed() {
+  compose run --rm --build seed || return 1
+  info "R0 users, project, canonical entities, workflow and metric definitions are ready"
+  info "Local admin: admin@example.invalid / LocalAdmin-1234 (ASCII '-' hyphen)"
 }
 
 seed() {
   ensure_env
   require_command docker
-  compose run --rm seed
-  info "Local users, M6 project entities, six features and operational profile are ready"
+  run_seed || \
+    fail "R0 seed failed. Do not continue to login or acceptance checks; inspect the seed output above."
 }
 
 up() {
   doctor
-  info "Building and starting the complete M6 local product"
+  info "Building and starting the v1.8 R0 local baseline"
   compose up --detach --build --wait --wait-timeout 360 api consumer web demo
-  seed
+  if ! run_seed; then
+    compose stop api consumer web demo >/dev/null 2>&1 || true
+    fail "R0 startup stopped because seed did not complete"
+  fi
   info "Management UI: http://localhost:4173"
   info "Scenario demo: http://localhost:4174"
 }
@@ -125,11 +134,10 @@ up() {
 smoke() {
   ensure_env
   require_command docker
-  compose run --rm --no-deps verifier
-  compose exec -T api node tools/m5-http-smoke.mjs
-  compose exec -T api node tools/m6-http-smoke.mjs
-  compose exec -T api node tools/m8-http-smoke.mjs
-  info "M6/M8 data flow, operational and observability APIs, management UI and demo smoke checks passed"
+  if ! compose run --rm --build --no-deps verifier; then
+    fail "R0 smoke failed. The seed snapshot, documented login, or v3 data flow is invalid."
+  fi
+  info "R0 empty-baseline, contract rejection and canonical data-flow smoke checks passed"
 }
 
 status() {
@@ -152,7 +160,7 @@ logs() {
   if [[ -n "$service" ]]; then
     case "$service" in
       mysql|clickhouse|kafka-init|kafka|kafka-topics|migrate|api|consumer|web|demo|seed|verifier) ;;
-      *) fail "Unknown M5 service: $service" ;;
+      *) fail "Unknown R0 service: $service" ;;
     esac
     compose logs --tail 200 "$service"
     return
@@ -164,12 +172,12 @@ down() {
   ensure_env
   require_command docker
   compose down --remove-orphans
-  info "M5 containers stopped; named data volumes were preserved"
+  info "R0 containers stopped; named data volumes were preserved"
 }
 
 reset() {
   [[ "${1:-}" == "--confirm-local-data-loss" ]] || \
-    fail "Reset deletes local M5 data. Re-run with --confirm-local-data-loss"
+    fail "Reset deletes local R0 data. Re-run with --confirm-local-data-loss"
   ensure_env
   require_command docker
   info "Volumes selected by the exact Compose project label:"

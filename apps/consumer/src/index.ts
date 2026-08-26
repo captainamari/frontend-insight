@@ -30,7 +30,7 @@ interface ConsumerMetrics {
   lastErrorCode: string | null;
 }
 
-function clickHouseTimestamp(value: string): string {
+function clickHouseTimestamp(value: string | number): string {
   return new Date(value).toISOString().replace("T", " ").replace("Z", "");
 }
 
@@ -41,18 +41,12 @@ function errorCode(cause: unknown): string {
   return "CONSUMER_PROCESSING_FAILED";
 }
 
-function propertyString(
-  properties: Record<string, unknown>,
-  key: string,
-): string | null {
-  return typeof properties[key] === "string" ? String(properties[key]) : null;
+function propertyString(payload: Record<string, unknown>, key: string): string | null {
+  return typeof payload[key] === "string" ? String(payload[key]) : null;
 }
 
-function propertyNumber(
-  properties: Record<string, unknown>,
-  key: string,
-): number | null {
-  const value = properties[key];
+function propertyNumber(payload: Record<string, unknown>, key: string): number | null {
+  const value = payload[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
@@ -73,20 +67,21 @@ function normalizedStackFrame(value: string | null): string {
 }
 
 export function observabilityGroupId(
-  eventName: string,
-  properties: Record<string, unknown>,
+  event: string,
+  payload: Record<string, unknown>,
 ): string | null {
-  if (!eventName.startsWith("error_")) return null;
-  const status = propertyNumber(properties, "statusCode");
+  const isApiFailure = event === "api" && payload.success === false;
+  if (event !== "error" && !isApiFailure) return null;
+  const status = propertyNumber(payload, "statusCode");
   const statusClass = status === null ? "" : `${Math.floor(status / 100)}xx`;
   const canonical = [
-    eventName,
-    propertyString(properties, "errorName"),
-    normalizedErrorMessage(propertyString(properties, "errorMessage")),
-    normalizedStackFrame(propertyString(properties, "stackTopFrame")),
-    propertyString(properties, "resourceType"),
-    propertyString(properties, "requestMethod"),
-    propertyString(properties, "requestPath"),
+    event === "error" ? propertyString(payload, "errorType") : "api",
+    propertyString(payload, "errorName"),
+    normalizedErrorMessage(propertyString(payload, "errorMessage")),
+    normalizedStackFrame(propertyString(payload, "stackTopFrame")),
+    propertyString(payload, "resourceType"),
+    propertyString(payload, "requestMethod"),
+    propertyString(payload, "requestPath"),
     statusClass,
   ].join("|");
   return createHash("sha256").update(canonical).digest("hex");
@@ -246,8 +241,12 @@ export class EventConsumerRuntime {
     }
     const validation = validateForConsumer(parsed.batch);
     if (!validation.ok) throw new Error("KAFKA_EVENT_CONTRACT_INVALID");
-    if (validation.value.events.some((event) => event.accountRef !== undefined)) {
-      throw new Error("RAW_ACCOUNT_REF_AFTER_INGESTION");
+    if (
+      validation.value.events.some(
+        (event) => event.userId !== null && !/^[a-f0-9]{64}$/.test(event.userId),
+      )
+    ) {
+      throw new Error("RAW_USER_ID_AFTER_INGESTION");
     }
     return parsed;
   }
@@ -259,59 +258,80 @@ export class EventConsumerRuntime {
     return envelope.batch.events.map((event) => {
       const enrichment: EventEnrichment | undefined = enrichments.get(event.eventId);
       if (!enrichment) throw new Error("EVENT_ENRICHMENT_MISSING");
-      const properties = event.properties as Record<string, unknown>;
-      const errorGroupId = observabilityGroupId(event.eventName, properties);
+      const payload = event.payload as Record<string, unknown>;
+      const errorGroupId = observabilityGroupId(event.event, payload);
+      const customName =
+        event.event === "custom" ? propertyString(payload, "name") : null;
+      const workflowVersion = propertyNumber(payload, "workflowDefinitionVersion");
+      const workflowStepOrder = propertyNumber(payload, "workflowStepOrder");
       return {
         event_id: event.eventId,
         schema_version: envelope.batch.schemaVersion,
         sdk_name: envelope.batch.sdk.name,
         sdk_version: envelope.batch.sdk.version,
         project_id: envelope.projectId,
-        event_name: event.eventName,
-        event_time: clickHouseTimestamp(event.eventTime),
+        app_id: event.appId,
+        env: event.env,
+        release: event.release,
+        event: event.event,
+        timestamp: clickHouseTimestamp(event.timestamp),
         received_at: clickHouseTimestamp(envelope.receivedAt),
-        visitor_id: event.visitorId,
+        page_url: event.pageUrl,
+        page_route: event.pageRoute,
+        user_id: event.userId,
+        dept_id: event.deptId,
+        role_id: event.roleId,
+        device_id: event.deviceId,
         session_id: event.sessionId,
         page_view_id: event.pageViewId,
-        account_id: enrichment.accountId,
+        ua: event.ua,
+        os: event.os,
+        browser: event.browser,
         feature_id: enrichment.featureId,
-        feature_key: event.featureKey ?? null,
-        feature_stage: event.eventName.startsWith("feature_")
-          ? event.eventName.slice("feature_".length)
+        feature_key: propertyString(payload, "featureKey"),
+        feature_stage: customName?.startsWith("feature_")
+          ? customName.slice("feature_".length)
           : null,
-        operation_instance_id:
-          "operationInstanceId" in event ? (event.operationInstanceId ?? null) : null,
-        interaction_type:
-          "interactionType" in event ? (event.interactionType ?? null) : null,
-        release_version: propertyString(properties, "releaseVersion"),
-        deployment_environment: propertyString(properties, "deploymentEnvironment"),
-        browser_family: propertyString(properties, "browserFamily"),
-        os_family: propertyString(properties, "osFamily"),
-        viewport_bucket: propertyString(properties, "viewportBucket"),
-        error_type: event.eventName.startsWith("error_")
-          ? event.eventName.slice("error_".length)
-          : null,
-        error_name: propertyString(properties, "errorName"),
-        error_message: propertyString(properties, "errorMessage"),
-        error_stack_frame: propertyString(properties, "stackTopFrame"),
+        operation_instance_id: propertyString(payload, "operationInstanceId"),
+        interaction_type: propertyString(payload, "interactionType"),
+        workflow_instance_id: propertyString(payload, "workflowInstanceId"),
+        workflow_key: propertyString(payload, "workflowKey"),
+        workflow_definition_version:
+          workflowVersion === null ? null : Math.trunc(workflowVersion),
+        workflow_step_key: propertyString(payload, "workflowStepKey"),
+        workflow_step_order:
+          workflowStepOrder === null ? null : Math.trunc(workflowStepOrder),
+        viewport_bucket: propertyString(payload, "viewportBucket"),
+        error_category:
+          event.event === "error"
+            ? propertyString(payload, "errorCategory")
+            : event.event === "api" && payload.success === false
+              ? propertyString(payload, "failureType")
+              : null,
+        error_type:
+          event.event === "error"
+            ? propertyString(payload, "errorType")
+            : event.event === "api" && payload.success === false
+              ? "api"
+              : null,
+        error_name: propertyString(payload, "errorName"),
+        error_message: propertyString(payload, "errorMessage"),
+        error_stack_frame: propertyString(payload, "stackTopFrame"),
         error_group_id: errorGroupId,
-        request_method: propertyString(properties, "requestMethod"),
-        request_path: propertyString(properties, "requestPath"),
-        http_status: propertyNumber(properties, "statusCode"),
-        resource_type: propertyString(properties, "resourceType"),
-        vital_name: propertyString(properties, "vitalName"),
-        vital_value: propertyNumber(properties, "vitalValue"),
-        vital_rating: propertyString(properties, "vitalRating"),
-        navigation_type: propertyString(properties, "navigationType"),
-        duration_ms:
-          typeof properties.durationMs === "number" ? properties.durationMs : null,
-        route: event.route,
-        title: event.title ?? null,
+        request_method: propertyString(payload, "requestMethod"),
+        request_path: propertyString(payload, "requestPath"),
+        http_status: propertyNumber(payload, "statusCode"),
+        resource_type: propertyString(payload, "resourceType"),
+        vital_name: propertyString(payload, "metric"),
+        vital_value: propertyNumber(payload, "value"),
+        vital_rating: propertyString(payload, "rating"),
+        navigation_type: propertyString(payload, "navigationType"),
+        duration_ms: typeof payload.durationMs === "number" ? payload.durationMs : null,
         visible_duration_ms:
-          typeof properties.visibleDurationMs === "number"
-            ? properties.visibleDurationMs
+          typeof payload.visibleDurationMs === "number"
+            ? payload.visibleDurationMs
             : null,
-        properties_json: JSON.stringify(event.properties),
+        payload_json: JSON.stringify(event.payload),
         request_id: envelope.requestId,
         origin: envelope.origin,
       };

@@ -54,7 +54,7 @@ const cards = computed(() => {
     },
     {
       label: "有效活跃账号",
-      value: formatNumber(summary.activeAccounts),
+      value: formatNumber(summary.activeUsers),
       definition:
         "已注册、已启用实体上的生产活动账号；不包含 onboarding、demo 和未归类 route。",
     },
@@ -65,7 +65,7 @@ const cards = computed(() => {
     },
     {
       label: "跨日持续账号",
-      value: `${formatNumber(summary.crossDayAccounts)} / ${formatNumber(summary.activeAccounts)}`,
+      value: `${formatNumber(summary.crossDayUsers)} / ${formatNumber(summary.activeUsers)}`,
       definition: "在至少两个项目本地日期有有效使用的已识别账号。",
     },
     {
@@ -100,7 +100,7 @@ async function load(): Promise<void> {
 function openPage(routeValue: string): void {
   void router.push({
     name: "page-detail",
-    query: { ...route.query, route: routeValue },
+    query: { ...route.query, pageRoute: routeValue },
   });
 }
 
@@ -190,7 +190,7 @@ watch(
               </el-table-column>
               <el-table-column label="账号" width="90">
                 <template #default="{ row }">
-                  {{ formatNumber(row.accounts) }}
+                  {{ formatNumber(row.users) }}
                 </template>
               </el-table-column>
               <el-table-column label="浏览器" width="95">
@@ -200,7 +200,7 @@ watch(
               </el-table-column>
               <el-table-column label="会话" width="90">
                 <template #default="{ row }">
-                  {{ formatNumber(row.sessions) }}
+                  {{ formatNumber(row.vv) }}
                 </template>
               </el-table-column>
               <el-table-column label="已用 / 已配页面" min-width="130">
@@ -273,10 +273,10 @@ watch(
                 <button
                   type="button"
                   class="table-link"
-                  @click="openPage(row.normalizedRoute)"
+                  @click="openPage(row.pageRoute)"
                 >
                   <strong>{{ row.name }}</strong>
-                  <small>{{ row.normalizedRoute }}</small>
+                  <small>{{ row.pageRoute }}</small>
                 </button>
               </template>
             </el-table-column>
@@ -359,7 +359,7 @@ watch(
             </el-button>
           </div>
           <el-table :data="resource.data.value.overview.unclassified">
-            <el-table-column prop="route" label="route" min-width="260" />
+            <el-table-column prop="pageRoute" label="pageRoute" min-width="260" />
             <el-table-column label="PV" width="100">
               <template #default="{ row }">
                 {{ formatNumber(row.pageViews) }}
@@ -367,8 +367,8 @@ watch(
             </el-table-column>
             <el-table-column label="账号 / 浏览器 / 会话" min-width="190">
               <template #default="{ row }">
-                {{ formatNumber(row.accounts) }} / {{ formatNumber(row.browsers) }} /
-                {{ formatNumber(row.sessions) }}
+                {{ formatNumber(row.users) }} / {{ formatNumber(row.browsers) }} /
+                {{ formatNumber(row.vv) }}
               </template>
             </el-table-column>
             <el-table-column label="最后访问" min-width="170">

@@ -1,6 +1,14 @@
 export * from "./boundaries.js";
 export * from "./constants.js";
-export type { FrontendInsightEventBatchV1 } from "./generated/event-batch.js";
-export type { FrontendInsightEventBatchV2 } from "./generated/event-batch-v2.js";
+export * from "./generated/canonical-names.js";
+export type {
+  FrontendInsightCustomEventName,
+  FrontendInsightEnvironment,
+  FrontendInsightEventBatchV3,
+  FrontendInsightEventName,
+  FrontendInsightEventV3,
+  FrontendInsightSdk,
+  PayloadValue,
+} from "./generated/event-batch-v3.js";
 export * from "./security.js";
 export * from "./validator.js";

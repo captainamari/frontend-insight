@@ -23,7 +23,7 @@ const router = useRouter();
 const context = useDashboardContext();
 const resource = useRemoteData<PageDetailResponse>();
 const routeValue = computed(() =>
-  typeof route.query.route === "string" ? route.query.route : "",
+  typeof route.query.pageRoute === "string" ? route.query.pageRoute : "",
 );
 const chartPoints = computed(() => {
   const response = resource.data.value;
@@ -57,8 +57,8 @@ const cards = computed(() => {
     },
     {
       label: "账号 / 浏览器",
-      value: `${formatNumber(metrics.accounts)} / ${formatNumber(metrics.browsers)}`,
-      definition: "账号为项目级 HMAC 后去重；浏览器为 visitorId 存储实例。",
+      value: `${formatNumber(metrics.users)} / ${formatNumber(metrics.browsers)}`,
+      definition: "账号为项目级 HMAC 后去重；浏览器为 deviceId 存储实例。",
     },
     {
       label: "可见时长 p50 / p75",
@@ -76,7 +76,7 @@ const cards = computed(() => {
 async function load(): Promise<void> {
   if (!context.projectId.value || !context.search.value || !routeValue.value) return;
   const query = new URLSearchParams(context.search.value);
-  query.set("route", routeValue.value);
+  query.set("pageRoute", routeValue.value);
   await resource.load(() =>
     api.request<PageDetailResponse>(
       `/api/projects/${context.projectId.value}/analytics/page-detail?${query}`,
@@ -231,7 +231,7 @@ watch(
             <dl class="evidence-list">
               <div>
                 <dt>会话数</dt>
-                <dd>{{ formatNumber(resource.data.value.metrics.sessions) }}</dd>
+                <dd>{{ formatNumber(resource.data.value.metrics.vv) }}</dd>
               </div>
               <div>
                 <dt>会话不同页面 p50</dt>

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const origin = process.env.M7_ORIGIN ?? "http://localhost:4173";
 const projectId = "11111111-1111-4111-8111-111111111111";
-const projectKey = "fi_public_m1demo001";
+const appId = "fi_public_m1demo001";
 const command = process.argv[2];
 const marker = process.argv[3] ?? randomUUID().replaceAll("-", "").slice(0, 16);
 
@@ -42,26 +42,34 @@ async function health(expectation) {
 }
 
 async function enqueue(expectedStatus = 202) {
-  const now = new Date();
+  const now = Date.now();
   const response = await fetch(`${apiUrl}/v1/events`, {
     method: "POST",
     headers: { "content-type": "application/json", origin },
     body: JSON.stringify({
-      schemaVersion: 2,
-      projectKey,
-      sentAt: now.toISOString(),
+      schemaVersion: 3,
+      sentAt: now,
       sdk: { name: "m7-resilience-probe", version: "1.0.0" },
       events: [
         {
           eventId: `evt_m7_fault_${marker}`,
-          eventName: "page_view",
-          eventTime: now.toISOString(),
-          visitorId: `vis_m7_fault_${marker}`,
+          event: "page_view",
+          appId,
+          env: "prod",
+          release: "m7-resilience-v3",
+          timestamp: now,
+          pageUrl: `${origin}/m7/fault/${marker}`,
+          pageRoute: `/m7/fault/${marker}`,
+          userId: null,
+          deptId: null,
+          roleId: null,
+          deviceId: `dev_m7_fault_${marker}`,
           sessionId: `ses_m7_fault_${marker}`,
           pageViewId: `pv_m7_fault_${marker}`,
-          route: `/m7/fault/${marker}`,
-          timezoneOffsetMinutes: 0,
-          properties: { faultProbe: true },
+          ua: "m7-resilience-probe",
+          os: "Other",
+          browser: "Other",
+          payload: {},
         },
       ],
     }),
@@ -97,7 +105,7 @@ async function verify() {
     );
     if (response.ok) {
       const body = await response.json();
-      if (body.items?.some((item) => item.route === `/m7/fault/${marker}`)) {
+      if (body.items?.some((item) => item.pageRoute === `/m7/fault/${marker}`)) {
         console.log(JSON.stringify({ command, marker, queryable: true, passed: true }));
         return;
       }

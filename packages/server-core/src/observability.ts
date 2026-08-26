@@ -20,7 +20,7 @@ export interface ErrorGroupSummary {
   httpStatus: number | null;
   resourceType: string | null;
   occurrences: number;
-  affectedAccounts: number;
+  affectedUsers: number;
   affectedBrowsers: number;
   affectedPages: number;
   pages: string[];
@@ -34,9 +34,9 @@ export interface ErrorGroupSummary {
 }
 
 export interface WebVitalSummary {
-  route: string;
-  vitalName: "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
-  releaseVersion: string;
+  pageRoute: string;
+  vitalName: "lcp" | "cls" | "inp" | "fcp" | "ttfb";
+  release: string;
   sampleSize: number;
   p75: number | null;
   poorSamples: number;
@@ -79,12 +79,15 @@ function stringArray(value: unknown): string[] {
 
 function observabilityEventsWhere(extra = ""): string {
   return `
-    SELECT *
+    SELECT *, page_route AS pageRoute
     FROM raw_events
     WHERE project_id = {projectId:UUID}
-      AND event_time >= parseDateTime64BestEffort({from:String}, 3)
-      AND event_time < parseDateTime64BestEffort({to:String}, 3)
-      AND event_name IN ('error_js', 'error_resource', 'error_api', 'web_vital')
+      AND timestamp >= parseDateTime64BestEffort({from:String}, 3)
+      AND timestamp < parseDateTime64BestEffort({to:String}, 3)
+      AND (
+        event IN ('error', 'performance')
+        OR (event = 'api' AND error_group_id IS NOT NULL)
+      )
       ${extra}
     ORDER BY received_at DESC
     LIMIT 1 BY event_id
@@ -93,13 +96,13 @@ function observabilityEventsWhere(extra = ""): string {
 
 export function errorSeverity(input: {
   occurrences: number;
-  affectedAccounts: number;
+  affectedUsers: number;
   affectedBrowsers: number;
   httpStatus: number | null;
 }): ErrorGroupSummary["severity"] {
   if (
     input.occurrences >= 50 ||
-    input.affectedAccounts >= 10 ||
+    input.affectedUsers >= 10 ||
     (input.httpStatus !== null && input.httpStatus >= 500 && input.occurrences >= 20)
   ) {
     return "critical";
@@ -123,7 +126,7 @@ export function buildFixedAlerts(input: {
       ruleKey: "error_spike",
       severity: group.severity,
       title: `${group.errorType.toUpperCase()} 错误组达到固定告警门槛`,
-      evidence: `${group.occurrences} 次，影响 ${group.affectedBrowsers} 个浏览器实例 / ${group.affectedAccounts} 个账号`,
+      evidence: `${group.occurrences} 次，影响 ${group.affectedBrowsers} 个浏览器实例 / ${group.affectedUsers} 个账号`,
       entityType: "error_group",
       entityKey: group.groupId,
       triggeredAt: group.lastSeenAt,
@@ -136,13 +139,13 @@ export function buildFixedAlerts(input: {
     }
     const severity: AlertSeverity = vital.poorRate >= 0.5 ? "high" : "warning";
     alerts.push({
-      id: `web_vital_poor:${vital.route}:${vital.vitalName}:${vital.releaseVersion}`,
+      id: `web_vital_poor:${vital.pageRoute}:${vital.vitalName}:${vital.release}`,
       ruleKey: "web_vital_poor",
       severity,
-      title: `${vital.route} 的 ${vital.vitalName} 较差样本偏高`,
+      title: `${vital.pageRoute} 的 ${vital.vitalName} 较差样本偏高`,
       evidence: `${vital.poorSamples}/${vital.sampleSize} 个样本为 poor（${Math.round(vital.poorRate * 100)}%）`,
       entityType: "page_vital",
-      entityKey: `${vital.route}:${vital.vitalName}:${vital.releaseVersion}`,
+      entityKey: `${vital.pageRoute}:${vital.vitalName}:${vital.release}`,
       triggeredAt: vital.lastSeenAt,
       definitionVersion: OBSERVABILITY_DEFINITION_VERSION,
     });
@@ -282,10 +285,10 @@ export class ObservabilityStore {
           this.client.query({
             query: `
               SELECT
-                ${range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay"}(event_time, {timezone:String}) AS bucket,
+                ${range.granularity === "hour" ? "toStartOfHour" : "toStartOfDay"}(timestamp, {timezone:String}) AS bucket,
                 count() AS occurrences,
-                uniqExact(visitor_id) AS affected_browsers,
-                uniqExactIf(account_id, account_id IS NOT NULL) AS affected_accounts
+                uniqExact(device_id) AS affected_browsers,
+                uniqExactIf(user_id, user_id IS NOT NULL) AS affected_users
               FROM (${observabilityEventsWhere("AND error_group_id = {groupId:String}")})
               GROUP BY bucket
               ORDER BY bucket
@@ -296,14 +299,14 @@ export class ObservabilityStore {
           this.client.query({
             query: `
               SELECT
-                route,
-                ifNull(release_version, 'unknown') AS release_version,
+                pageRoute,
+                ifNull(release, 'unknown') AS release,
                 count() AS occurrences,
-                uniqExact(visitor_id) AS affected_browsers,
-                max(event_time) AS last_seen_at
+                uniqExact(device_id) AS affected_browsers,
+                max(timestamp) AS last_seen_at
               FROM (${observabilityEventsWhere("AND error_group_id = {groupId:String}")})
-              GROUP BY route, release_version
-              ORDER BY occurrences DESC, route
+              GROUP BY pageRoute, release
+              ORDER BY occurrences DESC, pageRoute
               LIMIT 100
             `,
             query_params: parameters,
@@ -324,11 +327,11 @@ export class ObservabilityStore {
           bucket: String(row.bucket),
           occurrences: numberValue(row.occurrences),
           affectedBrowsers: numberValue(row.affected_browsers),
-          affectedAccounts: numberValue(row.affected_accounts),
+          affectedUsers: numberValue(row.affected_users),
         })),
         impact: (await impactResponse.json<Record<string, unknown>>()).map((row) => ({
-          route: String(row.route),
-          releaseVersion: String(row.release_version),
+          pageRoute: String(row.pageRoute),
+          release: String(row.release),
           occurrences: numberValue(row.occurrences),
           affectedBrowsers: numberValue(row.affected_browsers),
           lastSeenAt: nullableString(row.last_seen_at),
@@ -416,24 +419,24 @@ export class ObservabilityStore {
       SELECT
         error_group_id,
         any(error_type) AS error_type,
-        argMax(error_name, event_time) AS error_name,
-        argMax(error_message, event_time) AS error_message,
-        argMax(error_stack_frame, event_time) AS error_stack_frame,
-        argMax(request_method, event_time) AS request_method,
-        argMax(request_path, event_time) AS request_path,
-        argMax(http_status, event_time) AS http_status,
-        argMax(resource_type, event_time) AS resource_type,
+        argMax(error_name, timestamp) AS error_name,
+        argMax(error_message, timestamp) AS error_message,
+        argMax(error_stack_frame, timestamp) AS error_stack_frame,
+        argMax(request_method, timestamp) AS request_method,
+        argMax(request_path, timestamp) AS request_path,
+        argMax(http_status, timestamp) AS http_status,
+        argMax(resource_type, timestamp) AS resource_type,
         count() AS occurrences,
-        uniqExactIf(account_id, account_id IS NOT NULL) AS affected_accounts,
-        uniqExact(visitor_id) AS affected_browsers,
-        uniqExact(route) AS affected_pages,
-        groupUniqArray(8)(route) AS pages,
-        groupUniqArray(8)(ifNull(release_version, 'unknown')) AS releases,
-        groupUniqArray(8)(ifNull(browser_family, 'unknown')) AS browser_families,
-        groupUniqArray(8)(ifNull(os_family, 'unknown')) AS os_families,
+        uniqExactIf(user_id, user_id IS NOT NULL) AS affected_users,
+        uniqExact(device_id) AS affected_browsers,
+        uniqExact(pageRoute) AS affected_pages,
+        groupUniqArray(8)(pageRoute) AS pages,
+        groupUniqArray(8)(ifNull(release, 'unknown')) AS releases,
+        groupUniqArray(8)(ifNull(browser, 'unknown')) AS browser_families,
+        groupUniqArray(8)(ifNull(os, 'unknown')) AS os_families,
         groupUniqArray(8)(ifNull(viewport_bucket, 'unknown')) AS viewport_buckets,
-        min(event_time) AS first_seen_at,
-        max(event_time) AS last_seen_at
+        min(timestamp) AS first_seen_at,
+        max(timestamp) AS last_seen_at
       FROM (${observabilityEventsWhere(`AND error_group_id IS NOT NULL ${extra}`)})
       GROUP BY error_group_id
       ORDER BY occurrences DESC, last_seen_at DESC
@@ -468,7 +471,7 @@ export class ObservabilityStore {
       httpStatus: nullableNumber(row.http_status),
       resourceType: nullableString(row.resource_type),
       occurrences: numberValue(row.occurrences),
-      affectedAccounts: numberValue(row.affected_accounts),
+      affectedUsers: numberValue(row.affected_users),
       affectedBrowsers: numberValue(row.affected_browsers),
       affectedPages: numberValue(row.affected_pages),
       pages: stringArray(row.pages),
@@ -490,26 +493,26 @@ export class ObservabilityStore {
     const response = await this.client.query({
       query: `
         SELECT
-          route,
+          pageRoute,
           vital_name,
-          ifNull(release_version, 'unknown') AS release_version,
+          ifNull(release, 'unknown') AS release,
           count() AS sample_size,
           quantileExact(0.75)(vital_value) AS p75,
           countIf(vital_rating = 'poor') AS poor_samples,
           countIf(vital_rating = 'poor') / count() AS poor_rate,
-          max(event_time) AS last_seen_at
-        FROM (${observabilityEventsWhere("AND event_name = 'web_vital' AND vital_value IS NOT NULL")})
-        GROUP BY route, vital_name, release_version
-        ORDER BY poor_rate DESC, sample_size DESC, route
+          max(timestamp) AS last_seen_at
+        FROM (${observabilityEventsWhere("AND event = 'performance' AND vital_value IS NOT NULL")})
+        GROUP BY pageRoute, vital_name, release
+        ORDER BY poor_rate DESC, sample_size DESC, pageRoute
         LIMIT ${Math.max(1, Math.min(1000, limit))}
       `,
       query_params: { projectId, from: range.from, to: range.to },
       format: "JSONEachRow",
     });
     return (await response.json<Record<string, unknown>>()).map((row) => ({
-      route: String(row.route),
+      pageRoute: String(row.pageRoute),
       vitalName: String(row.vital_name) as WebVitalSummary["vitalName"],
-      releaseVersion: String(row.release_version),
+      release: String(row.release),
       sampleSize: numberValue(row.sample_size),
       p75: nullableNumber(row.p75),
       poorSamples: numberValue(row.poor_samples),
@@ -522,26 +525,26 @@ export class ObservabilityStore {
     const response = await this.client.query({
       query: `
         SELECT
-          ifNull(release_version, 'unknown') AS release_version,
-          any(deployment_environment) AS deployment_environment,
+          ifNull(release, 'unknown') AS release,
+          any(env) AS env,
           count() AS observability_events,
           countIf(error_group_id IS NOT NULL) AS errors,
           uniqExactIf(error_group_id, error_group_id IS NOT NULL) AS error_groups,
           countIf(vital_rating = 'poor') AS poor_vital_samples,
-          uniqExact(visitor_id) AS affected_browsers,
-          min(event_time) AS first_seen_at,
-          max(event_time) AS last_seen_at
-        FROM (${observabilityEventsWhere("AND release_version IS NOT NULL")})
-        GROUP BY release_version
-        ORDER BY last_seen_at DESC, release_version
+          uniqExact(device_id) AS affected_browsers,
+          min(timestamp) AS first_seen_at,
+          max(timestamp) AS last_seen_at
+        FROM (${observabilityEventsWhere("AND release IS NOT NULL")})
+        GROUP BY release
+        ORDER BY last_seen_at DESC, release
         LIMIT 100
       `,
       query_params: { projectId, from: range.from, to: range.to },
       format: "JSONEachRow",
     });
     return (await response.json<Record<string, unknown>>()).map((row) => ({
-      releaseVersion: String(row.release_version),
-      deploymentEnvironment: nullableString(row.deployment_environment),
+      release: String(row.release),
+      env: nullableString(row.env),
       observabilityEvents: numberValue(row.observability_events),
       errors: numberValue(row.errors),
       errorGroups: numberValue(row.error_groups),
@@ -558,11 +561,11 @@ export class ObservabilityStore {
         SELECT
           countIf(error_group_id IS NOT NULL) AS error_occurrences,
           uniqExactIf(error_group_id, error_group_id IS NOT NULL) AS error_groups,
-          uniqExactIf(account_id, error_group_id IS NOT NULL AND account_id IS NOT NULL) AS affected_accounts,
-          uniqExactIf(visitor_id, error_group_id IS NOT NULL) AS affected_browsers,
-          countIf(event_name = 'web_vital') AS vital_samples,
-          countIf(event_name = 'web_vital' AND vital_rating = 'poor') AS poor_vital_samples,
-          uniqExactIf(release_version, release_version IS NOT NULL) AS releases
+          uniqExactIf(user_id, error_group_id IS NOT NULL AND user_id IS NOT NULL) AS affected_users,
+          uniqExactIf(device_id, error_group_id IS NOT NULL) AS affected_browsers,
+          countIf(event = 'performance') AS vital_samples,
+          countIf(event = 'performance' AND vital_rating = 'poor') AS poor_vital_samples,
+          uniqExactIf(release, release IS NOT NULL) AS releases
         FROM (${observabilityEventsWhere()})
       `,
       query_params: { projectId, from: range.from, to: range.to },
@@ -573,7 +576,7 @@ export class ObservabilityStore {
     return {
       errorOccurrences: numberValue(row.error_occurrences),
       errorGroups: numberValue(row.error_groups),
-      affectedAccounts: numberValue(row.affected_accounts),
+      affectedUsers: numberValue(row.affected_users),
       affectedBrowsers: numberValue(row.affected_browsers),
       vitalSamples: numberValue(row.vital_samples),
       poorVitalSamples: numberValue(row.poor_vital_samples),
@@ -586,10 +589,10 @@ export class ObservabilityStore {
     const response = await this.client.query({
       query: `
         SELECT
-          ${bucket}(event_time, {timezone:String}) AS bucket,
+          ${bucket}(timestamp, {timezone:String}) AS bucket,
           countIf(error_group_id IS NOT NULL) AS errors,
           uniqExactIf(error_group_id, error_group_id IS NOT NULL) AS error_groups,
-          countIf(event_name = 'web_vital') AS vital_samples,
+          countIf(event = 'performance') AS vital_samples,
           countIf(vital_rating = 'poor') AS poor_vital_samples
         FROM (${observabilityEventsWhere()})
         GROUP BY bucket
@@ -615,10 +618,13 @@ export class ObservabilityStore {
   private async availableFrom(projectId: string): Promise<string | null> {
     const response = await this.client.query({
       query: `
-        SELECT minOrNull(event_time) AS available_from
+        SELECT minOrNull(timestamp) AS available_from
         FROM raw_events
         WHERE project_id = {projectId:UUID}
-          AND event_name IN ('error_js', 'error_resource', 'error_api', 'web_vital')
+          AND (
+            event IN ('error', 'performance')
+            OR (event = 'api' AND error_group_id IS NOT NULL)
+          )
       `,
       query_params: { projectId },
       format: "JSONEachRow",

@@ -42,7 +42,7 @@ export async function seedM6Fixture(
       [m6Fixture.modules.operations, "operations", "业务操作", 1.2, 20],
     ] as const) {
       await pool.execute(
-        `INSERT INTO project_modules
+        `INSERT INTO modules
            (id, project_id, module_key, name, criticality_weight, display_order,
             status, effective_from)
          VALUES (?, ?, ?, ?, ?, ?, 'active', '2026-07-01 00:00:00.000')
@@ -90,7 +90,7 @@ export async function seedM6Fixture(
     ] as const) {
       await pool.execute(
         `INSERT INTO page_definitions
-           (id, project_id, module_id, normalized_route, name, template_key,
+           (id, project_id, module_id, page_route, name, template_key,
             is_core, criticality_weight, expected_frequency, status, effective_from)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active',
                  '2026-07-01 00:00:00.000')
@@ -151,12 +151,12 @@ export async function seedM6Fixture(
 
     await pool.execute(
       `INSERT INTO project_operational_settings
-         (id, project_id, version, target_accounts, expected_active_weekdays,
+         (id, project_id, version, target_users, expected_active_weekdays,
           status, effective_from, created_by_user_id)
        VALUES (?, ?, 1, 12, '[1,2,3,4,5]', 'active',
                '2026-07-01 00:00:00.000', ?)
        ON DUPLICATE KEY UPDATE
-         target_accounts = VALUES(target_accounts),
+         target_users = VALUES(target_users),
          expected_active_weekdays = VALUES(expected_active_weekdays),
          status = 'active',
          effective_to = NULL`,

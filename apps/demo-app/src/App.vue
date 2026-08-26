@@ -9,7 +9,7 @@ type ResultKind = "success" | "cancel" | "failure";
 interface EventEntry {
   id: number;
   at: string;
-  eventName: string;
+  event: string;
   featureKey: string | null;
   reasonCode: string | null;
   detail: string;
@@ -17,7 +17,7 @@ interface EventEntry {
 
 const tokenKey = "fi-demo.simulated-token";
 const analyticsRef = "demo-operator-001";
-const projectKey = import.meta.env.VITE_PROJECT_KEY ?? "fi_public_m1demo001";
+const appId = import.meta.env.VITE_PROJECT_KEY ?? "fi_public_m1demo001";
 const acceptanceFast =
   new URLSearchParams(window.location.search).get("acceptance") === "fast";
 const loginForm = reactive({ username: "demo.operator", password: "" });
@@ -53,31 +53,36 @@ function sceneFromPath(): Scene {
 }
 
 function describe(event: Readonly<TrackerEvent>): string {
-  if (event.eventName === "feature_started") return "只表示开始，不计入成功使用";
-  if (event.eventName === "feature_succeeded") {
-    return event.properties.visibleDurationMs
-      ? `达到前台可见阈值，累计 ${event.properties.visibleDurationMs} ms`
+  const name = event.event === "custom" ? String(event.payload.name ?? "") : "";
+  if (name === "feature_started") return "只表示开始，不计入成功使用";
+  if (name === "feature_succeeded") {
+    return event.payload.visibleDurationMs
+      ? `达到前台可见阈值，累计 ${event.payload.visibleDurationMs} ms`
       : "业务成功条件已确认";
   }
-  if (event.eventName === "feature_failed") {
-    return `未计入成功，原因：${event.reasonCode ?? "unknown"}`;
+  if (name === "feature_failed") {
+    return `未计入成功，原因：${event.payload.reasonCode ?? "unknown"}`;
   }
-  if (event.eventName === "feature_canceled") {
-    return `用户明确取消，原因：${event.reasonCode ?? "user_cancelled"}`;
+  if (name === "feature_canceled") {
+    return `用户明确取消，原因：${event.payload.reasonCode ?? "user_cancelled"}`;
   }
-  if (event.eventName === "feature_long_view_heartbeat") {
-    return `前台可见心跳 ${event.properties.visibleDurationMs ?? 0} ms`;
+  if (name === "feature_long_view_heartbeat") {
+    return `前台可见心跳 ${event.payload.visibleDurationMs ?? 0} ms`;
   }
-  if (event.eventName === "feature_long_view_ended") {
-    return `持续展示结束，累计 ${event.properties.visibleDurationMs ?? 0} ms`;
+  if (name === "feature_long_view_ended") {
+    return `持续展示结束，累计 ${event.payload.visibleDurationMs ?? 0} ms`;
   }
-  if (event.eventName === "feature_exposed") return "功能入口已实际呈现";
-  if (event.eventName === "page_view") return "归一化页面访问";
-  if (event.eventName === "page_leave") return "前台可见停留结算";
-  if (event.eventName === "error_js") return "JS 错误已裁剪并按稳定首帧聚类";
-  if (event.eventName === "error_api") return "API 路径已去参数并归一化动态 ID";
-  if (event.eventName === "error_resource") return "资源失败只保留类型和脱敏路径";
-  if (event.eventName === "web_vital") return "性能样本按固定阈值标记等级";
+  if (name === "feature_exposed") return "功能入口已实际呈现";
+  if (event.event === "page_view") return "归一化页面访问";
+  if (event.event === "page_leave") return "前台可见停留结算";
+  if (event.event === "error" && event.payload.errorType === "js") {
+    return "JS 错误已裁剪并按稳定首帧聚类";
+  }
+  if (event.event === "api") return "API 路径已去参数并归一化动态 ID";
+  if (event.event === "error" && event.payload.errorType === "resource") {
+    return "资源失败只保留类型和脱敏路径";
+  }
+  if (event.event === "performance") return "性能样本按固定阈值标记等级";
   return "标准事件";
 }
 
@@ -85,9 +90,12 @@ function record(event: Readonly<TrackerEvent>): void {
   eventLog.value.unshift({
     id: nextEventId++,
     at: new Date().toISOString(),
-    eventName: event.eventName,
-    featureKey: event.featureKey ?? null,
-    reasonCode: event.reasonCode ?? null,
+    event:
+      event.event === "custom" ? String(event.payload.name ?? "custom") : event.event,
+    featureKey:
+      typeof event.payload.featureKey === "string" ? event.payload.featureKey : null,
+    reasonCode:
+      typeof event.payload.reasonCode === "string" ? event.payload.reasonCode : null,
     detail: describe(event),
   });
   if (eventLog.value.length > 80) eventLog.value.pop();
@@ -96,9 +104,10 @@ function record(event: Readonly<TrackerEvent>): void {
 function initializeTracker(): void {
   if (tracker) return;
   tracker = createTracker({
-    projectKey,
+    appId,
+    env: "dev",
+    release: "2026.08.1-demo",
     endpoint: `${window.location.origin}/v1/events`,
-    projectTimezone: "UTC",
     registeredFeatures: [
       "sales_dashboard",
       "report_export",
@@ -107,15 +116,13 @@ function initializeTracker(): void {
       "command_dispatch",
       "operations_wallboard",
     ],
-    staticProperties: { demo: true },
+    staticPayload: { demo: true },
     longViewSuccessAfterMs: acceptanceFast ? 1_000 : 30_000,
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
     observability: {
       enabled: true,
-      releaseVersion: "2026.08.1-demo",
-      deploymentEnvironment: "production",
       captureJsErrors: true,
       captureResourceErrors: true,
       captureWebVitals: true,
@@ -125,11 +132,11 @@ function initializeTracker(): void {
       record(event);
       return {
         ...event,
-        properties: { ...event.properties },
+        payload: { ...event.payload },
       };
     },
   });
-  tracker.setAccount(analyticsRef);
+  tracker.setUser(analyticsRef);
   exposeForTests();
   window.setTimeout(() => exposeScene(scene.value), 0);
 }
@@ -212,7 +219,7 @@ async function captureObservability(
     });
   }
   if (kind === "vital") {
-    tracker.captureWebVital({ name: "LCP", value: 4_200, navigationType: "navigate" });
+    tracker.captureWebVital({ name: "lcp", value: 4_200, navigationType: "navigate" });
   }
   await tracker.flush();
 }
@@ -350,7 +357,7 @@ onBeforeUnmount(() => {
         </button>
         <div class="privacy-proof">
           <strong>隐私校验</strong>
-          <p>事件日志只展示标准字段摘要，不展示 token 或 accountRef 原值。</p>
+          <p>事件日志只展示标准字段摘要，不展示 token 或 userId 原值。</p>
         </div>
       </aside>
 
@@ -551,19 +558,19 @@ onBeforeUnmount(() => {
           <div class="outcome-grid observability-lab-grid">
             <button type="button" @click="captureObservability('js')">
               <strong>模拟 JS 异常</strong>
-              <small>error_js · TypeError + 脱敏首帧</small>
+              <small>error/js · TypeError + 脱敏首帧</small>
             </button>
             <button type="button" @click="captureObservability('api')">
               <strong>模拟 API 503</strong>
-              <small>error_api · /api/budgets/:id</small>
+              <small>api/failure · /api/budgets/:id</small>
             </button>
             <button type="button" @click="captureObservability('resource')">
               <strong>模拟资源失败</strong>
-              <small>error_resource · script</small>
+              <small>error/resource · script</small>
             </button>
             <button type="button" @click="captureObservability('vital')">
               <strong>模拟 LCP poor</strong>
-              <small>web_vital · 4200 ms</small>
+              <small>performance/lcp · 4200 ms</small>
             </button>
           </div>
           <div class="privacy-proof">
@@ -593,7 +600,7 @@ onBeforeUnmount(() => {
           <li v-for="entry in eventLog" :key="entry.id">
             <time>{{ new Date(entry.at).toLocaleTimeString("zh-CN") }}</time>
             <div>
-              <strong>{{ entry.eventName }}</strong>
+              <strong>{{ entry.event }}</strong>
               <code v-if="entry.featureKey">{{ entry.featureKey }}</code>
               <p>{{ entry.detail }}</p>
             </div>

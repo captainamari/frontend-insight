@@ -86,7 +86,7 @@ const moduleForm = reactive({
   displayOrder: 0,
 });
 const pageForm = reactive({
-  normalizedRoute: typeof route.query.route === "string" ? route.query.route : "",
+  pageRoute: typeof route.query.pageRoute === "string" ? route.query.pageRoute : "",
   moduleId: "",
   name: "",
   templateKey: "analysis_view" as PageTemplate,
@@ -95,7 +95,7 @@ const pageForm = reactive({
   expectedFrequency: "weekly",
 });
 const settingsForm = reactive({
-  targetAccounts: null as number | null,
+  targetUsers: null as number | null,
   expectedActiveWeekdays: [1, 2, 3, 4, 5] as number[],
 });
 const weekdayOptions = [
@@ -152,7 +152,7 @@ function definitionFor(metricKey: string): MetricDefinition | undefined {
 
 function syncForms(data: ConfigData): void {
   if (data.settings.active) {
-    settingsForm.targetAccounts = data.settings.active.targetAccounts;
+    settingsForm.targetUsers = data.settings.active.targetUsers;
     settingsForm.expectedActiveWeekdays = [
       ...data.settings.active.expectedActiveWeekdays,
     ];
@@ -233,7 +233,7 @@ async function createPage(): Promise<void> {
     "页面定义已创建",
   );
   pageOpen.value = false;
-  pageForm.normalizedRoute = "";
+  pageForm.pageRoute = "";
   pageForm.name = "";
 }
 
@@ -336,7 +336,7 @@ async function saveSettings(): Promise<void> {
         {
           method: "POST",
           body: JSON.stringify({
-            targetAccounts: settingsForm.targetAccounts,
+            targetUsers: settingsForm.targetUsers,
             expectedActiveWeekdays: settingsForm.expectedActiveWeekdays,
           }),
         },
@@ -546,7 +546,7 @@ watch(
             <el-table-column label="页面" min-width="240" fixed>
               <template #default="{ row }">
                 <el-input v-model="row.name" :disabled="!canWrite" />
-                <small class="cell-reason">{{ row.normalizedRoute }}</small>
+                <small class="cell-reason">{{ row.pageRoute }}</small>
               </template>
             </el-table-column>
             <el-table-column label="模块" min-width="180">
@@ -703,12 +703,12 @@ watch(
             type="info"
             :closable="false"
             show-icon
-            :title="`历史参考（当前筛选）：有效活跃账号 ${formatNumber(resource.data.value.baseline.summary.activeAccounts)}；活跃日 ${resource.data.value.baseline.summary.activeExpectedDays} / ${resource.data.value.baseline.summary.expectedActiveDays}。参考值不会自动改写业务目标。`"
+            :title="`历史参考（当前筛选）：有效活跃账号 ${formatNumber(resource.data.value.baseline.summary.activeUsers)}；活跃日 ${resource.data.value.baseline.summary.activeExpectedDays} / ${resource.data.value.baseline.summary.expectedActiveDays}。参考值不会自动改写业务目标。`"
           />
           <el-form class="operational-form" label-position="top">
             <el-form-item label="目标账号数">
               <el-input-number
-                v-model="settingsForm.targetAccounts"
+                v-model="settingsForm.targetUsers"
                 :disabled="!canWrite"
                 :min="1"
                 :max="100000000"
@@ -737,7 +737,7 @@ watch(
           </el-form>
           <el-table :data="resource.data.value.settings.versions" size="small">
             <el-table-column prop="version" label="版本" width="80" />
-            <el-table-column prop="targetAccounts" label="目标账号" width="110" />
+            <el-table-column prop="targetUsers" label="目标账号" width="110" />
             <el-table-column label="生效时间" min-width="180">
               <template #default="{ row }">
                 {{ formatDateTime(row.effectiveFrom) }}
@@ -1007,7 +1007,7 @@ watch(
     <el-dialog v-model="pageOpen" title="新建页面定义" width="620px">
       <el-form label-position="top">
         <el-form-item label="归一化 route">
-          <el-input v-model="pageForm.normalizedRoute" placeholder="/energy/overview" />
+          <el-input v-model="pageForm.pageRoute" placeholder="/energy/overview" />
         </el-form-item>
         <el-form-item label="页面名称">
           <el-input v-model="pageForm.name" />

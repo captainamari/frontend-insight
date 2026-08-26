@@ -2,90 +2,81 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { discoverMigrations, splitClickHouseStatements } from "../src/migrations.js";
 
-describe("database migration inventory", () => {
-  it("has ordered, checksummed upgrade paths for both engines", async () => {
+describe("v1.8 empty-database migration inventory", () => {
+  it("has one checksummed baseline for each engine", async () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
-      expect(migrations.map((migration) => migration.version)).toEqual(
-        engine === "mysql" ? [1, 2, 3, 4] : [1, 2, 3, 4, 5],
-      );
-      expect(migrations.every((migration) => migration.checksum.length === 64)).toBe(
-        true,
-      );
+      expect(migrations.map((migration) => migration.version)).toEqual([1]);
+      expect(migrations[0]?.name).toBe("v18_baseline");
+      expect(migrations[0]?.checksum).toHaveLength(64);
     }
   });
 
-  it("creates all required metadata tables and no deferred datastore tables", async () => {
-    const migrations = await discoverMigrations("mysql");
-    const sql = migrations.map((migration) => migration.sql).join("\n");
+  it("creates the target MySQL metadata and version snapshot tables", async () => {
+    const migration = (await discoverMigrations("mysql"))[0]!;
     for (const table of [
       "users",
       "identities",
       "projects",
-      "features",
-      "project_origins",
-      "project_members",
-      "audit_logs",
-      "auth_sessions",
-      "project_data_status",
-      "project_modules",
+      "modules",
       "page_definitions",
-      "project_operational_settings",
-      "metric_profiles",
-      "metric_profile_items",
-      "metric_profile_assignments",
+      "workflow_definitions",
+      "workflow_definition_versions",
+      "workflow_steps",
+      "metric_library_versions",
+      "metric_definitions",
+      "metric_display_bindings",
+      "score_definitions",
+      "score_dimensions",
+      "score_items",
+      "probe_policies",
+      "export_interfaces",
+      "export_credentials",
+      "audit_logs",
+      "project_data_status",
+      "auth_sessions",
     ]) {
-      expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
+      expect(migration.sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
     }
-    expect(sql).not.toMatch(/CREATE TABLE[^;]*(redis|elasticsearch|errors)/i);
-    expect(sql).toContain("disabled_at");
-    expect(sql).toContain("global_role");
+    expect(migration.sql).toContain("app_id");
+    expect(migration.sql).not.toContain("ALTER TABLE");
   });
 
-  it("defines a 90-day monthly-partitioned MergeTree raw event table", async () => {
+  it("defines the canonical, 90-day ClickHouse raw facts table", async () => {
     const migration = (await discoverMigrations("clickhouse"))[0]!;
     expect(migration.sql).toContain("ENGINE = MergeTree");
     expect(migration.sql).toContain("PARTITION BY toYYYYMM(received_at)");
     expect(migration.sql).toContain("TTL received_at + INTERVAL 90 DAY DELETE");
     expect(migration.sql).toContain(
-      "ORDER BY (project_id, toDate(received_at), event_name, route, event_time, event_id)",
+      "ORDER BY (app_id, env, toDate(received_at), event, page_route, timestamp, event_id)",
     );
+    for (const column of [
+      "app_id",
+      "env",
+      "release",
+      "page_url",
+      "page_route",
+      "user_id",
+      "dept_id",
+      "role_id",
+      "device_id",
+      "payload_json",
+      "workflow_instance_id",
+      "error_category",
+    ]) {
+      expect(migration.sql).toContain(column);
+    }
+    expect(splitClickHouseStatements(migration.sql)).toHaveLength(1);
+    expect(migration.sql).not.toContain("ALTER TABLE");
   });
 
-  it("splits multi-statement ClickHouse migrations only at explicit markers", async () => {
-    const migration = (await discoverMigrations("clickhouse"))[1]!;
-    expect(splitClickHouseStatements(migration.sql)).toHaveLength(2);
-  });
-
-  it("adds SDK name through an upgrade-safe ClickHouse migration", async () => {
-    const migration = (await discoverMigrations("clickhouse"))[2]!;
-    expect(migration.name).toBe("sdk_name");
-    expect(migration.sql).toContain("ADD COLUMN IF NOT EXISTS sdk_name");
-    expect(migration.sql).toContain("DEFAULT 'unknown'");
-  });
-
-  it("adds operation identity without rewriting the raw event table", async () => {
-    const migration = (await discoverMigrations("clickhouse"))[3]!;
-    expect(migration.name).toBe("operation_instance");
-    expect(migration.sql).toContain("operation_instance_id");
-    expect(migration.sql).toContain("interaction_type");
-  });
-
-  it("adds nullable observability columns and fixed query indices", async () => {
-    const migration = (await discoverMigrations("clickhouse"))[4]!;
-    expect(migration.name).toBe("observability");
-    expect(migration.sql).toContain("error_group_id");
-    expect(migration.sql).toContain("vital_value");
-    expect(migration.sql).toContain("release_version");
-    expect(migration.sql).toContain("browser_family");
-    expect(migration.sql).toContain("os_family");
-    expect(splitClickHouseStatements(migration.sql)).toHaveLength(3);
-  });
-
-  it("keeps migration files readable from both source and compiled locations", async () => {
+  it("keeps migration files readable from source and compiled locations", async () => {
     await expect(
       readFile(
-        new URL("../../../infra/mysql/migrations/001_foundation.sql", import.meta.url),
+        new URL(
+          "../../../infra/mysql/migrations/001_v18_baseline.sql",
+          import.meta.url,
+        ),
       ),
     ).resolves.toBeDefined();
   });

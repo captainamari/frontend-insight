@@ -11,7 +11,7 @@ defineProps<{
 const open = ref(false);
 const definitions = [
   ["PV", "page_view 事件数；刷新与重复访问都会计数。"],
-  ["活跃浏览器", "去重 visitorId，代表浏览器存储实例，不等于真实人数。"],
+  ["活跃浏览器", "去重 deviceId，代表浏览器存储实例，不等于真实人数。"],
   [
     "已识别账号",
     "业务显式传入的不透明账号引用经项目级 HMAC 后去重；共享账号只算一个账号。",

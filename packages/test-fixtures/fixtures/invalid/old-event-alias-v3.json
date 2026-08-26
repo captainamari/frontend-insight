@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 3,
+  "sentAt": 1787155200000,
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_oldalias0001",
+      "event": "web_vital",
+      "appId": "ops-admin",
+      "env": "prod",
+      "release": "1.4.2",
+      "pageUrl": "https://example.internal/orders",
+      "pageRoute": "/orders",
+      "userId": null,
+      "deptId": null,
+      "roleId": null,
+      "sessionId": "ses_oldalias001",
+      "deviceId": "dev_oldalias001",
+      "pageViewId": "pv_oldalias0001",
+      "ua": "Mozilla/5.0 Chrome",
+      "os": "macOS",
+      "browser": "Chrome",
+      "timestamp": 1787155200000,
+      "payload": { "metric": "lcp", "value": 2400 }
+    }
+  ]
+}

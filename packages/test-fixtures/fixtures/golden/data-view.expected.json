@@ -1,6 +1,0 @@
-{
-  "scenario": "data_view",
-  "eventCount": 3,
-  "featureKey": "sales_dashboard",
-  "eventNames": ["page_view", "feature_exposed", "feature_succeeded"]
-}

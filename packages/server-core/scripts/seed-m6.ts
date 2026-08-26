@@ -18,7 +18,7 @@ console.log(
     status: "seeded",
     milestone: "M6",
     projectId: m5Fixture.projectId,
-    projectKey: m5Fixture.projectKey,
+    appId: m5Fixture.appId,
     modules: Object.values(m6Fixture.modules),
     pages: Object.values(m6Fixture.pages),
     profileId: m6Fixture.profileId,

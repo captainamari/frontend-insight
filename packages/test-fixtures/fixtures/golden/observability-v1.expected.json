@@ -1,5 +1,0 @@
-{
-  "scenario": "observability_v1",
-  "eventCount": 4,
-  "eventNames": ["error_js", "error_resource", "error_api", "web_vital"]
-}

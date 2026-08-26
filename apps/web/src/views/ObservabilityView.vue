@@ -70,13 +70,13 @@ const cards = computed(() => {
     },
     {
       label: "受影响账号",
-      value: formatNumber(summary.affectedAccounts),
+      value: formatNumber(summary.affectedUsers),
       definition: "发生错误事件的去重 HMAC 账号数；平台不保存业务账号原值。",
     },
     {
       label: "受影响浏览器",
       value: formatNumber(summary.affectedBrowsers),
-      definition: "发生错误事件的去重 SDK visitorId 数，不等同于自然人数量。",
+      definition: "发生错误事件的去重 SDK deviceId 数，不等同于自然人数量。",
     },
     {
       label: "Web Vitals 较差占比",
@@ -120,7 +120,7 @@ function severityTagType(value: ObservabilitySeverity) {
 
 function vitalValue(item: WebVitalSummary): string {
   if (item.p75 === null) return "—";
-  return item.vitalName === "CLS" ? item.p75.toFixed(3) : `${Math.round(item.p75)} ms`;
+  return item.vitalName === "cls" ? item.p75.toFixed(3) : `${Math.round(item.p75)} ms`;
 }
 
 async function load(): Promise<void> {
@@ -278,7 +278,7 @@ watch(
             </el-table-column>
             <el-table-column label="账号 / 浏览器" width="150">
               <template #default="{ row }">
-                {{ formatNumber(row.affectedAccounts) }} /
+                {{ formatNumber(row.affectedUsers) }} /
                 {{ formatNumber(row.affectedBrowsers) }}
               </template>
             </el-table-column>
@@ -313,7 +313,7 @@ watch(
               :data="resource.data.value.vitals"
               empty-text="所选范围内没有 Web Vitals 样本"
             >
-              <el-table-column prop="route" label="页面" min-width="170" />
+              <el-table-column prop="pageRoute" label="页面" min-width="170" />
               <el-table-column prop="vitalName" label="指标" width="80" />
               <el-table-column label="p75" width="100">
                 <template #default="{ row }">{{ vitalValue(row) }}</template>
@@ -325,7 +325,7 @@ watch(
                   }}
                 </template>
               </el-table-column>
-              <el-table-column prop="releaseVersion" label="发布" min-width="120" />
+              <el-table-column prop="release" label="发布" min-width="120" />
             </el-table>
           </section>
 
@@ -368,15 +368,15 @@ watch(
             <div>
               <span class="eyebrow">RELEASE EVIDENCE</span>
               <h2>发布版本关联</h2>
-              <p>releaseVersion 由宿主显式注入；unknown 不会被平台猜测或回填。</p>
+              <p>release 由宿主显式注入；unknown 不会被平台猜测或回填。</p>
             </div>
           </div>
           <el-table
             :data="resource.data.value.releases"
             empty-text="所选范围内没有带发布版本的可观测性事件"
           >
-            <el-table-column prop="releaseVersion" label="版本" min-width="150" />
-            <el-table-column prop="deploymentEnvironment" label="环境" width="120" />
+            <el-table-column prop="release" label="版本" min-width="150" />
+            <el-table-column prop="env" label="环境" width="120" />
             <el-table-column label="错误 / 错误组" width="150">
               <template #default="{ row }">
                 {{ formatNumber(row.errors) }} / {{ formatNumber(row.errorGroups) }}
@@ -437,7 +437,7 @@ watch(
           <div>
             <dt>影响账号 / 浏览器 / 页面</dt>
             <dd>
-              {{ formatNumber(detail.data.value.item.affectedAccounts) }} /
+              {{ formatNumber(detail.data.value.item.affectedUsers) }} /
               {{ formatNumber(detail.data.value.item.affectedBrowsers) }} /
               {{ formatNumber(detail.data.value.item.affectedPages) }}
             </dd>
@@ -466,8 +466,8 @@ watch(
         <section>
           <h3>页面 × 发布版本</h3>
           <el-table :data="detail.data.value.impact" empty-text="没有影响明细">
-            <el-table-column prop="route" label="页面" min-width="180" />
-            <el-table-column prop="releaseVersion" label="发布" min-width="130" />
+            <el-table-column prop="pageRoute" label="页面" min-width="180" />
+            <el-table-column prop="release" label="发布" min-width="130" />
             <el-table-column prop="occurrences" label="次数" width="80" />
             <el-table-column prop="affectedBrowsers" label="浏览器" width="90" />
           </el-table>

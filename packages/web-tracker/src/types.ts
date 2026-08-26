@@ -1,24 +1,25 @@
-import type { FrontendInsightEventBatchV2 } from "@frontend-insight/event-contract";
+import type {
+  FrontendInsightEnvironment,
+  FrontendInsightEventBatchV3,
+  FrontendInsightEventV3,
+  PayloadValue,
+} from "@frontend-insight/event-contract";
 
-export type PropertyValue = string | number | boolean | null;
-export type EventProperties = Record<string, PropertyValue>;
+export type EventPayload = Record<string, PayloadValue>;
 export type InteractionType =
   "click" | "submit" | "keyboard" | "programmatic" | "automatic";
 export type OperationState = "started" | "succeeded" | "failed" | "canceled";
-export type DeploymentEnvironment = "production" | "staging" | "test" | "development";
 export type ResourceType =
   "script" | "stylesheet" | "image" | "font" | "media" | "other";
 export type RequestMethod =
   "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS" | "OTHER";
-export type WebVitalName = "LCP" | "CLS" | "INP" | "FCP" | "TTFB";
+export type WebVitalName = "lcp" | "cls" | "inp" | "fcp" | "ttfb";
 export type WebVitalRating = "good" | "needs_improvement" | "poor";
 export type NavigationType =
   "navigate" | "reload" | "back_forward" | "prerender" | "unknown";
 
 export interface ObservabilityConfig {
   enabled: boolean;
-  releaseVersion: string;
-  deploymentEnvironment?: DeploymentEnvironment;
   captureJsErrors?: boolean;
   captureResourceErrors?: boolean;
   captureApiErrors?: boolean;
@@ -30,6 +31,7 @@ export interface ApiErrorDetails {
   url: string | URL;
   statusCode: number;
   durationMs: number;
+  failureType?: "http" | "network" | "timeout" | "aborted" | "business";
 }
 
 export interface ResourceErrorDetails {
@@ -44,23 +46,7 @@ export interface WebVitalDetails {
   navigationType?: NavigationType;
 }
 
-export interface TrackerEvent {
-  eventId: string;
-  eventName: string;
-  eventTime: string;
-  visitorId: string;
-  sessionId: string;
-  pageViewId: string;
-  accountRef?: string;
-  route: string;
-  title?: string;
-  timezoneOffsetMinutes: number;
-  featureKey?: string;
-  reasonCode?: string;
-  operationInstanceId?: string;
-  interactionType?: InteractionType;
-  properties: EventProperties;
-}
+export type TrackerEvent = FrontendInsightEventV3;
 
 export interface TrackerDiagnostics {
   state: "active" | "noop" | "destroyed";
@@ -80,12 +66,15 @@ export interface BeforeSendContext {
 }
 
 export interface TrackerConfig {
-  projectKey: string;
+  appId: string;
+  env: FrontendInsightEnvironment;
+  release: string;
   endpoint: string;
-  projectTimezone?: string;
+  deptId?: string | null;
+  roleId?: string | null;
   registeredFeatures?: readonly string[];
-  staticProperties?: EventProperties;
-  normalizeRoute?: (url: URL) => string;
+  staticPayload?: EventPayload;
+  normalizePageRoute?: (url: URL) => string;
   beforeSend?: (context: BeforeSendContext) => TrackerEvent | null;
   flushIntervalMs?: number;
   maximumQueueSize?: number;
@@ -100,7 +89,7 @@ export interface TrackerConfig {
 export interface TrackerRuntime {
   window: Window;
   document: Document;
-  navigator: Pick<Navigator, "sendBeacon">;
+  navigator: Pick<Navigator, "sendBeacon" | "userAgent">;
   storage?: Pick<Storage, "getItem" | "setItem">;
   fetch: typeof fetch;
   crypto: Pick<Crypto, "randomUUID">;
@@ -112,19 +101,15 @@ export interface TrackerRuntime {
 }
 
 export interface Tracker {
-  setAccount(accountRef: string | null): void;
-  track(eventName: string, properties?: EventProperties): void;
-  featureExposed(featureKey: string, properties?: EventProperties): void;
-  featureStarted(featureKey: string, properties?: EventProperties): void;
-  featureSucceeded(featureKey: string, properties?: EventProperties): void;
-  featureFailed(
-    featureKey: string,
-    reasonCode: string,
-    properties?: EventProperties,
-  ): void;
+  setUser(userId: string | null): void;
+  track(name: string, payload?: EventPayload): void;
+  featureExposed(featureKey: string, payload?: EventPayload): void;
+  featureStarted(featureKey: string, payload?: EventPayload): void;
+  featureSucceeded(featureKey: string, payload?: EventPayload): void;
+  featureFailed(featureKey: string, reasonCode: string, payload?: EventPayload): void;
   startOperation(
     featureKey: string,
-    properties?: EventProperties,
+    payload?: EventPayload,
     interactionType?: InteractionType,
   ): OperationHandle;
   startLongView(featureKey: string): () => void;
@@ -138,13 +123,13 @@ export interface Tracker {
 }
 
 export interface OperationHandle {
-  succeed(properties?: EventProperties): void;
-  fail(reasonCode: string, properties?: EventProperties): void;
-  cancel(properties?: EventProperties): void;
+  succeed(payload?: EventPayload): void;
+  fail(reasonCode: string, payload?: EventPayload): void;
+  cancel(payload?: EventPayload): void;
   getState(): OperationState;
 }
 
 export interface PendingBatch {
-  batch: FrontendInsightEventBatchV2;
+  batch: FrontendInsightEventBatchV3;
   attempts: number;
 }

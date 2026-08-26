@@ -30,10 +30,7 @@ const checks = [
     "operational overview",
   ],
   [`/api/projects/${projectId}/operational-index?${query}`, "operational index"],
-  [
-    `/api/projects/${projectId}/metrics/project_operational_index/lineage`,
-    "metric lineage",
-  ],
+  [`/api/projects/${projectId}/metrics/operational_score/lineage`, "metric lineage"],
 ];
 
 const results = [];
@@ -54,9 +51,7 @@ for (const [path, name] of checks) {
   if (name === "metric catalog") {
     if (
       !Array.isArray(responseBody) ||
-      !responseBody.some(
-        (definition) => definition.metricKey === "project_operational_index",
-      )
+      !responseBody.some((definition) => definition.metricKey === "operational_score")
     ) {
       throw new Error("M6 smoke expected the versioned operational metric catalog");
     }
@@ -64,7 +59,7 @@ for (const [path, name] of checks) {
   if (name === "operational overview") {
     if (
       responseBody.summary?.pageViews <= 0 ||
-      responseBody.summary?.activeAccounts <= 0
+      responseBody.summary?.activeUsers <= 0
     ) {
       throw new Error("M6 smoke expected raw and valid-use overview evidence");
     }

@@ -71,7 +71,7 @@ const snippet = computed(() => {
   return `import { createTracker } from "${integration.package}";
 
 const tracker = createTracker({
-  projectKey: "${integration.projectKey}",
+  appId: "${integration.appId}",
   endpoint: "${appOrigin}/v1/events",
   projectTimezone: "${context.project.value?.timezone ?? "UTC"}",
 });
@@ -104,7 +104,7 @@ const viewState = computed(() => {
   return resource.stale.value ? ("stale" as const) : ("ready" as const);
 });
 
-function id(prefix: "evt" | "vis" | "ses" | "pv"): string {
+function id(prefix: "evt" | "dev" | "ses" | "pv"): string {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
@@ -217,31 +217,40 @@ async function toggleFeature(feature: Feature): Promise<void> {
 }
 
 async function sendTestEvent(): Promise<void> {
-  const projectKey = resource.data.value?.onboarding.integration.projectKey;
-  if (!projectKey) return;
+  const appId = resource.data.value?.onboarding.integration.appId;
+  if (!appId) return;
   testLoading.value = true;
   testResult.value = null;
-  const now = new Date().toISOString();
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
   try {
     const response = await fetch("/v1/events", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        schemaVersion: 1,
-        projectKey,
+        schemaVersion: 3,
         sentAt: now,
-        sdk: { name: "onboarding-test", version: "0.1.0" },
+        sdk: { name: "onboarding-test", version: "0.4.0" },
         events: [
           {
             eventId: id("evt"),
-            eventName: "page_view",
-            eventTime: now,
-            visitorId: id("vis"),
+            event: "page_view",
+            appId,
+            env: "dev",
+            release: "onboarding-test",
+            timestamp: now,
+            pageUrl: `${window.location.origin}/frontend-insight-onboarding-test`,
+            pageRoute: "/frontend-insight-onboarding-test",
+            userId: null,
+            deptId: null,
+            roleId: null,
+            deviceId: id("dev"),
             sessionId: id("ses"),
             pageViewId: id("pv"),
-            route: "/frontend-insight-onboarding-test",
-            timezoneOffsetMinutes: new Date().getTimezoneOffset(),
-            properties: { source: "onboarding" },
+            ua: navigator.userAgent.slice(0, 256),
+            os: "Other",
+            browser: "Other",
+            payload: {},
           },
         ],
       }),
@@ -254,7 +263,7 @@ async function sendTestEvent(): Promise<void> {
       ok: response.ok,
       requestId: body.requestId ?? response.headers.get("x-request-id"),
       code: response.ok ? "EVENT_ACCEPTED" : (body.code ?? `HTTP_${response.status}`),
-      at: now,
+      at: nowIso,
     };
     if (response.ok) window.setTimeout(() => void load(), 1500);
   } catch {
@@ -262,7 +271,7 @@ async function sendTestEvent(): Promise<void> {
       ok: false,
       requestId: null,
       code: "NETWORK_ERROR",
-      at: now,
+      at: nowIso,
     };
   } finally {
     testLoading.value = false;
@@ -328,11 +337,11 @@ watch(
             <div class="copy-row">
               <div>
                 <small>Project key</small>
-                <code>{{ resource.data.value.onboarding.integration.projectKey }}</code>
+                <code>{{ resource.data.value.onboarding.integration.appId }}</code>
               </div>
               <el-button
                 plain
-                @click="copy(resource.data.value.onboarding.integration.projectKey)"
+                @click="copy(resource.data.value.onboarding.integration.appId)"
               >
                 复制
               </el-button>
