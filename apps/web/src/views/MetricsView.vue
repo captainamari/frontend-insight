@@ -546,6 +546,24 @@ watch(
         </section>
 
         <section class="panel">
+          <div class="analysis-object-tabs" role="tablist" aria-label="分析对象类型">
+            <button
+              v-for="tab in [
+                { name: 'modules', label: '功能模块' },
+                { name: 'pages', label: '页面' },
+                { name: 'workflows', label: '工作流' },
+              ]"
+              :key="tab.name"
+              type="button"
+              role="tab"
+              :aria-selected="activeObjectTab === tab.name"
+              :tabindex="activeObjectTab === tab.name ? 0 : -1"
+              :class="{ active: activeObjectTab === tab.name }"
+              @click="activeObjectTab = tab.name"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
           <el-tabs v-model="activeObjectTab" class="object-tabs">
             <el-tab-pane label="功能模块" name="modules">
               <div class="section-heading">
@@ -1085,6 +1103,43 @@ watch(
 .workflow-editor-heading p {
   margin: 0;
   color: var(--text-secondary);
+}
+
+.analysis-object-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-color, #d9d9d9);
+}
+
+.analysis-object-tabs button {
+  padding: 10px 16px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.analysis-object-tabs button:hover,
+.analysis-object-tabs button:focus-visible,
+.analysis-object-tabs button.active {
+  color: var(--primary-color, #2f6fed);
+}
+
+.analysis-object-tabs button:focus-visible {
+  outline: 2px solid var(--primary-color, #2f6fed);
+  outline-offset: 2px;
+}
+
+.analysis-object-tabs button.active {
+  border-bottom-color: currentColor;
+  font-weight: 600;
+}
+
+.object-tabs :deep(.el-tabs__header) {
+  display: none;
 }
 
 .object-tabs :deep(.el-tabs__content) {
