@@ -19,6 +19,7 @@ async function openSelect(container: Locator, label: string): Promise<void> {
 
 test("admin completes function module, page and workflow metadata in metric center", async ({
   page,
+  browserName,
 }) => {
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
   await page.goto(
@@ -30,6 +31,8 @@ test("admin completes function module, page and workflow metadata in metric cent
   const suffix = Date.now();
   const moduleKey = `r1a_module_${suffix}`;
   const moduleName = `R1-A 功能模块 ${suffix}`;
+  const observedRoute = `/orders/${browserName}/${suffix}`;
+  const normalizedRoute = `/orders/${browserName}/:id`;
   await page.getByRole("button", { name: "新建功能模块" }).click();
   const moduleDialog = page.getByRole("dialog", { name: "新建功能模块" });
   await moduleDialog.getByLabel("moduleKey").fill(moduleKey);
@@ -40,13 +43,13 @@ test("admin completes function module, page and workflow metadata in metric cent
   await page.getByRole("tab", { name: "页面" }).click();
   await page.getByRole("button", { name: "新建页面定义" }).click();
   const pageDialog = page.getByRole("dialog", { name: "新建页面定义" });
-  await pageDialog.getByLabel("观测或模板 route").fill(`/orders/${suffix}`);
-  await expect(pageDialog.getByText("保存为：/orders/:id")).toBeVisible();
+  await pageDialog.getByLabel("观测或模板 route").fill(observedRoute);
+  await expect(pageDialog.getByText(`保存为：${normalizedRoute}`)).toBeVisible();
   await pageDialog.getByLabel("页面名称").fill(`订单详情 ${suffix}`);
   await openSelect(pageDialog, "所属功能模块");
   await page.getByRole("option", { name: moduleName }).click();
   await pageDialog.getByRole("button", { name: "创建" }).click();
-  await expect(page.getByRole("row").filter({ hasText: "/orders/:id" })).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: normalizedRoute })).toBeVisible();
 
   await page.getByRole("tab", { name: "工作流" }).click();
   await page.getByRole("button", { name: "新建工作流" }).click();
@@ -66,7 +69,10 @@ test("admin completes function module, page and workflow metadata in metric cent
     .filter({ hasText: `order_review_${suffix}` });
   await expect(workflowRow).toBeVisible();
   await workflowRow.getByRole("button", { name: "激活" }).click();
-  await page.getByRole("button", { name: "激活", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "激活工作流版本" })
+    .getByRole("button", { name: "激活", exact: true })
+    .click();
   await expect(workflowRow).toContainText("active");
 });
 
