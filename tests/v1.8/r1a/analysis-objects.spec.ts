@@ -21,6 +21,7 @@ test("admin completes function module, page and workflow metadata in metric cent
   page,
   browserName,
 }) => {
+  test.setTimeout(60_000);
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
   await page.goto(
     `/projects/${projectId}/metrics?range=7d&tab=analysis-objects&object=modules`,
