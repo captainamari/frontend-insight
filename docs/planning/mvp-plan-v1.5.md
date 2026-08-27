@@ -1,7 +1,7 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
 > 状态：待技术评审<br>
-> 更新日期：2026-08-19<br>
+> 更新日期：2026-08-27<br>
 > 对应需求：[需求文档 v1.8](../product/requirements-v1.8.md)<br>
 > 代码基线：`main` @ `a79fa5368b806c9808242eb65c6d076d5d1464eb`<br>
 > 历史开发基线：[MVP 开发计划 v1.3](mvp-plan-v1.3.md)<br>
@@ -280,7 +280,7 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 | R2 | 入口页：全部项目 | 3–4 日 | 搜索、创建、卡片、分页闭环 |
 | R3 | 项目框架与项目概览 | 4–6 日 | 两类分数、指标、趋势闭环 |
 | R4-A | 业务分析：功能模块指标 | 4–6 日 | `module_penetration` 和趋势正确 |
-| R4-B | 业务分析：多阶段工作流 | 6–8 日 | 并发实例和阶段耗时正确 |
+| R4-B | 业务分析：多阶段工作流 | 7–9 日 | 并发实例、关联 operation 和阶段耗时正确 |
 | R4-C | 业务分析：操作效率与组织维度 | 6–9 日 | 操作/组织指标口径与隐私通过 |
 | R5-A | 页面分析：性能与稳定性 collector/指标 | 8–12 日 | 字典性能/稳定性指标事实正确 |
 | R5-B | 页面分析：质量 TAB UI | 5–7 日 | 筛选、明细、复现上下文安全 |
@@ -288,7 +288,7 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 | R7 | 设置 | 6–8 日 | `appId`、探针、接口、异常规则闭环 |
 | R8 | 旧能力清理、全量回归与验收文档 | 5–7 日 | 只有一套正式 IA/命名，全部 Go |
 
-总计：**72–103 个开发日**。不包含产品评审等待、真实项目观察期、外部 Prometheus 环境协调和 SourceMap/AI 等非目标。R1-A 增加 3–5 日用于手工验收发现的生命周期、页面信息架构和工作流可理解性改造；其他增量仍来自 `api_error_rate/resource_error_rate` 缺少分母，`form_efficiency/list_render_duration/longtask_*/blank_screen_rate/breadcrumb` 等没有事实采集，以及组织指标没有目录来源。
+总计：**73–104 个开发日**。不包含产品评审等待、真实项目观察期、外部 Prometheus 环境协调和 SourceMap/AI 等非目标。R1-A 增加 3–5 日用于手工验收发现的生命周期、页面信息架构和工作流可理解性改造；R4-B 增加 1 日用于 operation 与 workflow instance 的显式 handle 关联及并发防串线验证。其他增量仍来自 `api_error_rate/resource_error_rate` 缺少分母，`form_efficiency/list_render_duration/longtask_*/blank_screen_rate/breadcrumb` 等没有事实采集，以及组织指标没有目录来源。
 
 允许清理测试数据预计比生产兼容方案节省 5–8 个开发日；该节省不能用来省略产品版本、权限、隐私和自动化测试。
 
@@ -349,14 +349,14 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 
 只交付指标管理中的“分析对象”TAB：
 
-- 功能模块创建、排序、停用及评审通过的归档/删除生命周期；
+- 功能模块创建、排序、停用与归档；删除模块级关键度，不提供产品内物理删除；
 - page definition 创建、`pageRoute` 归一化、模块优先的页面管理、页面模板和核心状态；
 - workflow definition 基础信息、步骤编辑、达成条件说明和自然语言判定预览；
-- 未归类 route 按需求 9.7.1 的评审结果保留、迁移或删除；
+- 未归类 route 在 R6 上线前保留折叠临时入口，并准备迁移跳转；
 - admin 写、viewer 只读；
 - 审计和项目隔离。
 
-模块关键度、删除语义、启用态编辑、页面结构、未归类 route 位置和 selector appeared 能力分别由需求 9.7.1 的 `R1A-D1`–`R1A-D6` 决定。决策未完成时不得自行选择实现分支。
+需求 9.7.1 的决策已确认为 `D1-A / D2-A / 调整后的 D3-A / D4-A / D5-A / D6-A`。文档评审通过前不开始本批后续代码；实施不得重新引入已否决的模块关键度、物理删除、全量页面表格、常驻未归类大表或 selector `appeared`。
 
 ### 8.2 复用与重命名
 
@@ -364,33 +364,40 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 - UI 使用“功能模块”，新 DTO 使用 `moduleId/moduleKey`；
 - 数据库直接重建为 `modules`；
 - 不保留 module/business domain 两套名称或可编辑页面；
-- 现有 feature/task 元数据按工作流模型重新映射，不做历史数据迁移。
+- 现有 task 元数据按工作流模型重新映射，不做历史数据迁移；启用 operation lifecycle 的 feature 标识只作为 `operationKey` 登记来源保留，不能同时成为第二套工作流步骤模型。
 - 页面配置优先复用现有一页归属一个模块的关系；模块主从视图是查询和交互调整，不建立第二套模块—页面模型；
-- 如果 `R1A-D3` 选择字段级编辑，新增配置 revision/effective window，不能只覆盖当前行后让历史查询读取新值；
-- 如果 `R1A-D2` 选择归档，归档状态、默认过滤、恢复、依赖检查和审计必须同批交付，不能把停用按钮改名为删除；
-- 工作流 `explicit_sdk` 不再要求用户重复填写无业务区别的“受控值”；`operation_terminal` 必须选择 `operationKey + state`；selector 的事件范围按 `R1A-D6` 实施。
+- 从 modules 的 UI/DTO/API/schema/seed/test 删除模块级 `criticalityWeight`；页面级字段保留；
+- module/page 增加配置 revision 与 effective window；启用态语义字段允许修改，开始修改时显示“不建议频繁修改该字段”，保存必须创建新 revision，不能只覆盖当前行；
+- 工作流激活版本保持不可变；编辑启用中的工作流时创建/打开新草稿，不要求先停用当前版本；
+- 增加归档状态、默认过滤、恢复、依赖检查和审计；归档前必须停用，唯一 key 继续占用，不提供产品内物理删除；
+- 工作流 `explicit_sdk` 不再要求用户填写无业务区别的“受控值”，改为生成 `startWorkflow/reachStep` 只读接入示例；
+- `operation_terminal` 保存已登记且 `operationLifecycleEnabled=true` 的 `operationKey + state`，operation 状态只使用 `succeeded/failed/canceled`；当前 `featureKey` 是 operation 标识来源，不建立第二套可编辑身份；
+- R1-A 只配置和解释 operation 依赖，并显示“数据将在 R4-B 关联 SDK 接入”；不能把当前独立 `tracker.startOperation(featureKey)` 宣称为已能驱动 workflow step；
+- selector 只支持 `click/change`，不实现 `appeared/MutationObserver`；说明图标只在用户选中“元素交互”时出现。
 
 ### 8.3 测试
 
 - [ ] 项目隔离、唯一 key、排序和停用；
 - [ ] 原生 TAB、URL `object` 参数和可见 panel 在点击、刷新、前进/后退后保持一致；
-- [ ] 所有创建、保存、启停、归档/删除和激活操作有成功反馈；409 指向具体冲突 key，失败保留表单；
+- [ ] 所有创建、保存、启停、归档、恢复和激活操作有成功反馈；409 指向具体冲突 key，失败保留表单；
 - [ ] route 高基数/动态 ID 归一化；
 - [ ] 页面不能引用其他项目功能模块；
-- [ ] 模块选择器只展示可选模块，新增页面带入当前模块，移动页面遵守启用态规则；
-- [ ] 删除/归档依赖检查、恢复、唯一 key 占用和历史引用按选定方案覆盖；
-- [ ] 展示字段和语义字段的启用态编辑边界通过 API 与 UI 双重测试；
+- [ ] 模块选择器只展示可选模块，新增页面带入当前模块，移动页面创建新 revision；
+- [ ] 停用/归档依赖检查、恢复、默认过滤、唯一 key 占用和历史引用通过 API 与 UI 测试；不存在产品内物理删除入口；
+- [ ] 模块级关键度在 UI/DTO/API/schema/seed 中不存在，页面级关键度仍可用；
+- [ ] 展示字段和语义字段均可在启用态编辑；语义字段开始修改时显示指定提示，保存形成新的 effective window，历史查询不漂移；
 - [ ] 工作流步骤 2–20、顺序唯一、终态合法；
 - [ ] 普通 class 显示脆弱性提示；
 - [ ] 每种步骤达成条件生成正确的自然语言预览，helper/tooltip/说明面板支持键盘；
-- [ ] selector click/change/appeared 的范围与 `R1A-D6` 一致，未批准能力不能出现在 UI；
-- [ ] operation 终态必须包含已登记 `operationKey`，不能只保存 completed/failed/canceled；
+- [ ] selector 只接受 `click/change`；未选择“元素交互”时无 D6 图标，选择后图标和上下文说明均可用；`appeared` 不出现在 UI/API；
+- [ ] operation 终态必须包含已登记 `operationKey` 和 `succeeded/failed/canceled`，不能只保存状态；UI 能说明独立 operation 当前不能驱动 workflow step；
+- [ ] 显式 SDK 只读示例与 operation 关联示例可复制且不包含业务 ID；
 - [ ] viewer 写 API 返回 403；
 - [ ] 每次修改有审计且无敏感 payload。
 
 ### 8.4 阶段门
 
-一个 admin 能在指标管理内完成“选择功能模块 → 管理所属页面 → 配置工作流步骤”的任务，并能从页面说明回答每一步“谁在什么条件下让步骤达成、它是否等于工作流终态”；viewer 能查看但不能写。生命周期操作不破坏历史引用，TAB 与 URL 状态一致，所有写操作有明确结果反馈；不要求此时已有工作流事实数据。
+一个 admin 能在指标管理内完成“选择功能模块 → 管理所属页面 → 配置工作流步骤”的任务，并能从页面说明回答每一步“谁在什么条件下让步骤达成、它是否等于工作流终态、当前版本是否已经可采集”；viewer 能查看但不能写。生命周期操作不破坏历史引用，启用态修改有 revision，TAB 与 URL 状态一致，所有写操作有明确结果反馈；R1-A 不要求已有工作流事实数据，operation 关联采集明确归 R4-B。
 
 ### 8.5 评审和实施顺序
 
@@ -398,14 +405,14 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 
 实施顺序：
 
-1. 先独立修复手工验收确认的 TAB 状态、重复 key 提示、操作反馈和工作流布局缺陷；
-2. 产品评审 `R1A-D1`–`R1A-D6`，在 PR 中记录选择及理由；
-3. 从已验收的 R1-A 代码创建后续实施分支，不从文档分支开发代码；
-4. 先实现分析对象生命周期和 page revision，再实现模块主从页面 UI；
-5. 最后实现工作流术语、判定预览、上下文说明和经批准的 adapter 字段；
+1. 已在独立 R1-A 分支修复手工验收确认的 TAB 状态、重复 key 提示、操作反馈和工作流布局缺陷；
+2. 在文档 PR 中确认 `D1-A / D2-A / 调整后的 D3-A / D4-A / D5-A / D6-A` 及 operation 关联边界；
+3. 文档评审通过后，从已验收的 R1-A 代码创建后续实施分支，不从文档分支开发代码；
+4. 先删除模块关键度并实现停用/归档、module/page revision，再实现模块主从页面 UI 和未归类临时入口；
+5. 最后实现工作流术语、判定预览、上下文说明、条件式 D6 图标、SDK 示例和 operation 可用状态；
 6. 更新 API/DB/fixture/E2E/手工验收后重新执行完整 R1-A 阶段门。
 
-Stop 条件：删除语义、历史生效区间、selector appeared 或 operation 身份仍未决定；任何一项未决定时不得通过 UI 文案掩盖数据模型缺口。
+Stop 条件：文档评审未通过、revision effective window 仍可能重写历史、operation 仍可只选状态而无稳定标识，或 UI 把未关联的独立 operation 宣称为 workflow 事实。任何一项存在时不得开始或通过后续实现。
 
 ## 9. R1-B：指标管理——指标字典、版本与公式
 
@@ -620,6 +627,10 @@ Stop 条件：删除语义、历史生效区间、selector appeared 或 operatio
 - [ ] contract v3 schema/types/golden fixtures；
 - [ ] `startWorkflow(workflowKey)` handle；
 - [ ] `reachStep(stepKey)`；
+- [ ] workflow handle 增加 `startOperation(operationKey, payload?, interactionType?)`（或 ADR 确认的等价嵌套 API），同时生成随机 operation/workflow instance 关联；业务方不能传 instance ID；
+- [ ] 保留独立 `tracker.startOperation(featureKey)` 的单次 operation 能力，但未显式绑定 workflow handle 时不得驱动 workflow step；
+- [ ] 已登记且 `operationLifecycleEnabled=true` 的 `featureKey` 收敛为工作流配置中的 `operationKey` 来源，不建立双 key；参数/DTO 的最终规范名由 breaking Pre-1.0 ADR 冻结；
+- [ ] operation 终态使用 `succeeded/failed/canceled`，`completed` 只表示 workflow 成功；关联 operation 终态按激活定义中的 `operationKey + state` 达成对应步骤；
 - [ ] complete/fail/cancel；
 - [ ] instance ID 由 SDK 生成；
 - [ ] terminal 只生效一次；
@@ -632,6 +643,8 @@ Stop 条件：删除语义、历史生效区间、selector appeared 或 operatio
 
 - [ ] v3 权威校验；
 - [ ] step key/version/order；
+- [ ] operation/workflow 显式关联校验；拒绝无关联实例、错误 `operationKey/state` 和跨项目/跨版本匹配；
+- [ ] 禁止按同一 session、最近事件或时间邻近关系推断 operation 属于哪个 workflow instance；
 - [ ] ClickHouse 新字段；
 - [ ] 重复、乱序、冲突终态诊断；
 - [ ] 日志/死信无 payload；
@@ -653,14 +666,16 @@ Stop 条件：删除语义、历史生效区间、selector appeared 或 operatio
 
 受控 demo 覆盖：
 
-1. action → action → API success；
+1. 显式 `reachStep`：action → action → API success；
 2. action → page lifecycle；
-3. 同一 workflow 三个并发实例分别成功、失败、取消；
-4. 超时前不算放弃、超时后近似放弃；
-5. selector 变化不影响显式 SDK step；
-6. token、query、DOM text 和业务 ID 不出现在 payload。
+3. 关联 operation：`workflow.startOperation("model_download")` 分别 `succeed/fail/cancel`，只达成配置了相同 `operationKey + state` 的步骤；
+4. 同一 workflow 三个并发实例和同 key 的三个并发 operation 不串线；
+5. 独立 `tracker.startOperation` 即使 key 和时间相同，也不能驱动未关联的 workflow step；
+6. 超时前不算放弃、超时后近似放弃；
+7. selector 变化不影响显式 SDK step；
+8. token、query、DOM text、业务 ID 和调用方提供的 instance ID 不出现在 payload。
 
-阶段门：所有实例与人工手算一致，且工作流追踪不影响宿主页面。
+阶段门：所有实例与人工手算一致，业务开发者能从接入示例区分直接 `reachStep` 与关联 operation；同 session/同 key 并发不串线，且工作流追踪不影响宿主页面。
 
 ## 15. R4-C：业务分析——操作效率与组织维度
 
