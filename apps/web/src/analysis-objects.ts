@@ -47,3 +47,26 @@ export function triggerConfigKey(kind: WorkflowTriggerKind): string {
 export function selectorIsFragile(kind: WorkflowTriggerKind, value: string): boolean {
   return kind === "selector" && value.trim().startsWith(".");
 }
+
+interface MutationErrorShape {
+  status?: number;
+  code?: string;
+  message?: string;
+  requestId?: string | null;
+}
+
+export function analysisObjectMutationErrorMessage(
+  cause: unknown,
+  conflictMessage = "唯一标识已存在，请修改后重试。",
+): string {
+  const error =
+    typeof cause === "object" && cause !== null ? (cause as MutationErrorShape) : null;
+  const requestId = error?.requestId ? `（request ID：${error.requestId}）` : "";
+  if (error?.status === 409 || error?.code === "RESOURCE_CONFLICT") {
+    return `${conflictMessage}${requestId}`;
+  }
+  if (error?.status === 0 || error?.code === "NETWORK_ERROR") {
+    return `操作失败：无法连接到服务，请检查网络后重试。${requestId}`;
+  }
+  return `操作失败：${error?.message || "请求未完成，请重试。"}${requestId}`;
+}

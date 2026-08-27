@@ -39,9 +39,25 @@ test("admin completes function module, page and workflow metadata in metric cent
   await moduleDialog.getByLabel("moduleKey").fill(moduleKey);
   await moduleDialog.getByLabel("功能模块名称").fill(moduleName);
   await moduleDialog.getByRole("button", { name: "创建" }).click();
+  await expect(page.getByText("功能模块已创建", { exact: true })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: moduleKey })).toBeVisible();
 
+  await page.getByRole("button", { name: "新建功能模块" }).click();
+  await moduleDialog.getByLabel("moduleKey").fill(moduleKey);
+  await moduleDialog.getByLabel("功能模块名称").fill(`${moduleName} 重复`);
+  await moduleDialog.getByRole("button", { name: "创建" }).click();
+  await expect(
+    page.getByText("创建失败：moduleKey 已存在，请使用唯一的 key。", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(moduleDialog).toBeVisible();
+  await moduleDialog.getByRole("button", { name: "取消" }).click();
+
   await page.getByRole("tab", { name: "页面" }).click();
+  await expect(page).toHaveURL(/object=pages/);
+  await expect(page.getByRole("heading", { name: "页面定义" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "功能模块" })).toHaveCount(0);
   await page.getByRole("button", { name: "新建页面定义" }).click();
   const pageDialog = page.getByRole("dialog", { name: "新建页面定义" });
   await pageDialog.getByLabel("观测或模板 route").fill(observedRoute);
@@ -50,11 +66,15 @@ test("admin completes function module, page and workflow metadata in metric cent
   await openSelect(pageDialog, "所属功能模块");
   await page.getByRole("option", { name: moduleName }).click();
   await pageDialog.getByRole("button", { name: "创建" }).click();
+  await expect(page.getByText("页面定义已创建", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("row").filter({ hasText: normalizedRoute }),
   ).toBeVisible();
 
   await page.getByRole("tab", { name: "工作流" }).click();
+  await expect(page).toHaveURL(/object=workflows/);
+  await expect(page.getByRole("heading", { name: "工作流定义" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "页面定义" })).toHaveCount(0);
   await page.getByRole("button", { name: "新建工作流" }).click();
   const workflowDialog = page.getByRole("dialog", { name: "新建工作流" });
   await workflowDialog.getByLabel("workflowKey").fill(`order_review_${suffix}`);
@@ -66,7 +86,15 @@ test("admin completes function module, page and workflow metadata in metric cent
   await page.getByRole("option", { name: "稳定选择器适配器" }).click();
   await firstStep.getByLabel("选择器").fill(".review-button");
   await expect(workflowDialog.getByText(/普通 class 容易随样式变化/)).toBeVisible();
+  const stepBox = await firstStep.boundingBox();
+  const warningBox = await firstStep.locator(".workflow-step-guidance").boundingBox();
+  expect(stepBox).not.toBeNull();
+  expect(warningBox).not.toBeNull();
+  expect(warningBox!.x + warningBox!.width).toBeLessThanOrEqual(
+    stepBox!.x + stepBox!.width + 1,
+  );
   await workflowDialog.getByRole("button", { name: "创建工作流" }).click();
+  await expect(page.getByText("工作流已创建", { exact: true })).toBeVisible();
   const workflowRow = page
     .getByRole("row")
     .filter({ hasText: `order_review_${suffix}` });

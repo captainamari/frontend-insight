@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { ElMessageBox } from "element-plus";
-import { useRoute } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { useRoute, useRouter } from "vue-router";
 import { api } from "../api";
 import {
+  analysisObjectMutationErrorMessage,
   pageRoutePreview,
   selectorIsFragile,
   triggerConfigKey,
@@ -49,11 +50,21 @@ interface WorkflowStepForm {
 
 const context = useDashboardContext();
 const route = useRoute();
+const router = useRouter();
 const resource = useRemoteData<AnalysisObjectsData>();
-const activeObjectTab = ref(
-  ["modules", "pages", "workflows"].includes(String(route.query.object))
-    ? String(route.query.object)
-    : "modules",
+const analysisObjectTabs = [
+  { name: "modules", label: "功能模块" },
+  { name: "pages", label: "页面" },
+  { name: "workflows", label: "工作流" },
+] as const;
+type AnalysisObjectTab = (typeof analysisObjectTabs)[number]["name"];
+
+function isAnalysisObjectTab(value: unknown): value is AnalysisObjectTab {
+  return analysisObjectTabs.some((tab) => tab.name === value);
+}
+
+const activeObjectTab = ref<AnalysisObjectTab>(
+  isAnalysisObjectTab(route.query.object) ? route.query.object : "modules",
 );
 const handledCreateQuery = ref(false);
 const saving = ref(false);
@@ -61,6 +72,12 @@ const moduleOpen = ref(false);
 const pageOpen = ref(false);
 const workflowOpen = ref(false);
 const editingWorkflowId = ref<string | null>(null);
+const showOperationMessage = ElMessage as unknown as (options: {
+  type: "success" | "error";
+  message: string;
+  showClose: boolean;
+  duration?: number;
+}) => void;
 
 const canWrite = computed(
   () =>
@@ -183,16 +200,36 @@ async function load(): Promise<void> {
 
 async function mutate(
   operation: () => Promise<unknown>,
-  message: string,
-): Promise<void> {
+  successMessage: string,
+  conflictMessage?: string,
+): Promise<boolean> {
   saving.value = true;
   try {
     await operation();
     await load();
-    void message;
+    showOperationMessage({
+      type: "success",
+      message: successMessage,
+      showClose: true,
+    });
+    return true;
+  } catch (cause) {
+    showOperationMessage({
+      type: "error",
+      message: analysisObjectMutationErrorMessage(cause, conflictMessage),
+      showClose: true,
+      duration: 5_000,
+    });
+    return false;
   } finally {
     saving.value = false;
   }
+}
+
+function setObjectTab(tab: AnalysisObjectTab): void {
+  activeObjectTab.value = tab;
+  if (route.query.object === tab) return;
+  void router.replace({ query: { ...route.query, object: tab } });
 }
 
 function resetModuleForm(): void {
@@ -208,14 +245,16 @@ function resetModuleForm(): void {
 
 async function createModule(): Promise<void> {
   if (!context.projectId.value) return;
-  await mutate(
+  const succeeded = await mutate(
     () =>
       api.request(`/api/projects/${context.projectId.value}/modules`, {
         method: "POST",
         body: JSON.stringify(moduleForm),
       }),
     "功能模块已创建",
+    "创建失败：moduleKey 已存在，请使用唯一的 key。",
   );
+  if (!succeeded) return;
   moduleOpen.value = false;
   resetModuleForm();
 }
@@ -262,14 +301,16 @@ function openPage(route = ""): void {
 
 async function createPage(): Promise<void> {
   if (!context.projectId.value || !normalizedRoute.value) return;
-  await mutate(
+  const succeeded = await mutate(
     () =>
       api.request(`/api/projects/${context.projectId.value}/page-definitions`, {
         method: "POST",
         body: JSON.stringify(pageForm),
       }),
     "页面定义已创建",
+    "创建失败：归一化后的 pageRoute 已存在，请检查现有页面定义。",
   );
+  if (!succeeded) return;
   pageOpen.value = false;
 }
 
@@ -424,7 +465,7 @@ async function saveWorkflow(): Promise<void> {
   if (!context.projectId.value) return;
   const projectId = context.projectId.value;
   const configuration = workflowConfiguration();
-  await mutate(
+  const succeeded = await mutate(
     async () => {
       if (editingWorkflowId.value) {
         await api.request(
@@ -454,7 +495,9 @@ async function saveWorkflow(): Promise<void> {
       }
     },
     editingWorkflowId.value ? "工作流草稿已保存" : "工作流已创建",
+    "保存失败：workflowKey 已存在，请使用唯一的 key。",
   );
+  if (!succeeded) return;
   workflowOpen.value = false;
 }
 
@@ -502,6 +545,13 @@ watch(
   () => void load(),
   { immediate: true },
 );
+
+watch(
+  () => route.query.object,
+  (value) => {
+    if (isAnalysisObjectTab(value)) activeObjectTab.value = value;
+  },
+);
 </script>
 
 <template>
@@ -548,24 +598,27 @@ watch(
         <section class="panel">
           <div class="analysis-object-tabs" role="tablist" aria-label="分析对象类型">
             <button
-              v-for="tab in [
-                { name: 'modules', label: '功能模块' },
-                { name: 'pages', label: '页面' },
-                { name: 'workflows', label: '工作流' },
-              ]"
+              v-for="tab in analysisObjectTabs"
               :key="tab.name"
+              :id="`analysis-object-tab-${tab.name}`"
               type="button"
               role="tab"
+              :aria-controls="`analysis-object-panel-${tab.name}`"
               :aria-selected="activeObjectTab === tab.name"
               :tabindex="activeObjectTab === tab.name ? 0 : -1"
               :class="{ active: activeObjectTab === tab.name }"
-              @click="activeObjectTab = tab.name"
+              @click="setObjectTab(tab.name)"
             >
               {{ tab.label }}
             </button>
           </div>
-          <el-tabs v-model="activeObjectTab" class="object-tabs">
-            <el-tab-pane label="功能模块" name="modules">
+          <div class="object-panels">
+            <section
+              v-if="activeObjectTab === 'modules'"
+              id="analysis-object-panel-modules"
+              role="tabpanel"
+              aria-labelledby="analysis-object-tab-modules"
+            >
               <div class="section-heading">
                 <div>
                   <span class="eyebrow">FUNCTION MODULES</span>
@@ -631,9 +684,14 @@ watch(
                   </template>
                 </el-table-column>
               </el-table>
-            </el-tab-pane>
+            </section>
 
-            <el-tab-pane label="页面" name="pages">
+            <section
+              v-else-if="activeObjectTab === 'pages'"
+              id="analysis-object-panel-pages"
+              role="tabpanel"
+              aria-labelledby="analysis-object-tab-pages"
+            >
               <div class="section-heading">
                 <div>
                   <span class="eyebrow">PAGE DEFINITIONS</span>
@@ -723,9 +781,14 @@ watch(
                   </template>
                 </el-table-column>
               </el-table>
-            </el-tab-pane>
+            </section>
 
-            <el-tab-pane label="工作流" name="workflows">
+            <section
+              v-else
+              id="analysis-object-panel-workflows"
+              role="tabpanel"
+              aria-labelledby="analysis-object-tab-workflows"
+            >
               <div class="section-heading">
                 <div>
                   <span class="eyebrow">WORKFLOW DEFINITIONS</span>
@@ -804,8 +867,8 @@ watch(
                   </template>
                 </el-table-column>
               </el-table>
-            </el-tab-pane>
-          </el-tabs>
+            </section>
+          </div>
         </section>
       </template>
     </StatePanel>
@@ -1030,12 +1093,14 @@ watch(
             </div>
             <el-alert
               v-if="selectorIsFragile(step.triggerKind, step.configValue)"
+              class="workflow-step-guidance"
               type="warning"
               :closable="false"
               show-icon
               title="普通 class 容易随样式变化而失效；推荐显式 SDK、ID 或 data-fi-action。"
             />
             <el-button
+              class="workflow-step-action"
               text
               type="danger"
               :disabled="workflowForm.steps.length <= 2"
@@ -1138,14 +1203,6 @@ watch(
   font-weight: 600;
 }
 
-.object-tabs :deep(.el-tabs__header) {
-  display: none;
-}
-
-.object-tabs :deep(.el-tabs__content) {
-  overflow: visible;
-}
-
 .unclassified-heading,
 .workflow-editor-heading {
   margin-top: 28px;
@@ -1211,7 +1268,7 @@ watch(
 
 .workflow-editor-step {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-columns: 56px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   padding: 14px;
@@ -1241,6 +1298,16 @@ watch(
 
 .step-fields :deep(.el-form-item) {
   margin-bottom: 0;
+}
+
+.workflow-step-guidance,
+.workflow-step-action {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.workflow-step-action {
+  justify-self: end;
 }
 
 .terminal-grid {
