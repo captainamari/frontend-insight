@@ -9,15 +9,30 @@ import type { RangePreset } from "../types";
 const route = useRoute();
 const router = useRouter();
 const selectedProject = computed({
-  get: () => (typeof route.query.project === "string" ? route.query.project : ""),
+  get: () => {
+    if (typeof route.params.projectId === "string") return route.params.projectId;
+    return typeof route.query.project === "string" ? route.query.project : "";
+  },
   set: (value: string) => {
-    void router.replace({
-      query: {
-        ...route.query,
-        project: value,
-        range: isRangePreset(route.query.range) ? route.query.range : "7d",
-      },
-    });
+    if (route.name === "project-metrics") {
+      void router.replace({
+        name: "project-metrics",
+        params: { ...route.params, projectId: value },
+        query: {
+          ...route.query,
+          range: isRangePreset(route.query.range) ? route.query.range : "7d",
+          tab: "analysis-objects",
+        },
+      });
+    } else {
+      void router.replace({
+        query: {
+          ...route.query,
+          project: value,
+          range: isRangePreset(route.query.range) ? route.query.range : "7d",
+        },
+      });
+    }
   },
 });
 const selectedRange = computed<RangePreset>({
@@ -34,11 +49,20 @@ const navigation = [
   { route: "pages", label: "页面访问", eyebrow: "访问证据" },
   { route: "operational-index", label: "项目运营指数", eyebrow: "可解释摘要" },
   { route: "observability", label: "前端可观测性", eyebrow: "错误与性能" },
+  { route: "project-metrics", label: "指标管理", eyebrow: "分析对象" },
   { route: "onboarding", label: "项目与接入", eyebrow: "配置和排障" },
 ] as const;
 
 function navigate(name: string): void {
-  void router.push({ name, query: route.query });
+  if (name === "project-metrics" && selectedProject.value) {
+    void router.push({
+      name,
+      params: { projectId: selectedProject.value },
+      query: { range: selectedRange.value, tab: "analysis-objects" },
+    });
+  } else {
+    void router.push({ name, query: route.query });
+  }
 }
 
 async function logout(): Promise<void> {
@@ -96,7 +120,8 @@ watch(
                 route.query.evidence === 'task') ||
               (item.route === 'operational-overview' && route.name === 'page-detail') ||
               (item.route === 'operational-index' &&
-                route.name === 'operational-config'),
+                route.name === 'operational-config') ||
+              (item.route === 'project-metrics' && route.name === 'project-metrics'),
           }"
           type="button"
           @click="navigate(item.route)"

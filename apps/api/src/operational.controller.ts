@@ -3,6 +3,8 @@ import {
   METRIC_CATALOG,
   metricDefinition,
   metricLineage,
+  normalizePageRouteDefinition,
+  validateWorkflowDefinition,
   type AnalyticsRange,
   type MetricDimensionKey,
   type MetricProfileItem,
@@ -20,6 +22,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from "@nestjs/common";
 import { z } from "zod";
@@ -75,6 +78,77 @@ const updatePageSchema = z
     effectiveFrom: pageFields.effectiveFrom,
   })
   .refine((value) => Object.keys(value).length > 0);
+
+const workflowKey = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
+const workflowStepKey = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
+const workflowTriggerKind = z.enum([
+  "explicit_sdk",
+  "selector",
+  "network_request",
+  "page_lifecycle",
+  "operation_terminal",
+]);
+const workflowStepSchema = z
+  .object({
+    stepKey: workflowStepKey,
+    name: z.string().trim().min(1).max(120),
+    stepOrder: z.number().int().min(1).max(20),
+    triggerKind: workflowTriggerKind,
+    triggerConfig: z.record(z.string(), z.union([z.string().max(512), z.boolean()])),
+  })
+  .superRefine((step, context) => {
+    const schemas = {
+      explicit_sdk: z.object({ actionKey: workflowStepKey }).strict(),
+      selector: z.object({ selector: z.string().trim().min(1).max(256) }).strict(),
+      network_request: z
+        .object({
+          method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+          pathPattern: z
+            .string()
+            .trim()
+            .min(1)
+            .max(256)
+            .regex(/^\/[^?#]*$/, "pathPattern must omit query/hash"),
+        })
+        .strict(),
+      page_lifecycle: z.object({ event: z.enum(["loaded", "refreshed"]) }).strict(),
+      operation_terminal: z
+        .object({ state: z.enum(["completed", "failed", "canceled"]) })
+        .strict(),
+    } as const;
+    const result = schemas[step.triggerKind].safeParse(step.triggerConfig);
+    if (!result.success) {
+      context.addIssue({
+        code: "custom",
+        path: ["triggerConfig"],
+        message: `invalid ${step.triggerKind} trigger config`,
+      });
+    }
+  });
+const workflowConfigurationSchema = z.object({
+  startPolicy: z.enum(["explicit_sdk", "first_step"]),
+  terminalPolicy: z.object({
+    completedStepKey: workflowStepKey,
+    failedStepKey: workflowStepKey.nullable(),
+    canceledStepKey: workflowStepKey.nullable(),
+    timeoutState: z.literal("approximate_abandoned"),
+  }),
+  timeoutSeconds: z.number().int().min(30).max(604_800),
+  steps: z.array(workflowStepSchema).min(2).max(20),
+});
+const createWorkflowSchema = workflowConfigurationSchema.extend({
+  moduleId: z.string().uuid(),
+  workflowKey,
+  name: z.string().trim().min(1).max(120),
+});
+const updateWorkflowSchema = z
+  .object({
+    moduleId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(120).optional(),
+    status: z.enum(["active", "disabled"]).optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0);
+const activateWorkflowSchema = z.object({ versionId: z.string().uuid() });
 
 const settingsSchema = z.object({
   targetUsers: z.number().int().positive().max(100_000_000).nullable(),
@@ -316,8 +390,10 @@ export class OperationalController {
     @CurrentPrincipal() principal: Principal,
   ) {
     await this.authorize(principal, projectId, true);
+    const parsed = parseInput(createPageSchema, body);
     return this.core.mysql.createPageDefinition({
-      ...parseInput(createPageSchema, body),
+      ...parsed,
+      pageRoute: normalizePageRouteDefinition(parsed.pageRoute).pageRoute,
       projectId,
       actor: principal,
     });
@@ -347,6 +423,94 @@ export class OperationalController {
     await this.authorize(principal, projectId, true);
     await this.core.mysql.updatePageDefinition(projectId, pageId, {
       status: "disabled",
+      actor: principal,
+    });
+  }
+
+  @Get("workflow-definitions")
+  async listWorkflows(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return this.core.mysql.listWorkflowDefinitions(projectId);
+  }
+
+  @Post("workflow-definitions")
+  async createWorkflow(
+    @Param("projectId") projectId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const parsed = parseInput(createWorkflowSchema, body);
+    validateWorkflowDefinition(parsed);
+    return this.core.mysql.createWorkflowDefinition({
+      ...parsed,
+      projectId,
+      actor: principal,
+    });
+  }
+
+  @Patch("workflow-definitions/:workflowId")
+  async updateWorkflow(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    return this.core.mysql.updateWorkflowDefinition(projectId, workflowId, {
+      ...parseInput(updateWorkflowSchema, body),
+      actor: principal,
+    });
+  }
+
+  @Delete("workflow-definitions/:workflowId")
+  @HttpCode(204)
+  async disableWorkflow(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<void> {
+    await this.authorize(principal, projectId, true);
+    await this.core.mysql.updateWorkflowDefinition(projectId, workflowId, {
+      status: "disabled",
+      actor: principal,
+    });
+  }
+
+  @Put("workflow-definitions/:workflowId/draft")
+  async saveWorkflowDraft(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const parsed = parseInput(workflowConfigurationSchema, body);
+    validateWorkflowDefinition(parsed);
+    return this.core.mysql.saveWorkflowDraft({
+      ...parsed,
+      projectId,
+      workflowId,
+      actor: principal,
+    });
+  }
+
+  @Post("workflow-definitions/:workflowId/activate")
+  async activateWorkflow(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const parsed = parseInput(activateWorkflowSchema, body);
+    return this.core.mysql.activateWorkflowDefinitionVersion({
+      projectId,
+      workflowId,
+      versionId: parsed.versionId,
       actor: principal,
     });
   }

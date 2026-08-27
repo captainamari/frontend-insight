@@ -5,6 +5,14 @@ export type ProjectRole = "owner" | "admin" | "viewer";
 export type FeatureType = "data_view" | "action" | "long_view";
 export type PageTemplate = "monitoring_dashboard" | "analysis_view" | "task_operation";
 export type ExpectedFrequency = "daily" | "weekly" | "monthly" | "ad_hoc";
+export type WorkflowStartPolicy = "explicit_sdk" | "first_step";
+export type WorkflowTriggerKind =
+  | "explicit_sdk"
+  | "selector"
+  | "network_request"
+  | "page_lifecycle"
+  | "operation_terminal";
+export type WorkflowVersionStatus = "draft" | "active" | "retired";
 
 export interface Principal {
   userId: string;
@@ -66,6 +74,52 @@ export interface PageDefinitionRecord {
   expectedFrequency: ExpectedFrequency;
   status: "active" | "disabled";
   effectiveFrom: string;
+}
+
+export interface WorkflowTerminalPolicy {
+  completedStepKey: string;
+  failedStepKey: string | null;
+  canceledStepKey: string | null;
+  timeoutState: "approximate_abandoned";
+}
+
+export interface WorkflowStepInput {
+  stepKey: string;
+  name: string;
+  stepOrder: number;
+  triggerKind: WorkflowTriggerKind;
+  triggerConfig: Record<string, string | boolean>;
+}
+
+export interface WorkflowStepRecord extends WorkflowStepInput {
+  id: string;
+  workflowDefinitionVersionId: string;
+}
+
+export interface WorkflowDefinitionVersionRecord {
+  id: string;
+  workflowDefinitionId: string;
+  version: number;
+  startPolicy: WorkflowStartPolicy;
+  terminalPolicy: WorkflowTerminalPolicy;
+  timeoutSeconds: number;
+  status: WorkflowVersionStatus;
+  activatedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  steps: WorkflowStepRecord[];
+}
+
+export interface WorkflowDefinitionRecord {
+  id: string;
+  projectId: string;
+  moduleId: string;
+  workflowKey: string;
+  name: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  updatedAt: string;
+  latestVersion: WorkflowDefinitionVersionRecord | null;
 }
 
 export interface ProjectOperationalSettings {

@@ -147,12 +147,18 @@ CREATE TABLE IF NOT EXISTS features (
 CREATE TABLE IF NOT EXISTS workflow_definitions (
   id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
   project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  module_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   workflow_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   name VARCHAR(120) NOT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'active',
+  disabled_at TIMESTAMP(3) NULL,
   created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_workflow_definitions_key (project_id, workflow_key),
-  CONSTRAINT fk_workflow_definitions_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE RESTRICT
+  KEY idx_workflow_definitions_module (module_id, status),
+  CONSTRAINT chk_workflow_definitions_status CHECK (status IN ('active', 'disabled')),
+  CONSTRAINT fk_workflow_definitions_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_workflow_definitions_module FOREIGN KEY (module_id) REFERENCES modules (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS workflow_definition_versions (
@@ -160,12 +166,16 @@ CREATE TABLE IF NOT EXISTS workflow_definition_versions (
   workflow_definition_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   version INT UNSIGNED NOT NULL,
   start_policy VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  terminal_policy JSON NOT NULL,
   timeout_seconds INT UNSIGNED NOT NULL,
   status VARCHAR(16) NOT NULL DEFAULT 'draft',
   activated_at TIMESTAMP(3) NULL,
   created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_workflow_versions (workflow_definition_id, version),
+  CONSTRAINT chk_workflow_start_policy CHECK (start_policy IN ('explicit_sdk', 'first_step')),
   CONSTRAINT chk_workflow_version_status CHECK (status IN ('draft', 'active', 'retired')),
+  CONSTRAINT chk_workflow_timeout CHECK (timeout_seconds BETWEEN 30 AND 604800),
   CONSTRAINT fk_workflow_versions_definition FOREIGN KEY (workflow_definition_id) REFERENCES workflow_definitions (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -177,8 +187,12 @@ CREATE TABLE IF NOT EXISTS workflow_steps (
   step_order INT UNSIGNED NOT NULL,
   trigger_kind VARCHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   trigger_config JSON NOT NULL,
+  created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_workflow_steps_key (workflow_definition_version_id, step_key),
   UNIQUE KEY uq_workflow_steps_order (workflow_definition_version_id, step_order),
+  CONSTRAINT chk_workflow_step_order CHECK (step_order BETWEEN 1 AND 20),
+  CONSTRAINT chk_workflow_trigger_kind CHECK (trigger_kind IN ('explicit_sdk', 'selector', 'network_request', 'page_lifecycle', 'operation_terminal')),
   CONSTRAINT fk_workflow_steps_version FOREIGN KEY (workflow_definition_version_id) REFERENCES workflow_definition_versions (id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

@@ -21,6 +21,7 @@ Commands:
   up                             Build and start API, consumer, management UI and demo
   seed                           Idempotently create local users, project and features
   smoke                          Verify the data flow and all three HTTP services
+  verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
   status                         Show service health and current resource use
   logs [service]                 Show recent logs for all or one service
   down                           Stop containers and preserve named data volumes
@@ -140,6 +141,15 @@ smoke() {
   info "R0 empty-baseline, contract rejection and canonical data-flow smoke checks passed"
 }
 
+verify_r1a() {
+  ensure_env
+  require_command docker
+  if ! compose run --rm --build --no-deps r1a-verifier; then
+    fail "R1-A verification failed. Inspect API output and the verifier result above."
+  fi
+  info "R1-A analysis-object, project-isolation, audit and privacy checks passed"
+}
+
 status() {
   ensure_env
   require_command docker
@@ -159,7 +169,7 @@ logs() {
   local service="${1:-}"
   if [[ -n "$service" ]]; then
     case "$service" in
-      mysql|clickhouse|kafka-init|kafka|kafka-topics|migrate|api|consumer|web|demo|seed|verifier) ;;
+      mysql|clickhouse|kafka-init|kafka|kafka-topics|migrate|api|consumer|web|demo|seed|verifier|r1a-verifier) ;;
       *) fail "Unknown R0 service: $service" ;;
     esac
     compose logs --tail 200 "$service"
@@ -201,6 +211,7 @@ case "$command_name" in
   up) up "$@" ;;
   seed) seed "$@" ;;
   smoke) smoke "$@" ;;
+  verify-r1a) verify_r1a "$@" ;;
   status) status "$@" ;;
   logs) logs "$@" ;;
   down) down "$@" ;;

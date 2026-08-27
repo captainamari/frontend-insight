@@ -39,6 +39,10 @@ describe("v1.8 empty-database migration inventory", () => {
       expect(migration.sql).toContain(`CREATE TABLE IF NOT EXISTS ${table}`);
     }
     expect(migration.sql).toContain("app_id");
+    expect(migration.sql).toContain("module_id");
+    expect(migration.sql).toContain("terminal_policy");
+    expect(migration.sql).toContain("chk_workflow_step_order");
+    expect(migration.sql).toContain("chk_workflow_trigger_kind");
     expect(migration.sql).not.toContain("ALTER TABLE");
   });
 

@@ -1,4 +1,5 @@
 export * from "./analytics.js";
+export * from "./analysis-objects.js";
 export * from "./auth.js";
 export * from "./model.js";
 export * from "./metrics.js";

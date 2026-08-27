@@ -41,6 +41,7 @@ const resource = useRemoteData<ConfigData>();
 const saving = ref(false);
 const moduleOpen = ref(false);
 const pageOpen = ref(false);
+const analysisObjectsMoved = true;
 const profileItems = ref<MetricProfileItem[]>([]);
 const canWrite = computed(
   () =>
@@ -450,6 +451,31 @@ watch(
     </PageHeader>
 
     <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      title="功能模块与页面定义已迁移到“指标管理 → 分析对象”；此处只保留旧运营目标和 profile 的阶段性配置。"
+    >
+      <el-button
+        link
+        type="primary"
+        @click="
+          router.push({
+            name: 'project-metrics',
+            params: { projectId: context.projectId.value },
+            query: {
+              range: context.preset.value,
+              tab: 'analysis-objects',
+              object: 'modules',
+            },
+          })
+        "
+      >
+        前往分析对象
+      </el-button>
+    </el-alert>
+
+    <el-alert
       v-if="!canWrite"
       type="info"
       :closable="false"
@@ -472,12 +498,20 @@ watch(
               <h2>模块</h2>
               <p>模块必须显式注册，不能从 URL 第一段自动推断。</p>
             </div>
-            <el-button v-if="canWrite" @click="moduleOpen = true"> 新建模块 </el-button>
+            <el-button
+              v-if="canWrite && !analysisObjectsMoved"
+              @click="moduleOpen = true"
+            >
+              新建模块
+            </el-button>
           </div>
           <el-table :data="resource.data.value.modules" empty-text="尚未配置模块">
             <el-table-column label="模块" min-width="180">
               <template #default="{ row }">
-                <el-input v-model="row.name" :disabled="!canWrite" />
+                <el-input
+                  v-model="row.name"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                />
               </template>
             </el-table-column>
             <el-table-column prop="moduleKey" label="moduleKey" min-width="170" />
@@ -485,7 +519,7 @@ watch(
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.criticalityWeight"
-                  :disabled="!canWrite"
+                  :disabled="analysisObjectsMoved || !canWrite"
                   :min="0.1"
                   :max="100"
                   :step="0.1"
@@ -496,7 +530,7 @@ watch(
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.displayOrder"
-                  :disabled="!canWrite"
+                  :disabled="analysisObjectsMoved || !canWrite"
                   :min="-10000"
                   :max="10000"
                 />
@@ -507,11 +541,16 @@ watch(
                 <el-tag :type="row.status === 'active' ? 'success' : 'info'">
                   {{ row.status === "active" ? "启用" : "停用" }}
                 </el-tag>
-                <el-button v-if="canWrite" link type="primary" @click="saveModule(row)">
+                <el-button
+                  v-if="canWrite && !analysisObjectsMoved"
+                  link
+                  type="primary"
+                  @click="saveModule(row)"
+                >
                   保存
                 </el-button>
                 <el-button
-                  v-if="canWrite"
+                  v-if="canWrite && !analysisObjectsMoved"
                   link
                   type="primary"
                   @click="toggleModule(row)"
@@ -530,7 +569,10 @@ watch(
               <h2>页面</h2>
               <p>route、模板、核心标记和关键度共同决定运营口径。</p>
             </div>
-            <el-button v-if="canWrite" @click="pageOpen = true">
+            <el-button
+              v-if="canWrite && !analysisObjectsMoved"
+              @click="pageOpen = true"
+            >
               新建页面定义
             </el-button>
           </div>
@@ -545,13 +587,19 @@ watch(
           <el-table :data="resource.data.value.pages" empty-text="尚未配置页面">
             <el-table-column label="页面" min-width="240" fixed>
               <template #default="{ row }">
-                <el-input v-model="row.name" :disabled="!canWrite" />
+                <el-input
+                  v-model="row.name"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                />
                 <small class="cell-reason">{{ row.pageRoute }}</small>
               </template>
             </el-table-column>
             <el-table-column label="模块" min-width="180">
               <template #default="{ row }">
-                <el-select v-model="row.moduleId" :disabled="!canWrite">
+                <el-select
+                  v-model="row.moduleId"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                >
                   <el-option
                     v-for="module in resource.data.value?.modules"
                     :key="module.id"
@@ -563,7 +611,10 @@ watch(
             </el-table-column>
             <el-table-column label="模板" min-width="210">
               <template #default="{ row }">
-                <el-select v-model="row.templateKey" :disabled="!canWrite">
+                <el-select
+                  v-model="row.templateKey"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                >
                   <el-option
                     v-for="(label, value) in templateLabels"
                     :key="value"
@@ -575,14 +626,17 @@ watch(
             </el-table-column>
             <el-table-column label="核心" width="90">
               <template #default="{ row }">
-                <el-switch v-model="row.isCore" :disabled="!canWrite" />
+                <el-switch
+                  v-model="row.isCore"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                />
               </template>
             </el-table-column>
             <el-table-column label="关键度" width="130">
               <template #default="{ row }">
                 <el-input-number
                   v-model="row.criticalityWeight"
-                  :disabled="!canWrite"
+                  :disabled="analysisObjectsMoved || !canWrite"
                   :min="0.1"
                   :max="100"
                   :step="0.1"
@@ -591,7 +645,10 @@ watch(
             </el-table-column>
             <el-table-column label="预期频率" width="130">
               <template #default="{ row }">
-                <el-select v-model="row.expectedFrequency" :disabled="!canWrite">
+                <el-select
+                  v-model="row.expectedFrequency"
+                  :disabled="analysisObjectsMoved || !canWrite"
+                >
                   <el-option label="每天" value="daily" />
                   <el-option label="每周" value="weekly" />
                   <el-option label="每月" value="monthly" />
@@ -604,10 +661,20 @@ watch(
                 <el-tag :type="row.status === 'active' ? 'success' : 'info'">
                   {{ row.status === "active" ? "启用" : "停用" }}
                 </el-tag>
-                <el-button v-if="canWrite" link type="primary" @click="savePage(row)">
+                <el-button
+                  v-if="canWrite && !analysisObjectsMoved"
+                  link
+                  type="primary"
+                  @click="savePage(row)"
+                >
                   保存
                 </el-button>
-                <el-button v-if="canWrite" link type="primary" @click="togglePage(row)">
+                <el-button
+                  v-if="canWrite && !analysisObjectsMoved"
+                  link
+                  type="primary"
+                  @click="togglePage(row)"
+                >
                   {{ row.status === "active" ? "停用" : "启用" }}
                 </el-button>
               </template>

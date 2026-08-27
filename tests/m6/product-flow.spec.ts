@@ -117,23 +117,23 @@ test("admin can follow overview, page detail, index and versioned configuration"
 
   await page.getByRole("button", { name: "配置目标与权重" }).click();
   await expect(page.getByRole("heading", { name: "运营指标配置" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "模块" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "页面" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "功能与任务元数据" })).toBeVisible();
+  await expect(page.getByText(/功能模块与页面定义已迁移/)).toBeVisible();
   await expect(page.getByText("当前：智慧园区运营指数 v1 · v1")).toBeVisible();
   await expect(page.getByText(/历史参考（当前筛选）/)).toBeVisible();
-  const templateGuidance = page.getByLabel("页面模板业务解释");
-  await expect(templateGuidance.getByText("实时监测 / 驾驶舱")).toBeVisible();
-  await expect(templateGuidance.getByText("信息分析")).toBeVisible();
-  await expect(templateGuidance.getByText("任务操作")).toBeVisible();
   await expect(page.getByText(/配置叶子权重/)).toBeVisible();
+
+  await page.getByRole("button", { name: "前往分析对象" }).click();
+  await expect(page.getByRole("heading", { name: "指标管理" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "功能模块" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "页面" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "工作流" })).toBeVisible();
 
   const moduleName = `E2E 模块 ${Date.now()}`;
   const moduleKey = `e2e_module_${Date.now()}`;
-  await page.getByRole("button", { name: "新建模块" }).click();
-  const dialog = page.getByRole("dialog", { name: "新建模块" });
+  await page.getByRole("button", { name: "新建功能模块" }).click();
+  const dialog = page.getByRole("dialog", { name: "新建功能模块" });
   await dialog.getByLabel("moduleKey").fill(moduleKey);
-  await dialog.getByLabel("模块名称").fill(moduleName);
+  await dialog.getByLabel("功能模块名称").fill(moduleName);
   await dialog.getByRole("button", { name: "创建" }).click();
   const createdModule = page.getByRole("row").filter({ hasText: moduleKey });
   await expect(createdModule.getByRole("textbox").first()).toHaveValue(moduleName);

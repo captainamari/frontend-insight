@@ -29,18 +29,30 @@ const pool = mysql.createPool(mysqlUrl);
 try {
   await pool.execute(
     `INSERT INTO workflow_definitions
-       (id, project_id, workflow_key, name, status)
-     VALUES (?, ?, 'energy_response', '能耗异常处置', 'active')
-     ON DUPLICATE KEY UPDATE name = VALUES(name), status = 'active'`,
-    [workflowId, m5Fixture.projectId],
+       (id, project_id, module_id, workflow_key, name, status)
+     VALUES (?, ?, ?, 'energy_response', '能耗异常处置', 'active')
+     ON DUPLICATE KEY UPDATE
+       module_id = VALUES(module_id), name = VALUES(name), status = 'active',
+       disabled_at = NULL`,
+    [workflowId, m5Fixture.projectId, m6Fixture.modules.operations],
   );
   await pool.execute(
     `INSERT INTO workflow_definition_versions
-       (id, workflow_definition_id, version, start_policy, timeout_seconds,
-        status, activated_at)
-     VALUES (?, ?, 1, 'explicit_sdk', 1800, 'active', '2026-08-01 00:00:00.000')
+       (id, workflow_definition_id, version, start_policy, terminal_policy,
+        timeout_seconds, status, activated_at)
+     VALUES (?, ?, 1, 'explicit_sdk', ?, 1800, 'active',
+             '2026-08-01 00:00:00.000')
      ON DUPLICATE KEY UPDATE id = id`,
-    [workflowVersionId, workflowId],
+    [
+      workflowVersionId,
+      workflowId,
+      JSON.stringify({
+        completedStepKey: "resolved",
+        failedStepKey: null,
+        canceledStepKey: null,
+        timeoutState: "approximate_abandoned",
+      }),
+    ],
   );
   for (const [key, name, order] of [
     ["opened", "发现异常", 1],
@@ -49,11 +61,11 @@ try {
   ] as const) {
     await pool.execute(
       `INSERT INTO workflow_steps
-         (id, workflow_definition_version_id, step_key, name, step_order,
+       (id, workflow_definition_version_id, step_key, name, step_order,
           trigger_kind, trigger_config)
-       VALUES (?, ?, ?, ?, ?, 'explicit_sdk', JSON_OBJECT('collectDomText', FALSE))
+       VALUES (?, ?, ?, ?, ?, 'explicit_sdk', JSON_OBJECT('actionKey', ?))
        ON DUPLICATE KEY UPDATE id = id`,
-      [stableUuid("r0-workflow-step", key), workflowVersionId, key, name, order],
+      [stableUuid("r0-workflow-step", key), workflowVersionId, key, name, order, key],
     );
   }
 

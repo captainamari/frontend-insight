@@ -10,6 +10,11 @@ v1.8 R0 重构分支基线：
 - [v1.8 R0 本地验收指引](guides/v1.8-r0-local-acceptance-macos.md)：空库重置、seed、定向测试和人工签字项；
 - [ADR-014](adr/ADR-014-canonical-contract-v3.md) 至 [ADR-018](adr/ADR-018-quality-export-and-prometheus-boundaries.md)：R0 必须冻结的架构边界。
 
+v1.8 R1-A 分析对象里程碑：
+
+- [R1-A 本地手工验收指引](guides/v1.8-r1a-local-acceptance-macos.md)：功能模块、页面、未归类 route、工作流、viewer 和审计验收；
+- [R1-A 实现与验收记录](progress/v1.8-r1a-results.md)：需求追踪、路由/API/schema 变化、自动化证据和非目标。
+
 当前待评审产品与修改基线：
 
 - [需求文档 v1.7](product/requirements-v1.7.md)：结合内部系统前端监测指标字典和产品流程图，统一领域实体、字段/事件/UI 命名、指标公式与分母、分位数、采集上报、隐私边界、页面职责和下钻关系；

@@ -16,6 +16,7 @@
     "test:m6:e2e": "playwright test --config playwright.m6.config.ts",
     "test:m8:e2e": "playwright test --config playwright.m8.config.ts",
     "test:r0:e2e": "playwright test --config playwright.r0.config.ts",
+    "test:r1a:e2e": "playwright test --config playwright.r1a.config.ts",
     "lint": "eslint .",
     "typecheck": "pnpm -r --if-present typecheck",
     "format": "prettier --write .",
@@ -27,6 +28,7 @@
     "migrate": "pnpm --filter @frontend-insight/database migrate",
     "migrate:verify": "pnpm --filter @frontend-insight/database verify",
     "test:r0": "vitest run packages/event-contract packages/test-fixtures packages/database apps/consumer packages/server-core/test/pipeline.test.ts tests/r0",
+    "test:r1a": "vitest run packages/server-core/test/analysis-objects.test.ts apps/api/test/operational.controller.test.ts apps/web/test/analysis-objects.test.ts packages/database/test/migrations.test.ts",
     "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm canonical:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
   },
   "devDependencies": {
