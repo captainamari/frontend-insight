@@ -32,7 +32,7 @@ export function useRemoteData<T>(): RemoteData<T> {
         error.value =
           cause instanceof ApiError
             ? cause
-            : new ApiError(0, "NETWORK_ERROR", null, "无法连接到服务");
+            : new ApiError(0, "NETWORK_ERROR", null, undefined, "无法连接到服务");
         return null;
       } finally {
         loading.value = false;

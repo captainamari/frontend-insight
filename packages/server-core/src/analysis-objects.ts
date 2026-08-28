@@ -12,6 +12,17 @@ export interface NormalizedPageRoute {
   replacedSegments: number;
 }
 
+export class AnalysisObjectLifecycleError extends Error {
+  constructor(
+    readonly code: string,
+    readonly statusCode: number,
+    readonly details?: unknown,
+  ) {
+    super(code);
+    this.name = "AnalysisObjectLifecycleError";
+  }
+}
+
 export function normalizePageRouteDefinition(input: string): NormalizedPageRoute {
   const trimmed = input.trim();
   if (!trimmed.startsWith("/") || /[?#]/.test(trimmed)) {
@@ -76,6 +87,7 @@ export function validateWorkflowDefinition(input: {
     if (orders.has(step.stepOrder)) throw new Error("WORKFLOW_STEP_ORDER_DUPLICATE");
     stepKeys.add(step.stepKey);
     orders.add(step.stepOrder);
+    validateWorkflowTriggerConfig(step);
   }
   const expectedOrders = Array.from(
     { length: input.steps.length },
@@ -94,5 +106,59 @@ export function validateWorkflowDefinition(input: {
   }
   if (new Set(terminalKeys).size !== terminalKeys.length) {
     throw new Error("WORKFLOW_TERMINAL_STEP_DUPLICATE");
+  }
+}
+
+function exactKeys(config: Record<string, string | boolean>, keys: string[]): boolean {
+  const actual = Object.keys(config).sort();
+  return (
+    actual.length === keys.length &&
+    actual.every((key, index) => key === [...keys].sort()[index])
+  );
+}
+
+function validateWorkflowTriggerConfig(step: WorkflowStepInput): void {
+  const config = step.triggerConfig;
+  switch (step.triggerKind) {
+    case "explicit_sdk":
+      if (!exactKeys(config, [])) throw new Error("WORKFLOW_TRIGGER_CONFIG_INVALID");
+      return;
+    case "selector":
+      if (
+        !exactKeys(config, ["event", "selector"]) ||
+        !["click", "change"].includes(String(config.event)) ||
+        typeof config.selector !== "string" ||
+        !config.selector.trim()
+      ) {
+        throw new Error("WORKFLOW_TRIGGER_CONFIG_INVALID");
+      }
+      return;
+    case "network_request":
+      if (
+        !exactKeys(config, ["method", "pathPattern"]) ||
+        !["GET", "POST", "PUT", "PATCH", "DELETE"].includes(String(config.method)) ||
+        typeof config.pathPattern !== "string" ||
+        !/^\/[^?#]*$/.test(config.pathPattern)
+      ) {
+        throw new Error("WORKFLOW_TRIGGER_CONFIG_INVALID");
+      }
+      return;
+    case "page_lifecycle":
+      if (
+        !exactKeys(config, ["event"]) ||
+        !["loaded", "refreshed"].includes(String(config.event))
+      ) {
+        throw new Error("WORKFLOW_TRIGGER_CONFIG_INVALID");
+      }
+      return;
+    case "operation_terminal":
+      if (
+        !exactKeys(config, ["operationKey", "state"]) ||
+        typeof config.operationKey !== "string" ||
+        !/^[a-z][a-z0-9_]{0,63}$/.test(config.operationKey) ||
+        !["succeeded", "failed", "canceled"].includes(String(config.state))
+      ) {
+        throw new Error("WORKFLOW_TRIGGER_CONFIG_INVALID");
+      }
   }
 }

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import mysql from "mysql2/promise";
 import { DEFAULT_OPERATIONAL_PROFILE_ITEMS } from "../src/metrics.js";
 import { m5Fixture, seedM5Fixture } from "./m5-fixture.js";
@@ -30,6 +31,11 @@ const itemIds = [
   "60aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
 ] as const;
 
+function stableUuid(namespace: string, key: string): string {
+  const hex = createHash("sha256").update(`${namespace}:${key}`).digest("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 export async function seedM6Fixture(
   mysqlUrl: string,
   options: { origins: string[] },
@@ -37,22 +43,31 @@ export async function seedM6Fixture(
   await seedM5Fixture(mysqlUrl, options);
   const pool = mysql.createPool(mysqlUrl);
   try {
-    for (const [id, key, name, weight, order] of [
-      [m6Fixture.modules.analytics, "analysis", "数据分析", 1, 10],
-      [m6Fixture.modules.operations, "operations", "业务操作", 1.2, 20],
+    for (const [id, key, name, order] of [
+      [m6Fixture.modules.analytics, "analysis", "数据分析", 10],
+      [m6Fixture.modules.operations, "operations", "业务操作", 20],
     ] as const) {
       await pool.execute(
         `INSERT INTO modules
-           (id, project_id, module_key, name, criticality_weight, display_order,
-            status, effective_from)
-         VALUES (?, ?, ?, ?, ?, ?, 'active', '2026-07-01 00:00:00.000')
+           (id, project_id, module_key, status)
+         VALUES (?, ?, ?, 'active')
+         ON DUPLICATE KEY UPDATE
+           status = 'active',
+           disabled_at = NULL,
+           archived_at = NULL`,
+        [id, m5Fixture.projectId, key],
+      );
+      await pool.execute(
+        `INSERT INTO module_revisions
+           (id, module_id, revision, name, display_order, status,
+            effective_from, created_by_user_id)
+         VALUES (?, ?, 1, ?, ?, 'active', '2026-07-01 00:00:00.000', ?)
          ON DUPLICATE KEY UPDATE
            name = VALUES(name),
-           criticality_weight = VALUES(criticality_weight),
            display_order = VALUES(display_order),
            status = 'active',
-           disabled_at = NULL`,
-        [id, m5Fixture.projectId, key, name, weight, order],
+           effective_to = NULL`,
+        [stableUuid("m6-module-revision", id), id, name, order, m5Fixture.admin.id],
       );
     }
 
@@ -90,10 +105,21 @@ export async function seedM6Fixture(
     ] as const) {
       await pool.execute(
         `INSERT INTO page_definitions
-           (id, project_id, module_id, page_route, name, template_key,
-            is_core, criticality_weight, expected_frequency, status, effective_from)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active',
-                 '2026-07-01 00:00:00.000')
+           (id, project_id, page_route, status)
+         VALUES (?, ?, ?, 'active')
+         ON DUPLICATE KEY UPDATE
+           status = 'active',
+           disabled_at = NULL,
+           archived_at = NULL`,
+        [id, m5Fixture.projectId, route],
+      );
+      await pool.execute(
+        `INSERT INTO page_definition_revisions
+           (id, page_definition_id, revision, module_id, name, template_key,
+            is_core, criticality_weight, expected_frequency, status,
+            effective_from, created_by_user_id)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 'active',
+                 '2026-07-01 00:00:00.000', ?)
          ON DUPLICATE KEY UPDATE
            module_id = VALUES(module_id),
            name = VALUES(name),
@@ -102,17 +128,17 @@ export async function seedM6Fixture(
            criticality_weight = VALUES(criticality_weight),
            expected_frequency = VALUES(expected_frequency),
            status = 'active',
-           disabled_at = NULL`,
+           effective_to = NULL`,
         [
+          stableUuid("m6-page-revision", id),
           id,
-          m5Fixture.projectId,
           moduleId,
-          route,
           name,
           template,
           core,
           weight,
           frequency,
+          m5Fixture.admin.id,
         ],
       );
     }

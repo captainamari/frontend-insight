@@ -588,9 +588,16 @@ export class AnalyticsStore {
   async modules(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
+      const configurationAt = new Date(Date.parse(range.to) - 1);
       const [modules, pages, rows, status] = await Promise.all([
-        this.mysql.listModules(projectId),
-        this.mysql.listPageDefinitions(projectId),
+        this.mysql.listModules(projectId, {
+          includeArchived: true,
+          at: configurationAt,
+        }),
+        this.mysql.listPageDefinitions(projectId, {
+          includeArchived: true,
+          at: configurationAt,
+        }),
         this.pageOperationalRows(projectId, range),
         this.projectDataStatus(projectId),
       ]);
@@ -665,10 +672,17 @@ export class AnalyticsStore {
   async operationalOverview(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
+      const configurationAt = new Date(Date.parse(range.to) - 1);
       const [modules, pages, features, rows, vv, operations, status, settings] =
         await Promise.all([
-          this.mysql.listModules(projectId),
-          this.mysql.listPageDefinitions(projectId),
+          this.mysql.listModules(projectId, {
+            includeArchived: true,
+            at: configurationAt,
+          }),
+          this.mysql.listPageDefinitions(projectId, {
+            includeArchived: true,
+            at: configurationAt,
+          }),
           this.mysql.listFeatures(projectId),
           this.pageOperationalRows(projectId, range),
           this.sessionOperationalRows(projectId, range),
@@ -790,9 +804,16 @@ export class AnalyticsStore {
   async pageDetail(projectId: string, pageRoute: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
+      const configurationAt = new Date(Date.parse(range.to) - 1);
       const [modules, pages, features, rows, vv, trend, status] = await Promise.all([
-        this.mysql.listModules(projectId),
-        this.mysql.listPageDefinitions(projectId),
+        this.mysql.listModules(projectId, {
+          includeArchived: true,
+          at: configurationAt,
+        }),
+        this.mysql.listPageDefinitions(projectId, {
+          includeArchived: true,
+          at: configurationAt,
+        }),
         this.mysql.listFeatures(projectId),
         this.pageOperationalRows(projectId, range),
         this.sessionOperationalRows(projectId, range),
@@ -934,8 +955,12 @@ export class AnalyticsStore {
   async operationalIndex(projectId: string, rangeInput: AnalyticsRange) {
     return this.measure(async () => {
       const range = validateAnalyticsRange(rangeInput);
+      const configurationAt = new Date(Date.parse(range.to) - 1);
       const [pages, features, settings, profile, status] = await Promise.all([
-        this.mysql.listPageDefinitions(projectId),
+        this.mysql.listPageDefinitions(projectId, {
+          includeArchived: true,
+          at: configurationAt,
+        }),
         this.mysql.listFeatures(projectId),
         this.mysql.getOperationalSettings(projectId, new Date(range.to)),
         this.mysql.getActiveMetricProfile(projectId, new Date(range.to)),

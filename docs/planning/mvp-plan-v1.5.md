@@ -356,7 +356,7 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 - admin 写、viewer 只读；
 - 审计和项目隔离。
 
-需求 9.7.1 的决策已确认为 `D1-A / D2-A / 调整后的 D3-A / D4-A / D5-A / D6-A`。文档评审通过前不开始本批后续代码；实施不得重新引入已否决的模块关键度、物理删除、全量页面表格、常驻未归类大表或 selector `appeared`。
+需求 9.7.1 的决策已确认为 `D1-A / D2-A / 调整后的 D3-A / D4-A / D5-A / D6-A`，文档评审已经通过。实施不得重新引入已否决的模块关键度、物理删除、全量页面表格、常驻未归类大表或 selector `appeared`。
 
 ### 8.2 复用与重命名
 
@@ -407,12 +407,12 @@ contract v3 raw facts 使用以下附件语义列；物理列采用 snake_case�
 
 1. 已在独立 R1-A 分支修复手工验收确认的 TAB 状态、重复 key 提示、操作反馈和工作流布局缺陷；
 2. 在文档 PR 中确认 `D1-A / D2-A / 调整后的 D3-A / D4-A / D5-A / D6-A` 及 operation 关联边界；
-3. 文档评审通过后，从已验收的 R1-A 代码创建后续实施分支，不从文档分支开发代码；
+3. 文档评审已经通过；从已验收的 R1-A 代码创建后续实施分支，不从文档分支开发代码；
 4. 先删除模块关键度并实现停用/归档、module/page revision，再实现模块主从页面 UI 和未归类临时入口；
 5. 最后实现工作流术语、判定预览、上下文说明、条件式 D6 图标、SDK 示例和 operation 可用状态；
 6. 更新 API/DB/fixture/E2E/手工验收后重新执行完整 R1-A 阶段门。
 
-Stop 条件：文档评审未通过、revision effective window 仍可能重写历史、operation 仍可只选状态而无稳定标识，或 UI 把未关联的独立 operation 宣称为 workflow 事实。任何一项存在时不得开始或通过后续实现。
+Stop 条件：revision effective window 仍可能重写历史、operation 仍可只选状态而无稳定标识，或 UI 把未关联的独立 operation 宣称为 workflow 事实。任何一项存在时不得开始或通过后续实现。
 
 ## 9. R1-B：指标管理——指标字典、版本与公式
 
