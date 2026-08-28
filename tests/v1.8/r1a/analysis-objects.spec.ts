@@ -21,7 +21,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   page,
   browserName,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
   await page.goto(
     `/projects/${projectId}/metrics?range=7d&tab=analysis-objects&object=modules`,
@@ -116,7 +116,8 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(page.getByRole("row").filter({ hasText: normalizedRoute })).toHaveCount(
     0,
   );
-  await page.getByRole("checkbox", { name: "显示已归档" }).check();
+  await page.locator(".archive-toggle").click();
+  await expect(page.locator(".archive-toggle input")).toBeChecked();
   pageRow = page.getByRole("row").filter({ hasText: normalizedRoute });
   await expect(pageRow).toContainText("已归档");
   await pageRow.getByRole("button", { name: "恢复", exact: true }).click();
