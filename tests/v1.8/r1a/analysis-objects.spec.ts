@@ -135,10 +135,10 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(workflowDialog.getByText("actionKey", { exact: true })).toHaveCount(0);
   await expect(workflowDialog.getByText("受控值", { exact: true })).toHaveCount(0);
   await expect(workflowDialog.getByLabel("元素交互范围说明")).toHaveCount(0);
-  await expect(workflowDialog.getByText(/tracker.startWorkflow/).first()).toBeVisible();
-  await expect(workflowDialog.getByText(/reachStep/).first()).toBeVisible();
-
   const firstStep = workflowDialog.locator(".workflow-editor-step").first();
+  const explicitSdkExample = firstStep.locator(".sdk-example textarea");
+  await expect(explicitSdkExample).toHaveValue(/tracker\.startWorkflow/);
+  await expect(explicitSdkExample).toHaveValue(/reachStep/);
   await openSelect(firstStep, "步骤达成条件");
   await page.getByRole("option", { name: "元素交互", exact: true }).click();
   await expect(firstStep.getByLabel("元素交互范围说明")).toBeVisible();
