@@ -116,7 +116,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(page.getByRole("row").filter({ hasText: normalizedRoute })).toHaveCount(
     0,
   );
-  await page.locator(".archive-toggle").click();
+  await page.getByRole("checkbox", { name: "显示已归档" }).check();
   pageRow = page.getByRole("row").filter({ hasText: normalizedRoute });
   await expect(pageRow).toContainText("已归档");
   await pageRow.getByRole("button", { name: "恢复", exact: true }).click();
