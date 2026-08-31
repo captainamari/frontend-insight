@@ -65,10 +65,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await page.getByRole("button", { name: "新建功能模块" }).click();
   const moduleDialog = page.getByRole("dialog", { name: "新建功能模块" });
   await expectHorizontallyCentered(page, moduleDialog);
-  const moduleOverlay = page
-    .locator(".el-overlay-dialog")
-    .filter({ has: moduleDialog });
-  await moduleOverlay.click({ position: { x: 4, y: 4 } });
+  await page.mouse.click(4, 4);
   await expect(moduleDialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(moduleDialog).toBeVisible();
@@ -107,8 +104,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await page.getByRole("button", { name: "新建页面定义" }).click();
   const pageDrawer = page.getByRole("dialog", { name: "新建页面定义" });
   await expectHorizontallyCentered(page, pageDrawer);
-  const pageOverlay = page.locator(".el-overlay-dialog").filter({ has: pageDrawer });
-  await pageOverlay.click({ position: { x: 4, y: 4 } });
+  await page.mouse.click(4, 4);
   await expect(pageDrawer).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(pageDrawer).toBeVisible();
@@ -159,10 +155,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await page.getByRole("button", { name: "新建工作流" }).click();
   const workflowDialog = page.getByRole("dialog", { name: "新建工作流" });
   await expectHorizontallyCentered(page, workflowDialog);
-  const workflowOverlay = page
-    .locator(".el-overlay-dialog")
-    .filter({ has: workflowDialog });
-  await workflowOverlay.click({ position: { x: 4, y: 4 } });
+  await page.mouse.click(4, 4);
   await expect(workflowDialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(workflowDialog).toBeVisible();
