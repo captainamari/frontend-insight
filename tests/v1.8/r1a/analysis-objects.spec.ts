@@ -30,6 +30,20 @@ async function expectHorizontallyCentered(page: Page, locator: Locator): Promise
   expect(box.y).toBeGreaterThan(0);
 }
 
+async function replaceValueCharacterByCharacter(
+  page: Page,
+  input: Locator,
+  value: string,
+): Promise<void> {
+  await input.focus();
+  await input.press("Control+A");
+  for (const [index, character] of [...value].entries()) {
+    await page.keyboard.type(character);
+    await expect(input).toBeFocused();
+    await expect(input).toHaveValue(value.slice(0, index + 1));
+  }
+}
+
 test("admin completes the R1-A lifecycle, master-detail and workflow UX", async ({
   page,
   browserName,
@@ -167,7 +181,11 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(workflowDialog.getByText("受控值", { exact: true })).toHaveCount(0);
   await expect(workflowDialog.getByLabel("元素交互范围说明")).toHaveCount(0);
   const firstStep = workflowDialog.locator(".workflow-editor-step").first();
-  await firstStep.getByLabel("stepKey").fill("started1");
+  await replaceValueCharacterByCharacter(
+    page,
+    firstStep.getByLabel("stepKey"),
+    "started1",
+  );
   const explicitSdkExample = firstStep.locator(".sdk-example textarea");
   await expect(explicitSdkExample).toHaveValue(/tracker\.startWorkflow/);
   await expect(explicitSdkExample).toHaveValue(/reachStep/);
@@ -189,7 +207,11 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   ).toBeVisible();
 
   const secondStep = workflowDialog.locator(".workflow-editor-step").nth(1);
-  await secondStep.getByLabel("stepKey").fill("completed1");
+  await replaceValueCharacterByCharacter(
+    page,
+    secondStep.getByLabel("stepKey"),
+    "completed1",
+  );
   await expect(
     workflowDialog
       .getByLabel("成功终态步骤（completed）")
