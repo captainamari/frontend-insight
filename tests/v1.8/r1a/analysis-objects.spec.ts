@@ -19,7 +19,9 @@ async function openSelect(container: Locator, label: string): Promise<void> {
 
 async function expectHorizontallyCentered(page: Page, locator: Locator): Promise<void> {
   const viewport = page.viewportSize();
-  const box = await locator.boundingBox();
+  const dialogPanel = locator.locator(".el-dialog");
+  const visualPanel = (await dialogPanel.count()) > 0 ? dialogPanel : locator;
+  const box = await visualPanel.boundingBox();
   expect(viewport).not.toBeNull();
   expect(box).not.toBeNull();
   if (!viewport || !box) return;
