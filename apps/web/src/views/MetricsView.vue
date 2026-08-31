@@ -1771,17 +1771,17 @@ watch(
 .mobile-condition-context {
   display: none;
 }
-:deep(.r1a-config-dialog) {
+:global(.r1a-config-dialog) {
   display: flex;
   max-height: calc(100vh - 48px);
   flex-direction: column;
   margin: 0 auto;
 }
-:deep(.r1a-config-dialog .el-dialog__body) {
+:global(.r1a-config-dialog .el-dialog__body) {
   min-height: 0;
   overflow-y: auto;
 }
-:deep(.r1a-workflow-dialog .el-dialog__body) {
+:global(.r1a-workflow-dialog .el-dialog__body) {
   padding-top: 10px;
 }
 @media (max-width: 760px) {
