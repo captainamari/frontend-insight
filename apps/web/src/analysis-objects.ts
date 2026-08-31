@@ -118,6 +118,170 @@ interface MutationErrorShape {
   details?: unknown;
 }
 
+export interface WorkflowTerminalPolicyForm {
+  completedStepKey: string;
+  failedStepKey: string;
+  canceledStepKey: string;
+}
+
+export interface WorkflowDraftValidationStep {
+  stepKey: string;
+  name: string;
+  triggerKind: WorkflowTriggerKind;
+  configValue: string;
+  operationKey: string;
+}
+
+export interface WorkflowDraftValidationResult {
+  valid: boolean;
+  firstMessage: string | null;
+  workflowKey: string;
+  name: string;
+  moduleId: string;
+  stepKeys: string[];
+  stepNames: string[];
+  triggerConfigs: string[];
+  completedStepKey: string;
+  failedStepKey: string;
+  canceledStepKey: string;
+}
+
+const workflowIdentifier = /^[a-z][a-z0-9_]{0,63}$/;
+
+export function synchronizeWorkflowTerminalReferences(
+  policy: WorkflowTerminalPolicyForm,
+  previousStepKey: string,
+  nextStepKey: string,
+): WorkflowTerminalPolicyForm {
+  const replace = (value: string) => (value === previousStepKey ? nextStepKey : value);
+  return {
+    completedStepKey: replace(policy.completedStepKey),
+    failedStepKey: replace(policy.failedStepKey),
+    canceledStepKey: replace(policy.canceledStepKey),
+  };
+}
+
+export function validateWorkflowDraft(input: {
+  workflowKey: string;
+  name: string;
+  moduleId: string;
+  steps: WorkflowDraftValidationStep[];
+  terminalPolicy: WorkflowTerminalPolicyForm;
+  availableOperationKeys: readonly string[];
+}): WorkflowDraftValidationResult {
+  const workflowKey = workflowIdentifier.test(input.workflowKey.trim())
+    ? ""
+    : "workflowKey 必须以小写字母开头，且只能包含小写字母、数字和下划线。";
+  const name = input.name.trim() ? "" : "请填写工作流名称。";
+  const moduleId = input.moduleId ? "" : "请选择所属功能模块。";
+  const stepKeys: string[] = input.steps.map((step) =>
+    workflowIdentifier.test(step.stepKey.trim())
+      ? ""
+      : "stepKey 必须以小写字母开头，且只能包含小写字母、数字和下划线。",
+  );
+  const seenStepKeys = new Map<string, number>();
+  input.steps.forEach((step, index) => {
+    const stepKey = step.stepKey.trim();
+    const previous = seenStepKeys.get(stepKey);
+    if (stepKey && previous !== undefined) {
+      stepKeys[previous] = "stepKey 必须唯一。";
+      stepKeys[index] = "stepKey 必须唯一。";
+    } else if (stepKey) {
+      seenStepKeys.set(stepKey, index);
+    }
+  });
+  const stepNames = input.steps.map((step) =>
+    step.name.trim() ? "" : "请填写步骤名称。",
+  );
+  const availableOperations = new Set(input.availableOperationKeys);
+  const triggerConfigs = input.steps.map((step) => {
+    if (step.triggerKind === "selector" && !step.configValue.trim()) {
+      return "请填写选择器。";
+    }
+    if (
+      step.triggerKind === "network_request" &&
+      !/^\/[^?#]*$/.test(step.configValue.trim())
+    ) {
+      return "请求路径必须以 / 开头，且不能包含 query 或 hash。";
+    }
+    if (
+      step.triggerKind === "page_lifecycle" &&
+      !["loaded", "refreshed"].includes(step.configValue)
+    ) {
+      return "请选择页面生命周期事件。";
+    }
+    if (
+      step.triggerKind === "operation_terminal" &&
+      !availableOperations.has(step.operationKey)
+    ) {
+      return "请选择已登记且启用 lifecycle 的 operation。";
+    }
+    return "";
+  });
+  const currentStepKeys = new Set(input.steps.map((step) => step.stepKey.trim()));
+  let completedStepKey = "";
+  let failedStepKey = "";
+  let canceledStepKey = "";
+  if (!input.terminalPolicy.completedStepKey) {
+    completedStepKey = "请选择成功终态步骤。";
+  } else if (!currentStepKeys.has(input.terminalPolicy.completedStepKey)) {
+    completedStepKey = "成功终态步骤已失效，请重新选择当前工作流中的步骤。";
+  }
+  if (
+    input.terminalPolicy.failedStepKey &&
+    !currentStepKeys.has(input.terminalPolicy.failedStepKey)
+  ) {
+    failedStepKey = "失败终态步骤已失效，请重新选择当前工作流中的步骤。";
+  }
+  if (
+    input.terminalPolicy.canceledStepKey &&
+    !currentStepKeys.has(input.terminalPolicy.canceledStepKey)
+  ) {
+    canceledStepKey = "取消终态步骤已失效，请重新选择当前工作流中的步骤。";
+  }
+  if (
+    input.terminalPolicy.failedStepKey &&
+    input.terminalPolicy.failedStepKey === input.terminalPolicy.completedStepKey
+  ) {
+    failedStepKey = "失败终态步骤不能与成功终态步骤重复。";
+  }
+  if (
+    input.terminalPolicy.canceledStepKey &&
+    input.terminalPolicy.canceledStepKey === input.terminalPolicy.completedStepKey
+  ) {
+    canceledStepKey = "取消终态步骤不能与成功终态步骤重复。";
+  } else if (
+    input.terminalPolicy.canceledStepKey &&
+    input.terminalPolicy.canceledStepKey === input.terminalPolicy.failedStepKey
+  ) {
+    canceledStepKey = "取消终态步骤不能与失败终态步骤重复。";
+  }
+  const messages = [
+    workflowKey,
+    name,
+    moduleId,
+    ...stepKeys,
+    ...stepNames,
+    ...triggerConfigs,
+    completedStepKey,
+    failedStepKey,
+    canceledStepKey,
+  ].filter(Boolean);
+  return {
+    valid: messages.length === 0,
+    firstMessage: messages[0] ?? null,
+    workflowKey,
+    name,
+    moduleId,
+    stepKeys,
+    stepNames,
+    triggerConfigs,
+    completedStepKey,
+    failedStepKey,
+    canceledStepKey,
+  };
+}
+
 export function analysisObjectMutationErrorMessage(
   cause: unknown,
   conflictMessage = "唯一标识已存在，请修改后重试。",
@@ -139,6 +303,18 @@ export function analysisObjectMutationErrorMessage(
   }
   if (error?.code === "WORKFLOW_OPERATION_NOT_AVAILABLE") {
     return `保存失败：请选择已登记且启用 lifecycle 的 operation。${requestId}`;
+  }
+  if (error?.code === "WORKFLOW_TERMINAL_STEP_INVALID") {
+    return `保存失败：终态步骤已失效，请重新选择当前工作流中的步骤。${requestId}`;
+  }
+  if (error?.code === "WORKFLOW_TERMINAL_STEP_DUPLICATE") {
+    return `保存失败：同一步骤不能同时作为多个工作流终态。${requestId}`;
+  }
+  if (error?.code === "WORKFLOW_STEP_KEY_DUPLICATE") {
+    return `保存失败：stepKey 必须唯一，请修改重复步骤。${requestId}`;
+  }
+  if (error?.code === "WORKFLOW_TRIGGER_CONFIG_INVALID") {
+    return `保存失败：步骤达成条件配置无效，请检查标记字段。${requestId}`;
   }
   if (error?.status === 409 || error?.code === "RESOURCE_CONFLICT") {
     return `${conflictMessage}${requestId}`;

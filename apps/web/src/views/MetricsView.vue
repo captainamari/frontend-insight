@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import { api } from "../api";
@@ -7,6 +7,8 @@ import {
   analysisObjectMutationErrorMessage,
   pageRoutePreview,
   selectorIsFragile,
+  synchronizeWorkflowTerminalReferences,
+  validateWorkflowDraft,
   workflowConditionContext,
   workflowStepPreview,
 } from "../analysis-objects";
@@ -48,6 +50,7 @@ interface AnalysisObjectsData {
 }
 
 interface WorkflowStepForm {
+  clientId: string;
   stepKey: string;
   name: string;
   triggerKind: WorkflowTriggerKind;
@@ -88,11 +91,13 @@ const pageSemanticDirty = ref(false);
 const workflowOpen = ref(false);
 const editingWorkflowId = ref<string | null>(null);
 const activeStepIndex = ref(0);
+const workflowValidationVisible = ref(false);
 const handledCreateQuery = ref(false);
 const showOperationMessage = ElMessage as unknown as (options: {
   type: "success" | "error";
   message: string;
   showClose: boolean;
+  center?: boolean;
   duration?: number;
 }) => void;
 
@@ -159,6 +164,21 @@ const workflowForm = reactive({
   canceledStepKey: "",
   steps: [] as WorkflowStepForm[],
 });
+let workflowStepClientSequence = 0;
+const workflowValidation = computed(() =>
+  validateWorkflowDraft({
+    workflowKey: workflowForm.workflowKey,
+    name: workflowForm.name,
+    moduleId: workflowForm.moduleId,
+    steps: workflowForm.steps,
+    terminalPolicy: {
+      completedStepKey: workflowForm.completedStepKey,
+      failedStepKey: workflowForm.failedStepKey,
+      canceledStepKey: workflowForm.canceledStepKey,
+    },
+    availableOperationKeys: operationRegistry.value.map((item) => item.operationKey),
+  }),
+);
 
 const normalizedRoute = computed(() => pageRoutePreview(pageForm.pageRoute));
 const templateLabels: Record<PageTemplate, string> = {
@@ -255,6 +275,7 @@ async function mutate(
       type: "success",
       message: successMessage,
       showClose: true,
+      center: true,
     });
     return true;
   } catch (cause) {
@@ -262,6 +283,7 @@ async function mutate(
       type: "error",
       message: analysisObjectMutationErrorMessage(cause, conflictMessage),
       showClose: true,
+      center: true,
       duration: 6_000,
     });
     return false;
@@ -467,6 +489,7 @@ async function restorePage(item: PageDefinition): Promise<void> {
 
 function newStep(stepKey: string, name: string): WorkflowStepForm {
   return {
+    clientId: `workflow-step-${++workflowStepClientSequence}`,
     stepKey,
     name,
     triggerKind: "explicit_sdk",
@@ -521,6 +544,7 @@ function openWorkflow(item?: WorkflowDefinition): void {
     item?.latestVersion?.terminalPolicy.canceledStepKey ?? "";
   workflowForm.steps = item?.latestVersion?.steps.length
     ? item.latestVersion.steps.map((step) => ({
+        clientId: `workflow-step-${++workflowStepClientSequence}`,
         stepKey: step.stepKey,
         name: step.name,
         triggerKind: step.triggerKind,
@@ -540,7 +564,25 @@ function openWorkflow(item?: WorkflowDefinition): void {
       }))
     : [newStep("started", "开始"), newStep("completed", "完成")];
   activeStepIndex.value = 0;
+  workflowValidationVisible.value = false;
   workflowOpen.value = true;
+}
+
+function updateStepKey(step: WorkflowStepForm, nextStepKey: string): void {
+  const previousStepKey = step.stepKey;
+  const terminalPolicy = synchronizeWorkflowTerminalReferences(
+    {
+      completedStepKey: workflowForm.completedStepKey,
+      failedStepKey: workflowForm.failedStepKey,
+      canceledStepKey: workflowForm.canceledStepKey,
+    },
+    previousStepKey,
+    nextStepKey,
+  );
+  step.stepKey = nextStepKey;
+  workflowForm.completedStepKey = terminalPolicy.completedStepKey;
+  workflowForm.failedStepKey = terminalPolicy.failedStepKey;
+  workflowForm.canceledStepKey = terminalPolicy.canceledStepKey;
 }
 
 function changeTrigger(step: WorkflowStepForm): void {
@@ -613,6 +655,22 @@ function workflowConfiguration() {
 
 async function saveWorkflow(): Promise<void> {
   if (!context.projectId.value) return;
+  workflowValidationVisible.value = true;
+  if (!workflowValidation.value.valid) {
+    showOperationMessage({
+      type: "error",
+      message: workflowValidation.value.firstMessage ?? "请检查工作流配置。",
+      showClose: true,
+      center: true,
+      duration: 6_000,
+    });
+    await nextTick();
+    const firstInvalid = document.querySelector<HTMLElement>(
+      ".r1a-workflow-dialog .el-form-item.is-error input, .r1a-workflow-dialog .el-form-item.is-error textarea",
+    );
+    firstInvalid?.focus();
+    return;
+  }
   const configuration = workflowConfiguration();
   const editing = editingWorkflowId.value;
   const succeeded = await mutate(
@@ -1020,6 +1078,10 @@ watch(
       v-model="moduleOpen"
       :title="editingModuleId ? '编辑功能模块' : '新建功能模块'"
       width="520px"
+      class="r1a-config-dialog"
+      align-center
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
     >
       <el-form label-position="top">
         <el-form-item label="moduleKey"
@@ -1045,10 +1107,14 @@ watch(
       </template>
     </el-dialog>
 
-    <el-drawer
+    <el-dialog
       v-model="pageOpen"
       :title="editingPageId ? '编辑页面定义' : '新建页面定义'"
-      size="min(620px, 92vw)"
+      width="min(760px, 94vw)"
+      class="r1a-config-dialog"
+      align-center
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
     >
       <el-form label-position="top">
         <el-form-item label="观测或模板 route">
@@ -1141,25 +1207,36 @@ watch(
           >{{ editingPageId ? "保存" : "创建" }}</el-button
         >
       </template>
-    </el-drawer>
+    </el-dialog>
 
     <el-dialog
       v-model="workflowOpen"
       :title="editingWorkflowId ? '编辑工作流草稿' : '新建工作流'"
       width="min(1180px, 96vw)"
+      class="r1a-config-dialog r1a-workflow-dialog"
+      align-center
+      :close-on-click-modal="false"
+      :close-on-press-escape="false"
       destroy-on-close
     >
       <el-form label-position="top">
         <div class="form-grid three">
-          <el-form-item label="workflowKey"
+          <el-form-item
+            label="workflowKey"
+            :error="workflowValidationVisible ? workflowValidation.workflowKey : ''"
             ><el-input
               v-model="workflowForm.workflowKey"
               :disabled="Boolean(editingWorkflowId)"
           /></el-form-item>
-          <el-form-item label="工作流名称"
+          <el-form-item
+            label="工作流名称"
+            :error="workflowValidationVisible ? workflowValidation.name : ''"
             ><el-input v-model="workflowForm.name"
           /></el-form-item>
-          <el-form-item label="所属功能模块">
+          <el-form-item
+            label="所属功能模块"
+            :error="workflowValidationVisible ? workflowValidation.moduleId : ''"
+          >
             <el-select v-model="workflowForm.moduleId"
               ><el-option
                 v-for="module in activeModules"
@@ -1202,7 +1279,7 @@ watch(
           <div class="workflow-editor-list">
             <article
               v-for="(step, index) in workflowForm.steps"
-              :key="`${index}-${step.stepKey}`"
+              :key="step.clientId"
               class="workflow-editor-step"
               :class="{ current: activeStepIndex === index }"
               @focusin="activeStepIndex = index"
@@ -1225,10 +1302,24 @@ watch(
               </div>
               <div class="step-main">
                 <div class="step-fields">
-                  <el-form-item label="stepKey"
-                    ><el-input v-model="step.stepKey"
+                  <el-form-item
+                    label="stepKey"
+                    :error="
+                      workflowValidationVisible
+                        ? workflowValidation.stepKeys[index]
+                        : ''
+                    "
+                    ><el-input
+                      :model-value="step.stepKey"
+                      @update:model-value="updateStepKey(step, String($event))"
                   /></el-form-item>
-                  <el-form-item label="步骤名称"
+                  <el-form-item
+                    label="步骤名称"
+                    :error="
+                      workflowValidationVisible
+                        ? workflowValidation.stepNames[index]
+                        : ''
+                    "
                     ><el-input v-model="step.name"
                   /></el-form-item>
                   <el-form-item label="步骤达成条件">
@@ -1263,7 +1354,13 @@ watch(
                     /></el-select>
                     <small class="field-helper">只支持用户 click/change。</small>
                   </el-form-item>
-                  <el-form-item label="选择器"
+                  <el-form-item
+                    label="选择器"
+                    :error="
+                      workflowValidationVisible
+                        ? workflowValidation.triggerConfigs[index]
+                        : ''
+                    "
                     ><el-input v-model="step.configValue" /><small class="field-helper"
                       >推荐 ID 或 data-fi-action；不采集 DOM 文本。</small
                     ></el-form-item
@@ -1281,7 +1378,13 @@ watch(
                         :label="method"
                         :value="method" /></el-select
                   ></el-form-item>
-                  <el-form-item label="脱敏路径模式"
+                  <el-form-item
+                    label="脱敏路径模式"
+                    :error="
+                      workflowValidationVisible
+                        ? workflowValidation.triggerConfigs[index]
+                        : ''
+                    "
                     ><el-input v-model="step.configValue" /><small class="field-helper"
                       >不能包含 query、token 或业务对象 ID。</small
                     ></el-form-item
@@ -1290,6 +1393,11 @@ watch(
                 <el-form-item
                   v-else-if="step.triggerKind === 'page_lifecycle'"
                   label="生命周期事件"
+                  :error="
+                    workflowValidationVisible
+                      ? workflowValidation.triggerConfigs[index]
+                      : ''
+                  "
                 >
                   <el-select v-model="step.configValue"
                     ><el-option label="加载完成" value="loaded" /><el-option
@@ -1301,7 +1409,13 @@ watch(
                   v-else-if="step.triggerKind === 'operation_terminal'"
                   class="condition-fields"
                 >
-                  <el-form-item label="匹配的 operation"
+                  <el-form-item
+                    label="匹配的 operation"
+                    :error="
+                      workflowValidationVisible
+                        ? workflowValidation.triggerConfigs[index]
+                        : ''
+                    "
                     ><el-select v-model="step.operationKey" filterable
                       ><el-option
                         v-for="operation in operationRegistry"
@@ -1401,28 +1515,36 @@ watch(
           这里决定整个 workflow 的 completed/failed/canceled；与单个步骤的达成条件分层。
         </p>
         <div class="form-grid three terminal-grid">
-          <el-form-item label="成功终态步骤（completed）"
+          <el-form-item
+            label="成功终态步骤（completed）"
+            :error="
+              workflowValidationVisible ? workflowValidation.completedStepKey : ''
+            "
             ><el-select v-model="workflowForm.completedStepKey"
               ><el-option
                 v-for="step in workflowForm.steps"
-                :key="step.stepKey"
-                :label="step.name || step.stepKey"
+                :key="step.clientId"
+                :label="`${step.name || '未命名步骤'} · ${step.stepKey || 'stepKey 未填写'}`"
                 :value="step.stepKey" /></el-select
           ></el-form-item>
-          <el-form-item label="失败终态步骤（可选）"
+          <el-form-item
+            label="失败终态步骤（可选）"
+            :error="workflowValidationVisible ? workflowValidation.failedStepKey : ''"
             ><el-select v-model="workflowForm.failedStepKey" clearable
               ><el-option
                 v-for="step in workflowForm.steps"
-                :key="step.stepKey"
-                :label="step.name || step.stepKey"
+                :key="step.clientId"
+                :label="`${step.name || '未命名步骤'} · ${step.stepKey || 'stepKey 未填写'}`"
                 :value="step.stepKey" /></el-select
           ></el-form-item>
-          <el-form-item label="取消终态步骤（可选）"
+          <el-form-item
+            label="取消终态步骤（可选）"
+            :error="workflowValidationVisible ? workflowValidation.canceledStepKey : ''"
             ><el-select v-model="workflowForm.canceledStepKey" clearable
               ><el-option
                 v-for="step in workflowForm.steps"
-                :key="step.stepKey"
-                :label="step.name || step.stepKey"
+                :key="step.clientId"
+                :label="`${step.name || '未命名步骤'} · ${step.stepKey || 'stepKey 未填写'}`"
                 :value="step.stepKey" /></el-select
           ></el-form-item>
         </div>
@@ -1648,6 +1770,19 @@ watch(
 }
 .mobile-condition-context {
   display: none;
+}
+:deep(.r1a-config-dialog) {
+  display: flex;
+  max-height: calc(100vh - 48px);
+  flex-direction: column;
+  margin: 0 auto;
+}
+:deep(.r1a-config-dialog .el-dialog__body) {
+  min-height: 0;
+  overflow-y: auto;
+}
+:deep(.r1a-workflow-dialog .el-dialog__body) {
+  padding-top: 10px;
 }
 @media (max-width: 760px) {
   .page-master-controls,

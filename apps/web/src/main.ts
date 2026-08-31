@@ -8,6 +8,8 @@ import "element-plus/es/components/drawer/style/css";
 import "element-plus/es/components/form/style/css";
 import "element-plus/es/components/input/style/css";
 import "element-plus/es/components/input-number/style/css";
+import "element-plus/es/components/message/style/css";
+import "element-plus/es/components/message-box/style/css";
 import "element-plus/es/components/pagination/style/css";
 import "element-plus/es/components/select/style/css";
 import "element-plus/es/components/skeleton/style/css";

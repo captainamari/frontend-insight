@@ -17,6 +17,17 @@ async function openSelect(container: Locator, label: string): Promise<void> {
     .click();
 }
 
+async function expectHorizontallyCentered(page: Page, locator: Locator): Promise<void> {
+  const viewport = page.viewportSize();
+  const box = await locator.boundingBox();
+  expect(viewport).not.toBeNull();
+  expect(box).not.toBeNull();
+  if (!viewport || !box) return;
+  expect(Math.abs(box.x + box.width / 2 - viewport.width / 2)).toBeLessThan(3);
+  expect(box.x).toBeGreaterThan(0);
+  expect(box.y).toBeGreaterThan(0);
+}
+
 test("admin completes the R1-A lifecycle, master-detail and workflow UX", async ({
   page,
   browserName,
@@ -51,6 +62,14 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
 
   await page.getByRole("button", { name: "新建功能模块" }).click();
   const moduleDialog = page.getByRole("dialog", { name: "新建功能模块" });
+  await expectHorizontallyCentered(page, moduleDialog);
+  const moduleOverlay = page
+    .locator(".el-overlay-dialog")
+    .filter({ has: moduleDialog });
+  await moduleOverlay.click({ position: { x: 4, y: 4 } });
+  await expect(moduleDialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(moduleDialog).toBeVisible();
   await expect(moduleDialog.getByText(/关键度/)).toHaveCount(0);
   await moduleDialog.getByLabel("moduleKey").fill(moduleKey);
   await moduleDialog.getByLabel("功能模块名称").fill(moduleName);
@@ -68,6 +87,10 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
       exact: false,
     }),
   ).toBeVisible();
+  await expectHorizontallyCentered(
+    page,
+    page.locator(".el-message").filter({ hasText: "moduleKey 已存在" }),
+  );
   await expect(moduleDialog).toBeVisible();
   await moduleDialog.getByRole("button", { name: "取消" }).click();
 
@@ -81,6 +104,12 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
 
   await page.getByRole("button", { name: "新建页面定义" }).click();
   const pageDrawer = page.getByRole("dialog", { name: "新建页面定义" });
+  await expectHorizontallyCentered(page, pageDrawer);
+  const pageOverlay = page.locator(".el-overlay-dialog").filter({ has: pageDrawer });
+  await pageOverlay.click({ position: { x: 4, y: 4 } });
+  await expect(pageDrawer).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(pageDrawer).toBeVisible();
   await expect(
     pageDrawer.locator(".el-select__selected-item").filter({ hasText: moduleName }),
   ).toBeVisible();
@@ -108,10 +137,9 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await pageRow.getByRole("button", { name: "停用", exact: true }).click();
   await expect(page.getByText("页面定义已停用", { exact: true })).toBeVisible();
   await pageRow.getByRole("button", { name: "归档", exact: true }).click();
-  await page
-    .getByRole("dialog", { name: "归档页面定义" })
-    .getByRole("button", { name: "归档", exact: true })
-    .click();
+  const archivePageDialog = page.getByRole("dialog", { name: "归档页面定义" });
+  await expectHorizontallyCentered(page, archivePageDialog);
+  await archivePageDialog.getByRole("button", { name: "归档", exact: true }).click();
   await expect(page.getByText("页面定义已归档", { exact: true })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: normalizedRoute })).toHaveCount(
     0,
@@ -128,6 +156,14 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await page.getByRole("tab", { name: "工作流" }).click();
   await page.getByRole("button", { name: "新建工作流" }).click();
   const workflowDialog = page.getByRole("dialog", { name: "新建工作流" });
+  await expectHorizontallyCentered(page, workflowDialog);
+  const workflowOverlay = page
+    .locator(".el-overlay-dialog")
+    .filter({ has: workflowDialog });
+  await workflowOverlay.click({ position: { x: 4, y: 4 } });
+  await expect(workflowDialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(workflowDialog).toBeVisible();
   await workflowDialog.getByLabel("workflowKey").fill(`order_review_${suffix}`);
   await workflowDialog.getByLabel("工作流名称").fill(`订单审核 ${suffix}`);
   await openSelect(workflowDialog, "所属功能模块");
@@ -136,6 +172,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(workflowDialog.getByText("受控值", { exact: true })).toHaveCount(0);
   await expect(workflowDialog.getByLabel("元素交互范围说明")).toHaveCount(0);
   const firstStep = workflowDialog.locator(".workflow-editor-step").first();
+  await firstStep.getByLabel("stepKey").fill("started1");
   const explicitSdkExample = firstStep.locator(".sdk-example textarea");
   await expect(explicitSdkExample).toHaveValue(/tracker\.startWorkflow/);
   await expect(explicitSdkExample).toHaveValue(/reachStep/);
@@ -157,6 +194,12 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   ).toBeVisible();
 
   const secondStep = workflowDialog.locator(".workflow-editor-step").nth(1);
+  await secondStep.getByLabel("stepKey").fill("completed1");
+  await expect(
+    workflowDialog
+      .getByLabel("成功终态步骤（completed）")
+      .locator("xpath=ancestor::div[contains(@class, 'el-select__wrapper')][1]"),
+  ).toContainText("完成 · completed1");
   await openSelect(secondStep, "步骤达成条件");
   await page.getByRole("option", { name: "operation 终态", exact: true }).click();
   await expect(secondStep.getByLabel("匹配的 operation")).toBeVisible();
@@ -173,6 +216,16 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   ).toBeVisible();
   await page.getByRole("option", { name: "succeeded", exact: true }).click();
   await expect(workflowDialog.getByText("appeared", { exact: true })).toHaveCount(0);
+
+  await openSelect(workflowDialog, "失败终态步骤（可选）");
+  await page.getByRole("option", { name: "完成 · completed1", exact: true }).click();
+  await workflowDialog.getByRole("button", { name: "创建工作流" }).click();
+  await expect(
+    workflowDialog.getByText("失败终态步骤不能与成功终态步骤重复。"),
+  ).toBeVisible();
+  await expect(workflowDialog).toBeVisible();
+  await openSelect(workflowDialog, "失败终态步骤（可选）");
+  await page.getByRole("option", { name: "开始 · started1", exact: true }).click();
 
   await workflowDialog.getByRole("button", { name: "创建工作流" }).click();
   await expect(page.getByText("工作流已创建", { exact: true })).toBeVisible();

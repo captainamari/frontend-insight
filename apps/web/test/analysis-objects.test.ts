@@ -3,7 +3,9 @@ import {
   analysisObjectMutationErrorMessage,
   pageRoutePreview,
   selectorIsFragile,
+  synchronizeWorkflowTerminalReferences,
   triggerConfigKey,
+  validateWorkflowDraft,
   workflowConditionContext,
   workflowStepPreview,
 } from "../src/analysis-objects";
@@ -65,5 +67,106 @@ describe("R1-A analysis object presentation", () => {
         details: { pages: [{ id: "page-1" }], workflows: [] },
       }),
     ).toContain("仍有 1 个依赖");
+    expect(
+      analysisObjectMutationErrorMessage({
+        status: 400,
+        code: "WORKFLOW_TERMINAL_STEP_INVALID",
+        requestId: "request-terminal",
+      }),
+    ).toBe(
+      "保存失败：终态步骤已失效，请重新选择当前工作流中的步骤。（request ID：request-terminal）",
+    );
+    expect(
+      analysisObjectMutationErrorMessage({
+        status: 400,
+        code: "WORKFLOW_STEP_KEY_DUPLICATE",
+      }),
+    ).toBe("保存失败：stepKey 必须唯一，请修改重复步骤。");
+  });
+
+  it("keeps workflow terminal references aligned when a stepKey is renamed", () => {
+    expect(
+      synchronizeWorkflowTerminalReferences(
+        {
+          completedStepKey: "completed",
+          failedStepKey: "failed",
+          canceledStepKey: "",
+        },
+        "completed",
+        "completed1",
+      ),
+    ).toEqual({
+      completedStepKey: "completed1",
+      failedStepKey: "failed",
+      canceledStepKey: "",
+    });
+  });
+
+  it("validates workflow keys, terminal references and operation registry locally", () => {
+    const base = {
+      workflowKey: "energy_workflow",
+      name: "能源工作流",
+      moduleId: "module-1",
+      steps: [
+        {
+          stepKey: "started",
+          name: "开始",
+          triggerKind: "explicit_sdk" as const,
+          configValue: "",
+          operationKey: "",
+        },
+        {
+          stepKey: "completed1",
+          name: "完成",
+          triggerKind: "operation_terminal" as const,
+          configValue: "",
+          operationKey: "energy_operation",
+        },
+      ],
+      terminalPolicy: {
+        completedStepKey: "completed1",
+        failedStepKey: "",
+        canceledStepKey: "",
+      },
+      availableOperationKeys: ["energy_operation"],
+    };
+    expect(validateWorkflowDraft(base)).toMatchObject({
+      valid: true,
+      firstMessage: null,
+    });
+    expect(
+      validateWorkflowDraft({
+        ...base,
+        terminalPolicy: { ...base.terminalPolicy, completedStepKey: "completed" },
+      }),
+    ).toMatchObject({
+      valid: false,
+      completedStepKey: "成功终态步骤已失效，请重新选择当前工作流中的步骤。",
+    });
+    expect(
+      validateWorkflowDraft({
+        ...base,
+        terminalPolicy: {
+          ...base.terminalPolicy,
+          failedStepKey: "completed1",
+        },
+      }),
+    ).toMatchObject({
+      valid: false,
+      failedStepKey: "失败终态步骤不能与成功终态步骤重复。",
+    });
+    expect(
+      validateWorkflowDraft({
+        ...base,
+        steps: base.steps.map((step) =>
+          step.triggerKind === "operation_terminal"
+            ? { ...step, operationKey: "unregistered_operation" }
+            : step,
+        ),
+      }),
+    ).toMatchObject({
+      valid: false,
+      triggerConfigs: ["", "请选择已登记且启用 lifecycle 的 operation。"],
+    });
   });
 });
