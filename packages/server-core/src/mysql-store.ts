@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import mysql from "mysql2/promise";
+import { AnalysisObjectLifecycleError } from "./analysis-objects.js";
 import type {
   DataStatusRecord,
   ExpectedFrequency,
@@ -99,10 +100,18 @@ function moduleFromRow(row: RowDataPacket): ModuleRecord {
     projectId: String(row.project_id),
     moduleKey: String(row.module_key),
     name: String(row.name),
-    criticalityWeight: Number(row.criticality_weight),
     displayOrder: Number(row.display_order),
-    status: row.status as "active" | "disabled",
+    status: (row.revision_status ?? row.status) as "active" | "disabled",
+    archivedAt: row.archived_at
+      ? new Date(row.archived_at as string).toISOString()
+      : null,
+    revisionId: String(row.revision_id),
+    revision: Number(row.revision),
     effectiveFrom: new Date(row.effective_from as string).toISOString(),
+    effectiveTo: row.effective_to
+      ? new Date(row.effective_to as string).toISOString()
+      : null,
+    pageCount: Number(row.page_count ?? 0),
   };
 }
 
@@ -117,14 +126,32 @@ function pageFromRow(row: RowDataPacket): PageDefinitionRecord {
     isCore: Boolean(row.is_core),
     criticalityWeight: Number(row.criticality_weight),
     expectedFrequency: row.expected_frequency as ExpectedFrequency,
-    status: row.status as "active" | "disabled",
+    status: (row.revision_status ?? row.status) as "active" | "disabled",
+    archivedAt: row.archived_at
+      ? new Date(row.archived_at as string).toISOString()
+      : null,
+    revisionId: String(row.revision_id),
+    revision: Number(row.revision),
     effectiveFrom: new Date(row.effective_from as string).toISOString(),
+    effectiveTo: row.effective_to
+      ? new Date(row.effective_to as string).toISOString()
+      : null,
   };
 }
 
 function jsonObject<T>(value: unknown): T {
   if (typeof value === "string") return JSON.parse(value) as T;
   return value as T;
+}
+
+function revisionEffectiveFrom(current: unknown, requested?: string): Date {
+  const currentDate = new Date(current as string);
+  const candidate = requested ? new Date(requested) : new Date();
+  if (!Number.isFinite(candidate.valueOf()) || candidate <= currentDate) {
+    if (requested) throw new Error("REVISION_EFFECTIVE_FROM_INVALID");
+    return new Date(currentDate.valueOf() + 1);
+  }
+  return candidate;
 }
 
 function workflowStepFromRow(row: RowDataPacket): WorkflowStepRecord {
@@ -147,12 +174,20 @@ function workflowVersionFromRow(
     id: String(row.id),
     workflowDefinitionId: String(row.workflow_definition_id),
     version: Number(row.version),
+    moduleId: String(row.module_id),
+    name: String(row.name),
     startPolicy: row.start_policy as WorkflowStartPolicy,
     terminalPolicy: jsonObject<WorkflowTerminalPolicy>(row.terminal_policy),
     timeoutSeconds: Number(row.timeout_seconds),
     status: row.status as WorkflowVersionStatus,
     activatedAt: row.activated_at
       ? new Date(row.activated_at as string).toISOString()
+      : null,
+    effectiveFrom: row.activated_at
+      ? new Date(row.activated_at as string).toISOString()
+      : null,
+    effectiveTo: row.effective_to
+      ? new Date(row.effective_to as string).toISOString()
       : null,
     createdAt: new Date(row.created_at as string).toISOString(),
     updatedAt: new Date(row.updated_at as string).toISOString(),
@@ -683,12 +718,32 @@ export class MySqlStore {
     }
   }
 
-  async listModules(projectId: string): Promise<ModuleRecord[]> {
+  async listModules(
+    projectId: string,
+    options: { includeArchived?: boolean; at?: Date } = {},
+  ): Promise<ModuleRecord[]> {
+    const at = options.at ?? new Date();
     const [rows] = await this.pool.query<RowDataPacket[]>(
-      `SELECT * FROM modules
-       WHERE project_id = ?
-       ORDER BY display_order, name, id`,
-      [projectId],
+      `SELECT module.*, revision.id AS revision_id, revision.revision,
+              revision.name, revision.display_order, revision.effective_from,
+              revision.effective_to, revision.status AS revision_status,
+              (SELECT COUNT(*) FROM page_definitions page
+               INNER JOIN page_definition_revisions page_revision
+                 ON page_revision.page_definition_id = page.id
+                AND page_revision.effective_from <= ?
+                AND (page_revision.effective_to IS NULL OR page_revision.effective_to > ?)
+               WHERE page.project_id = module.project_id
+                 AND page_revision.module_id = module.id
+                 ${options.includeArchived ? "" : "AND page.archived_at IS NULL"}) AS page_count
+       FROM modules module
+       INNER JOIN module_revisions revision
+         ON revision.module_id = module.id
+        AND revision.effective_from <= ?
+        AND (revision.effective_to IS NULL OR revision.effective_to > ?)
+       WHERE module.project_id = ?
+         ${options.includeArchived ? "" : "AND module.archived_at IS NULL"}
+       ORDER BY revision.display_order, revision.name, module.id`,
+      [at, at, at, at, projectId],
     );
     return rows.map(moduleFromRow);
   }
@@ -697,39 +752,55 @@ export class MySqlStore {
     projectId: string;
     moduleKey: string;
     name: string;
-    criticalityWeight: number;
     displayOrder: number;
     effectiveFrom?: string | undefined;
     actor: Principal;
   }): Promise<ModuleRecord> {
-    const id = randomUUID();
-    await this.pool.execute(
-      `INSERT INTO modules
-         (id, project_id, module_key, name, criticality_weight, display_order,
-          status, effective_from)
-       VALUES (?, ?, ?, ?, ?, ?, 'active', ?)`,
-      [
-        id,
-        input.projectId,
-        input.moduleKey,
-        input.name,
-        input.criticalityWeight,
-        input.displayOrder,
-        input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
-      ],
-    );
-    await this.audit({
-      projectId: input.projectId,
-      actorUserId: input.actor.userId,
-      action: "module.created",
-      entityType: "module",
-      entityId: id,
-      metadata: {
-        moduleKey: input.moduleKey,
-        effectiveFrom: input.effectiveFrom ?? null,
-      },
-    });
-    return (await this.listModules(input.projectId)).find((item) => item.id === id)!;
+    const connection = await this.pool.getConnection();
+    const moduleId = randomUUID();
+    const revisionId = randomUUID();
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+    try {
+      await connection.beginTransaction();
+      await connection.execute(
+        `INSERT INTO modules (id, project_id, module_key, status)
+         VALUES (?, ?, ?, 'active')`,
+        [moduleId, input.projectId, input.moduleKey],
+      );
+      await connection.execute(
+        `INSERT INTO module_revisions
+           (id, module_id, revision, name, display_order, status, effective_from,
+            created_by_user_id)
+         VALUES (?, ?, 1, ?, ?, 'active', ?, ?)`,
+        [
+          revisionId,
+          moduleId,
+          input.name,
+          input.displayOrder,
+          effectiveFrom,
+          input.actor.userId,
+        ],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "module.created",
+        entityType: "module",
+        entityId: moduleId,
+        metadata: { moduleKey: input.moduleKey, revision: 1 },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (await this.listModules(input.projectId)).find(
+      (item) => item.id === moduleId,
+    )!;
   }
 
   async updateModule(
@@ -737,52 +808,92 @@ export class MySqlStore {
     moduleId: string,
     input: {
       name?: string | undefined;
-      criticalityWeight?: number | undefined;
       displayOrder?: number | undefined;
       status?: "active" | "disabled" | undefined;
       effectiveFrom?: string | undefined;
       actor: Principal;
     },
   ): Promise<ModuleRecord> {
-    const assignments: string[] = [];
-    const values: Array<string | number | Date | null> = [];
-    const columns: Array<
-      [keyof typeof input, string, (value: unknown) => string | number | Date]
-    > = [
-      ["name", "name", String],
-      ["criticalityWeight", "criticality_weight", Number],
-      ["displayOrder", "display_order", Number],
-      ["status", "status", String],
-      ["effectiveFrom", "effective_from", (value) => new Date(String(value))],
-    ];
-    for (const [key, column, transform] of columns) {
-      if (input[key] !== undefined) {
-        assignments.push(`${column} = ?`);
-        values.push(transform(input[key]));
-      }
-    }
-    if (input.status !== undefined) {
-      assignments.push("disabled_at = ?");
-      values.push(input.status === "disabled" ? new Date() : null);
-    }
-    if (assignments.length) {
-      const [result] = await this.pool.execute(
-        `UPDATE modules SET ${assignments.join(", ")}
-         WHERE id = ? AND project_id = ?`,
-        [...values, moduleId, projectId],
+    const connection = await this.pool.getConnection();
+    let revision: number | null = null;
+    try {
+      await connection.beginTransaction();
+      const [moduleRows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM modules WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [moduleId, projectId],
       );
-      if ((result as { affectedRows: number }).affectedRows !== 1) {
-        throw new Error("MODULE_NOT_FOUND");
+      const module = moduleRows[0];
+      if (!module) throw new Error("MODULE_NOT_FOUND");
+      if (module.archived_at)
+        throw new AnalysisObjectLifecycleError("MODULE_ARCHIVED", 409);
+      if (input.status !== undefined) {
+        await connection.execute(
+          `UPDATE modules SET status = ?, disabled_at = ?
+           WHERE id = ? AND project_id = ?`,
+          [
+            input.status,
+            input.status === "disabled" ? new Date() : null,
+            moduleId,
+            projectId,
+          ],
+        );
       }
+      if (
+        input.name !== undefined ||
+        input.displayOrder !== undefined ||
+        input.status !== undefined
+      ) {
+        const [revisionRows] = await connection.query<RowDataPacket[]>(
+          `SELECT * FROM module_revisions
+           WHERE module_id = ? AND effective_to IS NULL FOR UPDATE`,
+          [moduleId],
+        );
+        const current = revisionRows[0];
+        if (!current) throw new Error("MODULE_REVISION_NOT_FOUND");
+        const effectiveFrom = revisionEffectiveFrom(
+          current.effective_from,
+          input.effectiveFrom,
+        );
+        revision = Number(current.revision) + 1;
+        await connection.execute(
+          "UPDATE module_revisions SET effective_to = ? WHERE id = ?",
+          [effectiveFrom, current.id],
+        );
+        await connection.execute(
+          `INSERT INTO module_revisions
+             (id, module_id, revision, name, display_order, status, effective_from,
+              created_by_user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            randomUUID(),
+            moduleId,
+            revision,
+            input.name ?? String(current.name),
+            input.displayOrder ?? Number(current.display_order),
+            input.status ?? String(current.status),
+            effectiveFrom,
+            input.actor.userId,
+          ],
+        );
+      }
+      await this.insertAudit(connection, {
+        projectId,
+        actorUserId: input.actor.userId,
+        action: "module.updated",
+        entityType: "module",
+        entityId: moduleId,
+        metadata: {
+          changedFields: Object.keys(input).filter((key) => key !== "actor"),
+          revision,
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
     }
-    await this.audit({
-      projectId,
-      actorUserId: input.actor.userId,
-      action: "module.updated",
-      entityType: "module",
-      entityId: moduleId,
-      metadata: { changedFields: Object.keys(input).filter((key) => key !== "actor") },
-    });
     const module = (await this.listModules(projectId)).find(
       (item) => item.id === moduleId,
     );
@@ -790,12 +901,149 @@ export class MySqlStore {
     return module;
   }
 
-  async listPageDefinitions(projectId: string): Promise<PageDefinitionRecord[]> {
+  async archiveModule(input: {
+    projectId: string;
+    moduleId: string;
+    actor: Principal;
+  }): Promise<void> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT status, archived_at FROM modules
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.moduleId, input.projectId],
+      );
+      const module = rows[0];
+      if (!module) throw new Error("MODULE_NOT_FOUND");
+      if (module.status !== "disabled") {
+        throw new AnalysisObjectLifecycleError("MODULE_MUST_BE_DISABLED", 409);
+      }
+      if (module.archived_at) {
+        throw new AnalysisObjectLifecycleError("MODULE_ALREADY_ARCHIVED", 409);
+      }
+      const [pageRows] = await connection.query<RowDataPacket[]>(
+        `SELECT page.id, page.page_route, revision.name
+         FROM page_definitions page
+         INNER JOIN page_definition_revisions revision
+           ON revision.page_definition_id = page.id AND revision.effective_to IS NULL
+         WHERE page.project_id = ? AND revision.module_id = ?
+           AND page.archived_at IS NULL ORDER BY revision.name`,
+        [input.projectId, input.moduleId],
+      );
+      const [workflowRows] = await connection.query<RowDataPacket[]>(
+        `SELECT definition.id, definition.workflow_key,
+                COALESCE(latest.name, definition.name) AS name
+         FROM workflow_definitions definition
+         LEFT JOIN workflow_definition_versions latest
+           ON latest.workflow_definition_id = definition.id
+         LEFT JOIN workflow_definition_versions newer
+           ON newer.workflow_definition_id = latest.workflow_definition_id
+          AND newer.version > latest.version
+         WHERE definition.project_id = ? AND definition.archived_at IS NULL
+           AND newer.id IS NULL
+           AND (definition.module_id = ? OR latest.module_id = ?)
+         ORDER BY name`,
+        [input.projectId, input.moduleId, input.moduleId],
+      );
+      if (pageRows.length || workflowRows.length) {
+        throw new AnalysisObjectLifecycleError("MODULE_ARCHIVE_DEPENDENCIES", 409, {
+          pages: pageRows.map((row) => ({
+            id: String(row.id),
+            pageRoute: String(row.page_route),
+            name: String(row.name),
+          })),
+          workflows: workflowRows.map((row) => ({
+            id: String(row.id),
+            workflowKey: String(row.workflow_key),
+            name: String(row.name),
+          })),
+        });
+      }
+      await connection.execute(
+        "UPDATE modules SET archived_at = CURRENT_TIMESTAMP(3) WHERE id = ?",
+        [input.moduleId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "module.archived",
+        entityType: "module",
+        entityId: input.moduleId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async restoreModule(input: {
+    projectId: string;
+    moduleId: string;
+    actor: Principal;
+  }): Promise<ModuleRecord> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [result] = await connection.execute(
+        `UPDATE modules SET archived_at = NULL
+         WHERE id = ? AND project_id = ? AND archived_at IS NOT NULL`,
+        [input.moduleId, input.projectId],
+      );
+      if ((result as { affectedRows: number }).affectedRows !== 1) {
+        throw new Error("MODULE_NOT_FOUND");
+      }
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "module.restored",
+        entityType: "module",
+        entityId: input.moduleId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (await this.listModules(input.projectId, { includeArchived: true })).find(
+      (item) => item.id === input.moduleId,
+    )!;
+  }
+
+  async listPageDefinitions(
+    projectId: string,
+    options: { includeArchived?: boolean; at?: Date; moduleId?: string } = {},
+  ): Promise<PageDefinitionRecord[]> {
+    const at = options.at ?? new Date();
+    const values: Array<string | Date> = [at, at, projectId];
+    let moduleFilter = "";
+    if (options.moduleId) {
+      moduleFilter = "AND revision.module_id = ?";
+      values.push(options.moduleId);
+    }
     const [rows] = await this.pool.query<RowDataPacket[]>(
-      `SELECT * FROM page_definitions
-       WHERE project_id = ?
-       ORDER BY name, page_route, id`,
-      [projectId],
+      `SELECT page.*, revision.id AS revision_id, revision.revision,
+              revision.module_id, revision.name, revision.template_key,
+              revision.is_core, revision.criticality_weight,
+              revision.expected_frequency, revision.effective_from,
+              revision.effective_to, revision.status AS revision_status
+       FROM page_definitions page
+       INNER JOIN page_definition_revisions revision
+         ON revision.page_definition_id = page.id
+        AND revision.effective_from <= ?
+        AND (revision.effective_to IS NULL OR revision.effective_to > ?)
+       WHERE page.project_id = ?
+         ${options.includeArchived ? "" : "AND page.archived_at IS NULL"}
+         ${moduleFilter}
+       ORDER BY revision.name, page.page_route, page.id`,
+      values,
     );
     return rows.map(pageFromRow);
   }
@@ -812,42 +1060,55 @@ export class MySqlStore {
     effectiveFrom?: string | undefined;
     actor: Principal;
   }): Promise<PageDefinitionRecord> {
-    const module = (await this.listModules(input.projectId)).find(
-      (item) => item.id === input.moduleId,
-    );
-    if (!module) throw new Error("MODULE_NOT_FOUND");
-    const id = randomUUID();
-    await this.pool.execute(
-      `INSERT INTO page_definitions
-         (id, project_id, module_id, page_route, name, template_key,
-          is_core, criticality_weight, expected_frequency, status, effective_from)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
-      [
-        id,
-        input.projectId,
-        input.moduleId,
-        input.pageRoute,
-        input.name,
-        input.templateKey,
-        input.isCore,
-        input.criticalityWeight,
-        input.expectedFrequency,
-        input.effectiveFrom ? new Date(input.effectiveFrom) : new Date(),
-      ],
-    );
-    await this.audit({
-      projectId: input.projectId,
-      actorUserId: input.actor.userId,
-      action: "page_definition.created",
-      entityType: "page",
-      entityId: id,
-      metadata: {
-        pageRoute: input.pageRoute,
-        templateKey: input.templateKey,
-      },
-    });
+    const connection = await this.pool.getConnection();
+    const pageId = randomUUID();
+    const effectiveFrom = input.effectiveFrom
+      ? new Date(input.effectiveFrom)
+      : new Date();
+    try {
+      await connection.beginTransaction();
+      await this.requireProjectModule(connection, input.projectId, input.moduleId);
+      await connection.execute(
+        `INSERT INTO page_definitions (id, project_id, page_route, status)
+         VALUES (?, ?, ?, 'active')`,
+        [pageId, input.projectId, input.pageRoute],
+      );
+      await connection.execute(
+        `INSERT INTO page_definition_revisions
+           (id, page_definition_id, revision, module_id, name, template_key,
+            is_core, criticality_weight, expected_frequency, status, effective_from,
+            created_by_user_id)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+        [
+          randomUUID(),
+          pageId,
+          input.moduleId,
+          input.name,
+          input.templateKey,
+          input.isCore,
+          input.criticalityWeight,
+          input.expectedFrequency,
+          effectiveFrom,
+          input.actor.userId,
+        ],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "page_definition.created",
+        entityType: "page",
+        entityId: pageId,
+        metadata: { pageRoute: input.pageRoute, revision: 1 },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
     return (await this.listPageDefinitions(input.projectId)).find(
-      (item) => item.id === id,
+      (item) => item.id === pageId,
     )!;
   }
 
@@ -866,54 +1127,95 @@ export class MySqlStore {
       actor: Principal;
     },
   ): Promise<PageDefinitionRecord> {
-    if (
-      input.moduleId &&
-      !(await this.listModules(projectId)).some((item) => item.id === input.moduleId)
-    ) {
-      throw new Error("MODULE_NOT_FOUND");
-    }
-    const assignments: string[] = [];
-    const values: Array<string | number | boolean | Date | null> = [];
-    const columns: Array<
-      [keyof typeof input, string, (value: unknown) => string | number | boolean | Date]
-    > = [
-      ["moduleId", "module_id", String],
-      ["name", "name", String],
-      ["templateKey", "template_key", String],
-      ["isCore", "is_core", Boolean],
-      ["criticalityWeight", "criticality_weight", Number],
-      ["expectedFrequency", "expected_frequency", String],
-      ["status", "status", String],
-      ["effectiveFrom", "effective_from", (value) => new Date(String(value))],
-    ];
-    for (const [key, column, transform] of columns) {
-      if (input[key] !== undefined) {
-        assignments.push(`${column} = ?`);
-        values.push(transform(input[key]));
-      }
-    }
-    if (input.status !== undefined) {
-      assignments.push("disabled_at = ?");
-      values.push(input.status === "disabled" ? new Date() : null);
-    }
-    if (assignments.length) {
-      const [result] = await this.pool.execute(
-        `UPDATE page_definitions SET ${assignments.join(", ")}
-         WHERE id = ? AND project_id = ?`,
-        [...values, pageId, projectId],
+    const connection = await this.pool.getConnection();
+    let revision: number | null = null;
+    try {
+      await connection.beginTransaction();
+      const [pageRows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM page_definitions
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [pageId, projectId],
       );
-      if ((result as { affectedRows: number }).affectedRows !== 1) {
-        throw new Error("PAGE_DEFINITION_NOT_FOUND");
+      const page = pageRows[0];
+      if (!page) throw new Error("PAGE_DEFINITION_NOT_FOUND");
+      if (page.archived_at) {
+        throw new AnalysisObjectLifecycleError("PAGE_DEFINITION_ARCHIVED", 409);
       }
+      if (input.moduleId) {
+        await this.requireProjectModule(connection, projectId, input.moduleId);
+      }
+      if (input.status !== undefined) {
+        await connection.execute(
+          `UPDATE page_definitions SET status = ?, disabled_at = ? WHERE id = ?`,
+          [input.status, input.status === "disabled" ? new Date() : null, pageId],
+        );
+      }
+      const revisionFields = [
+        input.moduleId,
+        input.name,
+        input.templateKey,
+        input.isCore,
+        input.criticalityWeight,
+        input.expectedFrequency,
+        input.status,
+      ];
+      if (revisionFields.some((value) => value !== undefined)) {
+        const [revisionRows] = await connection.query<RowDataPacket[]>(
+          `SELECT * FROM page_definition_revisions
+           WHERE page_definition_id = ? AND effective_to IS NULL FOR UPDATE`,
+          [pageId],
+        );
+        const current = revisionRows[0];
+        if (!current) throw new Error("PAGE_DEFINITION_REVISION_NOT_FOUND");
+        const effectiveFrom = revisionEffectiveFrom(
+          current.effective_from,
+          input.effectiveFrom,
+        );
+        revision = Number(current.revision) + 1;
+        await connection.execute(
+          "UPDATE page_definition_revisions SET effective_to = ? WHERE id = ?",
+          [effectiveFrom, current.id],
+        );
+        await connection.execute(
+          `INSERT INTO page_definition_revisions
+             (id, page_definition_id, revision, module_id, name, template_key,
+              is_core, criticality_weight, expected_frequency, status, effective_from,
+              created_by_user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            randomUUID(),
+            pageId,
+            revision,
+            input.moduleId ?? String(current.module_id),
+            input.name ?? String(current.name),
+            input.templateKey ?? String(current.template_key),
+            input.isCore ?? Boolean(current.is_core),
+            input.criticalityWeight ?? Number(current.criticality_weight),
+            input.expectedFrequency ?? String(current.expected_frequency),
+            input.status ?? String(current.status),
+            effectiveFrom,
+            input.actor.userId,
+          ],
+        );
+      }
+      await this.insertAudit(connection, {
+        projectId,
+        actorUserId: input.actor.userId,
+        action: "page_definition.updated",
+        entityType: "page",
+        entityId: pageId,
+        metadata: {
+          changedFields: Object.keys(input).filter((key) => key !== "actor"),
+          revision,
+        },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
     }
-    await this.audit({
-      projectId,
-      actorUserId: input.actor.userId,
-      action: "page_definition.updated",
-      entityType: "page",
-      entityId: pageId,
-      metadata: { changedFields: Object.keys(input).filter((key) => key !== "actor") },
-    });
     const page = (await this.listPageDefinitions(projectId)).find(
       (item) => item.id === pageId,
     );
@@ -921,14 +1223,127 @@ export class MySqlStore {
     return page;
   }
 
+  async archivePageDefinition(input: {
+    projectId: string;
+    pageId: string;
+    actor: Principal;
+  }): Promise<void> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT status, archived_at FROM page_definitions
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.pageId, input.projectId],
+      );
+      const page = rows[0];
+      if (!page) throw new Error("PAGE_DEFINITION_NOT_FOUND");
+      if (page.archived_at) {
+        throw new AnalysisObjectLifecycleError("PAGE_ALREADY_ARCHIVED", 409);
+      }
+      if (page.status !== "disabled") {
+        throw new AnalysisObjectLifecycleError("PAGE_MUST_BE_DISABLED", 409);
+      }
+      const [featureRows] = await connection.query<RowDataPacket[]>(
+        `SELECT id, feature_key, name FROM features
+         WHERE project_id = ? AND page_definition_id = ? AND status = 'active'
+         ORDER BY name`,
+        [input.projectId, input.pageId],
+      );
+      if (featureRows.length) {
+        throw new AnalysisObjectLifecycleError("PAGE_ARCHIVE_DEPENDENCIES", 409, {
+          features: featureRows.map((row) => ({
+            id: String(row.id),
+            featureKey: String(row.feature_key),
+            name: String(row.name),
+          })),
+        });
+      }
+      await connection.execute(
+        "UPDATE page_definitions SET archived_at = CURRENT_TIMESTAMP(3) WHERE id = ?",
+        [input.pageId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "page_definition.archived",
+        entityType: "page",
+        entityId: input.pageId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async restorePageDefinition(input: {
+    projectId: string;
+    pageId: string;
+    actor: Principal;
+  }): Promise<PageDefinitionRecord> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT revision.module_id
+         FROM page_definitions page
+         INNER JOIN page_definition_revisions revision
+           ON revision.page_definition_id = page.id AND revision.effective_to IS NULL
+         WHERE page.id = ? AND page.project_id = ? AND page.archived_at IS NOT NULL
+         FOR UPDATE`,
+        [input.pageId, input.projectId],
+      );
+      if (!rows[0]) throw new Error("PAGE_DEFINITION_NOT_FOUND");
+      await this.requireProjectModule(
+        connection,
+        input.projectId,
+        String(rows[0].module_id),
+      );
+      await connection.execute(
+        "UPDATE page_definitions SET archived_at = NULL WHERE id = ?",
+        [input.pageId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "page_definition.restored",
+        entityType: "page",
+        entityId: input.pageId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (
+      await this.listPageDefinitions(input.projectId, { includeArchived: true })
+    ).find((item) => item.id === input.pageId)!;
+  }
+
   async listWorkflowDefinitions(
     projectId: string,
+    options: { includeArchived?: boolean; moduleId?: string } = {},
   ): Promise<WorkflowDefinitionRecord[]> {
+    const values: string[] = [projectId];
+    let moduleFilter = "";
+    if (options.moduleId) {
+      moduleFilter = "AND module_id = ?";
+      values.push(options.moduleId);
+    }
     const [definitionRows] = await this.pool.query<RowDataPacket[]>(
       `SELECT * FROM workflow_definitions
        WHERE project_id = ?
+         ${options.includeArchived ? "" : "AND archived_at IS NULL"}
+         ${moduleFilter}
        ORDER BY name, workflow_key, id`,
-      [projectId],
+      values,
     );
     if (!definitionRows.length) return [];
     const definitionIds = definitionRows.map((row) => String(row.id));
@@ -966,10 +1381,13 @@ export class MySqlStore {
       return {
         id: String(row.id),
         projectId: String(row.project_id),
-        moduleId: String(row.module_id),
+        moduleId: latest ? String(latest.module_id) : String(row.module_id),
         workflowKey: String(row.workflow_key),
-        name: String(row.name),
+        name: latest ? String(latest.name) : String(row.name),
         status: row.status as "active" | "disabled",
+        archivedAt: row.archived_at
+          ? new Date(row.archived_at as string).toISOString()
+          : null,
         createdAt: new Date(row.created_at as string).toISOString(),
         updatedAt: new Date(row.updated_at as string).toISOString(),
         latestVersion: latest
@@ -996,6 +1414,7 @@ export class MySqlStore {
     try {
       await connection.beginTransaction();
       await this.requireProjectModule(connection, input.projectId, input.moduleId);
+      await this.requireWorkflowOperationKeys(connection, input.projectId, input.steps);
       await connection.execute(
         `INSERT INTO workflow_definitions
            (id, project_id, module_id, workflow_key, name, status)
@@ -1004,12 +1423,14 @@ export class MySqlStore {
       );
       await connection.execute(
         `INSERT INTO workflow_definition_versions
-           (id, workflow_definition_id, version, start_policy, terminal_policy,
-            timeout_seconds, status)
-         VALUES (?, ?, 1, ?, ?, ?, 'draft')`,
+           (id, workflow_definition_id, version, module_id, name, start_policy,
+            terminal_policy, timeout_seconds, status)
+         VALUES (?, ?, 1, ?, ?, ?, ?, ?, 'draft')`,
         [
           versionId,
           workflowId,
+          input.moduleId,
+          input.name,
           input.startPolicy,
           JSON.stringify(input.terminalPolicy),
           input.timeoutSeconds,
@@ -1047,33 +1468,27 @@ export class MySqlStore {
     projectId: string,
     workflowId: string,
     input: {
-      moduleId?: string | undefined;
-      name?: string | undefined;
       status?: "active" | "disabled" | undefined;
       actor: Principal;
     },
   ): Promise<WorkflowDefinitionRecord> {
-    if (input.moduleId) {
-      await this.requireProjectModule(this.pool, projectId, input.moduleId);
-    }
-    const assignments: string[] = [];
-    const values: Array<string | Date | null> = [];
-    if (input.moduleId !== undefined) {
-      assignments.push("module_id = ?");
-      values.push(input.moduleId);
-    }
-    if (input.name !== undefined) {
-      assignments.push("name = ?");
-      values.push(input.name);
-    }
-    if (input.status !== undefined) {
-      assignments.push("status = ?", "disabled_at = ?");
-      values.push(input.status, input.status === "disabled" ? new Date() : null);
+    if (input.status === undefined) throw new Error("WORKFLOW_UPDATE_EMPTY");
+    if (input.status === "active") {
+      const workflow = (
+        await this.listWorkflowDefinitions(projectId, { includeArchived: true })
+      ).find((item) => item.id === workflowId);
+      if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      await this.requireProjectModule(this.pool, projectId, workflow.moduleId);
     }
     const [result] = await this.pool.execute(
-      `UPDATE workflow_definitions SET ${assignments.join(", ")}
-       WHERE id = ? AND project_id = ?`,
-      [...values, workflowId, projectId],
+      `UPDATE workflow_definitions SET status = ?, disabled_at = ?
+       WHERE id = ? AND project_id = ? AND archived_at IS NULL`,
+      [
+        input.status,
+        input.status === "disabled" ? new Date() : null,
+        workflowId,
+        projectId,
+      ],
     );
     if ((result as { affectedRows: number }).affectedRows !== 1) {
       throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
@@ -1098,6 +1513,8 @@ export class MySqlStore {
   async saveWorkflowDraft(input: {
     projectId: string;
     workflowId: string;
+    moduleId: string;
+    name: string;
     startPolicy: WorkflowStartPolicy;
     terminalPolicy: WorkflowTerminalPolicy;
     timeoutSeconds: number;
@@ -1110,11 +1527,16 @@ export class MySqlStore {
     try {
       await connection.beginTransaction();
       const [definitionRows] = await connection.query<RowDataPacket[]>(
-        `SELECT id FROM workflow_definitions
+        `SELECT id, archived_at FROM workflow_definitions
          WHERE id = ? AND project_id = ? FOR UPDATE`,
         [input.workflowId, input.projectId],
       );
       if (!definitionRows.length) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      if (definitionRows[0]!.archived_at) {
+        throw new AnalysisObjectLifecycleError("WORKFLOW_ARCHIVED", 409);
+      }
+      await this.requireProjectModule(connection, input.projectId, input.moduleId);
+      await this.requireWorkflowOperationKeys(connection, input.projectId, input.steps);
       const [versionRows] = await connection.query<RowDataPacket[]>(
         `SELECT id, version, status FROM workflow_definition_versions
          WHERE workflow_definition_id = ?
@@ -1127,9 +1549,12 @@ export class MySqlStore {
         versionId = String(latest.id);
         await connection.execute(
           `UPDATE workflow_definition_versions
-           SET start_policy = ?, terminal_policy = ?, timeout_seconds = ?
+           SET module_id = ?, name = ?, start_policy = ?, terminal_policy = ?,
+               timeout_seconds = ?
            WHERE id = ?`,
           [
+            input.moduleId,
+            input.name,
             input.startPolicy,
             JSON.stringify(input.terminalPolicy),
             input.timeoutSeconds,
@@ -1141,13 +1566,15 @@ export class MySqlStore {
         versionId = randomUUID();
         await connection.execute(
           `INSERT INTO workflow_definition_versions
-             (id, workflow_definition_id, version, start_policy,
-              terminal_policy, timeout_seconds, status)
-           VALUES (?, ?, ?, ?, ?, ?, 'draft')`,
+             (id, workflow_definition_id, version, module_id, name,
+              start_policy, terminal_policy, timeout_seconds, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
           [
             versionId,
             input.workflowId,
             version,
+            input.moduleId,
+            input.name,
             input.startPolicy,
             JSON.stringify(input.terminalPolicy),
             input.timeoutSeconds,
@@ -1161,7 +1588,11 @@ export class MySqlStore {
         action: "workflow_definition.draft_saved",
         entityType: "workflow",
         entityId: input.workflowId,
-        metadata: { version, stepCount: input.steps.length },
+        metadata: {
+          version,
+          stepCount: input.steps.length,
+          changedFields: ["moduleId", "name", "configuration"],
+        },
       });
       await connection.commit();
     } catch (cause) {
@@ -1187,27 +1618,49 @@ export class MySqlStore {
     try {
       await connection.beginTransaction();
       const [rows] = await connection.query<RowDataPacket[]>(
-        `SELECT version.id
+        `SELECT version.id, version.module_id, version.name
          FROM workflow_definition_versions version
          INNER JOIN workflow_definitions definition
            ON definition.id = version.workflow_definition_id
          WHERE version.id = ? AND version.workflow_definition_id = ?
-           AND definition.project_id = ? AND version.status = 'draft'
+           AND definition.project_id = ? AND definition.archived_at IS NULL
+           AND version.status = 'draft'
          FOR UPDATE`,
         [input.versionId, input.workflowId, input.projectId],
       );
       if (!rows.length) throw new Error("WORKFLOW_DRAFT_NOT_FOUND");
+      await this.requireProjectModule(
+        connection,
+        input.projectId,
+        String(rows[0]!.module_id),
+      );
+      const [stepRows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM workflow_steps
+         WHERE workflow_definition_version_id = ? ORDER BY step_order`,
+        [input.versionId],
+      );
+      await this.requireWorkflowOperationKeys(
+        connection,
+        input.projectId,
+        stepRows.map((row) => workflowStepFromRow(row)),
+      );
+      const effectiveFrom = new Date();
       await connection.execute(
         `UPDATE workflow_definition_versions
-         SET status = 'retired'
+         SET status = 'retired', effective_to = ?
          WHERE workflow_definition_id = ? AND status = 'active'`,
-        [input.workflowId],
+        [effectiveFrom, input.workflowId],
       );
       await connection.execute(
         `UPDATE workflow_definition_versions
-         SET status = 'active', activated_at = CURRENT_TIMESTAMP(3)
+         SET status = 'active', activated_at = ?, effective_to = NULL
          WHERE id = ?`,
-        [input.versionId],
+        [effectiveFrom, input.versionId],
+      );
+      await connection.execute(
+        `UPDATE workflow_definitions SET module_id = ?, name = ?
+         WHERE id = ? AND project_id = ?`,
+        [rows[0]!.module_id, rows[0]!.name, input.workflowId, input.projectId],
       );
       await this.insertAudit(connection, {
         projectId: input.projectId,
@@ -1231,16 +1684,133 @@ export class MySqlStore {
     return workflow;
   }
 
+  async archiveWorkflowDefinition(input: {
+    projectId: string;
+    workflowId: string;
+    actor: Principal;
+  }): Promise<void> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT status, archived_at FROM workflow_definitions
+         WHERE id = ? AND project_id = ? FOR UPDATE`,
+        [input.workflowId, input.projectId],
+      );
+      const workflow = rows[0];
+      if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      if (workflow.archived_at) {
+        throw new AnalysisObjectLifecycleError("WORKFLOW_ALREADY_ARCHIVED", 409);
+      }
+      if (workflow.status !== "disabled") {
+        throw new AnalysisObjectLifecycleError("WORKFLOW_MUST_BE_DISABLED", 409);
+      }
+      await connection.execute(
+        "UPDATE workflow_definitions SET archived_at = CURRENT_TIMESTAMP(3) WHERE id = ?",
+        [input.workflowId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.archived",
+        entityType: "workflow",
+        entityId: input.workflowId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+  }
+
+  async restoreWorkflowDefinition(input: {
+    projectId: string;
+    workflowId: string;
+    actor: Principal;
+  }): Promise<WorkflowDefinitionRecord> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        `SELECT module_id FROM workflow_definitions
+         WHERE id = ? AND project_id = ? AND archived_at IS NOT NULL FOR UPDATE`,
+        [input.workflowId, input.projectId],
+      );
+      if (!rows[0]) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      await this.requireProjectModule(
+        connection,
+        input.projectId,
+        String(rows[0].module_id),
+      );
+      await connection.execute(
+        "UPDATE workflow_definitions SET archived_at = NULL WHERE id = ?",
+        [input.workflowId],
+      );
+      await this.insertAudit(connection, {
+        projectId: input.projectId,
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.restored",
+        entityType: "workflow",
+        entityId: input.workflowId,
+        metadata: {},
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
+    }
+    return (
+      await this.listWorkflowDefinitions(input.projectId, { includeArchived: true })
+    ).find((item) => item.id === input.workflowId)!;
+  }
+
   private async requireProjectModule(
     executor: Pick<Pool | PoolConnection, "query">,
     projectId: string,
     moduleId: string,
   ): Promise<void> {
     const [rows] = await executor.query<RowDataPacket[]>(
-      `SELECT id FROM modules WHERE id = ? AND project_id = ? LIMIT 1`,
+      `SELECT id FROM modules
+       WHERE id = ? AND project_id = ? AND status = 'active'
+         AND archived_at IS NULL LIMIT 1`,
       [moduleId, projectId],
     );
     if (!rows.length) throw new Error("MODULE_NOT_FOUND");
+  }
+
+  private async requireWorkflowOperationKeys(
+    executor: Pick<Pool | PoolConnection, "query">,
+    projectId: string,
+    steps: WorkflowStepInput[],
+  ): Promise<void> {
+    const operationKeys = [
+      ...new Set(
+        steps
+          .filter((step) => step.triggerKind === "operation_terminal")
+          .map((step) => String(step.triggerConfig.operationKey)),
+      ),
+    ];
+    if (!operationKeys.length) return;
+    const placeholders = operationKeys.map(() => "?").join(", ");
+    const [rows] = await executor.query<RowDataPacket[]>(
+      `SELECT feature_key FROM features
+       WHERE project_id = ? AND status = 'active'
+         AND operation_lifecycle_enabled = TRUE
+         AND feature_key IN (${placeholders})`,
+      [projectId, ...operationKeys],
+    );
+    const available = new Set(rows.map((row) => String(row.feature_key)));
+    const unavailable = operationKeys.filter((key) => !available.has(key));
+    if (unavailable.length) {
+      throw new AnalysisObjectLifecycleError("WORKFLOW_OPERATION_NOT_AVAILABLE", 409, {
+        operationKeys: unavailable,
+      });
+    }
   }
 
   private async replaceWorkflowSteps(

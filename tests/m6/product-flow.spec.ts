@@ -136,7 +136,7 @@ test("admin can follow overview, page detail, index and versioned configuration"
   await dialog.getByLabel("功能模块名称").fill(moduleName);
   await dialog.getByRole("button", { name: "创建" }).click();
   const createdModule = page.getByRole("row").filter({ hasText: moduleKey });
-  await expect(createdModule.getByRole("textbox").first()).toHaveValue(moduleName);
+  await expect(createdModule).toContainText(moduleName);
 });
 
 test("viewer sees M6 evidence but cannot write operational configuration", async ({

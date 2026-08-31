@@ -4,6 +4,7 @@ interface ErrorBody {
   code?: string;
   message?: string;
   requestId?: string;
+  details?: unknown;
 }
 
 interface LoginResponse {
@@ -17,6 +18,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     readonly requestId: string | null,
+    readonly details: unknown,
     message: string,
   ) {
     super(message);
@@ -80,6 +82,7 @@ async function request<T>(
       response.status,
       body.code ?? `HTTP_${response.status}`,
       body.requestId ?? response.headers.get("x-request-id"),
+      body.details,
       body.message ?? "请求失败",
     );
   }

@@ -38,14 +38,15 @@ try {
   );
   await pool.execute(
     `INSERT INTO workflow_definition_versions
-       (id, workflow_definition_id, version, start_policy, terminal_policy,
-        timeout_seconds, status, activated_at)
-     VALUES (?, ?, 1, 'explicit_sdk', ?, 1800, 'active',
+       (id, workflow_definition_id, version, module_id, name, start_policy,
+        terminal_policy, timeout_seconds, status, activated_at)
+     VALUES (?, ?, 1, ?, '能耗异常处置', 'explicit_sdk', ?, 1800, 'active',
              '2026-08-01 00:00:00.000')
      ON DUPLICATE KEY UPDATE id = id`,
     [
       workflowVersionId,
       workflowId,
+      m6Fixture.modules.operations,
       JSON.stringify({
         completedStepKey: "resolved",
         failedStepKey: null,
@@ -63,9 +64,9 @@ try {
       `INSERT INTO workflow_steps
        (id, workflow_definition_version_id, step_key, name, step_order,
           trigger_kind, trigger_config)
-       VALUES (?, ?, ?, ?, ?, 'explicit_sdk', JSON_OBJECT('actionKey', ?))
+       VALUES (?, ?, ?, ?, ?, 'explicit_sdk', JSON_OBJECT())
        ON DUPLICATE KEY UPDATE id = id`,
-      [stableUuid("r0-workflow-step", key), workflowVersionId, key, name, order, key],
+      [stableUuid("r0-workflow-step", key), workflowVersionId, key, name, order],
     );
   }
 

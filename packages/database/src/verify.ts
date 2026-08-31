@@ -66,7 +66,9 @@ async function verifyMySqlSchema() {
   const expectedTables = [
     "projects",
     "modules",
+    "module_revisions",
     "page_definitions",
+    "page_definition_revisions",
     "workflow_definitions",
     "workflow_definition_versions",
     "workflow_steps",

@@ -13,6 +13,7 @@ export type WorkflowTriggerKind =
   | "page_lifecycle"
   | "operation_terminal";
 export type WorkflowVersionStatus = "draft" | "active" | "retired";
+export type OperationTerminalState = "succeeded" | "failed" | "canceled";
 
 export interface Principal {
   userId: string;
@@ -56,10 +57,14 @@ export interface ModuleRecord {
   projectId: string;
   moduleKey: string;
   name: string;
-  criticalityWeight: number;
   displayOrder: number;
+  pageCount: number;
   status: "active" | "disabled";
+  archivedAt: string | null;
+  revisionId: string;
+  revision: number;
   effectiveFrom: string;
+  effectiveTo: string | null;
 }
 
 export interface PageDefinitionRecord {
@@ -73,7 +78,11 @@ export interface PageDefinitionRecord {
   criticalityWeight: number;
   expectedFrequency: ExpectedFrequency;
   status: "active" | "disabled";
+  archivedAt: string | null;
+  revisionId: string;
+  revision: number;
   effectiveFrom: string;
+  effectiveTo: string | null;
 }
 
 export interface WorkflowTerminalPolicy {
@@ -100,11 +109,15 @@ export interface WorkflowDefinitionVersionRecord {
   id: string;
   workflowDefinitionId: string;
   version: number;
+  moduleId: string;
+  name: string;
   startPolicy: WorkflowStartPolicy;
   terminalPolicy: WorkflowTerminalPolicy;
   timeoutSeconds: number;
   status: WorkflowVersionStatus;
   activatedAt: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
   createdAt: string;
   updatedAt: string;
   steps: WorkflowStepRecord[];
@@ -117,6 +130,7 @@ export interface WorkflowDefinitionRecord {
   workflowKey: string;
   name: string;
   status: "active" | "disabled";
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   latestVersion: WorkflowDefinitionVersionRecord | null;

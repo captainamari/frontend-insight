@@ -1,4 +1,8 @@
-import { IngestionError, type Principal } from "@frontend-insight/server-core";
+import {
+  AnalysisObjectLifecycleError,
+  IngestionError,
+  type Principal,
+} from "@frontend-insight/server-core";
 import {
   Catch,
   createParamDecorator,
@@ -51,6 +55,11 @@ export class ApiExceptionFilter implements ExceptionFilter {
     let details: unknown;
 
     if (cause instanceof IngestionError) {
+      statusCode = cause.statusCode;
+      code = cause.code;
+      message = cause.code;
+      details = cause.details;
+    } else if (cause instanceof AnalysisObjectLifecycleError) {
       statusCode = cause.statusCode;
       code = cause.code;
       message = cause.code;

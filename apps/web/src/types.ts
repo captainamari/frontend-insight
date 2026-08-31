@@ -63,10 +63,14 @@ export interface ProjectModule {
   projectId: string;
   moduleKey: string;
   name: string;
-  criticalityWeight: number;
   displayOrder: number;
+  pageCount: number;
   status: "active" | "disabled";
+  archivedAt: string | null;
+  revisionId: string;
+  revision: number;
   effectiveFrom: string;
+  effectiveTo: string | null;
 }
 
 export interface PageDefinition {
@@ -80,7 +84,11 @@ export interface PageDefinition {
   criticalityWeight: number;
   expectedFrequency: ExpectedFrequency;
   status: "active" | "disabled";
+  archivedAt: string | null;
+  revisionId: string;
+  revision: number;
   effectiveFrom: string;
+  effectiveTo: string | null;
 }
 
 export interface WorkflowTerminalPolicy {
@@ -104,11 +112,15 @@ export interface WorkflowDefinitionVersion {
   id: string;
   workflowDefinitionId: string;
   version: number;
+  moduleId: string;
+  name: string;
   startPolicy: WorkflowStartPolicy;
   terminalPolicy: WorkflowTerminalPolicy;
   timeoutSeconds: number;
   status: "draft" | "active" | "retired";
   activatedAt: string | null;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
   createdAt: string;
   updatedAt: string;
   steps: WorkflowStep[];
@@ -121,6 +133,7 @@ export interface WorkflowDefinition {
   workflowKey: string;
   name: string;
   status: "active" | "disabled";
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
   latestVersion: WorkflowDefinitionVersion | null;

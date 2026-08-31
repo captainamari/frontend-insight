@@ -21,10 +21,19 @@ function controller(role: "owner" | "viewer" | null) {
   const mysql = {
     getProjectRole: vi.fn(async () => role),
     listModules: vi.fn(async () => []),
+    listPageDefinitions: vi.fn(async () => []),
+    listFeatures: vi.fn(async () => []),
     listWorkflowDefinitions: vi.fn(async () => []),
     createModule: vi.fn(async (input) => input),
     createPageDefinition: vi.fn(async (input) => input),
     createWorkflowDefinition: vi.fn(async (input) => input),
+    updateWorkflowDefinition: vi.fn(async (input) => input),
+    archiveModule: vi.fn(async () => undefined),
+    restoreModule: vi.fn(async () => undefined),
+    archivePageDefinition: vi.fn(async () => undefined),
+    restorePageDefinition: vi.fn(async () => undefined),
+    archiveWorkflowDefinition: vi.fn(async () => undefined),
+    restoreWorkflowDefinition: vi.fn(async () => undefined),
     retireMetricProfile: vi.fn(async () => undefined),
   };
   const core = { mysql } as unknown as CoreService;
@@ -35,7 +44,9 @@ describe("M6 operational authorization", () => {
   it("allows an authorized viewer to read project-scoped configuration", async () => {
     const { controller: target, mysql } = controller("viewer");
     await expect(target.listModules("project-1", viewer)).resolves.toEqual([]);
-    expect(mysql.listModules).toHaveBeenCalledWith("project-1");
+    expect(mysql.listModules).toHaveBeenCalledWith("project-1", {
+      includeArchived: false,
+    });
   });
 
   it("rejects viewer writes before touching the store", async () => {
@@ -46,7 +57,6 @@ describe("M6 operational authorization", () => {
         {
           moduleKey: "energy",
           name: "能源管理",
-          criticalityWeight: 1,
           displayOrder: 0,
         },
         viewer,
@@ -62,7 +72,6 @@ describe("M6 operational authorization", () => {
       {
         moduleKey: "energy",
         name: "能源管理",
-        criticalityWeight: 1,
         displayOrder: 0,
       },
       admin,
@@ -125,14 +134,17 @@ describe("M6 operational authorization", () => {
             name: "发起下载",
             stepOrder: 1,
             triggerKind: "selector",
-            triggerConfig: { selector: ".download-button" },
+            triggerConfig: { event: "click", selector: ".download-button" },
           },
           {
             stepKey: "completed",
             name: "下载完成",
             stepOrder: 2,
             triggerKind: "operation_terminal",
-            triggerConfig: { state: "completed" },
+            triggerConfig: {
+              operationKey: "report_export",
+              state: "succeeded",
+            },
           },
         ],
       },
@@ -150,9 +162,25 @@ describe("M6 operational authorization", () => {
   it("rejects viewer workflow writes before touching the store", async () => {
     const { controller: target, mysql } = controller("viewer");
     await expect(
-      target.disableWorkflow("project-1", "workflow-1", viewer),
+      target.updateWorkflow("project-1", "workflow-1", { status: "disabled" }, viewer),
     ).rejects.toEqual(expect.any(HttpException));
     expect(mysql.createWorkflowDefinition).not.toHaveBeenCalled();
+  });
+
+  it("rejects viewer archive and restore writes before touching the store", async () => {
+    const { controller: target, mysql } = controller("viewer");
+    await expect(target.archiveModule("project-1", "module-1", viewer)).rejects.toEqual(
+      expect.any(HttpException),
+    );
+    await expect(target.restorePage("project-1", "page-1", viewer)).rejects.toEqual(
+      expect.any(HttpException),
+    );
+    await expect(
+      target.archiveWorkflow("project-1", "workflow-1", viewer),
+    ).rejects.toEqual(expect.any(HttpException));
+    expect(mysql.archiveModule).not.toHaveBeenCalled();
+    expect(mysql.restorePageDefinition).not.toHaveBeenCalled();
+    expect(mysql.archiveWorkflowDefinition).not.toHaveBeenCalled();
   });
 
   it("retires profiles through the project-scoped admin boundary", async () => {

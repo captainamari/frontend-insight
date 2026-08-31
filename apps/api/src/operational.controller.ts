@@ -30,22 +30,28 @@ import { CoreService } from "./core.service.js";
 import { CurrentPrincipal, parseInput } from "./http.js";
 
 const moduleKey = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
-const createModuleSchema = z.object({
-  moduleKey,
-  name: z.string().trim().min(1).max(120),
-  criticalityWeight: z.number().positive().max(100).default(1),
-  displayOrder: z.number().int().min(-10_000).max(10_000).default(0),
-  effectiveFrom: z.string().datetime().optional(),
-});
+const createModuleSchema = z
+  .object({
+    moduleKey,
+    name: z.string().trim().min(1).max(120),
+    displayOrder: z.number().int().min(-10_000).max(10_000).default(0),
+    effectiveFrom: z.string().datetime().optional(),
+  })
+  .strict();
 const updateModuleSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
-    criticalityWeight: z.number().positive().max(100).optional(),
     displayOrder: z.number().int().min(-10_000).max(10_000).optional(),
     status: z.enum(["active", "disabled"]).optional(),
     effectiveFrom: z.string().datetime().optional(),
   })
-  .refine((value) => Object.keys(value).length > 0);
+  .strict()
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.displayOrder !== undefined ||
+      value.status !== undefined,
+  );
 
 const pageRoute = z
   .string()
@@ -77,7 +83,16 @@ const updatePageSchema = z
     status: z.enum(["active", "disabled"]).optional(),
     effectiveFrom: pageFields.effectiveFrom,
   })
-  .refine((value) => Object.keys(value).length > 0);
+  .refine(
+    (value) =>
+      value.moduleId !== undefined ||
+      value.name !== undefined ||
+      value.templateKey !== undefined ||
+      value.isCore !== undefined ||
+      value.criticalityWeight !== undefined ||
+      value.expectedFrequency !== undefined ||
+      value.status !== undefined,
+  );
 
 const workflowKey = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
 const workflowStepKey = z.string().regex(/^[a-z][a-z0-9_]{0,63}$/);
@@ -98,8 +113,13 @@ const workflowStepSchema = z
   })
   .superRefine((step, context) => {
     const schemas = {
-      explicit_sdk: z.object({ actionKey: workflowStepKey }).strict(),
-      selector: z.object({ selector: z.string().trim().min(1).max(256) }).strict(),
+      explicit_sdk: z.object({}).strict(),
+      selector: z
+        .object({
+          event: z.enum(["click", "change"]),
+          selector: z.string().trim().min(1).max(256),
+        })
+        .strict(),
       network_request: z
         .object({
           method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
@@ -113,7 +133,10 @@ const workflowStepSchema = z
         .strict(),
       page_lifecycle: z.object({ event: z.enum(["loaded", "refreshed"]) }).strict(),
       operation_terminal: z
-        .object({ state: z.enum(["completed", "failed", "canceled"]) })
+        .object({
+          operationKey: workflowStepKey,
+          state: z.enum(["succeeded", "failed", "canceled"]),
+        })
         .strict(),
     } as const;
     const result = schemas[step.triggerKind].safeParse(step.triggerConfig);
@@ -141,14 +164,22 @@ const createWorkflowSchema = workflowConfigurationSchema.extend({
   workflowKey,
   name: z.string().trim().min(1).max(120),
 });
+const saveWorkflowDraftSchema = workflowConfigurationSchema.extend({
+  moduleId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+});
 const updateWorkflowSchema = z
   .object({
-    moduleId: z.string().uuid().optional(),
-    name: z.string().trim().min(1).max(120).optional(),
     status: z.enum(["active", "disabled"]).optional(),
   })
   .refine((value) => Object.keys(value).length > 0);
 const activateWorkflowSchema = z.object({ versionId: z.string().uuid() });
+
+const listAnalysisObjectsSchema = z.object({
+  includeArchived: z.enum(["true", "false"]).default("false"),
+  at: z.string().datetime().optional(),
+  moduleId: z.string().uuid().optional(),
+});
 
 const settingsSchema = z.object({
   targetUsers: z.number().int().positive().max(100_000_000).nullable(),
@@ -327,9 +358,14 @@ export class OperationalController {
   async listModules(
     @Param("projectId") projectId: string,
     @CurrentPrincipal() principal: Principal,
+    @Query() query: unknown = {},
   ) {
     await this.authorize(principal, projectId, false);
-    return this.core.mysql.listModules(projectId);
+    const parsed = parseInput(listAnalysisObjectsSchema, query);
+    return this.core.mysql.listModules(projectId, {
+      includeArchived: parsed.includeArchived === "true",
+      ...(parsed.at ? { at: new Date(parsed.at) } : {}),
+    });
   }
 
   @Post("modules")
@@ -360,27 +396,44 @@ export class OperationalController {
     });
   }
 
-  @Delete("modules/:moduleId")
+  @Post("modules/:moduleId/archive")
   @HttpCode(204)
-  async disableModule(
+  async archiveModule(
     @Param("projectId") projectId: string,
     @Param("moduleId") moduleId: string,
     @CurrentPrincipal() principal: Principal,
   ): Promise<void> {
     await this.authorize(principal, projectId, true);
-    await this.core.mysql.updateModule(projectId, moduleId, {
-      status: "disabled",
+    await this.core.mysql.archiveModule({
+      projectId,
+      moduleId,
       actor: principal,
     });
+  }
+
+  @Post("modules/:moduleId/restore")
+  async restoreModule(
+    @Param("projectId") projectId: string,
+    @Param("moduleId") moduleId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    return this.core.mysql.restoreModule({ projectId, moduleId, actor: principal });
   }
 
   @Get("page-definitions")
   async listPages(
     @Param("projectId") projectId: string,
     @CurrentPrincipal() principal: Principal,
+    @Query() query: unknown = {},
   ) {
     await this.authorize(principal, projectId, false);
-    return this.core.mysql.listPageDefinitions(projectId);
+    const parsed = parseInput(listAnalysisObjectsSchema, query);
+    return this.core.mysql.listPageDefinitions(projectId, {
+      includeArchived: parsed.includeArchived === "true",
+      ...(parsed.at ? { at: new Date(parsed.at) } : {}),
+      ...(parsed.moduleId ? { moduleId: parsed.moduleId } : {}),
+    });
   }
 
   @Post("page-definitions")
@@ -413,16 +466,31 @@ export class OperationalController {
     });
   }
 
-  @Delete("page-definitions/:pageId")
+  @Post("page-definitions/:pageId/archive")
   @HttpCode(204)
-  async disablePage(
+  async archivePage(
     @Param("projectId") projectId: string,
     @Param("pageId") pageId: string,
     @CurrentPrincipal() principal: Principal,
   ): Promise<void> {
     await this.authorize(principal, projectId, true);
-    await this.core.mysql.updatePageDefinition(projectId, pageId, {
-      status: "disabled",
+    await this.core.mysql.archivePageDefinition({
+      projectId,
+      pageId,
+      actor: principal,
+    });
+  }
+
+  @Post("page-definitions/:pageId/restore")
+  async restorePage(
+    @Param("projectId") projectId: string,
+    @Param("pageId") pageId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    return this.core.mysql.restorePageDefinition({
+      projectId,
+      pageId,
       actor: principal,
     });
   }
@@ -431,9 +499,14 @@ export class OperationalController {
   async listWorkflows(
     @Param("projectId") projectId: string,
     @CurrentPrincipal() principal: Principal,
+    @Query() query: unknown = {},
   ) {
     await this.authorize(principal, projectId, false);
-    return this.core.mysql.listWorkflowDefinitions(projectId);
+    const parsed = parseInput(listAnalysisObjectsSchema, query);
+    return this.core.mysql.listWorkflowDefinitions(projectId, {
+      includeArchived: parsed.includeArchived === "true",
+      ...(parsed.moduleId ? { moduleId: parsed.moduleId } : {}),
+    });
   }
 
   @Post("workflow-definitions")
@@ -466,18 +539,49 @@ export class OperationalController {
     });
   }
 
-  @Delete("workflow-definitions/:workflowId")
+  @Post("workflow-definitions/:workflowId/archive")
   @HttpCode(204)
-  async disableWorkflow(
+  async archiveWorkflow(
     @Param("projectId") projectId: string,
     @Param("workflowId") workflowId: string,
     @CurrentPrincipal() principal: Principal,
   ): Promise<void> {
     await this.authorize(principal, projectId, true);
-    await this.core.mysql.updateWorkflowDefinition(projectId, workflowId, {
-      status: "disabled",
+    await this.core.mysql.archiveWorkflowDefinition({
+      projectId,
+      workflowId,
       actor: principal,
     });
+  }
+
+  @Post("workflow-definitions/:workflowId/restore")
+  async restoreWorkflow(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    return this.core.mysql.restoreWorkflowDefinition({
+      projectId,
+      workflowId,
+      actor: principal,
+    });
+  }
+
+  @Get("operation-registry")
+  async operationRegistry(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return (await this.core.mysql.listFeatures(projectId))
+      .filter(
+        (feature) => feature.status === "active" && feature.operationLifecycleEnabled,
+      )
+      .map((feature) => ({
+        operationKey: feature.featureKey,
+        name: feature.name,
+      }));
   }
 
   @Put("workflow-definitions/:workflowId/draft")
@@ -488,7 +592,7 @@ export class OperationalController {
     @CurrentPrincipal() principal: Principal,
   ) {
     await this.authorize(principal, projectId, true);
-    const parsed = parseInput(workflowConfigurationSchema, body);
+    const parsed = parseInput(saveWorkflowDraftSchema, body);
     validateWorkflowDefinition(parsed);
     return this.core.mysql.saveWorkflowDraft({
       ...parsed,

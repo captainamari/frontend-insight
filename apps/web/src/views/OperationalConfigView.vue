@@ -83,7 +83,6 @@ const viewState = computed(() => {
 const moduleForm = reactive({
   moduleKey: "",
   name: "",
-  criticalityWeight: 1,
   displayOrder: 0,
 });
 const pageForm = reactive({
@@ -260,7 +259,6 @@ async function saveModule(item: ProjectModule): Promise<void> {
         method: "PATCH",
         body: JSON.stringify({
           name: item.name,
-          criticalityWeight: item.criticalityWeight,
           displayOrder: item.displayOrder,
         }),
       }),
@@ -515,17 +513,6 @@ watch(
               </template>
             </el-table-column>
             <el-table-column prop="moduleKey" label="moduleKey" min-width="170" />
-            <el-table-column label="关键度" width="130">
-              <template #default="{ row }">
-                <el-input-number
-                  v-model="row.criticalityWeight"
-                  :disabled="analysisObjectsMoved || !canWrite"
-                  :min="0.1"
-                  :max="100"
-                  :step="0.1"
-                />
-              </template>
-            </el-table-column>
             <el-table-column label="顺序" width="120">
               <template #default="{ row }">
                 <el-input-number
@@ -1051,13 +1038,6 @@ watch(
         </el-form-item>
         <el-form-item label="模块名称">
           <el-input v-model="moduleForm.name" placeholder="能源管理" />
-        </el-form-item>
-        <el-form-item label="关键度权重">
-          <el-input-number
-            v-model="moduleForm.criticalityWeight"
-            :min="0.1"
-            :max="100"
-          />
         </el-form-item>
         <el-form-item label="展示顺序">
           <el-input-number v-model="moduleForm.displayOrder" />

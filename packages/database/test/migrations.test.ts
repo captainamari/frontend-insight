@@ -19,7 +19,9 @@ describe("v1.8 empty-database migration inventory", () => {
       "identities",
       "projects",
       "modules",
+      "module_revisions",
       "page_definitions",
+      "page_definition_revisions",
       "workflow_definitions",
       "workflow_definition_versions",
       "workflow_steps",
@@ -41,6 +43,11 @@ describe("v1.8 empty-database migration inventory", () => {
     expect(migration.sql).toContain("app_id");
     expect(migration.sql).toContain("module_id");
     expect(migration.sql).toContain("terminal_policy");
+    const moduleTable = migration.sql.match(
+      /CREATE TABLE IF NOT EXISTS modules \(([\s\S]*?)\) ENGINE=/,
+    )?.[1];
+    expect(moduleTable).toBeDefined();
+    expect(moduleTable).not.toContain("criticality_weight");
     expect(migration.sql).toContain("chk_workflow_step_order");
     expect(migration.sql).toContain("chk_workflow_trigger_kind");
     expect(migration.sql).not.toContain("ALTER TABLE");

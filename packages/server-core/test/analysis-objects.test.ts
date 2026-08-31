@@ -12,14 +12,14 @@ const validWorkflow = {
       name: "打开",
       stepOrder: 1,
       triggerKind: "explicit_sdk" as const,
-      triggerConfig: { actionKey: "opened" },
+      triggerConfig: {},
     },
     {
       stepKey: "completed",
       name: "完成",
       stepOrder: 2,
       triggerKind: "operation_terminal" as const,
-      triggerConfig: { state: "completed" },
+      triggerConfig: { operationKey: "report_export", state: "succeeded" },
     },
   ],
   terminalPolicy: {
@@ -85,8 +85,52 @@ describe("R1-A analysis object boundaries", () => {
         selector: '[data-fi-action="download"]',
       }),
     ).toBe(false);
-    expect(isFragileWorkflowSelector("explicit_sdk", { actionKey: "download" })).toBe(
-      false,
-    );
+    expect(isFragileWorkflowSelector("explicit_sdk", {})).toBe(false);
+  });
+
+  it("accepts only click/change selectors and canonical operation terminals", () => {
+    expect(() =>
+      validateWorkflowDefinition({
+        ...validWorkflow,
+        steps: [
+          {
+            ...validWorkflow.steps[0]!,
+            triggerKind: "selector",
+            triggerConfig: { event: "click", selector: "#download" },
+          },
+          validWorkflow.steps[1]!,
+        ],
+      }),
+    ).not.toThrow();
+    for (const triggerConfig of [
+      { event: "appeared", selector: "#download" },
+      { selector: "#download" },
+    ]) {
+      expect(() =>
+        validateWorkflowDefinition({
+          ...validWorkflow,
+          steps: [
+            {
+              ...validWorkflow.steps[0]!,
+              triggerKind: "selector",
+              triggerConfig,
+            },
+            validWorkflow.steps[1]!,
+          ],
+        }),
+      ).toThrow("WORKFLOW_TRIGGER_CONFIG_INVALID");
+    }
+    expect(() =>
+      validateWorkflowDefinition({
+        ...validWorkflow,
+        steps: [
+          validWorkflow.steps[0]!,
+          {
+            ...validWorkflow.steps[1]!,
+            triggerConfig: { operationKey: "report_export", state: "completed" },
+          },
+        ],
+      }),
+    ).toThrow("WORKFLOW_TRIGGER_CONFIG_INVALID");
   });
 });
