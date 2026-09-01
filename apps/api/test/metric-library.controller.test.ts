@@ -86,6 +86,9 @@ describe("R1-B metric library authorization and immutable editing", () => {
     expect(Reflect.getMetadata("path", MetricLibraryController)).toBe(
       "api/projects/:projectId/metrics",
     );
+    expect(
+      Reflect.getMetadata("__httpCode__", MetricLibraryController.prototype.validate),
+    ).toBe(200);
   });
 
   it("allows a project viewer to read the catalog and versions", async () => {

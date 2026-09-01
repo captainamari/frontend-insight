@@ -114,6 +114,7 @@ export class MetricLibraryController {
   }
 
   @Post("versions/:versionId/validate")
+  @HttpCode(200)
   async validate(
     @Param("projectId") projectId: string,
     @Param("versionId") versionId: string,
