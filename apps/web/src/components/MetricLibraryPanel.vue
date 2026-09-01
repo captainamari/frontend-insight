@@ -523,10 +523,10 @@ async function saveMetric(): Promise<void> {
       },
     );
     selectedVersionId.value = result.version.id;
-    validation.value = result.validation;
     editorOpen.value = false;
     showMessage({ type: "success", message: "业务指标已保存；服务端校验结果已更新" });
     await load();
+    validation.value = result.validation;
   } catch (cause) {
     showMessage({ type: "error", message: apiMessage(cause) });
   } finally {

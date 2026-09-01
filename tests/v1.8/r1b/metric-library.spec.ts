@@ -10,17 +10,9 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
-async function choose(
-  page: Page,
-  select: Locator,
-  option: string | RegExp,
-): Promise<void> {
+async function choose(page: Page, select: Locator, option: string): Promise<void> {
   await select.click();
-  await page
-    .locator(".el-select-dropdown:visible")
-    .last()
-    .getByRole("option", { name: option })
-    .click();
+  await page.getByRole("option", { name: option, exact: true }).click();
 }
 
 test("admin manages a controlled business metric while system definitions stay read-only", async ({
@@ -55,8 +47,8 @@ test("admin manages a controlled business metric while system definitions stay r
   await editor.getByLabel("指标 key").fill(metricKey);
   await editor.getByLabel("中文名").fill(`单会话页面数 ${suffix}`);
   await editor.getByLabel("业务说明").fill("页面浏览量除以会话数");
-  await choose(page, editor.getByLabel("输入指标 A"), /pv · 页面浏览量/);
-  await choose(page, editor.getByLabel("输入指标 B"), /vv · 会话数/);
+  await choose(page, editor.getByLabel("输入指标 A"), "pv · 页面浏览量 · 部分实现");
+  await choose(page, editor.getByLabel("输入指标 B"), "vv · 会话数（VV）");
   await editor.getByLabel("目标单位").fill("views_per_session");
   await editor.getByLabel("分子说明").fill("PV");
   await editor.getByLabel("分母说明").fill("VV");
