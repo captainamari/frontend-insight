@@ -16,7 +16,11 @@ async function choose(
   option: string | RegExp,
 ): Promise<void> {
   await select.click();
-  await page.getByRole("option", { name: option }).click();
+  await page
+    .locator(".el-select-dropdown:visible")
+    .last()
+    .getByRole("option", { name: option })
+    .click();
 }
 
 test("admin manages a controlled business metric while system definitions stay read-only", async ({
