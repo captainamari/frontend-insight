@@ -14,6 +14,7 @@ import {
 } from "../analysis-objects";
 import { auth } from "../auth";
 import PageHeader from "../components/PageHeader.vue";
+import MetricLibraryPanel from "../components/MetricLibraryPanel.vue";
 import StatePanel from "../components/StatePanel.vue";
 import { useDashboardContext } from "../context";
 import { useRemoteData } from "../remote";
@@ -65,6 +66,19 @@ const context = useDashboardContext();
 const route = useRoute();
 const router = useRouter();
 const resource = useRemoteData<AnalysisObjectsData>();
+const areas = [
+  { name: "analysis-objects", label: "分析对象" },
+  { name: "operational-metrics", label: "运营指标" },
+  { name: "quality-metrics", label: "质量指标" },
+  { name: "versions", label: "版本库" },
+] as const;
+type MetricArea = (typeof areas)[number]["name"];
+function isArea(value: unknown): value is MetricArea {
+  return areas.some((area) => area.name === value);
+}
+const activeArea = ref<MetricArea>(
+  isArea(route.query.tab) ? route.query.tab : "analysis-objects",
+);
 const tabs = [
   { name: "modules", label: "功能模块" },
   { name: "pages", label: "页面" },
@@ -296,6 +310,13 @@ function setTab(tab: AnalysisObjectTab): void {
   activeTab.value = tab;
   if (route.query.object !== tab) {
     void router.push({ query: { ...route.query, object: tab } });
+  }
+}
+
+function setArea(area: MetricArea): void {
+  activeArea.value = area;
+  if (route.query.tab !== area) {
+    void router.push({ query: { ...route.query, tab: area } });
   }
 }
 
@@ -776,303 +797,353 @@ watch(
     if (isTab(value)) activeTab.value = value;
   },
 );
+watch(
+  () => route.query.tab,
+  (value) => {
+    if (isArea(value)) activeArea.value = value;
+  },
+);
 </script>
 
 <template>
   <div>
     <PageHeader
-      eyebrow="METRIC CENTER · R1-A"
+      eyebrow="METRIC CENTER · R1"
       title="指标管理"
-      description="模块、页面和工作流以稳定标识与有效期 revision 保存分析语义。"
+      description="分析对象、只读系统指标、受控业务公式与版本快照共享一个语义中心。"
     >
-      <el-button type="primary" :loading="resource.loading.value" @click="load"
+      <el-button
+        v-if="activeArea === 'analysis-objects'"
+        type="primary"
+        :loading="resource.loading.value"
+        @click="load"
         >刷新</el-button
       >
     </PageHeader>
-    <el-alert
-      v-if="!canWrite"
-      type="info"
-      :closable="false"
-      show-icon
-      title="当前账号为只读权限；可以查看分析对象和工作流版本，但不能修改。"
-    />
-    <StatePanel
-      :state="viewState"
-      title="分析对象暂不可用"
-      :message="resource.error.value?.message"
-      :request-id="resource.error.value?.requestId"
-      @retry="load"
-    >
-      <template v-if="resource.data.value">
-        <section class="panel">
-          <div class="analysis-object-tabs" role="tablist" aria-label="分析对象">
-            <button
-              v-for="tab in tabs"
-              :id="`analysis-object-tab-${tab.name}`"
-              :key="tab.name"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === tab.name"
-              :class="{ active: activeTab === tab.name }"
-              @click="setTab(tab.name)"
-            >
-              {{ tab.label }}
-            </button>
-            <el-checkbox v-model="showArchived" class="archive-toggle"
-              >显示已归档</el-checkbox
-            >
-          </div>
-
-          <section v-if="activeTab === 'modules'" role="tabpanel">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow">FUNCTION MODULES</span>
-                <h2>功能模块</h2>
-                <p>模块级关键度已删除；页面关键度仍在页面 revision 中维护。</p>
-              </div>
-              <el-button v-if="canWrite" type="primary" @click="openNewModule"
-                >新建功能模块</el-button
+    <nav class="metric-area-tabs" aria-label="指标管理区域">
+      <button
+        v-for="area in areas"
+        :key="area.name"
+        type="button"
+        :class="{ active: activeArea === area.name }"
+        :aria-current="activeArea === area.name ? 'page' : undefined"
+        @click="setArea(area.name)"
+      >
+        {{ area.label }}
+      </button>
+    </nav>
+    <template v-if="activeArea === 'analysis-objects'">
+      <el-alert
+        v-if="!canWrite"
+        type="info"
+        :closable="false"
+        show-icon
+        title="当前账号为只读权限；可以查看分析对象和工作流版本，但不能修改。"
+      />
+      <StatePanel
+        :state="viewState"
+        title="分析对象暂不可用"
+        :message="resource.error.value?.message"
+        :request-id="resource.error.value?.requestId"
+        @retry="load"
+      >
+        <template v-if="resource.data.value">
+          <section class="panel">
+            <div class="analysis-object-tabs" role="tablist" aria-label="分析对象">
+              <button
+                v-for="tab in tabs"
+                :id="`analysis-object-tab-${tab.name}`"
+                :key="tab.name"
+                type="button"
+                role="tab"
+                :aria-selected="activeTab === tab.name"
+                :class="{ active: activeTab === tab.name }"
+                @click="setTab(tab.name)"
+              >
+                {{ tab.label }}
+              </button>
+              <el-checkbox v-model="showArchived" class="archive-toggle"
+                >显示已归档</el-checkbox
               >
             </div>
-            <el-table :data="resource.data.value.modules" row-key="id">
-              <el-table-column label="模块" min-width="220">
-                <template #default="{ row }">
-                  <strong>{{ row.name }}</strong>
-                  <small class="cell-reason">{{ row.moduleKey }}</small>
-                </template>
-              </el-table-column>
-              <el-table-column prop="displayOrder" label="顺序" width="90" />
-              <el-table-column prop="pageCount" label="页面数" width="100" />
-              <el-table-column label="revision" width="110">
-                <template #default="{ row }">v{{ row.revision }}</template>
-              </el-table-column>
-              <el-table-column label="状态 / 操作" min-width="330">
-                <template #default="{ row }">
-                  <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
-                  <el-tag v-else :type="row.status === 'active' ? 'success' : 'info'">{{
-                    row.status === "active" ? "启用" : "停用"
-                  }}</el-tag>
-                  <template v-if="canWrite">
-                    <el-button v-if="!row.archivedAt" link @click="openModule(row)"
-                      >编辑</el-button
-                    >
-                    <el-button v-if="!row.archivedAt" link @click="toggleModule(row)">{{
-                      row.status === "active" ? "停用" : "启用"
-                    }}</el-button>
-                    <el-button
-                      v-if="!row.archivedAt"
-                      link
-                      type="danger"
-                      @click="archiveModule(row)"
-                      >归档</el-button
-                    >
-                    <el-button v-else link type="primary" @click="restoreModule(row)"
-                      >恢复</el-button
-                    >
+
+            <section v-if="activeTab === 'modules'" role="tabpanel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">FUNCTION MODULES</span>
+                  <h2>功能模块</h2>
+                  <p>模块级关键度已删除；页面关键度仍在页面 revision 中维护。</p>
+                </div>
+                <el-button v-if="canWrite" type="primary" @click="openNewModule"
+                  >新建功能模块</el-button
+                >
+              </div>
+              <el-table :data="resource.data.value.modules" row-key="id">
+                <el-table-column label="模块" min-width="220">
+                  <template #default="{ row }">
+                    <strong>{{ row.name }}</strong>
+                    <small class="cell-reason">{{ row.moduleKey }}</small>
                   </template>
-                </template>
-              </el-table-column>
-            </el-table>
-          </section>
+                </el-table-column>
+                <el-table-column prop="displayOrder" label="顺序" width="90" />
+                <el-table-column prop="pageCount" label="页面数" width="100" />
+                <el-table-column label="revision" width="110">
+                  <template #default="{ row }">v{{ row.revision }}</template>
+                </el-table-column>
+                <el-table-column label="状态 / 操作" min-width="330">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
+                    <el-tag
+                      v-else
+                      :type="row.status === 'active' ? 'success' : 'info'"
+                      >{{ row.status === "active" ? "启用" : "停用" }}</el-tag
+                    >
+                    <template v-if="canWrite">
+                      <el-button v-if="!row.archivedAt" link @click="openModule(row)"
+                        >编辑</el-button
+                      >
+                      <el-button
+                        v-if="!row.archivedAt"
+                        link
+                        @click="toggleModule(row)"
+                        >{{ row.status === "active" ? "停用" : "启用" }}</el-button
+                      >
+                      <el-button
+                        v-if="!row.archivedAt"
+                        link
+                        type="danger"
+                        @click="archiveModule(row)"
+                        >归档</el-button
+                      >
+                      <el-button v-else link type="primary" @click="restoreModule(row)"
+                        >恢复</el-button
+                      >
+                    </template>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </section>
 
-          <section v-else-if="activeTab === 'pages'" role="tabpanel">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow">MODULE → PAGES</span>
-                <h2>页面定义</h2>
-                <p>先选择功能模块，再管理该模块所属页面。</p>
+            <section v-else-if="activeTab === 'pages'" role="tabpanel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">MODULE → PAGES</span>
+                  <h2>页面定义</h2>
+                  <p>先选择功能模块，再管理该模块所属页面。</p>
+                </div>
+                <el-button
+                  v-if="canWrite"
+                  type="primary"
+                  :disabled="
+                    !selectedModule ||
+                    selectedModule.status !== 'active' ||
+                    Boolean(selectedModule.archivedAt)
+                  "
+                  @click="openNewPage()"
+                  >新建页面定义</el-button
+                >
               </div>
-              <el-button
-                v-if="canWrite"
-                type="primary"
-                :disabled="
-                  !selectedModule ||
-                  selectedModule.status !== 'active' ||
-                  Boolean(selectedModule.archivedAt)
-                "
-                @click="openNewPage()"
-                >新建页面定义</el-button
-              >
-            </div>
-            <div class="page-master-controls">
-              <el-form-item label="功能模块">
-                <el-select v-model="selectedModuleId" aria-label="功能模块">
-                  <el-option
-                    v-for="module in resource.data.value.modules"
-                    :key="module.id"
-                    :value="module.id"
-                    :label="`${module.name} · ${module.archivedAt ? '已归档' : module.status === 'active' ? '启用' : '停用'} · ${module.pageCount} 页`"
+              <div class="page-master-controls">
+                <el-form-item label="功能模块">
+                  <el-select v-model="selectedModuleId" aria-label="功能模块">
+                    <el-option
+                      v-for="module in resource.data.value.modules"
+                      :key="module.id"
+                      :value="module.id"
+                      :label="`${module.name} · ${module.archivedAt ? '已归档' : module.status === 'active' ? '启用' : '停用'} · ${module.pageCount} 页`"
+                    />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="搜索页面">
+                  <el-input
+                    v-model="pageSearch"
+                    clearable
+                    placeholder="页面名称或 pageRoute"
                   />
-                </el-select>
-              </el-form-item>
-              <el-form-item label="搜索页面">
-                <el-input
-                  v-model="pageSearch"
-                  clearable
-                  placeholder="页面名称或 pageRoute"
-                />
-              </el-form-item>
-            </div>
-            <el-table :data="selectedPages" row-key="id" empty-text="当前模块尚无页面">
-              <el-table-column prop="name" label="页面名称" min-width="180" />
-              <el-table-column prop="pageRoute" label="pageRoute" min-width="250" />
-              <el-table-column label="页面模板" min-width="190">
-                <template #default="{ row }">{{
-                  templateLabel(row.templateKey)
-                }}</template>
-              </el-table-column>
-              <el-table-column label="核心状态" width="100">
-                <template #default="{ row }">{{
-                  row.isCore ? "核心" : "普通"
-                }}</template>
-              </el-table-column>
-              <el-table-column label="状态 / 操作" min-width="300">
-                <template #default="{ row }">
-                  <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
-                  <el-tag v-else :type="row.status === 'active' ? 'success' : 'info'">{{
-                    row.status === "active" ? "启用" : "停用"
-                  }}</el-tag>
-                  <template v-if="canWrite">
-                    <el-button v-if="!row.archivedAt" link @click="openPage(row)"
-                      >编辑</el-button
-                    >
-                    <el-button v-if="!row.archivedAt" link @click="togglePage(row)">{{
-                      row.status === "active" ? "停用" : "启用"
-                    }}</el-button>
-                    <el-button
-                      v-if="!row.archivedAt"
-                      link
-                      type="danger"
-                      @click="archivePage(row)"
-                      >归档</el-button
-                    >
-                    <el-button v-else link type="primary" @click="restorePage(row)"
-                      >恢复</el-button
-                    >
-                  </template>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div class="list-footer">
-              <el-button
-                v-if="canWrite"
-                :disabled="
-                  !selectedModule ||
-                  selectedModule.status !== 'active' ||
-                  Boolean(selectedModule.archivedAt)
-                "
-                @click="openNewPage()"
-                >新增页面到当前模块</el-button
-              >
-            </div>
-            <details class="unclassified-temporary">
-              <summary>
-                未归类 route 临时入口
-                <el-badge :value="resource.data.value.unclassified.length" />
-              </summary>
-              <p>R6 交付后迁移到“页面分析 → 运营分析”；这里不会长期展示大块空表。</p>
-              <el-button plain @click="goToR6"
-                >前往 R6 页面运营入口（待交付）</el-button
-              >
-              <ul v-if="resource.data.value.unclassified.length">
-                <li
-                  v-for="item in resource.data.value.unclassified"
-                  :key="item.pageRoute"
-                >
-                  <code>{{ item.pageRoute }}</code> · {{ item.pageViews }} PV
-                  <el-button v-if="canWrite" link @click="openNewPage(item.pageRoute)"
-                    >预填页面</el-button
-                  >
-                </li>
-              </ul>
-            </details>
-          </section>
-
-          <section v-else role="tabpanel">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow">WORKFLOW DEFINITIONS</span>
-                <h2>工作流定义</h2>
-                <p>R1-A 仅保存并解释定义；workflow SDK collector 和事实关联在 R4-B。</p>
+                </el-form-item>
               </div>
-              <el-button v-if="canWrite" type="primary" @click="openWorkflow()"
-                >新建工作流</el-button
+              <el-table
+                :data="selectedPages"
+                row-key="id"
+                empty-text="当前模块尚无页面"
               >
-            </div>
-            <el-table :data="resource.data.value.workflows" row-key="id">
-              <el-table-column type="expand">
-                <template #default="{ row }">
-                  <div class="workflow-steps-preview">
-                    <article
-                      v-for="step in row.latestVersion?.steps ?? []"
-                      :key="step.id"
+                <el-table-column prop="name" label="页面名称" min-width="180" />
+                <el-table-column prop="pageRoute" label="pageRoute" min-width="250" />
+                <el-table-column label="页面模板" min-width="190">
+                  <template #default="{ row }">{{
+                    templateLabel(row.templateKey)
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="核心状态" width="100">
+                  <template #default="{ row }">{{
+                    row.isCore ? "核心" : "普通"
+                  }}</template>
+                </el-table-column>
+                <el-table-column label="状态 / 操作" min-width="300">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
+                    <el-tag
+                      v-else
+                      :type="row.status === 'active' ? 'success' : 'info'"
+                      >{{ row.status === "active" ? "启用" : "停用" }}</el-tag
                     >
-                      <strong>{{ step.stepOrder }}. {{ step.name }}</strong>
-                      <span>{{ workflowStepPreview(step) }}</span>
-                    </article>
-                  </div>
-                </template>
-              </el-table-column>
-              <el-table-column label="工作流" min-width="220">
-                <template #default="{ row }"
-                  ><strong>{{ row.name }}</strong
-                  ><small class="cell-reason">{{ row.workflowKey }}</small></template
-                >
-              </el-table-column>
-              <el-table-column label="功能模块" min-width="170"
-                ><template #default="{ row }">{{
-                  moduleName(row.moduleId)
-                }}</template></el-table-column
-              >
-              <el-table-column label="最新版本" width="150"
-                ><template #default="{ row }"
-                  ><span v-if="row.latestVersion"
-                    >v{{ row.latestVersion.version }} ·
-                    {{ row.latestVersion.status }}</span
-                  ><span v-else>—</span></template
-                ></el-table-column
-              >
-              <el-table-column label="状态 / 操作" min-width="330">
-                <template #default="{ row }">
-                  <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
-                  <el-tag v-else :type="row.status === 'active' ? 'success' : 'info'">{{
-                    row.status === "active" ? "启用" : "停用"
-                  }}</el-tag>
-                  <template v-if="canWrite">
-                    <el-button v-if="!row.archivedAt" link @click="openWorkflow(row)"
-                      >编辑草稿</el-button
-                    >
-                    <el-button
-                      v-if="!row.archivedAt && row.latestVersion?.status === 'draft'"
-                      link
-                      type="primary"
-                      @click="activateWorkflow(row)"
-                      >激活</el-button
-                    >
-                    <el-button
-                      v-if="!row.archivedAt"
-                      link
-                      @click="toggleWorkflow(row)"
-                      >{{ row.status === "active" ? "停用" : "启用" }}</el-button
-                    >
-                    <el-button
-                      v-if="!row.archivedAt"
-                      link
-                      type="danger"
-                      @click="archiveWorkflow(row)"
-                      >归档</el-button
-                    >
-                    <el-button v-else link type="primary" @click="restoreWorkflow(row)"
-                      >恢复</el-button
-                    >
+                    <template v-if="canWrite">
+                      <el-button v-if="!row.archivedAt" link @click="openPage(row)"
+                        >编辑</el-button
+                      >
+                      <el-button v-if="!row.archivedAt" link @click="togglePage(row)">{{
+                        row.status === "active" ? "停用" : "启用"
+                      }}</el-button>
+                      <el-button
+                        v-if="!row.archivedAt"
+                        link
+                        type="danger"
+                        @click="archivePage(row)"
+                        >归档</el-button
+                      >
+                      <el-button v-else link type="primary" @click="restorePage(row)"
+                        >恢复</el-button
+                      >
+                    </template>
                   </template>
-                </template>
-              </el-table-column>
-            </el-table>
+                </el-table-column>
+              </el-table>
+              <div class="list-footer">
+                <el-button
+                  v-if="canWrite"
+                  :disabled="
+                    !selectedModule ||
+                    selectedModule.status !== 'active' ||
+                    Boolean(selectedModule.archivedAt)
+                  "
+                  @click="openNewPage()"
+                  >新增页面到当前模块</el-button
+                >
+              </div>
+              <details class="unclassified-temporary">
+                <summary>
+                  未归类 route 临时入口
+                  <el-badge :value="resource.data.value.unclassified.length" />
+                </summary>
+                <p>R6 交付后迁移到“页面分析 → 运营分析”；这里不会长期展示大块空表。</p>
+                <el-button plain @click="goToR6"
+                  >前往 R6 页面运营入口（待交付）</el-button
+                >
+                <ul v-if="resource.data.value.unclassified.length">
+                  <li
+                    v-for="item in resource.data.value.unclassified"
+                    :key="item.pageRoute"
+                  >
+                    <code>{{ item.pageRoute }}</code> · {{ item.pageViews }} PV
+                    <el-button v-if="canWrite" link @click="openNewPage(item.pageRoute)"
+                      >预填页面</el-button
+                    >
+                  </li>
+                </ul>
+              </details>
+            </section>
+
+            <section v-else role="tabpanel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">WORKFLOW DEFINITIONS</span>
+                  <h2>工作流定义</h2>
+                  <p>
+                    R1-A 仅保存并解释定义；workflow SDK collector 和事实关联在 R4-B。
+                  </p>
+                </div>
+                <el-button v-if="canWrite" type="primary" @click="openWorkflow()"
+                  >新建工作流</el-button
+                >
+              </div>
+              <el-table :data="resource.data.value.workflows" row-key="id">
+                <el-table-column type="expand">
+                  <template #default="{ row }">
+                    <div class="workflow-steps-preview">
+                      <article
+                        v-for="step in row.latestVersion?.steps ?? []"
+                        :key="step.id"
+                      >
+                        <strong>{{ step.stepOrder }}. {{ step.name }}</strong>
+                        <span>{{ workflowStepPreview(step) }}</span>
+                      </article>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="工作流" min-width="220">
+                  <template #default="{ row }"
+                    ><strong>{{ row.name }}</strong
+                    ><small class="cell-reason">{{ row.workflowKey }}</small></template
+                  >
+                </el-table-column>
+                <el-table-column label="功能模块" min-width="170"
+                  ><template #default="{ row }">{{
+                    moduleName(row.moduleId)
+                  }}</template></el-table-column
+                >
+                <el-table-column label="最新版本" width="150"
+                  ><template #default="{ row }"
+                    ><span v-if="row.latestVersion"
+                      >v{{ row.latestVersion.version }} ·
+                      {{ row.latestVersion.status }}</span
+                    ><span v-else>—</span></template
+                  ></el-table-column
+                >
+                <el-table-column label="状态 / 操作" min-width="330">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.archivedAt" type="warning">已归档</el-tag>
+                    <el-tag
+                      v-else
+                      :type="row.status === 'active' ? 'success' : 'info'"
+                      >{{ row.status === "active" ? "启用" : "停用" }}</el-tag
+                    >
+                    <template v-if="canWrite">
+                      <el-button v-if="!row.archivedAt" link @click="openWorkflow(row)"
+                        >编辑草稿</el-button
+                      >
+                      <el-button
+                        v-if="!row.archivedAt && row.latestVersion?.status === 'draft'"
+                        link
+                        type="primary"
+                        @click="activateWorkflow(row)"
+                        >激活</el-button
+                      >
+                      <el-button
+                        v-if="!row.archivedAt"
+                        link
+                        @click="toggleWorkflow(row)"
+                        >{{ row.status === "active" ? "停用" : "启用" }}</el-button
+                      >
+                      <el-button
+                        v-if="!row.archivedAt"
+                        link
+                        type="danger"
+                        @click="archiveWorkflow(row)"
+                        >归档</el-button
+                      >
+                      <el-button
+                        v-else
+                        link
+                        type="primary"
+                        @click="restoreWorkflow(row)"
+                        >恢复</el-button
+                      >
+                    </template>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </section>
           </section>
-        </section>
-      </template>
-    </StatePanel>
+        </template>
+      </StatePanel>
+    </template>
+    <MetricLibraryPanel
+      v-else
+      :project-id="context.projectId.value ?? ''"
+      :can-write="canWrite"
+      :initial-type="activeArea === 'quality-metrics' ? 'quality' : 'operational'"
+      :versions-only="activeArea === 'versions'"
+    />
 
     <el-dialog
       v-model="moduleOpen"
@@ -1565,6 +1636,30 @@ watch(
 </template>
 
 <style scoped>
+.metric-area-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  padding: 5px;
+  border: 1px solid var(--border-color, #d9d9d9);
+  border-radius: 12px;
+  background: var(--surface-muted, #f7f8fa);
+}
+.metric-area-tabs button {
+  padding: 9px 15px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+.metric-area-tabs button.active {
+  background: var(--surface, #fff);
+  color: var(--primary-color, #2f6fed);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+}
 .analysis-object-tabs {
   display: flex;
   gap: 4px;

@@ -123,10 +123,10 @@ async function openDefinition(metricKey: string): Promise<void> {
   try {
     [definition.value, lineage.value] = await Promise.all([
       api.request<MetricDefinition>(
-        `/api/projects/${context.projectId.value}/metrics/${metricKey}/definition`,
+        `/api/projects/${context.projectId.value}/operational-index/metric-definitions/${metricKey}`,
       ),
       api.request<MetricLineage>(
-        `/api/projects/${context.projectId.value}/metrics/${metricKey}/lineage`,
+        `/api/projects/${context.projectId.value}/operational-index/metric-definitions/${metricKey}/lineage`,
       ),
     ]);
   } finally {

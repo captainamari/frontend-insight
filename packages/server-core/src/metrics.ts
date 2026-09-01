@@ -129,7 +129,7 @@ export const PAGE_TEMPLATE_DURATION_TARGETS: Readonly<
   },
 });
 
-export const METRIC_CATALOG: readonly MetricDefinition[] = [
+const OPERATIONAL_SCORE_INPUT_DEFINITIONS: readonly MetricDefinition[] = [
   definition({
     ...factDefaults,
     metricKey: "fact.page_view",
@@ -562,12 +562,17 @@ export const METRIC_CATALOG: readonly MetricDefinition[] = [
   }),
 ] as const;
 
+/** Existing pre-R1-C score inputs. Kept internal until R1-C migrates the score model. */
+export function operationalMetricDefinitions(): readonly MetricDefinition[] {
+  return OPERATIONAL_SCORE_INPUT_DEFINITIONS;
+}
+
 const catalogByKey = new Map(
-  METRIC_CATALOG.map((item) => [item.metricKey, item] as const),
+  OPERATIONAL_SCORE_INPUT_DEFINITIONS.map((item) => [item.metricKey, item] as const),
 );
 
 export function validateMetricCatalog(
-  definitions: readonly MetricDefinition[] = METRIC_CATALOG,
+  definitions: readonly MetricDefinition[] = OPERATIONAL_SCORE_INPUT_DEFINITIONS,
 ): string[] {
   const errors: string[] = [];
   const byKey = new Map<string, MetricDefinition>();
@@ -638,7 +643,7 @@ export function metricLineage(metricKey: string): MetricLineage | null {
     }),
     edges,
     directUpstream: [...root.inputKeys],
-    directDownstream: METRIC_CATALOG.filter((item) =>
+    directDownstream: OPERATIONAL_SCORE_INPUT_DEFINITIONS.filter((item) =>
       item.inputKeys.includes(metricKey),
     ).map((item) => item.metricKey),
   };

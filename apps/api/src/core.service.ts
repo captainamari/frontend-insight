@@ -3,6 +3,7 @@ import {
   AuthManager,
   IngestionManager,
   KafkaEnvelopePublisher,
+  MetricLibraryService,
   MySqlStore,
   ObservabilityStore,
 } from "@frontend-insight/server-core";
@@ -17,6 +18,7 @@ import type { OnModuleDestroy } from "@nestjs/common";
 export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
+  readonly metricLibrary = new MetricLibraryService(this.mysql);
   readonly publisher = new KafkaEnvelopePublisher(
     this.environment.KAFKA_BROKERS,
     this.environment.KAFKA_EVENTS_TOPIC,

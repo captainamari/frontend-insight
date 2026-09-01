@@ -50,6 +50,14 @@ describe("v1.8 empty-database migration inventory", () => {
     expect(moduleTable).not.toContain("criticality_weight");
     expect(migration.sql).toContain("chk_workflow_step_order");
     expect(migration.sql).toContain("chk_workflow_trigger_kind");
+    expect(migration.sql).toContain("uq_metric_library_active");
+    expect(migration.sql).toContain("library_type");
+    expect(migration.sql).toContain("source_version_id");
+    expect(migration.sql).toContain("'superseded'");
+    expect(migration.sql).toContain("'abandoned'");
+    expect(migration.sql).toContain("chk_metric_implementation_status");
+    expect(migration.sql).toContain("business_description");
+    expect(migration.sql).toContain("time_granularities");
     expect(migration.sql).not.toContain("ALTER TABLE");
   });
 

@@ -7,7 +7,7 @@ import {
 import type { RowDataPacket } from "mysql2/promise";
 import mysql from "mysql2/promise";
 import { m5Fixture } from "../scripts/m5-fixture.js";
-import { SYSTEM_METRIC_SEED } from "../src/generated/system-metric-seed.js";
+import { METRIC_CATALOG } from "../src/system-metric-catalog.js";
 
 const apiUrl = process.env.M24_API_URL ?? "http://127.0.0.1:3000";
 const mysqlUrl = process.env.MYSQL_URL;
@@ -85,7 +85,7 @@ async function verifySeedSnapshot() {
           WHERE mlv.manifest_version = '1.8.0' AND mlv.status = 'active') AS metrics,
          (SELECT COUNT(*) FROM score_definitions sd
           JOIN metric_library_versions mlv ON mlv.id = sd.library_version_id
-          WHERE mlv.manifest_version = '1.8.0' AND sd.status = 'active') AS scores`,
+          WHERE mlv.manifest_version = '1.8.0' AND sd.status = 'draft') AS scores`,
       [
         m5Fixture.admin.id,
         m5Fixture.viewer.id,
@@ -116,10 +116,13 @@ async function verifySeedSnapshot() {
     assert(actual.pages === 3, "R0 seed must create three fixture pages");
     assert(actual.workflows === 1, "R0 seed must create the workflow definition");
     assert(
-      actual.metrics === SYSTEM_METRIC_SEED.length,
+      actual.metrics === METRIC_CATALOG.length,
       "R0 seed must create every canonical metric",
     );
-    assert(actual.scores === 2, "R0 seed must create operational and quality scores");
+    assert(
+      actual.scores === 2,
+      "R0 seed must keep operational and quality score placeholders as inactive drafts",
+    );
     return actual;
   } finally {
     await pool.end();
