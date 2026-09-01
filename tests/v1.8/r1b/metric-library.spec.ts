@@ -15,7 +15,7 @@ async function choose(
   select: Locator,
   option: string | RegExp,
 ): Promise<void> {
-  await select.locator(".el-select__wrapper").click();
+  await select.click();
   await page.getByRole("option", { name: option }).click();
 }
 
