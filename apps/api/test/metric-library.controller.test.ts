@@ -82,6 +82,12 @@ const businessMetric = {
 };
 
 describe("R1-B metric library authorization and immutable editing", () => {
+  it("mounts the metric library below the public API prefix", () => {
+    expect(Reflect.getMetadata("path", MetricLibraryController)).toBe(
+      "api/projects/:projectId/metrics",
+    );
+  });
+
   it("allows a project viewer to read the catalog and versions", async () => {
     const { controller, metricLibrary } = fixture("viewer");
     await controller.catalog("project-a", { type: "operational" }, viewer);

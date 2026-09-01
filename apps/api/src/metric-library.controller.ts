@@ -59,7 +59,7 @@ const definitionQuerySchema = z
   .strict();
 const impactQuerySchema = z.object({ metricKey: metricKeySchema.optional() }).strict();
 
-@Controller("projects/:projectId/metrics")
+@Controller("api/projects/:projectId/metrics")
 export class MetricLibraryController {
   constructor(@Inject(CoreService) private readonly core: CoreService) {}
 
