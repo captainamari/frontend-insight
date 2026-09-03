@@ -67,6 +67,7 @@ test("admin manages a controlled business metric while system definitions stay r
   );
   await choose(page, editor.getByLabel("运算方式"), "限制在上下界内");
   await clampPreviewResponse;
+  await expect(editor).toContainText("clamp(uv, 0, 100)");
   await editor.getByRole("button", { name: "下一步" }).click();
   await expect(editor.getByLabel("输出单位（服务端推导）")).toHaveValue("users");
   await editor.getByRole("button", { name: "取消" }).click();
@@ -89,6 +90,7 @@ test("admin manages a controlled business metric while system definitions stay r
   );
   await choose(page, editor.getByLabel("输入指标 B"), "vv · 会话数（VV） · 部分实现");
   await divisionPreviewResponse;
+  await expect(editor).toContainText("(pv / vv)");
   await editor.getByRole("button", { name: "下一步" }).click();
   await expect(editor.getByLabel("输出单位（服务端推导）")).toHaveValue(
     "views_per_session",
