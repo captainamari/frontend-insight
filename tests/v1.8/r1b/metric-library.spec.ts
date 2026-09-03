@@ -21,7 +21,7 @@ async function choose(page: Page, select: Locator, option: string): Promise<void
     .last()
     .getByRole("option", { name: option, exact: true });
   await expect(target).toBeVisible();
-  await target.click({ force: true });
+  await target.dispatchEvent("click");
 }
 
 test("admin manages a controlled business metric while system definitions stay read-only", async ({
