@@ -80,6 +80,11 @@ export interface FormulaValidationContext {
   readonly resolveMetric: (metricKey: string) => FormulaMetricReference | null;
 }
 
+export type FormulaInspectionContext = Omit<
+  FormulaValidationContext,
+  "outputUnit" | "minimumSample"
+>;
+
 export interface FormulaValidationResult {
   readonly ast: FormulaAst;
   readonly unit: string;
@@ -320,9 +325,9 @@ function combineSets(left: Set<string>, right: Set<string>): Set<string> {
   return new Set([...left, ...right]);
 }
 
-export function validateFormulaAst(
+export function inspectFormulaAst(
   input: unknown,
-  context: FormulaValidationContext,
+  context: FormulaInspectionContext,
 ): FormulaValidationResult {
   const ast = parseFormulaAst(input);
   const infer = (node: FormulaAst, path: string): InferredNode => {
@@ -456,18 +461,6 @@ export function validateFormulaAst(
       maximum: FORMULA_LIMITS.maximumInputs,
     });
   }
-  if (inferred.unit !== context.outputUnit) {
-    throw new FormulaValidationError("FORMULA_OUTPUT_UNIT_MISMATCH", "$", {
-      inferred: inferred.unit,
-      declared: context.outputUnit,
-    });
-  }
-  if (context.minimumSample < inferred.minimumSample) {
-    throw new FormulaValidationError("FORMULA_MINIMUM_SAMPLE_TOO_LOW", "$", {
-      required: inferred.minimumSample,
-      declared: context.minimumSample,
-    });
-  }
   return Object.freeze({
     ast,
     unit: inferred.unit,
@@ -476,6 +469,26 @@ export function validateFormulaAst(
     depth: inferred.depth,
     minimumSample: inferred.minimumSample,
   });
+}
+
+export function validateFormulaAst(
+  input: unknown,
+  context: FormulaValidationContext,
+): FormulaValidationResult {
+  const inspected = inspectFormulaAst(input, context);
+  if (inspected.unit !== context.outputUnit) {
+    throw new FormulaValidationError("FORMULA_OUTPUT_UNIT_MISMATCH", "$", {
+      inferred: inspected.unit,
+      declared: context.outputUnit,
+    });
+  }
+  if (context.minimumSample < inspected.minimumSample) {
+    throw new FormulaValidationError("FORMULA_MINIMUM_SAMPLE_TOO_LOW", "$", {
+      required: inspected.minimumSample,
+      declared: context.minimumSample,
+    });
+  }
+  return inspected;
 }
 
 function mergeChildren(unit: string, children: readonly InferredNode[]): InferredNode {

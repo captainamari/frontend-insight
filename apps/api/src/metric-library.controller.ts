@@ -1,5 +1,6 @@
 import type {
   BusinessMetricInput,
+  BusinessMetricPreviewInput,
   Principal,
   ProjectRole,
 } from "@frontend-insight/server-core";
@@ -54,6 +55,7 @@ const businessMetricSchema = z
     formulaAst: z.unknown(),
   })
   .strict();
+const businessMetricPreviewSchema = businessMetricSchema.omit({ unit: true }).strict();
 const definitionQuerySchema = z
   .object({ versionId: z.string().uuid().optional() })
   .strict();
@@ -184,6 +186,26 @@ export class MetricLibraryController {
       versionId,
       definition,
       actor: principal,
+    });
+  }
+
+  @Post("versions/:versionId/definitions/preview")
+  @HttpCode(200)
+  async previewDefinition(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    const definition = parseInput(
+      businessMetricPreviewSchema,
+      body,
+    ) as BusinessMetricPreviewInput;
+    return this.core.metricLibrary.previewBusinessMetric({
+      projectId,
+      versionId,
+      definition,
     });
   }
 

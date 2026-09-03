@@ -4,6 +4,7 @@ import {
   evaluateFormulaTrend,
   FORMULA_LIMITS,
   FormulaValidationError,
+  inspectFormulaAst,
   parseFormulaAst,
   topologicalSortFormulaGraph,
   validateFormulaAst,
@@ -172,6 +173,45 @@ describe("controlled formula parser", () => {
 });
 
 describe("formula semantic validation", () => {
+  it("infers units before declaration so the editor cannot invent a mismatched unit", () => {
+    const clampedUsers = inspectFormulaAst(
+      {
+        type: "call",
+        function: "clamp",
+        arguments: [
+          { type: "metric", metricKey: "users_count" },
+          { type: "literal", value: 0 },
+          { type: "literal", value: 100 },
+        ],
+      },
+      {
+        projectId,
+        outputScope: "project",
+        outputGranularity: "day",
+        resolveMetric: (key) => references[key] ?? null,
+      },
+    );
+    expect(clampedUsers.unit).toBe("users");
+    expect(clampedUsers.minimumSample).toBe(1);
+    expect(clampedUsers.dependencies).toEqual(["users_count"]);
+
+    const normalizedUsers = inspectFormulaAst(
+      {
+        type: "normalize",
+        direction: "higher_better",
+        input: { type: "metric", metricKey: "users_count" },
+        target: { floor: 0, target: 50 },
+      },
+      {
+        projectId,
+        outputScope: "project",
+        outputGranularity: "day",
+        resolveMetric: (key) => references[key] ?? null,
+      },
+    );
+    expect(normalizedUsers.unit).toBe("score");
+  });
+
   it("accepts same-unit arithmetic and rejects incompatible addition", () => {
     expect(
       validate({

@@ -4,6 +4,7 @@ import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import {
   collectFormulaDependencies,
   FormulaValidationError,
+  inspectFormulaAst,
   parseFormulaAst,
   topologicalSortFormulaGraph,
   validateFormulaAst,
@@ -101,6 +102,26 @@ export interface BusinessMetricInput {
   owner: string;
   enabled: boolean;
   formulaAst: unknown;
+}
+
+export type BusinessMetricPreviewInput = Omit<BusinessMetricInput, "unit"> & {
+  unit?: string;
+};
+
+export interface MetricFormulaPreview {
+  valid: boolean;
+  inferredUnit: string | null;
+  requiredMinimumSample: number | null;
+  dependencies: readonly string[];
+  nodeCount: number | null;
+  depth: number | null;
+  formulaDescription: string | null;
+  implementationStatus: SystemMetricImplementationStatus | null;
+  errors: readonly {
+    code: string;
+    path: string;
+    details?: Readonly<Record<string, unknown>>;
+  }[];
 }
 
 export interface MetricVersionValidationReport {
@@ -540,6 +561,27 @@ export class MetricLibraryService {
         );
         sourceVersionId = activeRows[0] ? String(activeRows[0].id) : null;
       }
+      const [draftRows] = await connection.query<RowDataPacket[]>(
+        `SELECT * FROM metric_library_versions
+         WHERE project_id = ? AND library_type = ? AND status = 'draft'
+         ORDER BY version DESC LIMIT 1 FOR UPDATE`,
+        [input.projectId, input.libraryType],
+      );
+      if (draftRows[0]) {
+        const existingDraft = versionFromRow(draftRows[0]);
+        if (
+          existingDraft.id === input.sourceVersionId ||
+          existingDraft.sourceVersionId === sourceVersionId
+        ) {
+          await connection.commit();
+          return existingDraft;
+        }
+        throw new MetricLibraryError("METRIC_LIBRARY_DRAFT_EXISTS", 409, {
+          draftId: existingDraft.id,
+          draftVersion: existingDraft.version,
+          sourceVersionId: existingDraft.sourceVersionId,
+        });
+      }
       const id = randomUUID();
       await connection.execute(
         `INSERT INTO metric_library_versions
@@ -737,6 +779,105 @@ export class MetricLibraryService {
       )!,
       validation: validateMetricVersionSnapshot(snapshot),
     };
+  }
+
+  async previewBusinessMetric(input: {
+    projectId: string;
+    versionId: string;
+    definition: BusinessMetricPreviewInput;
+  }): Promise<MetricFormulaPreview> {
+    assertMetricKeyCanBeCreated(input.definition.metricKey);
+    const snapshot = await this.getVersion(input.projectId, input.versionId);
+    if (
+      !libraryIncludesCategory(snapshot.version.libraryType, input.definition.category)
+    ) {
+      throw new MetricLibraryError("METRIC_CATEGORY_LIBRARY_MISMATCH", 400);
+    }
+    const byKey = new Map(snapshot.definitions.map((item) => [item.metricKey, item]));
+    const errors: Array<{
+      code: string;
+      path: string;
+      details?: Readonly<Record<string, unknown>>;
+    }> = [];
+    let inspected: FormulaValidationResult | null = null;
+    try {
+      inspected = inspectFormulaAst(input.definition.formulaAst, {
+        projectId: input.projectId,
+        outputScope: input.definition.entityScope,
+        outputGranularity: input.definition.timeGranularity,
+        resolveMetric: (metricKey) => {
+          const local = byKey.get(metricKey);
+          if (local) return referenceFor(local, input.projectId);
+          const system = systemMetricDefinition(metricKey);
+          return system ? systemReference(system, input.projectId) : null;
+        },
+      });
+      validateFormulaAst(inspected.ast, {
+        projectId: input.projectId,
+        outputUnit: inspected.unit,
+        outputScope: input.definition.entityScope,
+        outputGranularity: input.definition.timeGranularity,
+        minimumSample: input.definition.minimumSample,
+        resolveMetric: (metricKey) => {
+          const local = byKey.get(metricKey);
+          if (local) return referenceFor(local, input.projectId);
+          const system = systemMetricDefinition(metricKey);
+          return system ? systemReference(system, input.projectId) : null;
+        },
+      });
+      topologicalSortFormulaGraph(
+        [
+          ...METRIC_CATALOG.map((item) => ({
+            metricKey: item.metricKey,
+            projectId: input.projectId,
+            formulaAst: null,
+          })),
+          ...snapshot.definitions
+            .filter(
+              (item) =>
+                item.origin === "business" &&
+                item.metricKey !== input.definition.metricKey,
+            )
+            .map((item) => ({
+              metricKey: item.metricKey,
+              projectId: input.projectId,
+              formulaAst: item.formulaAst,
+            })),
+          {
+            metricKey: input.definition.metricKey,
+            projectId: input.projectId,
+            formulaAst: inspected.ast,
+          },
+        ],
+        input.projectId,
+      );
+    } catch (cause) {
+      if (!(cause instanceof FormulaValidationError)) throw cause;
+      errors.push({
+        code: cause.code,
+        path: cause.path,
+        ...(cause.details ? { details: cause.details } : {}),
+      });
+    }
+    const dependencyStatuses = (inspected?.dependencies ?? []).map(
+      (metricKey) =>
+        byKey.get(metricKey)?.implementationStatus ??
+        systemMetricDefinition(metricKey)?.implementationStatus ??
+        "not_collected",
+    );
+    return Object.freeze({
+      valid: errors.length === 0,
+      inferredUnit: inspected?.unit ?? null,
+      requiredMinimumSample: inspected?.minimumSample ?? null,
+      dependencies: inspected?.dependencies ?? [],
+      nodeCount: inspected?.nodeCount ?? null,
+      depth: inspected?.depth ?? null,
+      formulaDescription: inspected ? formulaToDescription(inspected.ast) : null,
+      implementationStatus: inspected
+        ? deriveImplementationStatus(dependencyStatuses)
+        : null,
+      errors: Object.freeze(errors),
+    });
   }
 
   async deleteBusinessMetric(input: {

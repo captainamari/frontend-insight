@@ -156,6 +156,60 @@ if (draft.status !== "draft" || draft.sourceVersionId !== catalog.activeVersion.
   throw new Error("DRAFT_COPY_FAILED");
 }
 
+const reusedDraft = (
+  await request<Version>(
+    adminToken,
+    `/api/projects/${projectId}/metrics/versions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        type: "operational",
+        sourceVersionId: catalog.activeVersion.id,
+      }),
+    },
+    201,
+  )
+).body;
+if (reusedDraft.id !== draft.id || reusedDraft.version !== draft.version) {
+  throw new Error("DRAFT_WAS_DUPLICATED_INSTEAD_OF_REUSED");
+}
+
+const clampPreviewDefinition = {
+  ...businessMetric({
+    metricKey: "bounded_active_users",
+    displayName: "限定活跃用户数",
+    formulaAst: {
+      type: "call",
+      function: "clamp",
+      arguments: [
+        { type: "metric", metricKey: "uv" },
+        { type: "literal", value: 0 },
+        { type: "literal", value: 100 },
+      ],
+    },
+    unit: "users",
+  }),
+  unit: undefined,
+};
+const clampPreview = (
+  await request<{
+    valid: boolean;
+    inferredUnit: string | null;
+    dependencies: string[];
+  }>(
+    viewerToken,
+    `/api/projects/${projectId}/metrics/versions/${draft.id}/definitions/preview`,
+    { method: "POST", body: JSON.stringify(clampPreviewDefinition) },
+  )
+).body;
+if (
+  !clampPreview.valid ||
+  clampPreview.inferredUnit !== "users" ||
+  clampPreview.dependencies.join(",") !== "uv"
+) {
+  throw new Error("FORMULA_PREVIEW_INFERENCE_FAILED");
+}
+
 const reservedKey = catalog.system[0]!.metricKey;
 const reservedFailure = await request<{ code: string }>(
   adminToken,
@@ -460,6 +514,8 @@ console.log(
     verified: [
       "reserved-and-removed-keys",
       "formula-authority",
+      "formula-preview-unit-inference",
+      "single-working-draft-reuse",
       "immutable-snapshots",
       "draft-diff-impact-lineage",
       "old-snapshot-reactivation",

@@ -40,6 +40,17 @@ function fixture(role: "owner" | "viewer" | null, versionStatus = "draft") {
       definition: input.definition,
       validation: { valid: true },
     })),
+    previewBusinessMetric: vi.fn(async () => ({
+      valid: true,
+      inferredUnit: "ratio",
+      requiredMinimumSample: 5,
+      dependencies: ["ratio_a", "ratio_b"],
+      nodeCount: 3,
+      depth: 2,
+      formulaDescription: "ratio_a / ratio_b",
+      implementationStatus: "implemented",
+      errors: [],
+    })),
     validateVersion: vi.fn(async () => ({ valid: true })),
     activateVersion: vi.fn(async () => ({ ...version, status: "active" })),
     abandonDraft: vi.fn(async () => undefined),
@@ -97,6 +108,28 @@ describe("R1-B metric library authorization and immutable editing", () => {
     await controller.versions("project-a", { type: "quality" }, viewer);
     expect(metricLibrary.catalog).toHaveBeenCalledWith("project-a", "operational");
     expect(metricLibrary.listVersions).toHaveBeenCalledWith("project-a", "quality");
+  });
+
+  it("lets a project viewer request authoritative formula inference without a declared unit", async () => {
+    const { controller, metricLibrary, version } = fixture("viewer");
+    const previewDefinition: Partial<typeof businessMetric> = { ...businessMetric };
+    delete previewDefinition.unit;
+    await expect(
+      controller.previewDefinition("project-a", version.id, previewDefinition, viewer),
+    ).resolves.toMatchObject({ valid: true, inferredUnit: "ratio" });
+    expect(metricLibrary.previewBusinessMetric).toHaveBeenCalledWith({
+      projectId: "project-a",
+      versionId: version.id,
+      definition: previewDefinition,
+    });
+  });
+
+  it("rejects a client-supplied preview unit so inference stays server-authoritative", async () => {
+    const { controller, metricLibrary, version } = fixture("owner");
+    await expect(
+      controller.previewDefinition("project-a", version.id, businessMetric, admin),
+    ).rejects.toEqual(expect.any(HttpException));
+    expect(metricLibrary.previewBusinessMetric).not.toHaveBeenCalled();
   });
 
   it("rejects viewer writes before creating a draft or saving a definition", async () => {

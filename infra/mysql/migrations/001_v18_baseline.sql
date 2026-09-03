@@ -254,8 +254,11 @@ CREATE TABLE IF NOT EXISTS metric_library_versions (
   updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   active_slot VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin
     GENERATED ALWAYS AS (CASE WHEN status = 'active' THEN 'active' ELSE NULL END) STORED,
+  draft_slot VARCHAR(8) CHARACTER SET ascii COLLATE ascii_bin
+    GENERATED ALWAYS AS (CASE WHEN status = 'draft' THEN 'draft' ELSE NULL END) STORED,
   UNIQUE KEY uq_metric_library_version (project_id, library_type, version),
   UNIQUE KEY uq_metric_library_active (project_id, library_type, active_slot),
+  UNIQUE KEY uq_metric_library_draft (project_id, library_type, draft_slot),
   KEY idx_metric_library_source (source_version_id),
   CONSTRAINT chk_metric_library_type CHECK (library_type IN ('operational', 'quality')),
   CONSTRAINT chk_metric_library_status CHECK (status IN ('draft', 'active', 'superseded', 'abandoned')),
