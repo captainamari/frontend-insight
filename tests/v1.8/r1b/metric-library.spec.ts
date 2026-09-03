@@ -16,11 +16,12 @@ async function choose(page: Page, select: Locator, option: string): Promise<void
       "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' el-select__wrapper ')][1]",
     )
     .click();
-  await page
+  const target = page
     .locator(".el-select-dropdown:visible")
     .last()
-    .getByRole("option", { name: option, exact: true })
-    .click();
+    .getByRole("option", { name: option, exact: true });
+  await expect(target).toBeVisible();
+  await target.click({ force: true });
 }
 
 test("admin manages a controlled business metric while system definitions stay read-only", async ({
