@@ -1,6 +1,8 @@
 import {
   AnalysisObjectLifecycleError,
+  FormulaValidationError,
   IngestionError,
+  MetricLibraryError,
   type Principal,
 } from "@frontend-insight/server-core";
 import {
@@ -64,6 +66,16 @@ export class ApiExceptionFilter implements ExceptionFilter {
       code = cause.code;
       message = cause.code;
       details = cause.details;
+    } else if (cause instanceof MetricLibraryError) {
+      statusCode = cause.statusCode;
+      code = cause.code;
+      message = cause.code;
+      details = cause.details;
+    } else if (cause instanceof FormulaValidationError) {
+      statusCode = 400;
+      code = cause.code;
+      message = cause.code;
+      details = { path: cause.path, ...cause.details };
     } else if (cause instanceof HttpException) {
       statusCode = cause.getStatus();
       const body = cause.getResponse();

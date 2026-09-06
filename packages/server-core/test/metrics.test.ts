@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   calculateOperationalIndex,
   DEFAULT_OPERATIONAL_PROFILE_ITEMS,
-  METRIC_CATALOG,
   metricLineage,
   metricResult,
   normalizeMetricScore,
@@ -10,6 +9,7 @@ import {
   validateMetricCatalog,
   type MetricDefinition,
 } from "../src/metrics.js";
+import { METRIC_CATALOG } from "../src/system-metric-catalog.js";
 import type { MetricProfileItem } from "../src/model.js";
 
 function profileItems(): MetricProfileItem[] {
@@ -47,20 +47,37 @@ describe("MetricCatalog", () => {
     expect(
       METRIC_CATALOG.every(
         (item) =>
-          item.businessQuestion &&
+          item.businessDescription &&
           item.formulaDescription &&
-          item.missingValuePolicy &&
+          item.missingPolicy &&
           item.definitionVersion &&
-          item.owner,
+          item.owner &&
+          ["implemented", "partial", "not_collected"].includes(
+            item.implementationStatus,
+          ),
       ),
     ).toBe(true);
   });
 
   it("rejects duplicate, missing and cyclic dependencies", () => {
     const base: MetricDefinition = {
-      ...METRIC_CATALOG[0]!,
       metricKey: "a",
+      displayName: "A",
+      businessQuestion: "A?",
+      entityType: "project",
+      valueType: "count",
+      unit: "count",
+      layer: "derived",
       inputKeys: ["b"],
+      formulaDescription: "b",
+      denominatorDescription: "not applicable",
+      deduplicationKey: "eventId",
+      missingValuePolicy: "propagate",
+      scoreDirection: "none",
+      minimumSample: 0,
+      definitionVersion: "test-v1",
+      effectiveFrom: "2026-01-01T00:00:00.000Z",
+      owner: "test",
     };
     const errors = validateMetricCatalog([
       base,

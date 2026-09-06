@@ -178,7 +178,9 @@ async function load(): Promise<void> {
           `/api/projects/${projectId}/operational-settings`,
         ),
         api.request<MetricProfile[]>(`/api/projects/${projectId}/metric-profiles`),
-        api.request<MetricDefinition[]>(`/api/projects/${projectId}/metrics`),
+        api.request<MetricDefinition[]>(
+          `/api/projects/${projectId}/operational-index/metric-definitions`,
+        ),
         api.request<OperationalOverviewResponse>(
           `/api/projects/${projectId}/analytics/operational-overview?${range}`,
         ),

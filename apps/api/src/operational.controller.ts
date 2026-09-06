@@ -1,9 +1,9 @@
 import {
   DEFAULT_OPERATIONAL_PROFILE_ITEMS,
-  METRIC_CATALOG,
   metricDefinition,
   metricLineage,
   normalizePageRouteDefinition,
+  operationalMetricDefinitions,
   validateWorkflowDefinition,
   type AnalyticsRange,
   type MetricDimensionKey,
@@ -746,8 +746,17 @@ export class OperationalController {
     );
   }
 
-  @Get("metrics/:metricKey/definition")
-  async definition(
+  @Get("operational-index/metric-definitions")
+  async operationalDefinitions(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return operationalMetricDefinitions();
+  }
+
+  @Get("operational-index/metric-definitions/:metricKey")
+  async operationalDefinition(
     @Param("projectId") projectId: string,
     @Param("metricKey") metricKey: string,
     @CurrentPrincipal() principal: Principal,
@@ -758,17 +767,8 @@ export class OperationalController {
     return definition;
   }
 
-  @Get("metrics")
-  async catalog(
-    @Param("projectId") projectId: string,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.authorize(principal, projectId, false);
-    return METRIC_CATALOG;
-  }
-
-  @Get("metrics/:metricKey/lineage")
-  async lineage(
+  @Get("operational-index/metric-definitions/:metricKey/lineage")
+  async operationalLineage(
     @Param("projectId") projectId: string,
     @Param("metricKey") metricKey: string,
     @CurrentPrincipal() principal: Principal,

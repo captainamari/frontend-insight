@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import mysql from "mysql2/promise";
-import { SYSTEM_METRIC_SEED } from "../src/generated/system-metric-seed.js";
+import { METRIC_CATALOG } from "../src/system-metric-catalog.js";
 import { m5Fixture } from "./m5-fixture.js";
 import { m6Fixture, seedM6Fixture } from "./m6-fixture.js";
 
@@ -20,7 +20,8 @@ function stableUuid(namespace: string, key: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-const libraryId = stableUuid("r0", "metric-library-v1");
+const operationalLibraryId = stableUuid("r0", "metric-library-operational-v1");
+const qualityLibraryId = stableUuid("r0", "metric-library-quality-v1");
 const workflowId = stableUuid("r0", "workflow-energy-response");
 const workflowVersionId = stableUuid("r0", "workflow-energy-response-v1");
 
@@ -70,20 +71,33 @@ try {
     );
   }
 
-  await pool.execute(
-    `INSERT INTO metric_library_versions
-       (id, version, status, manifest_version, activated_at)
-     VALUES (?, 1, 'active', '1.8.0', '2026-08-01 00:00:00.000')
-     ON DUPLICATE KEY UPDATE id = id`,
-    [libraryId],
-  );
-  for (const metric of SYSTEM_METRIC_SEED) {
+  for (const [libraryType, libraryId] of [
+    ["operational", operationalLibraryId],
+    ["quality", qualityLibraryId],
+  ] as const) {
+    await pool.execute(
+      `INSERT INTO metric_library_versions
+         (id, project_id, library_type, version, status, manifest_version,
+          created_by_user_id, activated_at)
+       VALUES (?, ?, ?, 1, 'active', '1.8.0', ?, '2026-08-01 00:00:00.000')
+       ON DUPLICATE KEY UPDATE id = id`,
+      [libraryId, m5Fixture.projectId, libraryType, m5Fixture.admin.id],
+    );
+  }
+  for (const metric of METRIC_CATALOG) {
+    const libraryId = ["performance", "stability"].includes(metric.category)
+      ? qualityLibraryId
+      : operationalLibraryId;
     await pool.execute(
       `INSERT INTO metric_definitions
-         (id, library_version_id, metric_key, category, display_name, unit,
-          implementation_status, formula_ast, denominator_definition,
-          minimum_sample)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
+         (id, library_version_id, metric_key, origin, category, display_name,
+          business_description, formula_description, numerator_definition,
+          denominator_definition, deduplication_key, unit, percentiles,
+          reporting_timing, entity_scopes, time_granularities, minimum_sample,
+          missing_policy, owner, definition_version, implementation_status,
+          formula_ast, available_from, unavailable_reason, milestone, enabled)
+       VALUES (?, ?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+               NULL, ?, ?, ?, TRUE)
        ON DUPLICATE KEY UPDATE id = id`,
       [
         stableUuid("r0-metric", metric.metricKey),
@@ -91,8 +105,24 @@ try {
         metric.metricKey,
         metric.category,
         metric.displayName,
-        metric.category === "score" ? "score" : "count_or_rate",
+        metric.businessDescription,
+        metric.formulaDescription,
+        metric.numeratorDescription,
+        metric.denominatorDescription,
+        metric.deduplicationKey,
+        metric.unit,
+        JSON.stringify(metric.percentiles),
+        metric.reportingTiming,
+        JSON.stringify(metric.entityScopes),
+        JSON.stringify(metric.timeGranularities),
+        metric.minimumSample,
+        metric.missingPolicy,
+        metric.owner,
+        metric.definitionVersion,
         metric.implementationStatus,
+        metric.availableFrom?.replace("T", " ").replace("Z", "") ?? null,
+        metric.unavailableReason,
+        metric.milestone,
       ],
     );
   }
@@ -131,11 +161,11 @@ try {
       `INSERT INTO score_definitions
          (id, library_version_id, score_key, display_name, version, gate_ast,
           color_bands, status, activated_at)
-       VALUES (?, ?, ?, ?, 1, ?, ?, 'active', '2026-08-01 00:00:00.000')
+       VALUES (?, ?, ?, ?, 1, ?, ?, 'draft', NULL)
        ON DUPLICATE KEY UPDATE id = id`,
       [
         scoreId,
-        libraryId,
+        score.key === "quality_score" ? qualityLibraryId : operationalLibraryId,
         score.key,
         score.name,
         JSON.stringify(score.gate),
@@ -179,7 +209,7 @@ console.log(
     modules: Object.values(m6Fixture.modules),
     pages: Object.values(m6Fixture.pages),
     workflowKey: "energy_response",
-    metrics: SYSTEM_METRIC_SEED.length,
+    metrics: METRIC_CATALOG.length,
     scores: ["operational_score", "quality_score"],
   }),
 );
