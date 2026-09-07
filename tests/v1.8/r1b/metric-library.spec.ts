@@ -10,7 +10,11 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
-async function choose(page: Page, select: Locator, option: string): Promise<void> {
+async function choose(
+  page: Page,
+  select: Locator,
+  option: string | RegExp,
+): Promise<void> {
   await select
     .locator(
       "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' el-select__wrapper ')][1]",
@@ -28,7 +32,7 @@ test("admin manages a controlled business metric while system definitions stay r
   page,
   browserName,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await login(page, "admin@example.invalid", "LocalAdmin-1234");
   await page.goto(`/projects/${projectId}/metrics?range=7d&tab=operational-metrics`);
 
@@ -135,6 +139,94 @@ test("admin manages a controlled business metric while system definitions stay r
   await page.getByRole("button", { name: "查看 diff / 影响" }).click();
   await expect(page.getByTestId("metric-diff")).toContainText("版本变更");
   await expect(page.getByTestId("metric-impact")).toContainText("影响范围");
+
+  // Enter quality through the product navigation and save a real quality definition.
+  await page.getByRole("button", { name: "质量指标", exact: true }).click();
+  await expect(page.getByTestId("system-metrics")).toContainText("lcp");
+  const qualityKey = `scaled_lcp_${suffix}`;
+  await page.getByRole("button", { name: "新建业务指标" }).click();
+  editor = page.getByRole("dialog", { name: "语义化业务指标编辑器" });
+  await editor.getByLabel("指标 key").fill(qualityKey);
+  await editor.getByLabel("中文名").fill(`两倍绘制耗时 ${suffix}`);
+  await editor.getByLabel("业务说明").fill("LCP 乘以固定系数 2，验证质量版本独立保存");
+  await editor.getByRole("button", { name: "下一步" }).click();
+  await choose(page, editor.getByLabel("输入指标 A"), /^lcp ·/);
+  await choose(page, editor.getByLabel("运算方式"), "乘以系数");
+  await editor.getByRole("radio", { name: "固定系数", exact: true }).check();
+  await editor.getByRole("spinbutton", { name: "固定系数", exact: true }).fill("2");
+  await editor.getByRole("spinbutton", { name: "固定系数", exact: true }).blur();
+  await expect(editor).toContainText("(lcp * 2)");
+  await editor.getByRole("button", { name: "下一步" }).click();
+  await expect(editor.getByLabel("输出单位（服务端推导）")).toHaveValue("milliseconds");
+  await editor.getByRole("button", { name: "下一步" }).click();
+  await expect(editor).toContainText("服务端预校验通过");
+  const savedQualityResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "PUT" &&
+      response.url().endsWith(`/definitions/${qualityKey}`),
+  );
+  await editor.getByRole("button", { name: "保存到工作草稿" }).click();
+  const savedQuality = await savedQualityResponse;
+  expect(savedQuality.status()).toBe(200);
+  const { version: qualityVersion } = await savedQuality.json();
+  expect(qualityVersion.libraryType).toBe("quality");
+  expect(qualityVersion.status).toBe("draft");
+  await expect(page.getByTestId("business-metrics")).toContainText(qualityKey);
+
+  await page.getByRole("button", { name: "版本库", exact: true }).click();
+  const versionTable = page.getByTestId("metric-versions");
+  await expect(page.getByTestId("version-type-filter")).toContainText("全部类型");
+  await expect(
+    versionTable.getByRole("cell", { name: "运营", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    versionTable.getByRole("cell", { name: "质量", exact: true }).first(),
+  ).toBeVisible();
+  await choose(page, page.getByRole("combobox", { name: "版本类型" }), "质量");
+  await expect(
+    versionTable.getByRole("cell", { name: "运营", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByTestId("version-selector")).toContainText(
+    `质量 v${qualityVersion.version} · 草稿`,
+  );
+  await page.getByRole("button", { name: "查看 diff / 影响" }).click();
+  await expect(page.getByTestId("metric-diff")).toContainText(qualityKey);
+  await expect(page.getByTestId("metric-diff")).not.toContainText(metricKey);
+  const qualityVersionCount = await versionTable
+    .getByRole("cell", { name: "质量", exact: true })
+    .count();
+  await page.getByRole("button", { name: /继续编辑.*草稿/ }).click();
+  await expect(
+    versionTable.getByRole("cell", { name: "质量", exact: true }),
+  ).toHaveCount(qualityVersionCount);
+  await page.getByRole("button", { name: "激活", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "确认激活完整快照" })).toContainText(
+    `质量指标 v${qualityVersion.version}`,
+  );
+  await page.getByRole("button", { name: "校验并激活", exact: true }).click();
+  await expect(page.getByTestId("version-selector")).toContainText(
+    `质量 v${qualityVersion.version} · 已激活`,
+  );
+  await page.getByRole("button", { name: /创建工作草稿/ }).click();
+  await expect(page.getByTestId("version-selector")).toContainText(
+    `质量 v${qualityVersion.version + 1} · 草稿`,
+  );
+  await choose(page, page.getByRole("combobox", { name: "版本类型" }), "运营");
+  await expect(
+    versionTable.getByRole("cell", { name: "质量", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "查看 diff / 影响" }).click();
+  await expect(page.getByTestId("metric-diff")).toContainText(metricKey);
+  await page.reload();
+  await expect(
+    versionTable.getByRole("cell", { name: "运营", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    versionTable.getByRole("cell", { name: "质量", exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "质量指标", exact: true }).click();
+  await expect(page.getByTestId("business-metrics")).toContainText(qualityKey);
+  await expect(page.getByTestId("business-metrics")).not.toContainText(metricKey);
 });
 
 test("viewer can inspect definitions, versions and lineage but has no writes", async ({
@@ -162,4 +254,17 @@ test("viewer can inspect definitions, versions and lineage but has no writes", a
   await expect(lineageDrawer).toContainText("不会根据文字公式猜测或伪造上游");
   await expect(lineageDrawer.getByTestId("lineage-graph")).toBeVisible();
   await expect(lineageDrawer.locator('[data-node-key="lcp"]')).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "版本库", exact: true }).click();
+  const versionTable = page.getByTestId("metric-versions");
+  await expect(
+    versionTable.getByRole("cell", { name: "运营", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    versionTable.getByRole("cell", { name: "质量", exact: true }).first(),
+  ).toBeVisible();
+  await choose(page, page.getByRole("combobox", { name: "版本类型" }), "质量");
+  await expect(
+    page.getByRole("button", { name: /工作草稿|激活|废弃草稿/ }),
+  ).toHaveCount(0);
 });

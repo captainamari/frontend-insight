@@ -458,6 +458,86 @@ const abandoned = (
 ).body.version;
 if (abandoned.status !== "abandoned") throw new Error("DRAFT_ABANDON_FAILED");
 
+// Saving a quality metric from its active snapshot must create a quality draft,
+// leave the operational library untouched, and survive a fresh API read.
+const operationalBeforeQuality = (
+  await request<Version[]>(
+    adminToken,
+    `/api/projects/${projectId}/metrics/versions?type=operational`,
+  )
+).body;
+const qualityCatalog = (
+  await request<{ activeVersion: Version }>(
+    adminToken,
+    `/api/projects/${projectId}/metrics/catalog?type=quality`,
+  )
+).body;
+const qualitySaved = (
+  await request<{ version: Version }>(
+    adminToken,
+    `/api/projects/${projectId}/metrics/versions/${qualityCatalog.activeVersion.id}/definitions/quality_lcp_fixture`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        ...businessMetric({
+          metricKey: "quality_lcp_fixture",
+          displayName: "两倍绘制耗时",
+          unit: "milliseconds",
+          minimumSample: 5,
+          formulaAst: {
+            type: "binary",
+            operator: "*",
+            left: { type: "metric", metricKey: "lcp" },
+            right: { type: "literal", value: 2 },
+          },
+        }),
+        category: "performance",
+      }),
+    },
+  )
+).body.version;
+if (
+  qualitySaved.libraryType !== "quality" ||
+  qualitySaved.status !== "draft" ||
+  qualitySaved.sourceVersionId !== qualityCatalog.activeVersion.id
+) {
+  throw new Error("QUALITY_SAVE_WRONG_LIBRARY");
+}
+const qualitySnapshot = (
+  await request<VersionSnapshot>(
+    viewerToken,
+    `/api/projects/${projectId}/metrics/versions/${qualitySaved.id}`,
+  )
+).body;
+if (
+  !qualitySnapshot.definitions.some(
+    (item) =>
+      item.metricKey === "quality_lcp_fixture" &&
+      item.formulaDescription === "(lcp * 2)",
+  )
+) {
+  throw new Error("QUALITY_DEFINITION_NOT_PERSISTED");
+}
+const qualityVersions = (
+  await request<Version[]>(
+    viewerToken,
+    `/api/projects/${projectId}/metrics/versions?type=quality`,
+  )
+).body;
+const operationalAfterQuality = (
+  await request<Version[]>(
+    viewerToken,
+    `/api/projects/${projectId}/metrics/versions?type=operational`,
+  )
+).body;
+if (
+  !qualityVersions.some((item) => item.id === qualitySaved.id) ||
+  qualityVersions.some((item) => item.libraryType !== "quality") ||
+  JSON.stringify(operationalBeforeQuality) !== JSON.stringify(operationalAfterQuality)
+) {
+  throw new Error("QUALITY_VERSION_LIST_OR_TYPE_ISOLATION_FAILED");
+}
+
 const pool = mysql.createPool(mysqlUrl);
 try {
   const [activeRows] = await pool.query<RowDataPacket[]>(
@@ -516,6 +596,7 @@ console.log(
       "formula-authority",
       "formula-preview-unit-inference",
       "single-working-draft-reuse",
+      "quality-save-persistence-and-type-isolation",
       "immutable-snapshots",
       "draft-diff-impact-lineage",
       "old-snapshot-reactivation",

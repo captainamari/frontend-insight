@@ -1,6 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
-import { ElMessage, ElMessageBox } from "element-plus";
+import {
+  ElCollapse,
+  ElCollapseItem,
+  ElMessage,
+  ElMessageBox,
+  ElRadioButton,
+  ElRadioGroup,
+  ElStep,
+  ElSteps,
+} from "element-plus";
+import "element-plus/es/components/collapse/style/css";
+import "element-plus/es/components/radio-button/style/css";
+import "element-plus/es/components/radio-group/style/css";
+import "element-plus/es/components/steps/style/css";
 import { api, ApiError } from "../api";
 import MetricDefinitionDrawer from "./MetricDefinitionDrawer.vue";
 import MetricLineageDrawer from "./MetricLineageDrawer.vue";
@@ -140,11 +153,22 @@ const showMessage = ElMessage as unknown as (options: {
 }) => void;
 
 const libraryType = ref<LibraryType>(props.initialType);
+const versionFilter = ref<LibraryType | "all">("all");
 const loading = ref(false);
 const saving = ref(false);
 const error = ref<string | null>(null);
 const catalog = ref<CatalogResponse | null>(null);
 const versions = ref<Version[]>([]);
+const visibleVersions = computed(() =>
+  versions.value.filter(
+    (version) =>
+      !props.versionsOnly ||
+      versionFilter.value === "all" ||
+      version.libraryType === versionFilter.value,
+  ),
+);
+let loadSequence = 0;
+let snapshotSequence = 0;
 const selectedVersionId = ref("");
 const snapshot = ref<VersionResponse | null>(null);
 const validation = ref<ValidationReport | null>(null);
@@ -305,13 +329,14 @@ const operatorOptions = [
 const versionContext = computed(() => {
   const version = selectedVersion.value;
   if (!version) return "当前尚无指标版本。";
+  const label = `${version.libraryType === "quality" ? "质量" : "运营"} v${version.version}`;
   if (version.status === "draft")
-    return `正在编辑 v${version.version} 草稿；草稿内可多次保存，不会增加版本号。`;
+    return `正在编辑 ${label} 草稿；草稿内可多次保存，不会增加版本号。`;
   if (version.status === "active")
-    return `正在查看 v${version.version} 已激活快照；开始编辑时会创建或进入工作草稿。`;
+    return `正在查看 ${label} 已激活快照；开始编辑时会创建或进入工作草稿。`;
   if (version.status === "superseded")
-    return `正在查看历史快照 v${version.version}；可重新激活，历史内容不会被修改。`;
-  return `正在查看已废弃草稿 v${version.version}。`;
+    return `正在查看历史快照 ${label}；可重新激活，历史内容不会被修改。`;
+  return `正在查看已废弃草稿 ${label}。`;
 });
 const activeStepHints = computed(() => {
   if (editorStep.value === 0) return basicHints.value;
@@ -399,37 +424,50 @@ function apiMessage(cause: unknown): string {
 }
 
 async function load(): Promise<void> {
+  const sequence = ++loadSequence;
   if (!props.projectId) return;
   loading.value = true;
   error.value = null;
   try {
     const type = libraryType.value;
+    const types: LibraryType[] = props.versionsOnly
+      ? ["operational", "quality"]
+      : [type];
     const [catalogResult, versionResult] = await Promise.all([
       api.request<CatalogResponse>(
         `/api/projects/${props.projectId}/metrics/catalog?type=${type}`,
       ),
-      api.request<Version[]>(
-        `/api/projects/${props.projectId}/metrics/versions?type=${type}`,
+      Promise.all(
+        types.map((versionType) =>
+          api.request<Version[]>(
+            `/api/projects/${props.projectId}/metrics/versions?type=${versionType}`,
+          ),
+        ),
       ),
     ]);
+    if (sequence !== loadSequence) return;
     catalog.value = catalogResult;
-    versions.value = versionResult;
-    if (!versions.value.some((item) => item.id === selectedVersionId.value)) {
-      selectedVersionId.value =
-        versions.value.find((item) => item.status === "draft")?.id ??
-        catalogResult.activeVersion?.id ??
-        versions.value[0]?.id ??
-        "";
-    }
+    versions.value = versionResult.flat();
+    selectVisibleVersion();
     await loadVersion();
   } catch (cause) {
-    error.value = apiMessage(cause);
+    if (sequence === loadSequence) error.value = apiMessage(cause);
   } finally {
-    loading.value = false;
+    if (sequence === loadSequence) loading.value = false;
   }
 }
 
+function selectVisibleVersion(): void {
+  if (visibleVersions.value.some((item) => item.id === selectedVersionId.value)) return;
+  selectedVersionId.value =
+    visibleVersions.value.find((item) => item.status === "draft")?.id ??
+    visibleVersions.value.find((item) => item.status === "active")?.id ??
+    visibleVersions.value[0]?.id ??
+    "";
+}
+
 async function loadVersion(): Promise<void> {
+  const sequence = ++snapshotSequence;
   validation.value = null;
   diff.value = null;
   impact.value = null;
@@ -437,9 +475,15 @@ async function loadVersion(): Promise<void> {
     snapshot.value = null;
     return;
   }
-  snapshot.value = await api.request<VersionResponse>(
-    `/api/projects/${props.projectId}/metrics/versions/${selectedVersionId.value}`,
-  );
+  snapshot.value = null;
+  try {
+    const result = await api.request<VersionResponse>(
+      `/api/projects/${props.projectId}/metrics/versions/${selectedVersionId.value}`,
+    );
+    if (sequence === snapshotSequence) snapshot.value = result;
+  } catch (cause) {
+    if (sequence === snapshotSequence) error.value = apiMessage(cause);
+  }
 }
 
 async function createDraft(sourceVersionId?: string): Promise<void> {
@@ -457,7 +501,7 @@ async function createDraft(sourceVersionId?: string): Promise<void> {
       {
         method: "POST",
         body: JSON.stringify({
-          type: libraryType.value,
+          type: selectedVersion.value?.libraryType ?? libraryType.value,
           sourceVersionId: sourceVersionId ?? null,
         }),
       },
@@ -921,18 +965,21 @@ async function saveMetric(): Promise<void> {
 }
 
 watch(
-  () => [props.projectId, props.initialType],
+  () => [props.projectId, props.initialType, props.versionsOnly],
   () => {
     libraryType.value = props.initialType;
+    versionFilter.value = "all";
     selectedVersionId.value = "";
+    versions.value = [];
+    catalog.value = null;
+    snapshot.value = null;
+    ++snapshotSequence;
+    editorOpen.value = false;
     void load();
   },
   { immediate: true },
 );
-watch(libraryType, () => {
-  selectedVersionId.value = "";
-  void load();
-});
+watch(versionFilter, selectVisibleVersion);
 watch(selectedVersionId, () => void loadVersion());
 watch(
   () => [
@@ -972,6 +1019,8 @@ watch(
   },
 );
 onBeforeUnmount(() => {
+  ++loadSequence;
+  ++snapshotSequence;
   if (previewTimer) clearTimeout(previewTimer);
 });
 </script>
@@ -988,28 +1037,34 @@ onBeforeUnmount(() => {
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
 
     <div class="library-toolbar">
-      <el-segmented
-        v-model="libraryType"
-        :options="[
-          { label: '运营指标', value: 'operational' },
-          { label: '质量指标', value: 'quality' },
-        ]"
-      />
+      <el-select
+        v-if="versionsOnly"
+        v-model="versionFilter"
+        data-testid="version-type-filter"
+        aria-label="版本类型"
+        style="width: 150px"
+      >
+        <el-option label="全部类型" value="all" />
+        <el-option label="运营" value="operational" />
+        <el-option label="质量" value="quality" />
+      </el-select>
       <el-select
         v-model="selectedVersionId"
+        data-testid="version-selector"
+        aria-label="选择版本"
         placeholder="选择版本"
         style="width: 210px"
       >
         <el-option
-          v-for="version in versions"
+          v-for="version in visibleVersions"
           :key="version.id"
           :value="version.id"
-          :label="`v${version.version} · ${versionStatusLabel(version.status)}`"
+          :label="`${version.libraryType === 'quality' ? '质量' : '运营'} v${version.version} · ${versionStatusLabel(version.status)}`"
         />
       </el-select>
       <el-button :loading="loading" @click="load">刷新</el-button>
       <el-button
-        v-if="canWrite && selectedVersion?.status !== 'abandoned'"
+        v-if="canWrite && selectedVersion && selectedVersion.status !== 'abandoned'"
         type="primary"
         :loading="saving"
         @click="createDraft(selectedVersion?.id)"
@@ -1060,7 +1115,12 @@ onBeforeUnmount(() => {
           >
         </div>
       </div>
-      <el-table :data="versions" row-key="id" size="small">
+      <el-table
+        :data="visibleVersions"
+        data-testid="metric-versions"
+        row-key="id"
+        size="small"
+      >
         <el-table-column label="版本" width="90"
           ><template #default="{ row }">v{{ row.version }}</template></el-table-column
         >
@@ -1253,12 +1313,7 @@ onBeforeUnmount(() => {
         :closable="false"
         title="编辑器不会保存 SQL、代码、任意字段或任意函数。页面只做即时提示，保存和激活以服务端校验为准。"
       />
-      <el-steps
-        :active="editorStep"
-        finish-status="success"
-        simple
-        class="editor-steps"
-      >
+      <el-steps :active="editorStep" finish-status="success" class="editor-steps">
         <el-step title="基本信息" />
         <el-step title="构建公式" />
         <el-step title="口径规则" />
