@@ -12,6 +12,7 @@ import { ObservabilityController } from "./observability.controller.js";
 import { OperationalController } from "./operational.controller.js";
 import { ProjectsController } from "./projects.controller.js";
 import { SystemController } from "./system.controller.js";
+import { ScorePreflightController } from "./score-preflight.controller.js";
 
 @Module({
   controllers: [
@@ -21,6 +22,7 @@ import { SystemController } from "./system.controller.js";
     ProjectsController,
     AnalyticsController,
     MetricLibraryController,
+    ScorePreflightController,
     OperationalController,
     ObservabilityController,
     SystemController,

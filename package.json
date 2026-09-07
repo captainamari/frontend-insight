@@ -31,7 +31,8 @@
     "test:r0": "vitest run packages/event-contract packages/test-fixtures packages/database apps/consumer packages/server-core/test/pipeline.test.ts tests/r0",
     "test:r1a": "vitest run packages/server-core/test/analysis-objects.test.ts apps/api/test/operational.controller.test.ts apps/web/test/analysis-objects.test.ts packages/database/test/migrations.test.ts",
     "test:r1b": "vitest run packages/server-core/test/formula.test.ts packages/server-core/test/system-metric-catalog.test.ts packages/server-core/test/metric-library.test.ts apps/api/test/metric-library.controller.test.ts packages/database/test/migrations.test.ts",
-    "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm canonical:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm canonical:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "test:r1c": "vitest run packages/server-core/test/score-evaluation.test.ts packages/server-core/test/quality-score-evaluation.test.ts apps/api/test/score-preflight.controller.test.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

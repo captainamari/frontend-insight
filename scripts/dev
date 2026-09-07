@@ -23,6 +23,7 @@ Commands:
   smoke                          Verify the data flow and all three HTTP services
   verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
   verify-r1b                     Verify R1-B versions, formula safety and audit
+  verify-r1c                     Verify R1-C configuration preflight (not full stage)
   status                         Show service health and current resource use
   logs [service]                 Show recent logs for all or one service
   down                           Stop containers and preserve named data volumes
@@ -160,6 +161,14 @@ verify_r1b() {
   info "R1-B metric library, formula, version, isolation and audit checks passed"
 }
 
+verify_r1c() {
+  ensure_env
+  require_command docker
+  compose run --rm --build --no-deps r1b-verifier pnpm --filter @frontend-insight/server-core verify:r1c || \
+    fail "R1-C preflight verification failed"
+  info "R1-C configuration preflight passed; full score management awaits decisions"
+}
+
 status() {
   ensure_env
   require_command docker
@@ -223,6 +232,7 @@ case "$command_name" in
   smoke) smoke "$@" ;;
   verify-r1a) verify_r1a "$@" ;;
   verify-r1b) verify_r1b "$@" ;;
+  verify-r1c) verify_r1c "$@" ;;
   status) status "$@" ;;
   logs) logs "$@" ;;
   down) down "$@" ;;

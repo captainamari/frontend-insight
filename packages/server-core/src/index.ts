@@ -4,6 +4,8 @@ export * from "./auth.js";
 export * from "./model.js";
 export * from "./metrics.js";
 export * from "./formula.js";
+export * from "./score-evaluation.js";
+export * from "./score-preflight.js";
 export * from "./metric-library.js";
 export * from "./system-metric-catalog.js";
 export * from "./mysql-store.js";
