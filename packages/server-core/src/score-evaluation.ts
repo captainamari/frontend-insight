@@ -361,7 +361,14 @@ export function validateScoreConfiguration(input: unknown, binding: ScoreBinding
   if (byKey.has(configuration.scoreKey)) fail("SCORE_KEY_CONFLICT", "$.scoreKey");
   const referenced = new Map<string, ScoreMetricReference>();
   const visiting = new Set<string>();
-  const expand = (ast: FormulaAst): FormulaAst => {
+  // Bound expansion as it happens, not only after allocating the expanded DAG.
+  // The score root and dimension roots also count toward the same 100 nodes.
+  let expandedNodes = 1 + configuration.dimensions.length;
+  const expand = (ast: FormulaAst, depth = 3): FormulaAst => {
+    if (depth > 8) fail("FORMULA_DEPTH_LIMIT_EXCEEDED", "$.scoreTree");
+    const replaced = ast.type === "metric" && byKey.get(ast.metricKey)?.formulaAst;
+    if (!replaced && ++expandedNodes > 100)
+      fail("FORMULA_NODE_LIMIT_EXCEEDED", "$.scoreTree");
     if (ast.type === "metric") {
       const metric = byKey.get(ast.metricKey);
       if (!metric) fail("FORMULA_DEPENDENCY_MISSING", ast.metricKey);
@@ -377,19 +384,31 @@ export function validateScoreConfiguration(input: unknown, binding: ScoreBinding
       referenced.set(ast.metricKey, metric);
       if (!metric.formulaAst) return ast;
       visiting.add(ast.metricKey);
-      const expanded = expand(parseFormulaAst(metric.formulaAst));
+      const expanded = expand(parseFormulaAst(metric.formulaAst), depth);
       visiting.delete(ast.metricKey);
       return expanded;
     }
     if (ast.type === "binary")
-      return { ...ast, left: expand(ast.left), right: expand(ast.right) };
-    if (ast.type === "call") return { ...ast, arguments: ast.arguments.map(expand) };
+      return {
+        ...ast,
+        left: expand(ast.left, depth + 1),
+        right: expand(ast.right, depth + 1),
+      };
+    if (ast.type === "call")
+      return {
+        ...ast,
+        arguments: ast.arguments.map((item) => expand(item, depth + 1)),
+      };
     if (ast.type === "weighted_mean")
       return {
         ...ast,
-        items: ast.items.map((item) => ({ ...item, value: expand(item.value) })),
+        items: ast.items.map((item) => ({
+          ...item,
+          value: expand(item.value, depth + 1),
+        })),
       };
-    if (ast.type === "normalize") return { ...ast, input: expand(ast.input) };
+    if (ast.type === "normalize")
+      return { ...ast, input: expand(ast.input, depth + 1) };
     return ast;
   };
   const readiness: { key: string; reason: string }[] = [];
@@ -403,7 +422,7 @@ export function validateScoreConfiguration(input: unknown, binding: ScoreBinding
         type: "weighted_mean",
         items: dim.leaves.map((leaf) => {
           const direct: FormulaAst = { type: "metric", metricKey: leaf.metricKey };
-          expand(direct);
+          const expanded = expand(leaf.target ? normalization(leaf) : direct);
           validateFormulaAst(direct, {
             projectId: binding.projectId,
             outputUnit: byKey.get(leaf.metricKey)!.unit,
@@ -416,7 +435,7 @@ export function validateScoreConfiguration(input: unknown, binding: ScoreBinding
             readiness.push({ key: leaf.key, reason: "SCORE_TARGET_REQUIRED" });
           return {
             weight: leaf.weight,
-            value: expand(leaf.target ? normalization(leaf) : direct),
+            value: expanded,
           };
         }),
       },

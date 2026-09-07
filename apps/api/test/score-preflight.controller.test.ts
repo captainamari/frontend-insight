@@ -92,4 +92,13 @@ describe("R1-C configuration-only preflight API", () => {
       ),
     ).rejects.toThrow("SCORE_FIELD_NOT_ALLOWED");
   });
+  it("does not relabel a quality dependency as operational merely because it is in that snapshot", async () => {
+    const f = fixture("owner");
+    const snapshot = await f.metricLibrary.getVersion();
+    Object.assign(snapshot.definitions[0]!, { category: "performance" });
+    f.metricLibrary.getVersion.mockResolvedValue(snapshot);
+    await expect(
+      f.controller.preflight("fixture-project", "v1", f.input.configuration, admin),
+    ).rejects.toThrow("SCORE_CROSS_TYPE_REFERENCE");
+  });
 });

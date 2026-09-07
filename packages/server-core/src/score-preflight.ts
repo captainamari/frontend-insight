@@ -20,7 +20,10 @@ export function preflightScoreConfiguration(
     metrics: snapshot.definitions.map((metric) => ({
       metricKey: metric.metricKey,
       projectId: snapshot.version.projectId,
-      libraryType: snapshot.version.libraryType,
+      libraryType:
+        metric.category === "performance" || metric.category === "stability"
+          ? "quality"
+          : "operational",
       metricSetVersion: snapshot.version.id,
       definitionVersion: metric.definitionVersion,
       unit: metric.unit,

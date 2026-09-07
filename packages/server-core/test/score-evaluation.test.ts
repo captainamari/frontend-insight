@@ -347,4 +347,30 @@ describe("R1-C score evaluation foundation (synthetic facts, not production temp
     evaluateScore(input);
     expect(JSON.stringify(input)).toBe(before);
   });
+  it("bounds shared DAG expansion before allocating an oversized scoring tree", () => {
+    const input = operationalScoreFixture();
+    // A legal single formula can be reused by every leaf but must still obey
+    // the complete scoring tree limit (5 roots + 10 * (normalize + 8 nodes)).
+    const makeFormula = (argumentsCount: number): FormulaAst => ({
+      type: "call",
+      function: "max",
+      arguments: Array.from({ length: argumentsCount }, () => ({
+        type: "metric",
+        metricKey: "core_page_coverage",
+      })),
+    });
+    input.binding.metrics[0]!.formulaAst = makeFormula(7);
+    for (const leaf of allLeaves(input)) {
+      leaf.metricKey = "active_user_target_attainment";
+      leaf.target = { floor: 0, target: 1 };
+      leaf.direction = "higher_better";
+    }
+    expect(() =>
+      validateScoreConfiguration(input.configuration, input.binding),
+    ).not.toThrow();
+    input.binding.metrics[0]!.formulaAst = makeFormula(8);
+    expect(() =>
+      validateScoreConfiguration(input.configuration, input.binding),
+    ).toThrow("FORMULA_NODE_LIMIT_EXCEEDED");
+  });
 });
