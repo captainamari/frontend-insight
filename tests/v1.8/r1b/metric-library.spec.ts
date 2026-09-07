@@ -152,7 +152,13 @@ test("admin manages a controlled business metric while system definitions stay r
   await editor.getByRole("button", { name: "下一步" }).click();
   await choose(page, editor.getByLabel("输入指标 A"), /^lcp ·/);
   await choose(page, editor.getByLabel("运算方式"), "乘以系数");
-  await editor.getByRole("radio", { name: "固定系数", exact: true }).check();
+  await editor
+    .locator(".el-radio-button__inner")
+    .filter({ hasText: "固定系数" })
+    .click();
+  await expect(
+    editor.getByRole("radio", { name: "固定系数", exact: true }),
+  ).toBeChecked();
   await editor.getByRole("spinbutton", { name: "固定系数", exact: true }).fill("2");
   await editor.getByRole("spinbutton", { name: "固定系数", exact: true }).blur();
   await expect(editor).toContainText("(lcp * 2)");
