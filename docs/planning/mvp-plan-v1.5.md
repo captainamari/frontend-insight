@@ -479,9 +479,9 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 10.2 质量指标
 
-新增/注册系统原子与派生指标：
+复用并核对R1-B已注册的系统目录，不重复注册；逐项披露公式、范围、来源、样本及实施状态：
 
-- 附件规范 `js_error_rate/resource_error_rate/api_error_rate`，未具备分母前状态为 `partial`，不得用每千 PV 近似替代；
+- 附件规范 `js_error_rate/resource_error_rate/api_error_rate`，按真实事实和查询能力区分 `partial/not_collected`：已有部分事实但规范查询未齐保持partial，真实分母及规范rate查询未交付的API/resource保持not_collected；不得为验收改标签或用每千PV近似替代（2026-09-08 D2）；
 - `lcp`、`inp`、`cls`、`fcp`、`ttfb` 的 sample、规定分位数和 poor rate；
 - error occurrences、affected user/device/page、error group severity 等扩展诊断指标；
 - release/error correlation evidence；
@@ -492,9 +492,10 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 - 默认四维：JS 稳定性、资源稳定性、API 稳定性、页面性能；
 - 每维使用可配置 lower_better/target_range；
 - 规范 key 为 `quality_score`，与 `operational_score` 使用独立 metric library version；
-- 没有足够 PV/性能样本时不可用；
+- 没有对应来源的足够PV、API请求、资源请求或性能样本时不可用，不用PV代替另外两类曝光；
 - “没有错误事件”但链路无数据时不能得到 100；
 - 默认模板先通过 demo fixture 手算，再允许新项目向导选择激活。
+- 默认参数采用需求§18.8的D3-A批准表；一个系统模板降低项目维护负担，参数进入高级配置；业务owner仍待指定，参数已批准不等于允许缺owner发布。fixture始终与真实项目查询隔离。
 
 ### 10.4 测试
 
@@ -510,7 +511,13 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 10.5 阶段门
 
-两个分数都能从总分沿 lineage 下钻到原子事实，并与手算一致。若质量目标仍无业务 owner，不允许用“临时阈值”伪装正式分数。
+2026-09-08用户明确选择D4-A，原“本阶段两个分数均下钻到真实原子事实并与手算一致”的阶段门改为分层验收，详见需求§18.8及[评审记录Q13](../progress/v1.8-r1c-review-2026-09-08.md)。这是经批准的验收时点调整，最终真实数值/事实血缘要求仍保留。
+
+- R1-C必须完成运营/质量两类分数完整配置、保存、草稿复用、校验、diff/impact、激活/supersede、废弃、旧快照重激活、不可变快照、版本/环境隔离、解释/雷达/等价表格；不能以现有预检API替代。
+- 通过固定手算、真实MySQL/API配置和不可用行为、Chromium/WebKit两角色两分数完整产品流、全仓及R1-A/B回归；定义血缘展示真实依赖，无事实明确原因。历史试算无事实时不得伪造数值或重标旧结果。
+- 真实任务数值/事实血缘随R4-B验收；质量真分母、性能与评分随R5-A验收；规范UV/会话/日期/page_leave及相关env健康能力随R6和对应事实交付验收。每阶段须将事实接入同一评分实现，保留真实总分和叶子手算对照；不重复实现公式。
+- 质量模板业务owner仍是发布门禁。Q04留存、Q05时间/会话、Q07节点权重语义尚未明确，不自动更改现有规范；已确认参数和算法不反复请求批准。
+- 现有foundation不是完整R1-C。用户手工验收通过并确认前，不进入R2–R8、不自动合并refactor。本调整不授权提前开发后续collector。
 
 ## 11. R2：入口页——全部项目
 
