@@ -128,9 +128,15 @@ watch(
     >
       <el-button
         plain
-        @click="router.push({ name: 'operational-index', query: route.query })"
+        @click="
+          router.push({
+            name: 'project-metrics',
+            params: { projectId: context.projectId.value },
+            query: { ...route.query, tab: 'scores', scoreType: 'operational' },
+          })
+        "
       >
-        查看项目运营指数
+        查看运营分数
       </el-button>
       <el-button type="primary" @click="load">刷新数据</el-button>
     </PageHeader>
@@ -349,7 +355,7 @@ watch(
             <div>
               <span class="eyebrow">CONFIGURATION GAP</span>
               <h2>未归类 route</h2>
-              <p>仍展示基础访问数据，但不会进入核心页面覆盖率或项目运营指数。</p>
+              <p>仍展示基础访问数据，但不会进入核心页面覆盖率或运营分数。</p>
             </div>
             <el-button
               plain

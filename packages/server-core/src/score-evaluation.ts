@@ -659,6 +659,17 @@ export function evaluateScore(input: ScoreEvaluationInput) {
       } else if (!leaf.enabled || !reference.enabled) {
         status = "metric_not_available";
         reason = "METRIC_DISABLED";
+      } else if (
+        leaf.metricKey === "cross_day_continuity" &&
+        new Intl.DateTimeFormat("en-CA", { timeZone: context.timezone }).format(
+          from,
+        ) ===
+          new Intl.DateTimeFormat("en-CA", { timeZone: context.timezone }).format(
+            to - 1,
+          )
+      ) {
+        status = "metric_not_available";
+        reason = "SINGLE_LOCAL_DATE_CANNOT_OBSERVE_CROSS_DAY_CONTINUITY";
       } else if (reference.implementationStatus !== "implemented") {
         status = reference.implementationStatus;
         reason = `METRIC_${status.toUpperCase()}`;

@@ -1,11 +1,8 @@
 import {
   DEFAULT_OPERATIONAL_PROFILE_ITEMS,
   metricDefinition,
-  metricLineage,
   normalizePageRouteDefinition,
-  operationalMetricDefinitions,
   validateWorkflowDefinition,
-  type AnalyticsRange,
   type MetricDimensionKey,
   type MetricProfileItem,
   type Principal,
@@ -343,13 +340,6 @@ const cloneProfileSchema = z.object({
 const activateProfileSchema = z.object({
   effectiveFrom: z.string().datetime().optional(),
 });
-const rangeSchema = z.object({
-  from: z.string().datetime(),
-  to: z.string().datetime(),
-  timezone: z.string().min(1).max(64),
-  granularity: z.enum(["hour", "day"]).default("day"),
-});
-
 @Controller("api/projects/:projectId")
 export class OperationalController {
   constructor(@Inject(CoreService) private readonly core: CoreService) {}
@@ -731,52 +721,6 @@ export class OperationalController {
       profileId,
       actor: principal,
     });
-  }
-
-  @Get("operational-index")
-  async index(
-    @Param("projectId") projectId: string,
-    @Query() query: unknown,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.authorize(principal, projectId, false);
-    return this.core.analytics.operationalIndex(
-      projectId,
-      parseInput(rangeSchema, query) as AnalyticsRange,
-    );
-  }
-
-  @Get("operational-index/metric-definitions")
-  async operationalDefinitions(
-    @Param("projectId") projectId: string,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.authorize(principal, projectId, false);
-    return operationalMetricDefinitions();
-  }
-
-  @Get("operational-index/metric-definitions/:metricKey")
-  async operationalDefinition(
-    @Param("projectId") projectId: string,
-    @Param("metricKey") metricKey: string,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.authorize(principal, projectId, false);
-    const definition = metricDefinition(metricKey);
-    if (!definition) throw new HttpException("METRIC_DEFINITION_NOT_FOUND", 404);
-    return definition;
-  }
-
-  @Get("operational-index/metric-definitions/:metricKey/lineage")
-  async operationalLineage(
-    @Param("projectId") projectId: string,
-    @Param("metricKey") metricKey: string,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.authorize(principal, projectId, false);
-    const lineage = metricLineage(metricKey);
-    if (!lineage) throw new HttpException("METRIC_DEFINITION_NOT_FOUND", 404);
-    return lineage;
   }
 
   private async authorize(

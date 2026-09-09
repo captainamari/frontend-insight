@@ -12,3 +12,6 @@ export * from "./mysql-store.js";
 export * from "./observability.js";
 export * from "./pipeline.js";
 export * from "./status.js";
+
+export * from "./score-management.js";
+export * from "./score-templates.js";

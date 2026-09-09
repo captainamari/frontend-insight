@@ -109,7 +109,7 @@ const catalog = (
     activeVersion: Version;
   }>(adminToken, `/api/projects/${projectId}/metrics/catalog?type=operational`)
 ).body;
-if (catalog.system.length !== 19 || !catalog.activeVersion) {
+if (catalog.system.length !== 29 || !catalog.activeVersion) {
   throw new Error("OPERATIONAL_SYSTEM_CATALOG_INVALID");
 }
 if (

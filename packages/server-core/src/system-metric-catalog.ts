@@ -564,8 +564,142 @@ if (
   throw new Error("SYSTEM_METRIC_CATALOG_UNKNOWN_KEY");
 }
 
-export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze(
-  attachmentSeeds.map((seed) => {
+const scoreInputSpecs = [
+  [
+    "active_user_target_attainment",
+    "目标用户达成率",
+    "ratio",
+    "同范围规范 UV / 已确认目标人数",
+    "规范 UV",
+    "目标人数",
+    "R6",
+  ],
+  [
+    "core_page_coverage",
+    "核心页面覆盖率",
+    "ratio",
+    "sum(页面关键度 × 同范围 pv > 0) / sum(核心页面关键度)",
+    "已覆盖核心页面关键度",
+    "核心页面关键度总和",
+    "R6",
+  ],
+  [
+    "active_day_coverage",
+    "活跃日期覆盖率",
+    "ratio",
+    "预期日期中活跃日期数 / 查询范围内预期日期数",
+    "预期且活跃日期",
+    "预期星期展开的项目本地日期",
+    "R6",
+  ],
+  [
+    "cross_day_continuity",
+    "窗口跨日持续使用率",
+    "ratio",
+    "窗口内至少两个项目本地日期活跃用户数 / 同范围规范 UV；单日窗口不可参与计算",
+    "至少两个本地日期活跃用户",
+    "同窗口同范围规范 UV",
+    "R6",
+  ],
+  [
+    "session_distinct_pages_fit",
+    "单会话页面数 P50",
+    "pages",
+    "按查询范围内会话的已归类去重页面数样本重新计算线性插值 P50；不平均每日 P50",
+    "会话内不同页面数样本",
+    "有效会话样本",
+    "R6",
+  ],
+  [
+    "session_module_breadth_fit",
+    "单会话模块数 P50",
+    "modules",
+    "纯未归类会话排除；混合会话只统计已归类模块；线性插值 P50",
+    "会话内已归类模块数样本",
+    "排除后有效会话样本",
+    "R6",
+  ],
+  [
+    "key_task_completion_rate",
+    "关键任务成功率",
+    "ratio",
+    "sum(任务类型权重 × completed 实例数) / sum(任务类型权重 × started 实例数)",
+    "正式工作流 completed 实例",
+    "正式工作流 started 实例",
+    "R4-B",
+  ],
+  [
+    "task_adverse_outcome_rate",
+    "任务不良结果率",
+    "ratio",
+    "sum(类型权重 × (failed + canceled + approximate_abandoned) 实例数) / sum(类型权重 × started 实例数)",
+    "失败、取消及近似放弃工作流实例",
+    "正式工作流 started 实例",
+    "R4-B",
+  ],
+  [
+    "key_task_duration_p50",
+    "成功任务耗时 P50",
+    "milliseconds",
+    "成功实例池化按耗时排序，各实例赋任务类型权重，累计权重首次达到总权重 50% 的耗时",
+    "有效成功实例耗时样本",
+    "池化成功实例及类型权重",
+    "R4-B",
+  ],
+  [
+    "page_visible_duration_fit",
+    "页面可见时长适配度",
+    "ratio",
+    "核心页面有效可见时长 P50 按页面模板目标归一化，再按关键度加权；披露原始时长和样本",
+    "达到样本要求页面的加权时长适配分",
+    "有效核心页面关键度总和",
+    "R6",
+  ],
+] as const;
+const scoreInputs: SystemMetricDefinition[] = scoreInputSpecs.map(
+  ([
+    metricKey,
+    displayName,
+    unit,
+    formulaDescription,
+    numeratorDescription,
+    denominatorDescription,
+    milestone,
+  ]) => ({
+    origin: "system",
+    metricKey,
+    displayName,
+    unit,
+    formulaDescription,
+    numeratorDescription,
+    denominatorDescription,
+    milestone,
+    category: milestone === "R4-B" ? "operation" : "usage",
+    businessDescription: formulaDescription,
+    deduplicationKey:
+      "project + env + eventId; identified userId; classified business scope; workflowInstanceId/sessionId",
+    percentiles:
+      metricKey.includes("p50") || unit === "pages" || unit === "modules"
+        ? ["p50", "p90"]
+        : [],
+    reportingTiming:
+      "查询范围为 [from,to)，项目时区；会话保留 30 分钟无操作切分及跨午夜边界。",
+    entityScopes: ["project", "module"],
+    timeGranularities: DEFAULT_GRANULARITIES,
+    minimumSample: 5,
+    missingPolicy:
+      "缺少身份、业务范围、曝光完整性、目标或有效样本时不可参与计算；披露有效/排除样本及原因。",
+    owner: "Jesse",
+    definitionVersion: "score-input-2026-09-09.1",
+    implementationStatus: "not_collected",
+    availableFrom: null,
+    unavailableReason:
+      milestone + " 规范事实查询尚未交付；不能使用独立 operation 或匿名样本近似。",
+  }),
+);
+
+export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
+  ...attachmentSeeds.map((seed) => {
     const item = details[seed.metricKey]!;
     const unavailableReason = item.unavailableReason ?? null;
     return Object.freeze({
@@ -594,15 +728,17 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze(
       milestone: seed.milestone,
     });
   }),
-);
+  ...scoreInputs,
+]);
 
 const metricCatalogByKey = new Map(
   METRIC_CATALOG.map((item) => [item.metricKey, item]),
 );
 
-export const RESERVED_SYSTEM_METRIC_KEYS: ReadonlySet<string> = new Set(
-  CANONICAL_METRIC_KEYS,
-);
+export const RESERVED_SYSTEM_METRIC_KEYS: ReadonlySet<string> = new Set([
+  ...CANONICAL_METRIC_KEYS,
+  ...scoreInputs.map((item) => item.metricKey),
+]);
 
 export function systemMetricDefinition(
   metricKey: string,

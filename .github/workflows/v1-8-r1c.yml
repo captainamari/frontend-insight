@@ -1,4 +1,4 @@
-name: v1.8 R1-C score foundation and accepted regressions
+name: v1.8 R1-C score product and accepted regressions
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  r1c-foundation:
+  r1c-product:
     runs-on: ubuntu-24.04
     timeout-minutes: 55
     env:
@@ -42,7 +42,7 @@ jobs:
       - name: Verify actual checkout SHA
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
 
-      - name: Run R1-C scoring foundation tests
+      - name: Run R1-C score product and calculation tests
         run: pnpm test:r1c
 
       - name: Run focused R1-B formula and API tests
@@ -70,7 +70,7 @@ jobs:
       - name: Verify real R1-A MySQL and API regressions
         run: ./scripts/dev verify-r1a
 
-      - name: Verify real R1-C configuration preflight
+      - name: Verify real R1-C snapshots, permissions, audit and history
         run: ./scripts/dev verify-r1c
 
       - name: Run R1-B admin and viewer product flows
@@ -79,21 +79,27 @@ jobs:
       - name: Run R1-A Chromium and WebKit product regression
         run: pnpm test:r1a:e2e
 
-      - name: Record the exact verified foundation commit
+      - name: Run R1-C Chromium and WebKit admin and viewer product flows
+        run: pnpm test:r1c:e2e
+
+      - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r1c-evidence.json", JSON.stringify({baseline:"1ad54dff106af1403adbce107e802d0aa56592d9", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R1-C foundation and accepted R1-A/R1-B regressions", fullR1CComplete:false, result:"passed"}, null, 2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r1c-evidence.json", JSON.stringify({baseline:"1ad54dff106af1403adbce107e802d0aa56592d9", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R1-C product and accepted R1-A/R1-B regressions", implementation:"delivered for manual review", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
 
       - name: Upload exact-commit verification evidence
         uses: actions/upload-artifact@v4
         with:
-          name: r1c-foundation-evidence
-          path: artifacts/r1c-evidence.json
+          name: r1c-product-evidence
+          path: |
+            artifacts/r1c-evidence.json
+            packages/server-core/artifacts/r1c-integration.json
+            test-results
 
       - name: Capture service logs on failure
         if: failure()
         run: ./scripts/dev logs
 
-      - name: Stop R1-B services
+      - name: Stop local services
         if: always()
         run: ./scripts/dev down

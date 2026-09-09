@@ -1,6 +1,6 @@
+import { calculateOperationalIndex } from "./legacy-operational-fixture.js";
 import { describe, expect, it } from "vitest";
 import {
-  calculateOperationalIndex,
   DEFAULT_OPERATIONAL_PROFILE_ITEMS,
   metricLineage,
   metricResult,

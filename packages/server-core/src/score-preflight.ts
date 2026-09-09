@@ -12,11 +12,34 @@ export function preflightScoreConfiguration(
     definitions: readonly MetricLibraryDefinition[];
   },
 ) {
-  const binding: ScoreBinding = {
+  const binding = scoreBinding(snapshot);
+  const validation = validateScoreConfiguration(configuration, binding);
+  return {
+    valid: true,
+    metricSetVersion: snapshot.version.id,
+    libraryType: snapshot.version.libraryType,
+    configuration: validation.configuration,
+    dependencies: validation.dependencies,
+    readiness: validation.readiness,
+    value: null,
+    status: "unavailable" as const,
+    reason: "SCORE_PREFLIGHT_CONFIGURATION_ONLY",
+    saved: false,
+  };
+}
+
+export function scoreBinding(
+  snapshot: {
+    version: MetricLibraryVersion;
+    definitions: readonly MetricLibraryDefinition[];
+  },
+  definitionVersion = "unsaved",
+): ScoreBinding {
+  return {
     projectId: snapshot.version.projectId,
     libraryType: snapshot.version.libraryType,
     metricSetVersion: snapshot.version.id,
-    definitionVersion: "unsaved",
+    definitionVersion,
     metrics: snapshot.definitions.map((metric) => ({
       metricKey: metric.metricKey,
       projectId: snapshot.version.projectId,
@@ -34,18 +57,5 @@ export function preflightScoreConfiguration(
       formulaAst: metric.formulaAst,
       enabled: metric.enabled,
     })),
-  };
-  const validation = validateScoreConfiguration(configuration, binding);
-  return {
-    valid: true,
-    metricSetVersion: snapshot.version.id,
-    libraryType: snapshot.version.libraryType,
-    configuration: validation.configuration,
-    dependencies: validation.dependencies,
-    readiness: validation.readiness,
-    value: null,
-    status: "unavailable" as const,
-    reason: "SCORE_PREFLIGHT_CONFIGURATION_ONLY",
-    saved: false,
   };
 }

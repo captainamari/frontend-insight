@@ -14,6 +14,7 @@ import {
 } from "../analysis-objects";
 import { auth } from "../auth";
 import PageHeader from "../components/PageHeader.vue";
+import ScoreManagementPanel from "../components/ScoreManagementPanel.vue";
 import MetricLibraryPanel from "../components/MetricLibraryPanel.vue";
 import StatePanel from "../components/StatePanel.vue";
 import { useDashboardContext } from "../context";
@@ -71,6 +72,7 @@ const areas = [
   { name: "operational-metrics", label: "运营指标" },
   { name: "quality-metrics", label: "质量指标" },
   { name: "versions", label: "版本库" },
+  { name: "scores", label: "分数管理" },
 ] as const;
 type MetricArea = (typeof areas)[number]["name"];
 function isArea(value: unknown): value is MetricArea {
@@ -1137,6 +1139,11 @@ watch(
         </template>
       </StatePanel>
     </template>
+    <ScoreManagementPanel
+      v-else-if="activeArea === 'scores'"
+      :project-id="context.projectId.value ?? ''"
+      :can-write="canWrite"
+    />
     <MetricLibraryPanel
       v-else
       :project-id="context.projectId.value ?? ''"

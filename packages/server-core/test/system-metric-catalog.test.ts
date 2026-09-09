@@ -15,8 +15,8 @@ import {
 
 describe("read-only system metric catalog", () => {
   it("registers all 35 attachment keys in the five required categories", () => {
-    expect(METRIC_CATALOG).toHaveLength(35);
-    expect(new Set(METRIC_CATALOG.map((item) => item.metricKey)).size).toBe(35);
+    expect(METRIC_CATALOG).toHaveLength(45);
+    expect(new Set(METRIC_CATALOG.map((item) => item.metricKey)).size).toBe(45);
     expect(new Set(METRIC_CATALOG.map((item) => item.category))).toEqual(
       new Set(["usage", "operation", "performance", "stability", "organization"]),
     );

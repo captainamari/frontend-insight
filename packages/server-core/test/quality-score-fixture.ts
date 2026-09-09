@@ -1,4 +1,4 @@
-// Proposed parameters for review, not approved defaults. Test-only import boundary.
+// Approved D3-A parameters; synthetic test facts only.
 import type {
   ScoreConfiguration,
   ScoreEvaluationInput,
@@ -9,9 +9,9 @@ export function qualityScoreFixture(): ScoreEvaluationInput {
   const input = operationalScoreFixture();
   const configuration: ScoreConfiguration = {
     scoreKey: "quality_score",
-    displayName: "质量分数（参数建议测试）",
+    displayName: "质量分数（固定测试）",
     libraryType: "quality",
-    owner: "pending-business-owner-test-only",
+    owner: "Jesse",
     displayUnit: "points",
     scope: "project",
     granularity: "day",

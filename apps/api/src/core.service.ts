@@ -4,6 +4,7 @@ import {
   IngestionManager,
   KafkaEnvelopePublisher,
   MetricLibraryService,
+  ScoreManagementService,
   MySqlStore,
   ObservabilityStore,
 } from "@frontend-insight/server-core";
@@ -19,6 +20,7 @@ export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
   readonly metricLibrary = new MetricLibraryService(this.mysql);
+  readonly scores = new ScoreManagementService(this.mysql, this.metricLibrary);
   readonly publisher = new KafkaEnvelopePublisher(
     this.environment.KAFKA_BROKERS,
     this.environment.KAFKA_EVENTS_TOPIC,
