@@ -121,14 +121,14 @@ export function operationalUsageSamples(input: {
       input.pages.some((p) => p.pageRoute === e.pageRoute && p.moduleId === e.moduleId),
   );
   const users = new Map<string, Set<string>>(),
-    sessions = new Map<string, ScoreActivity[]>();
+    vvSamples = new Map<string, ScoreActivity[]>();
   for (const event of valid) {
     const days = users.get(event.userId!) ?? new Set<string>();
     days.add(date.format(new Date(event.timestamp)));
     users.set(event.userId!, days);
-    const group = sessions.get(event.sessionId) ?? [];
+    const group = vvSamples.get(event.sessionId) ?? [];
     group.push(event);
-    sessions.set(event.sessionId, group);
+    vvSamples.set(event.sessionId, group);
   }
   const allSessions = new Set(
     events.filter((e) => e.valid && e.userId).map((e) => e.sessionId),
@@ -210,11 +210,11 @@ export function operationalUsageSamples(input: {
       : null,
     cross_day_continuity: singleDate || !uv ? null : crossDay / uv,
     session_distinct_pages_fit: sessionPercentile(
-      [...sessions.values()].map((es) => new Set(es.map((e) => e.pageRoute)).size),
+      [...vvSamples.values()].map((es) => new Set(es.map((e) => e.pageRoute)).size),
       0.5,
     ),
     session_module_breadth_fit: sessionPercentile(
-      [...sessions.values()].map((es) => new Set(es.map((e) => e.moduleId)).size),
+      [...vvSamples.values()].map((es) => new Set(es.map((e) => e.moduleId)).size),
       0.5,
     ),
     page_visible_duration_fit: durationFit === null ? null : durationFit / 100,
@@ -236,10 +236,10 @@ export function operationalUsageSamples(input: {
       unidentified: events.filter((e) => !e.userId).length,
       reason: "未识别、无效或未归类业务活动排除；混合会话保留已归类部分。",
     },
-    sessions: {
+    vvSamples: {
       total: allSessions.size,
-      valid: sessions.size,
-      excluded: allSessions.size - sessions.size,
+      valid: vvSamples.size,
+      excluded: allSessions.size - vvSamples.size,
       sampleUnit: "session",
       algorithm: "linear_interpolation",
       boundary:

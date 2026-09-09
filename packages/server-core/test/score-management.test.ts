@@ -99,10 +99,10 @@ describe("R1-C approved templates and observable sample semantics", () => {
     expect(leaf.score).toBeNull();
     expect(leaf.reason).toBe("SINGLE_LOCAL_DATE_CANNOT_OBSERVE_CROSS_DAY_CONTINUITY");
   });
-  it("keeps a midnight session and recomputes window P50 from sessions", () => {
+  it("keeps a midnight session and recomputes window P50 from vvSamples", () => {
     const input = usage(),
       r = operationalUsageSamples(input);
-    expect(r.sessions.valid).toBe(2);
+    expect(r.vvSamples.valid).toBe(2);
     expect(r.values.session_distinct_pages_fit).toBe(1.5);
     expect(r.values.session_module_breadth_fit).toBe(1.5);
     expect(r.values.cross_day_continuity).toBe(1);
@@ -116,7 +116,7 @@ describe("R1-C approved templates and observable sample semantics", () => {
     expect(r.values.session_distinct_pages_fit).not.toBe(1);
     expect(days[0]!.values.cross_day_continuity).toBeNull();
   });
-  it("uses one identity and classification rule in numerator, denominator and sessions", () => {
+  it("uses one identity and classification rule in numerator, denominator and vvSamples", () => {
     const input = usage();
     input.events.push(
       activity("anonymous", "anonymous", "/a", "2026-09-08T03:00:00Z", "m1", null),
@@ -131,7 +131,7 @@ describe("R1-C approved templates and observable sample semantics", () => {
       excluded: 3,
       unidentified: 1,
     });
-    expect(r.sessions).toMatchObject({ total: 3, valid: 2, excluded: 1 });
+    expect(r.vvSamples).toMatchObject({ total: 3, valid: 2, excluded: 1 });
     expect(r.uv).toBe(1);
     expect(r.crossDayNumerator).toBe(1);
     expect(r.values.session_module_breadth_fit).toBe(1.5);
@@ -160,7 +160,7 @@ describe("R1-C approved templates and observable sample semantics", () => {
         .page_visible_duration_fit,
     ).toBeNull();
   });
-  it("uses linear interpolation for sessions and weighted nearest rank for pooled workflow instances", () => {
+  it("uses linear interpolation for vvSamples and weighted nearest rank for pooled workflow instances", () => {
     expect(sessionPercentile([1, 2, 8, 9], 0.5)).toBe(5);
     const durations = [
       { durationMs: 100, weight: 1 },

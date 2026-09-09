@@ -14,6 +14,7 @@ import "element-plus/es/components/collapse/style/css";
 import "element-plus/es/components/radio-button/style/css";
 import "element-plus/es/components/radio-group/style/css";
 import "element-plus/es/components/steps/style/css";
+import { useRoute, useRouter } from "vue-router";
 import { api, ApiError } from "../api";
 import MetricDefinitionDrawer from "./MetricDefinitionDrawer.vue";
 import MetricLineageDrawer from "./MetricLineageDrawer.vue";
@@ -553,8 +554,24 @@ async function validateSelected(): Promise<void> {
   }
 }
 
+const scoreRoute = useRoute();
+const scoreRouter = useRouter();
 async function activate(version: Version): Promise<void> {
   try {
+    const score = await api.request<{ score: unknown }>(
+      `/api/projects/${props.projectId}/score-management/versions/${version.id}`,
+    );
+    if (score.score) {
+      await scoreRouter.push({
+        query: {
+          ...scoreRoute.query,
+          tab: "scores",
+          scoreType: version.libraryType,
+          scoreVersion: version.id,
+        },
+      });
+      return;
+    }
     const [diffResult, impactResult] = await Promise.all([
       api.request<MetricDiff>(
         `/api/projects/${props.projectId}/metrics/versions/${version.id}/diff`,

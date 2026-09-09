@@ -70,14 +70,14 @@ jobs:
       - name: Verify real R1-A MySQL and API regressions
         run: ./scripts/dev verify-r1a
 
-      - name: Verify real R1-C snapshots, permissions, audit and history
-        run: ./scripts/dev verify-r1c
-
       - name: Run R1-B admin and viewer product flows
         run: pnpm test:r1b:e2e
 
       - name: Run R1-A Chromium and WebKit product regression
         run: pnpm test:r1a:e2e
+
+      - name: Verify real R1-C snapshots, permissions, audit and history
+        run: ./scripts/dev verify-r1c
 
       - name: Run R1-C Chromium and WebKit admin and viewer product flows
         run: pnpm test:r1c:e2e
