@@ -112,7 +112,7 @@ try {
   console.log(
     JSON.stringify({
       status: "passed",
-      milestone: "R1-C foundation only",
+      milestone: "R1-C preflight regression",
       verified: [
         "real-mysql-version-snapshot",
         "operational-and-quality-preflight",
@@ -120,7 +120,7 @@ try {
         "no-caller-fact-injection",
         "no-score-or-version-mutation",
       ],
-      productionScoreFlow: "blocked-pending-decisions",
+      productionScoreFlow: "verified-separately-by-r1c-integration-and-browser-gates",
     }),
   );
 } finally {

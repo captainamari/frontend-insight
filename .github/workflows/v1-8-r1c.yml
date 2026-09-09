@@ -93,7 +93,7 @@ jobs:
           name: r1c-product-evidence
           path: |
             artifacts/r1c-evidence.json
-            packages/server-core/artifacts/r1c-integration.json
+            artifacts/r1c-integration.json
             test-results
 
       - name: Capture service logs on failure

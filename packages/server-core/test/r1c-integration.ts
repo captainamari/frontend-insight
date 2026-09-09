@@ -30,7 +30,10 @@ async function call<T>(
 ): Promise<T> {
   const r = await fetch(apiUrl + path, {
     method,
-    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+    headers: {
+      authorization: "Bearer " + token,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const text = await r.text();
@@ -225,6 +228,12 @@ try {
       undefined,
       201,
     );
+    const publicRead = await call<Result>(
+      viewer,
+      root + "/scores/" + configuration.scoreKey + "?" + new URLSearchParams(query),
+    );
+    assert.equal(publicRead.context.metricSetVersion, draft.id);
+    assert.equal(publicRead.value, null);
     const immutable = await call<Snapshot>(admin, base + "/versions/" + draft.id);
     const before = JSON.stringify(immutable.score);
     const copied = await call<MetricLibraryVersion>(
@@ -350,9 +359,10 @@ try {
       /password|authorization|raw_events|select\s/i.test(JSON.stringify(r.metadata)),
     ),
   );
-  mkdirSync("artifacts", { recursive: true });
+  const evidenceDir = process.env.FI_EVIDENCE_DIR ?? "artifacts";
+  mkdirSync(evidenceDir, { recursive: true });
   writeFileSync(
-    "artifacts/r1c-integration.json",
+    evidenceDir + "/r1c-integration.json",
     JSON.stringify(
       {
         testedCommit: process.env.GITHUB_SHA ?? null,

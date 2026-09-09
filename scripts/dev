@@ -23,7 +23,7 @@ Commands:
   smoke                          Verify the data flow and all three HTTP services
   verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
   verify-r1b                     Verify R1-B versions, formula safety and audit
-  verify-r1c                     Verify R1-C configuration preflight (not full stage)
+  verify-r1c                     Verify R1-C score storage, API and historical behavior
   status                         Show service health and current resource use
   logs [service]                 Show recent logs for all or one service
   down                           Stop containers and preserve named data volumes
@@ -164,9 +164,10 @@ verify_r1b() {
 verify_r1c() {
   ensure_env
   require_command docker
-  compose run --rm --build --no-deps r1b-verifier pnpm --filter @frontend-insight/server-core verify:r1c || \
-    fail "R1-C preflight verification failed"
-  info "R1-C configuration preflight passed; full score management awaits decisions"
+  mkdir -p "$ROOT_DIR/artifacts"
+  compose run --rm --build --no-deps --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r1b-verifier pnpm --filter @frontend-insight/server-core verify:r1c || \
+    fail "R1-C score product integration failed"
+  info "R1-C score storage, version, authorization, audit and unavailable-history checks passed; browser and manual acceptance are separate"
 }
 
 status() {

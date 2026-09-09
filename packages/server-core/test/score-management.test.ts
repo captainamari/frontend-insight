@@ -201,14 +201,14 @@ describe("R1-C approved templates and observable sample semantics", () => {
         workflowInstanceId: "c1",
         workflowType: "B",
         state: "failed" as const,
-        weight: 2,
+        weight: 1,
         durationMs: null,
       },
     ];
     const r = workflowScoreSamples(samples);
     expect(r.p50).toBe(100);
-    expect(r.completionRate).toBe(4 / 6);
-    expect(r.adverseRate).toBe(2 / 6);
+    expect(r.completionRate).toBe(4 / 5);
+    expect(r.adverseRate).toBe(1 / 5);
     expect(r.groups.map((g) => g.p50)).toEqual([100, 1000]);
     expect(r.valid).toBe(4);
     expect(r.excluded).toBe(1);

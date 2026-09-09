@@ -266,6 +266,13 @@ export function workflowScoreSamples(instances: readonly ScopedWorkflowInstance[
   const unique = [...new Map(instances.map((i) => [i.workflowInstanceId, i])).values()];
   if (unique.some((i) => !Number.isFinite(i.weight) || i.weight <= 0))
     throw new Error("SCORE_WORKFLOW_WEIGHT_INVALID");
+  const typeWeights = new Map<string, number>();
+  for (const item of unique) {
+    const existing = typeWeights.get(item.workflowType);
+    if (existing !== undefined && existing !== item.weight)
+      throw new Error("SCORE_WORKFLOW_TYPE_WEIGHT_INCONSISTENT");
+    typeWeights.set(item.workflowType, item.weight);
+  }
   const totalWeight = unique.reduce((s, i) => s + i.weight, 0),
     completed = unique.filter((i) => i.state === "completed"),
     adverse = unique.filter((i) =>

@@ -260,6 +260,29 @@ export class ScoreManagementService {
     }
     return this.get(projectId, version.id);
   }
+  async read(
+    projectId: string,
+    scoreKey: string,
+    query: ScoreQuery,
+    versionId?: string,
+  ) {
+    if (!versionId) {
+      const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
+        `SELECT v.id FROM metric_library_versions v JOIN score_definitions s ON s.library_version_id=v.id WHERE v.project_id=? AND v.status='active' AND s.score_key=? AND s.configuration IS NOT NULL`,
+        [projectId, scoreKey],
+      );
+      if (rows.length !== 1)
+        throw new MetricLibraryError(
+          rows.length ? "SCORE_KEY_AMBIGUOUS" : "SCORE_CONFIGURATION_NOT_SAVED",
+          rows.length ? 409 : 404,
+        );
+      versionId = String(rows[0]!.id);
+    }
+    const snapshot = await this.get(projectId, versionId);
+    if (snapshot.score?.configuration.scoreKey !== scoreKey)
+      throw new MetricLibraryError("SCORE_KEY_VERSION_MISMATCH", 404);
+    return this.query(projectId, versionId, query);
+  }
   async query(
     projectId: string,
     versionId: string,

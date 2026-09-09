@@ -147,3 +147,22 @@ export class ScoreManagementController {
     );
   }
 }
+
+@Controller("api/projects/:projectId/scores")
+export class ScoreReadController {
+  constructor(@Inject(CoreService) private readonly core: CoreService) {}
+  @Get(":scoreKey") async read(
+    @Param("projectId") projectId: string,
+    @Param("scoreKey") scoreKey: string,
+    @Query() raw: unknown,
+    @CurrentPrincipal() actor: Principal,
+  ) {
+    if (!(await this.core.mysql.getProjectRole(actor, projectId)))
+      throw new HttpException("PROJECT_FORBIDDEN", 403);
+    const { versionId, ...query } = parseInput(
+      querySchema.extend({ versionId: z.string().uuid().optional() }).strict(),
+      raw,
+    );
+    return this.core.scores.read(projectId, scoreKey, query, versionId);
+  }
+}

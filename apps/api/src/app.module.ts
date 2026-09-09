@@ -1,4 +1,7 @@
-import { ScoreManagementController } from "./score-management.controller.js";
+import {
+  ScoreManagementController,
+  ScoreReadController,
+} from "./score-management.controller.js";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller.js";
@@ -25,6 +28,7 @@ import { ScorePreflightController } from "./score-preflight.controller.js";
     MetricLibraryController,
     ScorePreflightController,
     ScoreManagementController,
+    ScoreReadController,
     OperationalController,
     ObservabilityController,
     SystemController,
