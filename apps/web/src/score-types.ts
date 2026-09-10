@@ -50,6 +50,7 @@ export interface ScoreMetric {
   milestone: string;
 }
 export interface ScoreBusiness {
+  templateVersion?: string;
   confirmed: boolean;
   scopeId: string;
   optionsDigest: string;

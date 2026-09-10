@@ -29,6 +29,7 @@ const saveSchema = z
     business: z
       .object({
         confirmed: z.boolean(),
+        templateVersion: z.string().min(1).max(120).optional(),
         scopeId: z.string().uuid(),
         optionsDigest: z.string().regex(/^[a-f0-9]{64}$/),
         workflowWeights: z.record(z.string().uuid(), z.number().positive().max(1000)),

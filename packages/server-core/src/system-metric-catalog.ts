@@ -53,14 +53,33 @@ type CatalogDetails = Omit<
 const DEFAULT_GRANULARITIES = ["5m", "hour", "day", "week", "month"] as const;
 const DEFINITION_VERSION = "system-v1.8.0";
 const OWNER = "product-analytics";
+export const IDENTITY_DEFINITION_VERSION = "system-identity-2026-09-09.1";
+const identityMetricKeys = new Set([
+  "pv",
+  "uv",
+  "dau",
+  "wau",
+  "mau",
+  "vv",
+  "avg_usage_duration",
+  "hourly_distribution",
+  "bounce_rate",
+]);
+/** Recognize immutable pre-approval snapshots without relabeling them. */
+export function isHistoricalIdentityDefinition(
+  metricKey: string,
+  definitionVersion: string,
+) {
+  return identityMetricKeys.has(metricKey) && definitionVersion === DEFINITION_VERSION;
+}
 const PARTIAL_AVAILABLE_FROM = "2026-08-01T00:00:00.000Z";
 
 const details: Readonly<Record<string, CatalogDetails>> = {
   pv: {
     businessDescription:
-      "统计页面打开次数；每个被接收且通过 eventId 去重的 page_view 计一次。",
-    formulaDescription: "count(accepted page_view)",
-    numeratorDescription: "被接收的 page_view 事件数",
+      "统计同业务范围已识别、有效且已归类的页面打开次数；通过 eventId 去重。",
+    formulaDescription: "count(identified valid classified page_view)",
+    numeratorDescription: "同范围已识别、有效且已归类的 page_view 事件数",
     denominatorDescription: null,
     deduplicationKey: "eventId",
     unit: "views",
@@ -75,28 +94,33 @@ const details: Readonly<Record<string, CatalogDetails>> = {
       "现有 page_view 事实可查询，但 R6 尚未完成规范路由切换及完整 golden fixture。",
   },
   uv: {
-    businessDescription: "统计活跃用户；登录态按 userId 去重，未登录按 deviceId 兜底。",
+    businessDescription:
+      "统计同业务范围已识别、有效且已归类的活跃用户；全平台统一 userId 去重。",
     formulaDescription:
-      "uniq(coalesced identity(userId, deviceId)) over valid activity",
-    numeratorDescription: "查询范围内去重后的活跃身份数",
+      "uniq(project-HMAC(userId)) over identified valid classified business activity",
+    numeratorDescription: "同查询范围已识别、有效且已归类的活跃用户数",
     denominatorDescription: null,
-    deduplicationKey: "project-HMAC(userId) else deviceId",
+    deduplicationKey:
+      "project-HMAC(userId) over identified valid classified business activity",
     unit: "users",
     percentiles: [],
     reportingTiming: "随有效页面或业务活动事实计算。",
     entityScopes: ["project", "module", "page"],
     timeGranularities: DEFAULT_GRANULARITIES,
     minimumSample: 1,
-    missingPolicy: "缺少 userId 时仅按规范使用 deviceId 兜底；链路不完整返回不可用。",
+    missingPolicy:
+      "未登录和未归类活动排除并披露样本；缺少 userId 可能是接入异常，身份或范围完整性无法证明时不可用。",
     unavailableReason:
-      "现有查询只覆盖已识别账号，尚未实现未登录 deviceId 兜底，因此不能声称规范 UV 已完成。",
+      "R6 尚未证明统一身份、业务范围、env 与来源曝光完整性；不得因仅识别账号而宣称规范 UV 已完成。",
   },
   dau: activeUsers("项目时区自然日", "day"),
   wau: activeUsers("项目时区自然周", "week"),
   mau: activeUsers("项目时区自然月", "month"),
   vv: {
-    businessDescription: "统计会话数；按 sessionId 去重，30 分钟无操作后生成新会话。",
-    formulaDescription: "uniq(sessionId)",
+    businessDescription:
+      "统计同范围有效业务会话；纯未归类会话排除，混合会话仅保留已识别且已归类活动；30 分钟无操作切分。",
+    formulaDescription:
+      "uniq(sessionId) over identified valid classified business activity",
     numeratorDescription: "查询范围内去重 sessionId 数",
     denominatorDescription: null,
     deduplicationKey: "sessionId",
@@ -141,7 +165,8 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     formulaDescription: "bucket(pv, uv) by project-local hour",
     numeratorDescription: "每个小时桶的 pv 与 uv",
     denominatorDescription: "所选范围内相应指标总量（仅用于占比展示）",
-    deduplicationKey: "pv:eventId; uv:project-HMAC(userId) else deviceId per bucket",
+    deduplicationKey:
+      "pv:eventId; uv:project-HMAC(userId) over identified valid classified business activity per bucket",
     unit: "distribution",
     percentiles: [],
     reportingTiming: "随 page_view 和有效活动事实逐小时聚合。",
@@ -443,11 +468,12 @@ function activeUsers(
   granularity: "day" | "week" | "month",
 ): CatalogDetails {
   return {
-    businessDescription: `统计${windowName}内的去重活跃用户。`,
-    formulaDescription: `uniq(coalesced identity(userId, deviceId)) in ${windowName}`,
+    businessDescription: `统计${windowName}内同范围规范 UV；仅已识别、有效且已归类业务活动。`,
+    formulaDescription: `uniq(project-HMAC(userId)) over identified valid classified business activity in ${windowName}`,
     numeratorDescription: `${windowName}内去重后的活跃身份数`,
     denominatorDescription: null,
-    deduplicationKey: "project-HMAC(userId) else deviceId",
+    deduplicationKey:
+      "project-HMAC(userId) over identified valid classified business activity",
     unit: "users",
     percentiles: [],
     reportingTiming: "随有效页面或业务活动事实计算。",
@@ -720,7 +746,9 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
       minimumSample: item.minimumSample,
       missingPolicy: item.missingPolicy,
       owner: OWNER,
-      definitionVersion: DEFINITION_VERSION,
+      definitionVersion: identityMetricKeys.has(seed.metricKey)
+        ? IDENTITY_DEFINITION_VERSION
+        : DEFINITION_VERSION,
       implementationStatus: seed.implementationStatus,
       availableFrom:
         seed.implementationStatus === "partial" ? PARTIAL_AVAILABLE_FROM : null,

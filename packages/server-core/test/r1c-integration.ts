@@ -114,6 +114,11 @@ try {
       configuration,
       business,
     });
+    if (type === "operational") {
+      const uv = saved.definitions.find((m) => m.metricKey === "uv")!;
+      assert.equal(uv.definitionVersion, "system-identity-2026-09-09.1");
+      assert(!JSON.stringify(uv).includes("deviceId"));
+    }
     assert.equal(saved.score?.configuration.owner, "Jesse");
     assert.equal(saved.score?.dependencies.projectId, projectId);
     for (const path of [

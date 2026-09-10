@@ -908,6 +908,8 @@ async function previewFormula(): Promise<void> {
 
 function scheduleFormulaPreview(): void {
   if (previewTimer) clearTimeout(previewTimer);
+  ++previewSequence;
+  previewing.value = false;
   formulaPreview.value = null;
   previewTimer = setTimeout(() => void previewFormula(), 250);
 }

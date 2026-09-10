@@ -145,6 +145,7 @@ async function load() {
     configuration.value = data.score ? copy(data.score.configuration) : null;
     if (data.score) {
       business.value = {
+        templateVersion: data.score.dependencies.template.version,
         confirmed:
           data.score.dependencies.optionsDigest === o.optionsDigest &&
           data.score.dependencies.confirmed,
@@ -206,6 +207,7 @@ function adoptTemplate() {
   if (!template.value || !options.value) return;
   configuration.value = copy(template.value.configuration);
   business.value = {
+    templateVersion: template.value.version,
     confirmed: false,
     scopeId: props.projectId,
     optionsDigest: options.value.optionsDigest,

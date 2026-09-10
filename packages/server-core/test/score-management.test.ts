@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defaultScoreTemplate } from "../src/score-templates.js";
+import { defaultScoreTemplate, selectedScoreTemplate } from "../src/score-templates.js";
 import { scoreExamples } from "../src/score-examples.js";
 import { evaluateScore } from "../src/score-evaluation.js";
 import { scoreDigest } from "../src/score-storage.js";
@@ -100,6 +100,22 @@ describe("R1-C approved templates and observable sample semantics", () => {
         .map((d) => d.score),
     ).toEqual([100, 100, 100]);
     expect(fixture.noData?.value).toBeNull();
+  });
+  it("retains the adopted template until an explicit upgrade and rejects unknown versions", () => {
+    const current = defaultScoreTemplate("quality");
+    const previous = { ...current, version: "quality-previous-approved" };
+    expect(selectedScoreTemplate("quality", previous)).toEqual(previous);
+    expect(selectedScoreTemplate("quality", previous, previous.version)).toEqual(
+      previous,
+    );
+    expect(selectedScoreTemplate("quality", previous, current.version)).toEqual(
+      current,
+    );
+    expect(selectedScoreTemplate("quality", previous, "invented")).toBeNull();
+    expect(selectedScoreTemplate("operational", previous)).toBeNull();
+    expect(defaultScoreTemplate("operational").approval.parameterVersion).toBe(
+      "operational-default-2026-09-09.1",
+    );
   });
   it("does not manufacture fixture facts for custom inputs", () => {
     const config = defaultScoreTemplate("operational").configuration;

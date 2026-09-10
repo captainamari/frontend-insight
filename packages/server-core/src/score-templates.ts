@@ -125,7 +125,29 @@ export function defaultScoreTemplate(type: MetricLibraryType) {
   };
   return {
     version: type + "-default-2026-09-09.1",
-    approval: SCORE_TEMPLATE_APPROVAL,
+    approval:
+      type === "quality"
+        ? SCORE_TEMPLATE_APPROVAL
+        : {
+            owner: "Jesse",
+            approvedAt: "2026-09-09",
+            source:
+              "Jesse 2026-09-09 正式确认 Q04/Q05 及既有运营默认参数；requirements-v1.8 §18.3",
+            parameterVersion: "operational-default-2026-09-09.1",
+          },
     configuration,
   };
+}
+
+/** Editing business settings does not silently adopt a newer template. */
+export function selectedScoreTemplate(
+  type: MetricLibraryType,
+  previous: ReturnType<typeof defaultScoreTemplate> | null,
+  requestedVersion?: string,
+) {
+  if (previous && previous.configuration.libraryType !== type) return null;
+  const current = defaultScoreTemplate(type);
+  if (!requestedVersion) return previous ?? current;
+  if (requestedVersion === current.version) return current;
+  return requestedVersion === previous?.version ? previous : null;
 }

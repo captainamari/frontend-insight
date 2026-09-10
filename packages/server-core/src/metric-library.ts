@@ -21,6 +21,8 @@ import type { Principal } from "./model.js";
 import type { MySqlStore } from "./mysql-store.js";
 import {
   METRIC_CATALOG,
+  IDENTITY_DEFINITION_VERSION,
+  isHistoricalIdentityDefinition,
   RESERVED_SYSTEM_METRIC_KEYS,
   systemMetricDefinition,
   type MetricEntityScope,
@@ -340,7 +342,8 @@ export function validateMetricVersionSnapshot(input: {
       });
     else if (
       snapshot.origin !== "system" ||
-      snapshot.definitionVersion !== system.definitionVersion
+      (snapshot.definitionVersion !== system.definitionVersion &&
+        !isHistoricalIdentityDefinition(snapshot.metricKey, snapshot.definitionVersion))
     ) {
       errors.push({
         code: "SYSTEM_METRIC_CHANGED",
@@ -636,6 +639,34 @@ export class MetricLibraryService {
             !current.some((m) => m.metricKey === item.metricKey),
         ))
           await this.insertSystemDefinition(connection, id, definition);
+        // Only the new working draft adopts approved directory metadata. Existing snapshots remain byte-for-byte unchanged.
+        for (const definition of METRIC_CATALOG.filter(
+          (item) => item.definitionVersion === IDENTITY_DEFINITION_VERSION,
+        )) {
+          if (
+            !current.some(
+              (m) =>
+                m.metricKey === definition.metricKey &&
+                isHistoricalIdentityDefinition(m.metricKey, m.definitionVersion),
+            )
+          )
+            continue;
+          await connection.execute(
+            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+            [
+              definition.businessDescription,
+              definition.formulaDescription,
+              definition.numeratorDescription,
+              definition.denominatorDescription,
+              definition.deduplicationKey,
+              definition.missingPolicy,
+              definition.unavailableReason,
+              definition.definitionVersion,
+              id,
+              definition.metricKey,
+            ],
+          );
+        }
         await copyStoredScore(
           connection,
           sourceVersionId,

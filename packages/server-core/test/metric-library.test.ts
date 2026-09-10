@@ -151,6 +151,23 @@ describe("metric library snapshot validation", () => {
     ).toBe(true);
   });
 
+  it("keeps the original identity version on immutable pre-approval snapshots", () => {
+    const definitions = operationalSystems.map((item) => ({
+      ...item,
+      definitionVersion:
+        item.definitionVersion === "system-identity-2026-09-09.1"
+          ? "system-v1.8.0"
+          : item.definitionVersion,
+    }));
+    const report = validateMetricVersionSnapshot({
+      version: { ...version, status: "superseded" },
+      definitions,
+    });
+    expect(report.valid).toBe(true);
+    expect(definitions.find((m) => m.metricKey === "uv")!.definitionVersion).toBe(
+      "system-v1.8.0",
+    );
+  });
   it("rejects system-reserved keys before any database mutation", () => {
     expect(() => assertMetricKeyCanBeCreated(METRIC_CATALOG[0]!.metricKey)).toThrow(
       "SYSTEM_METRIC_KEY_RESERVED",

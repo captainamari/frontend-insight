@@ -88,6 +88,7 @@ jobs:
           node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r1c-evidence.json", JSON.stringify({baseline:"1ad54dff106af1403adbce107e802d0aa56592d9", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R1-C product and accepted R1-A/R1-B regressions", implementation:"delivered for manual review", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
 
       - name: Upload exact-commit verification evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: r1c-product-evidence

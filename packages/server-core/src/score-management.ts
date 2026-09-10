@@ -13,7 +13,7 @@ import {
 } from "./score-evaluation.js";
 import { scoreBinding } from "./score-preflight.js";
 import { scoreExamples } from "./score-examples.js";
-import { defaultScoreTemplate } from "./score-templates.js";
+import { defaultScoreTemplate, selectedScoreTemplate } from "./score-templates.js";
 import { PAGE_TEMPLATE_DURATION_TARGETS } from "./metrics.js";
 import {
   jsonValue,
@@ -22,6 +22,7 @@ import {
   writeScoreItems,
 } from "./score-storage.js";
 export interface ScoreBusinessInput {
+  templateVersion?: string | undefined;
   confirmed: boolean;
   scopeId: string;
   optionsDigest: string;
@@ -190,6 +191,13 @@ export class ScoreManagementService {
         workflows.some((w) => !business.workflowWeights[String(w.id)]))
     )
       throw new MetricLibraryError("SCORE_BUSINESS_CONFIGURATION_INCOMPLETE", 400);
+    const selectedTemplate = selectedScoreTemplate(
+      configuration.libraryType,
+      requested.score?.dependencies.template ?? null,
+      business.templateVersion,
+    );
+    if (!selectedTemplate)
+      throw new MetricLibraryError("SCORE_TEMPLATE_VERSION_INVALID", 400);
     const version =
       requested.version.status === "draft"
         ? requested.version
@@ -204,7 +212,7 @@ export class ScoreManagementService {
     const dependencies = {
       ...options,
       ...business,
-      template: defaultScoreTemplate(configuration.libraryType),
+      template: selectedTemplate,
     };
     const connection = await this.mysql.pool.getConnection();
     try {

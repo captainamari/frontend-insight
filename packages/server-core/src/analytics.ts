@@ -1362,7 +1362,7 @@ export class AnalyticsStore {
       return { activeUsers: 0, crossDayUsers: 0, activeDates: [] as string[] };
     }
     const validCondition = `
-      (
+      user_id IS NOT NULL AND user_id != '' AND (
         (event = 'page_view' AND pageRoute IN {routes:Array(String)})
         OR
         ((event = 'custom' AND feature_stage = 'succeeded') AND feature_key IN {featureKeys:Array(String)})

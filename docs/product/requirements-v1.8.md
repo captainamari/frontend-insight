@@ -105,14 +105,14 @@ v1.8 是一次面向当前 `main` 实现的产品重构，不是对 v1.7 的修�
 | 事件时间 | `eventTime` ISO string | `timestamp` epoch milliseconds | 服务端另存 `receivedAt`，不得覆盖客户端时间 |
 | 页面 URL | 未采集 | `pageUrl` | 保留该字段名；值按 13.1 脱敏，默认移除 query/hash 中非白名单内容 |
 | 页面聚合键 | `route`、`normalizedRoute` | `pageRoute` | SPA 归一化路由，是页面聚合主键 |
-| 用户 | `accountRef` → `accountId` | `userId` | SDK 字段名为 `userId`；持久化前项目级不可逆处理，未登录值使用匿名标识并按 `deviceId` 兜底 |
+| 用户 | `accountRef` → `accountId` | `userId` | SDK 字段名为 `userId`；持久化前项目级不可逆处理；缺失标识保留异常诊断，未登录业务活动不参与规范运营统计 |
 | 组织 | 无通用事件字段 | `deptId`、`roleId` | 优先由受治理目录在服务端补充；禁止上传姓名等直接标识 |
 | 设备 | `visitorId` | `deviceId` | 浏览器生成的稳定匿名标识，不宣称是真实硬件指纹 |
 | 终端 | `browserFamily/osFamily/viewportBucket`，只在可观测事件中 | `ua`、`os`、`browser` | 所有事件使用同一字段；值执行白名单、长度和隐私限制 |
 | 会话 | `sessionId` | `sessionId` | 保留；30 分钟无操作重新生成 |
 | 业务载荷 | `properties` | `payload` | 按事件类型使用受控 schema，禁止任意嵌套对象 |
 | 页面浏览量 | `page_views`、`pageViews`、部分 DTO 的 `pv` | `pv` | MetricCatalog、API、趋势、UI 绑定和 fixture 全部统一 |
-| 活跃用户 | `active_accounts`、`active_browsers`、`visitors` | `uv` | 以 `userId` 去重，未登录按 `deviceId` 兜底；账号/设备拆分只可作为附加诊断指标 |
+| 活跃用户 | `active_accounts`、`active_browsers`、`visitors` | `uv` | 统一按已识别 `userId` 去重，仅同范围有效且已归类业务活动；未识别/排除样本单独披露 |
 | 会话数 | `sessions` | `vv` | UI 显示“会话数（VV）”，不得只显示含义不明的 VV |
 | 运营评分 | `project_operational_index`、项目运营指数 | `operational_score`、运营分数 | 公式可复用，key、API 和 UI 同步重命名 |
 | 质量评分 | 尚无 | `quality_score`、质量分数 | 与运营分数独立定义和版本 |
@@ -166,7 +166,7 @@ R0 完成后只接受 contract v3，不接受 v1/v2 或上述旧字段别名。
 | 规范 key | 附件口径摘要 | `main` 现状 | v1.8 处理 |
 | --- | --- | --- | --- |
 | `pv` | `page_view` 计数，不去重 | 已实现为 `page_views/pageViews/pv` 多套名称 | R0/R1-B 统一 key；R6 验证路由切换先 leave 后 view |
-| `uv` | `userId` 去重，未登录按 `deviceId` 兜底 | 拆为账号、浏览器、visitors，口径不同 | R0 补字段；R6 实现规范 UV，并保留口径拆分作为诊断元数据 |
+| `uv` | 同范围已识别、有效且已归类业务活动按 `userId` 去重 | 拆为账号、浏览器、visitors，口径不同 | R0 补字段；R6 验证统一身份、业务范围与来源完整性，保留排除样本诊断 |
 | `dau`、`wau`、`mau` | 自然日/周/月去重活跃用户 | 无规范指标 | R1-B 注册，R6 实现；项目时区自然窗口 |
 | `vv` | `sessionId` 去重；30 分钟无操作切分 | 会话事实和 `sessions` DTO 已有 | 重命名为 `vv`，R6 补 golden fixture |
 | `module_penetration` | 模块去重用户数 / 系统总用户数 | 功能采用率、核心页面覆盖率均不等价 | R4-A 实现并返回分母来源；90 日活跃近似必须显式标注 |
@@ -1076,7 +1076,7 @@ AI 分析助手仍可在本轮数据与页面稳定后单独评审，不能与�
 | 80 分状态与 85/60 颜色 | 状态门槛按 80；颜色分段按 85/60，二者分别标注 |
 | 附件名与 `main` 名冲突 | 以附件 `appId/event/timestamp/pageRoute/userId/deviceId/pv/uv/vv` 等为准，不沿用旧名作为规范名 |
 | 业务域与功能模块 | 统一为“功能模块”和 `moduleId/moduleKey`；业务分析是页面名，不再创建 business domain 同义模型 |
-| UV 与账号/浏览器拆分 | `uv` 按 `userId`、未登录按 `deviceId` 兜底；账号/设备拆分只作附加诊断，不替代规范 UV |
+| UV 与账号/浏览器拆分 | `uv` 统一按已识别有效业务活动的 `userId` 去重；排除未登录及未归类活动，不新增账号 UV 别名 |
 
 ## 18. 产品评审 Go / No-Go
 
@@ -1232,7 +1232,7 @@ Origin 是浏览器同源/CORS 语义中的“来源”，格式固定为 `协�
 
 评审问题、反例、方案及未决项见 [R1-C评审问答](../progress/v1.8-r1c-review-2026-09-08.md)。以下仅纳入用户明确确认的变化；本节不代表代码已实现或已手工验收。
 
-**运营范围与解释**：本内部系统的运营分数面向已识别的有效业务活动，排除未登录活动及未归类页面。§18.3.2 的 UV 叶子统一引用该范围内的规范 UV；本业务范围不启用匿名兜底，不修改平台通用 UV 的身份解析规则，也不新增别名。范围、身份规则引用与版本一并固定，全部相关分子/分母/UV派生项保持一致。识别缺失可能是接入异常，必须披露未识别/排除样本，不能默认当作正常匿名流量静默过滤后给高分。
+**运营范围与解释**：本内部系统的运营分数面向已识别的有效业务活动，排除未登录活动及未归类页面。§18.3.2 的 UV 叶子统一引用该范围内的规范 UV；2026-09-09 已确认全平台统一上述规范身份规则；同范围所有相关分子、分母及 UV 派生项引用同一规则，不启用匿名兜底或新增别名。范围、身份规则引用与版本一并固定，全部相关分子/分母/UV派生项保持一致。识别缺失可能是接入异常，必须披露未识别/排除样本，不能默认当作正常匿名流量静默过滤后给高分。
 
 解释界面显示当前业务问题、公式、事实来源、纳入范围、项目/env、查询窗口/时区/粒度、去重键、样本及缺失原因。活跃日覆盖复用已有预期星期配置，显示展开日期及分子/分母；页面目标、关键度、工作流和样本策略引用冻结的revision。不得以可变当前配置重解释旧分数。无需新增预测模型或独立元数据中心。
 
