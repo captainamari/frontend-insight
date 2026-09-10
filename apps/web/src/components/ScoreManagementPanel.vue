@@ -778,7 +778,31 @@ onBeforeUnmount(() => {
           {{ snapshot.score.configuration.owner }} · 项目范围
           {{ snapshot.score.dependencies.scopeId }}
         </p>
-        <pre>{{ JSON.stringify(snapshot.score.configuration, null, 2) }}</pre>
+        <p>
+          显示单位：{{
+            snapshot.score.configuration.displayUnit === "percent" ? "%" : "分"
+          }}； 最低可参与维度：{{
+            snapshot.score.configuration.gate.minimumEligibleDimensions
+          }}； 最低叶子权重覆盖：{{
+            snapshot.score.configuration.gate.minimumLeafWeightCoverage * 100
+          }}%。 绿色起点
+          {{ snapshot.score.configuration.colorBands.greenMinimum }}，黄色起点
+          {{ snapshot.score.configuration.colorBands.yellowMinimum }}。
+        </p>
+        <details
+          v-for="dimension in snapshot.score.configuration.dimensions"
+          :key="dimension.key"
+        >
+          <summary>
+            {{ dimension.displayName }} · 配置权重 {{ dimension.weight * 100 }}%
+          </summary>
+          <ul>
+            <li v-for="leaf in dimension.leaves" :key="leaf.key">
+              {{ leaf.metricKey }} · {{ leaf.enabled ? "启用" : "停用" }} · 维度内权重
+              {{ leaf.weight * 100 }}% · 最低有效样本 {{ leaf.minimumSample }}
+            </li>
+          </ul>
+        </details>
       </details>
       <div class="row">
         <label

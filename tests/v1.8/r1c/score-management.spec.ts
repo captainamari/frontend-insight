@@ -106,6 +106,9 @@ for (const type of ["operational", "quality"]) {
     await expect(
       page.locator("[data-source=fixed_fixture] [data-testid=score-value]"),
     ).toHaveText(type === "operational" ? "76.15" : "72.953216");
+    await expect(
+      page.locator("[data-source=fixed_fixture]").getByTestId("score-band"),
+    ).toHaveAttribute("data-color", "yellow");
     await expect(page.getByRole("table", { name: "维度分等价表" })).toBeVisible();
     await expect(
       page.getByRole("img", { name: "维度分雷达，范围 0–100，与维度表一致" }),
@@ -224,8 +227,11 @@ test("late operational response cannot overwrite quality selection or URL", asyn
   await page.getByRole("button", { name: "质量分数", exact: true }).click();
   await expect(page).toHaveURL(/scoreType=quality/);
   await expect(page.getByTestId("current-score")).toContainText("quality_score");
+  const staleResponse = page.waitForResponse((response) =>
+    response.url().includes("/versions/" + operationalVersion + "/result?"),
+  );
   release();
-  await page.waitForTimeout(600);
+  await (await staleResponse).finished();
   await expect(page.getByTestId("current-score")).not.toContainText(
     "operational_score",
   );

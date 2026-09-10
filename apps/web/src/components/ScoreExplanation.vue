@@ -1,6 +1,17 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { ScoreResult } from "../score-types";
+const directionLabels: Record<string, string> = {
+  higher_better: "越高越好",
+  lower_better: "越低越好",
+  target_range: "目标区间",
+};
+const colorLabels: Record<string, string> = {
+  green: "绿色",
+  yellow: "黄色",
+  red: "红色",
+  gray: "灰色 · 不可参与计算",
+};
 const props = defineProps<{ result: ScoreResult; fixture?: boolean }>();
 const show = (n: number | null | undefined) =>
   n == null ? "—" : Number(n.toFixed(6)).toString();
@@ -23,6 +34,9 @@ const polygon = computed(() =>
       固定手算示例 · 合成输入 · 不代表真实项目，不写入项目历史
     </p>
     <h3>
+      <span class="score-band" :data-color="result.color" data-testid="score-band">{{
+        colorLabels[result.color]
+      }}</span>
       {{ result.displayName }}：<strong data-testid="score-value">{{
         show(result.value)
       }}</strong>
@@ -135,7 +149,8 @@ const polygon = computed(() =>
                 >
               </td>
               <td>
-                {{ leaf.direction }}<small>{{ JSON.stringify(leaf.target) }}</small>
+                {{ directionLabels[leaf.direction]
+                }}<small>{{ JSON.stringify(leaf.target) }}</small>
               </td>
               <td>
                 {{ show(leaf.totalSampleSize) }} / {{ show(leaf.sampleSize) }} /
@@ -229,6 +244,26 @@ svg {
   max-width: 100%;
   display: block;
   margin: auto;
+}
+.score-band {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 13px;
+}
+.score-band[data-color="green"] {
+  background: #dcfce7;
+  color: #166534;
+}
+.score-band[data-color="yellow"] {
+  background: #fef3c7;
+  color: #92400e;
+}
+.score-band[data-color="red"] {
+  background: #fee2e2;
+  color: #991b1b;
 }
 table {
   border-collapse: collapse;
