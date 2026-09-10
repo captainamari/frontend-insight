@@ -142,6 +142,10 @@ export interface ScoreResult {
       definitionVersion: string;
       rawValue: number | null;
       sampleSize: number | null;
+      totalSampleSize?: number | null;
+      excludedSampleSize?: number | null;
+      numerator?: number | null;
+      denominator?: number | null;
       status: string;
       reason: string | null;
       score: number | null;

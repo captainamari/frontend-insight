@@ -69,6 +69,7 @@ export class ScoreManagementService {
         terminalPolicy: jsonValue(w.terminalPolicy),
       })),
       pageTemplateVersion: "page-duration-v1.8",
+      evaluatorVersion: "score-evaluator-v1.8-r1c-2026-09-09",
       pageTargets: PAGE_TEMPLATE_DURATION_TARGETS,
       identityPolicy: CANONICAL_SCORE_IDENTITY,
       businessScope:
@@ -318,6 +319,7 @@ export class ScoreManagementService {
       effectiveAt: snapshot.version.activatedAt,
       mode,
     });
+    result.reasons.push("ENV_EXPOSURE_NOT_VERIFIED");
     const [periods] = await this.mysql.pool.query<RowDataPacket[]>(
       `SELECT library_version_id AS versionId,effective_from AS effectiveFrom,effective_to AS effectiveTo FROM metric_activation_periods WHERE project_id=? AND library_type=? AND effective_from<? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from`,
       [projectId, configuration.libraryType, new Date(query.to), new Date(query.from)],

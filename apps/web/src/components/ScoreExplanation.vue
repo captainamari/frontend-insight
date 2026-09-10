@@ -36,9 +36,10 @@ const polygon = computed(() =>
     </p>
     <p v-if="result.reasons.length" role="status">{{ result.reasons.join("；") }}</p>
     <p>
-      项目 {{ result.context.projectId }} / {{ result.context.env }} / 范围
-      {{ result.context.scopeId }} / {{ result.context.timezone }} /
-      {{ result.context.from }} — {{ result.context.to }}（结束不含）/
+      分数 {{ result.scoreKey }} · 项目 {{ result.context.projectId }} /
+      {{ result.context.env }} / 范围 {{ result.context.scopeId }} /
+      {{ result.context.timezone }} / {{ result.context.from }} —
+      {{ result.context.to }}（结束不含）/
       {{ result.context.granularity }}
     </p>
     <p>
@@ -113,7 +114,7 @@ const polygon = computed(() =>
             <th>指标</th>
             <th>原始值 / 单位</th>
             <th>方向 / 目标</th>
-            <th>有效样本 / 最低样本</th>
+            <th>总样本 / 有效 / 排除 / 最低样本</th>
             <th>得分</th>
             <th>配置权重 / 实际权重</th>
             <th>实际贡献</th>
@@ -126,11 +127,20 @@ const polygon = computed(() =>
               <td>
                 {{ leaf.metricKey }}<small>{{ leaf.definitionVersion }}</small>
               </td>
-              <td>{{ show(leaf.rawValue) }} {{ leaf.unit }}</td>
+              <td>
+                {{ show(leaf.rawValue) }} {{ leaf.unit
+                }}<small
+                  >分子 {{ show(leaf.numerator) }} / 分母
+                  {{ show(leaf.denominator) }}</small
+                >
+              </td>
               <td>
                 {{ leaf.direction }}<small>{{ JSON.stringify(leaf.target) }}</small>
               </td>
-              <td>{{ show(leaf.sampleSize) }} / {{ leaf.minimumSample }}</td>
+              <td>
+                {{ show(leaf.totalSampleSize) }} / {{ show(leaf.sampleSize) }} /
+                {{ show(leaf.excludedSampleSize) }} / {{ leaf.minimumSample }}
+              </td>
               <td>{{ show(leaf.score) }}</td>
               <td>
                 {{ show(leaf.configuredWeight * 100) }}% /

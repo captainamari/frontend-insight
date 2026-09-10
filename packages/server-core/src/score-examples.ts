@@ -48,6 +48,11 @@ export function scoreExamples(configuration: ScoreConfiguration) {
     timezone: "Asia/Shanghai",
     granularity: configuration.granularity,
   };
+  const exposures: Record<string, { numerator: number; denominator: number }> = {
+    js_error_rate: { numerator: 5, denominator: 1000 },
+    resource_error_rate: { numerator: 20, denominator: 4000 },
+    api_error_rate: { numerator: 10, denominator: 2000 },
+  };
   const input: ScoreEvaluationInput = {
     configuration,
     context,
@@ -72,10 +77,11 @@ export function scoreExamples(configuration: ScoreConfiguration) {
         {
           context,
           value: values[key]!,
-          sampleSize:
-            key.endsWith("_rate") && configuration.libraryType === "quality"
-              ? 1000
-              : 100,
+          sampleSize: exposures[key]?.denominator ?? 100,
+          totalSampleSize: exposures[key]?.denominator ?? 100,
+          excludedSampleSize: 0,
+          numerator: exposures[key]?.numerator ?? null,
+          denominator: exposures[key]?.denominator ?? null,
           status: "available",
           reason: null,
           availableFrom: context.from,
@@ -99,7 +105,10 @@ export function scoreExamples(configuration: ScoreConfiguration) {
   delete (fail.facts as Record<string, unknown>).key_task_completion_rate;
   const zero = structuredClone(input);
   for (const key of ["js_error_rate", "resource_error_rate", "api_error_rate"])
-    if (zero.facts[key]) zero.facts[key]!.value = 0;
+    if (zero.facts[key]) {
+      zero.facts[key]!.value = 0;
+      zero.facts[key]!.numerator = 0;
+    }
   return {
     source: "fixed_fixture",
     reason: "固定示例，与真实项目查询及历史记录隔离。",

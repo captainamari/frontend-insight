@@ -4,6 +4,7 @@ import { scoreExamples } from "../src/score-examples.js";
 import { evaluateScore } from "../src/score-evaluation.js";
 import { scoreDigest } from "../src/score-storage.js";
 import {
+  expectedScoreDates,
   operationalUsageSamples,
   workflowScoreSamples,
   sessionPercentile,
@@ -55,6 +56,24 @@ function usage() {
   };
 }
 describe("R1-C approved templates and observable sample semantics", () => {
+  it("inherits ISO weekdays including Sunday=7 for partial project-local dates", () => {
+    expect(
+      expectedScoreDates(
+        "2026-09-12T20:00:00Z",
+        "2026-09-13T01:00:00Z",
+        "Asia/Shanghai",
+        [7],
+      ),
+    ).toEqual(["2026-09-13"]);
+    expect(
+      expectedScoreDates(
+        "2026-09-12T20:00:00Z",
+        "2026-09-13T01:00:00Z",
+        "Asia/Shanghai",
+        [6],
+      ),
+    ).toEqual([]);
+  });
   it("pins Jesse approval and all approved hand calculations without real facts", () => {
     const op = defaultScoreTemplate("operational"),
       quality = defaultScoreTemplate("quality");

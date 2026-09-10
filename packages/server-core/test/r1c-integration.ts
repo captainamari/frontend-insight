@@ -53,6 +53,8 @@ const evidence: Record<string, unknown>[] = [];
 try {
   const admin = await login("admin@example.invalid", "LocalAdmin-1234"),
     viewer = await login("viewer@example.invalid", "LocalViewer-1234");
+  await call(admin, root + "/operational-index", "GET", undefined, 404);
+  await call(admin, root + "/metric-profiles", "POST", {}, 404);
   const other = await call<{ id: string }>(
     admin,
     "/api/projects",
@@ -221,13 +223,16 @@ try {
       409,
     );
     await call(admin, base + "/versions/" + draft.id + "/review", "POST", query, 201);
-    await call(
-      admin,
-      metrics + "/versions/" + draft.id + "/activate",
-      "POST",
-      undefined,
-      201,
+    const activationResponses = await Promise.all(
+      [0, 1].map(() =>
+        fetch(apiUrl + metrics + "/versions/" + draft.id + "/activate", {
+          method: "POST",
+          headers: { authorization: "Bearer " + admin },
+        }),
+      ),
     );
+    assert.deepEqual(activationResponses.map((r) => r.status).sort(), [201, 409]);
+    await Promise.all(activationResponses.map((r) => r.text()));
     const publicRead = await call<Result>(
       viewer,
       root + "/scores/" + configuration.scoreKey + "?" + new URLSearchParams(query),

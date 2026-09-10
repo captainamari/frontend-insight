@@ -32,6 +32,7 @@ const versions = ref<ScoreVersion[]>([]),
   preview = ref<ScorePreview | null>(null),
   review = ref<ScorePreview | null>(null),
   trials = ref<ScoreTrial[]>([]);
+const openedTrials = ref<Record<string, boolean>>({});
 const error = ref(""),
   notice = ref(""),
   busy = ref(false),
@@ -98,6 +99,7 @@ async function load() {
   editing.value = false;
   step.value = 1;
   trials.value = [];
+  openedTrials.value = {};
   env.value = typeof route.query.env === "string" ? route.query.env : "prod";
   to.value =
     typeof route.query.scoreTo === "string"
@@ -378,17 +380,9 @@ onBeforeUnmount(() => {
       运营与质量分别保存和激活。业务配置确认后可复用模板；真实事实不足时保留具体不可用原因。
     </p>
     <nav class="row" aria-label="分数类型">
-      <button
-        :disabled="busy"
-        :aria-pressed="type === 'operational'"
-        @click="select('operational')"
-      >
+      <button :aria-pressed="type === 'operational'" @click="select('operational')">
         运营分数</button
-      ><button
-        :disabled="busy"
-        :aria-pressed="type === 'quality'"
-        @click="select('quality')"
-      >
+      ><button :aria-pressed="type === 'quality'" @click="select('quality')">
         质量分数
       </button>
     </nav>
@@ -519,7 +513,7 @@ onBeforeUnmount(() => {
           ><p>
             目标用户：{{ options.settings?.targetUsers ?? "未配置" }}；预期星期：{{
               options.settings?.expectedActiveWeekdays.join("、") ?? "未配置"
-            }}（0 为星期日）。配置版本 {{ options.settings?.version ?? "无" }}
+            }}（1–7，7 为星期日）。配置版本 {{ options.settings?.version ?? "无" }}
           </p>
           <router-link
             :to="{
@@ -787,7 +781,7 @@ onBeforeUnmount(() => {
       <div class="row">
         <label
           >环境
-          <select v-model="env" aria-label="分数环境">
+          <select v-model="env" :disabled="busy" aria-label="分数环境">
             <option>prod</option>
             <option>staging</option>
             <option>dev</option>
@@ -795,26 +789,32 @@ onBeforeUnmount(() => {
         ><label
           >开始（UTC）<input
             v-model="from"
+            :disabled="busy"
             type="datetime-local"
             aria-label="分数开始时间" /></label
         ><label
           >结束（UTC，不含）<input
             v-model="to"
+            :disabled="busy"
             type="datetime-local"
             aria-label="分数结束时间" /></label
         ><button :disabled="busy" @click="refresh">刷新查询</button
         ><button v-if="canWrite" :disabled="busy" @click="trial">保存历史试算</button>
       </div>
-      <ScoreExplanation v-if="result" :result="result" />
+      <ScoreExplanation v-if="result" :result="result" data-testid="current-score" />
       <details>
         <summary>独立历史试算记录（{{ trials.length }}）</summary>
         <p v-if="!trials.length">尚无历史试算记录；不会伪造历史计算或趋势。</p>
-        <details v-for="item in trials" :key="item.id">
+        <details
+          v-for="item in trials"
+          :key="item.id"
+          @toggle="openedTrials[item.id] = ($event.target as HTMLDetailsElement).open"
+        >
           <summary>
             {{ item.createdAt }} · {{ item.id }} · {{ item.result.context.env }} ·
             {{ item.result.status }}
           </summary>
-          <ScoreExplanation :result="item.result" />
+          <ScoreExplanation v-if="openedTrials[item.id]" :result="item.result" />
         </details></details
     ></template>
     <p v-else-if="snapshot && !mutable && !busy">

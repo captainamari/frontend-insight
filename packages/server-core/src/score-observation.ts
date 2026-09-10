@@ -22,7 +22,7 @@ export function expectedScoreDates(
   for (let t = start; t < end; t += 12 * 3600000) dates.add(formatter.format(t));
   if (end > start) dates.add(formatter.format(end - 1));
   return [...dates]
-    .filter((d) => weekdays.includes(new Date(d + "T12:00:00Z").getUTCDay()))
+    .filter((d) => weekdays.includes(new Date(d + "T12:00:00Z").getUTCDay() || 7))
     .sort();
 }
 export const CANONICAL_SCORE_IDENTITY = "identified-user-v1.8";

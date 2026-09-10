@@ -124,9 +124,7 @@ for (const type of ["operational", "quality"]) {
     const original = await page.getByLabel("分数版本").inputValue();
     await page.reload();
     await expect(page.getByLabel("分数版本")).toHaveValue(original);
-    await expect(page.locator("[data-source=project_query]")).toContainText(
-      "不可参与计算",
-    );
+    await expect(page.getByTestId("current-score")).toContainText("不可参与计算");
     await activate(page);
     await edit(page);
     await page.getByLabel("中文名称", { exact: true }).fill(label + " copied");
@@ -156,9 +154,7 @@ for (const type of ["operational", "quality"]) {
     await page.getByLabel("分数环境").selectOption("staging");
     await page.getByRole("button", { name: "刷新查询", exact: true }).click();
     await expect(page).toHaveURL(/env=staging/);
-    await expect(page.locator("[data-source=project_query]").first()).toContainText(
-      "/ staging /",
-    );
+    await expect(page.getByTestId("current-score")).toContainText("/ staging /");
     expect(await page.getByRole("alert").count()).toBe(0);
   });
   test(`viewer ${type}: immutable configuration, lineage, radar, table, history and refresh`, async ({
@@ -179,15 +175,25 @@ for (const type of ["operational", "quality"]) {
     ])
       await expect(page.getByRole("button", { name, exact: true })).toHaveCount(0);
     const version = await page.getByLabel("分数版本").inputValue();
-    await expect(page.locator("[data-source=project_query]")).toContainText(
-      "不可参与计算",
-    );
+    await expect(page.getByTestId("current-score")).toContainText("不可参与计算");
     await page.getByText("定义依赖血缘与分子、分母", { exact: true }).click();
     await expect(
       page.getByText("定义依赖血缘与分子、分母", { exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("table", { name: "分数解释明细" })).toBeVisible();
     await expect(page.getByRole("table", { name: "维度分等价表" })).toBeVisible();
+    const history = page.locator("details").filter({
+      has: page.locator(":scope > summary", { hasText: "独立历史试算记录" }),
+    });
+    await history.locator(":scope > summary").click();
+    const record = history.locator(":scope > details").first();
+    await record.locator(":scope > summary").click();
+    await expect(record.locator("[data-source=project_query]")).toContainText(
+      "独立历史试算",
+    );
+    await expect(record.locator("[data-source=project_query]")).toContainText(
+      "不可参与计算",
+    );
     await page.reload();
     await expect(page.getByLabel("分数版本")).toHaveValue(version);
     await expect(page.getByRole("alert")).toHaveCount(0);
@@ -198,17 +204,29 @@ test("late operational response cannot overwrite quality selection or URL", asyn
 }) => {
   await login(page, "viewer");
   await open(page, "operational");
-  await page.route("**/score-management/versions/*/result?**", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await route.continue();
+  const operationalVersion = await page.getByLabel("分数版本").inputValue();
+  let release: () => void = () => {};
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve;
   });
+  await page.route(
+    "**/score-management/versions/" + operationalVersion + "/result?**",
+    async (route) => {
+      await delayed;
+      await route.continue();
+    },
+  );
+  const oldRequest = page.waitForRequest((r) =>
+    r.url().includes("/versions/" + operationalVersion + "/result?"),
+  );
+  await page.getByRole("button", { name: "刷新查询", exact: true }).click();
+  await oldRequest;
   await page.getByRole("button", { name: "质量分数", exact: true }).click();
   await expect(page).toHaveURL(/scoreType=quality/);
-  await expect(page.locator("[data-source=project_query]")).toContainText(
-    "quality_score",
-  );
+  await expect(page.getByTestId("current-score")).toContainText("quality_score");
+  release();
   await page.waitForTimeout(600);
-  await expect(page.locator("[data-source=project_query]")).not.toContainText(
+  await expect(page.getByTestId("current-score")).not.toContainText(
     "operational_score",
   );
 });

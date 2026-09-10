@@ -90,6 +90,10 @@ export interface ScoreQueryContext {
 }
 
 export interface ScoreFact {
+  totalSampleSize?: number | null;
+  excludedSampleSize?: number | null;
+  numerator?: number | null;
+  denominator?: number | null;
   context: ScoreQueryContext;
   value: number | null;
   sampleSize: number | null;
@@ -719,6 +723,12 @@ export function evaluateScore(input: ScoreEvaluationInput) {
         definitionVersion: reference.definitionVersion,
         rawValue: status === "context_mismatch" ? null : (fact?.value ?? null),
         sampleSize: status === "context_mismatch" ? null : (fact?.sampleSize ?? null),
+        totalSampleSize:
+          status === "context_mismatch" ? null : (fact?.totalSampleSize ?? null),
+        excludedSampleSize:
+          status === "context_mismatch" ? null : (fact?.excludedSampleSize ?? null),
+        numerator: status === "context_mismatch" ? null : (fact?.numerator ?? null),
+        denominator: status === "context_mismatch" ? null : (fact?.denominator ?? null),
         availableFrom:
           status === "context_mismatch" ? null : (fact?.availableFrom ?? null),
         status,

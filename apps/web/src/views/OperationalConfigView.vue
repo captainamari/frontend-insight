@@ -81,8 +81,8 @@ watch(context.projectId, () => void load(), { immediate: true });
         >目标用户数 <input v-model.number="targetUsers" type="number" min="1"
       /></label>
       <p>预期活跃星期</p>
-      <label v-for="(day, i) in ['日', '一', '二', '三', '四', '五', '六']" :key="day"
-        ><input v-model="weekdays" type="checkbox" :value="i" />星期{{ day }}
+      <label v-for="(day, i) in ['一', '二', '三', '四', '五', '六', '日']" :key="day"
+        ><input v-model="weekdays" type="checkbox" :value="i + 1" />星期{{ day }}
       </label>
       <p><button v-if="canWrite" @click="save">保存业务配置版本</button></p>
     </fieldset>
