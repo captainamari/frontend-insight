@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 3,
+  "sentAt": 1787155200000,
+  "sdk": { "name": "web-tracker", "version": "0.4.0" },
+  "events": [
+    {
+      "eventId": "evt_oldfields001",
+      "event": "page_view",
+      "appId": "fi_public_legacy003",
+      "timestamp": "2026-08-20T00:00:00.000Z",
+      "deviceId": "vis_legacy0001",
+      "sessionId": "ses_legacy0001",
+      "pageViewId": "pv_legacy00001",
+      "route": "/legacy",
+      "properties": {}
+    }
+  ]
+}

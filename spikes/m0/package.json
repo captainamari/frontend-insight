@@ -1,0 +1,21 @@
+{
+  "name": "@frontend-insight/m0-spike",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node --check src/server.mjs && node --check src/consumer.mjs && node --check src/verify.mjs",
+    "test": "npm run check && node --test"
+  },
+  "dependencies": {
+    "@clickhouse/client": "1.23.1",
+    "kafkajs": "2.2.4",
+    "mysql2": "3.23.1"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
+  }
+}

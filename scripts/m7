@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BASE_COMPOSE_FILE="$ROOT_DIR/infra/compose/m2-m4.compose.yml"
+M5_COMPOSE_FILE="$ROOT_DIR/infra/compose/m5.compose.yml"
+ENV_FILE="$ROOT_DIR/.env.m5"
+PROJECT_NAME="frontend-insight-m5"
+
+info() { printf '[frontend-insight:m7] %s\n' "$*"; }
+fail() { printf '[frontend-insight:m7] ERROR: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<'USAGE'
+Usage: bash scripts/m7 <command>
+
+Commands:
+  load [quick|full]                    Run 20 events/s sustained + 200 events/s peak
+  fault <consumer|clickhouse|kafka|all> --confirm-disruption
+                                       Stop one dependency, verify semantics and recover
+  release-drill --confirm-disruption   Backup/restore and application restart drill
+USAGE
+}
+
+compose() {
+  docker compose \
+    --project-name "$PROJECT_NAME" \
+    --env-file "$ENV_FILE" \
+    --file "$BASE_COMPOSE_FILE" \
+    --file "$M5_COMPOSE_FILE" \
+    "$@"
+}
+
+require_stack() {
+  [[ -f "$ENV_FILE" ]] || fail "Run ./scripts/dev up first"
+  docker info >/dev/null 2>&1 || fail "Docker engine is not running"
+  compose exec -T api node tools/m7-resilience-probe.mjs health-ready
+}
+
+load_test() {
+  local mode="${1:-full}"
+  [[ "$mode" == "quick" || "$mode" == "full" ]] || fail "Mode must be quick or full"
+  require_stack
+  compose exec -T api node tools/m7-load.mjs --mode "$mode"
+  info "M7 $mode load profile passed"
+}
+
+recover() {
+  compose start "$1" >/dev/null
+  compose up --detach --wait --wait-timeout 180 "$1" >/dev/null
+}
+
+fault_consumer() {
+  local marker="consumer_$(date -u +%s)"
+  compose stop consumer >/dev/null
+  if compose exec -T api node -e \
+    "fetch('http://consumer:3200/health/ready',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?1:0)).catch(()=>process.exit(0))"; then
+    info "Consumer readiness failed while stopped, as expected"
+  else
+    fail "Consumer unexpectedly remained ready"
+  fi
+  compose exec -T api node tools/m7-resilience-probe.mjs enqueue "$marker"
+  recover consumer
+  compose exec -T api node tools/m7-resilience-probe.mjs verify "$marker"
+  info "Consumer outage queued data and recovered without loss"
+}
+
+fault_clickhouse() {
+  local marker="clickhouse_$(date -u +%s)"
+  compose stop clickhouse >/dev/null
+  compose exec -T api node tools/m7-resilience-probe.mjs health-unavailable
+  compose exec -T api node tools/m7-resilience-probe.mjs enqueue "$marker"
+  recover clickhouse
+  compose exec -T api node tools/m7-resilience-probe.mjs health-ready
+  compose exec -T api node tools/m7-resilience-probe.mjs verify "$marker"
+  info "ClickHouse outage surfaced readiness failure and recovered queued data"
+}
+
+fault_kafka() {
+  local marker="kafka_$(date -u +%s)"
+  compose stop kafka >/dev/null
+  compose exec -T api node tools/m7-resilience-probe.mjs health-unavailable
+  compose exec -T api node tools/m7-resilience-probe.mjs reject "$marker"
+  recover kafka
+  compose exec -T api node tools/m7-resilience-probe.mjs health-ready
+  compose exec -T api node tools/m7-resilience-probe.mjs enqueue "$marker"
+  compose exec -T api node tools/m7-resilience-probe.mjs verify "$marker"
+  info "Kafka outage rejected writes explicitly and recovered cleanly"
+}
+
+fault_test() {
+  local target="${1:-}" confirmation="${2:-}"
+  [[ "$confirmation" == "--confirm-disruption" ]] || \
+    fail "Fault injection stops services; pass --confirm-disruption"
+  require_stack
+  trap 'compose start kafka clickhouse consumer >/dev/null 2>&1 || true' EXIT
+  case "$target" in
+    consumer) fault_consumer ;;
+    clickhouse) fault_clickhouse ;;
+    kafka) fault_kafka ;;
+    all)
+      fault_consumer
+      fault_clickhouse
+      fault_kafka
+      ;;
+    *) fail "Fault target must be consumer, clickhouse, kafka or all" ;;
+  esac
+  trap - EXIT
+  info "M7 fault injection passed: $target"
+}
+
+release_drill() {
+  [[ "${1:-}" == "--confirm-disruption" ]] || \
+    fail "Release drill restarts services and restores data; pass --confirm-disruption"
+  require_stack
+  local drill_dir="$ROOT_DIR/.runtime/m7-release-drill"
+  mkdir -p "$drill_dir"
+  chmod 700 "$drill_dir"
+  compose stop api web >/dev/null
+  trap 'compose up --detach --wait --wait-timeout 300 api consumer web >/dev/null 2>&1 || true' EXIT
+  local attempt lag_json lag
+  for attempt in {1..30}; do
+    lag_json="$(compose exec -T consumer node -e \
+      "fetch('http://127.0.0.1:3200/health/ready').then(r=>r.json()).then(v=>process.stdout.write(String(v.metrics?.lag ?? -1)))" 2>/dev/null || printf '%s' -1)"
+    lag="${lag_json##*$'\n'}"
+    [[ "$lag" == "0" ]] && break
+    sleep 2
+  done
+  [[ "$lag" == "0" ]] || fail "Consumer did not reach zero lag before backup"
+  compose stop consumer >/dev/null
+  local clickhouse_password
+  clickhouse_password="$(awk -F= '$1 == "M24_CLICKHOUSE_PASSWORD" { print $2; exit }' "$ENV_FILE")"
+  compose exec -T mysql bash -ec \
+    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
+    > "$drill_dir/mysql.sql"
+  compose exec -T clickhouse clickhouse-client \
+    --user frontend_insight \
+    --password "$clickhouse_password" \
+    --database frontend_insight \
+    --query 'SELECT * FROM raw_events ORDER BY event_id, received_at, request_id FORMAT Native' \
+    > "$drill_dir/raw_events.native"
+  chmod 600 "$drill_dir/mysql.sql" "$drill_dir/raw_events.native"
+  compose run --rm migrate
+  compose exec -T mysql bash -ec \
+    'exec mysql -uroot --password="$MYSQL_ROOT_PASSWORD"' \
+    < "$drill_dir/mysql.sql"
+  compose exec -T clickhouse clickhouse-client \
+    --user frontend_insight \
+    --password "$clickhouse_password" \
+    --database frontend_insight \
+    --query 'TRUNCATE TABLE raw_events'
+  compose exec -T clickhouse clickhouse-client \
+    --user frontend_insight \
+    --password "$clickhouse_password" \
+    --database frontend_insight \
+    --query 'INSERT INTO raw_events FORMAT Native' \
+    < "$drill_dir/raw_events.native"
+  compose run --rm migrate
+  compose exec -T mysql bash -ec \
+    'exec mysqldump -uroot --password="$MYSQL_ROOT_PASSWORD" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
+    > "$drill_dir/mysql.after.sql"
+  compose exec -T clickhouse clickhouse-client \
+    --user frontend_insight \
+    --password "$clickhouse_password" \
+    --database frontend_insight \
+    --query 'SELECT * FROM raw_events ORDER BY event_id, received_at, request_id FORMAT Native' \
+    > "$drill_dir/raw_events.after.native"
+  chmod 600 "$drill_dir/mysql.after.sql" "$drill_dir/raw_events.after.native"
+  cmp -s "$drill_dir/mysql.sql" "$drill_dir/mysql.after.sql" || \
+    fail "MySQL restore does not match the quiesced backup"
+  cmp -s "$drill_dir/raw_events.native" "$drill_dir/raw_events.after.native" || \
+    fail "ClickHouse restore does not match the quiesced backup"
+  compose up --detach --wait --wait-timeout 300 api consumer web >/dev/null
+  compose exec -T api node tools/m7-resilience-probe.mjs health-ready
+  local marker="release_$(date -u +%s)"
+  compose exec -T api node tools/m7-resilience-probe.mjs enqueue "$marker"
+  compose exec -T api node tools/m7-resilience-probe.mjs verify "$marker"
+  compose exec -T api node tools/m5-http-smoke.mjs
+  compose exec -T api node tools/m6-http-smoke.mjs
+  compose exec -T api node tools/m8-http-smoke.mjs
+  trap - EXIT
+  info "Additive migration, application rollback posture, backup and restore drill passed"
+}
+
+command_name="${1:-}"
+[[ -n "$command_name" ]] || { usage; exit 1; }
+shift
+case "$command_name" in
+  load) load_test "$@" ;;
+  fault) fault_test "$@" ;;
+  release-drill) release_drill "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage; fail "Unknown command: $command_name" ;;
+esac

@@ -1,0 +1,11 @@
+packages:
+  - apps/*
+  - packages/*
+  - spikes/*
+
+allowBuilds:
+  esbuild: true
+  vue-demi: true
+
+preferWorkspacePackages: true
+saveWorkspaceProtocol: rolling

@@ -1,0 +1,106 @@
+name: v1.8 R1-C score product and accepted regressions
+
+on:
+  push:
+    branches:
+      - "agent/v1-8-r1c-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: v1-8-r1c-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r1c-product:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      M5_ALLOW_NON_ARM64: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.15.1
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run complete static, unit and build gate
+        run: pnpm check
+
+      - name: Verify actual checkout SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Run R1-C score product and calculation tests
+        run: pnpm test:r1c
+
+      - name: Run focused R1-B formula and API tests
+        run: pnpm test:r1b
+
+      - name: Run accepted R1-A regression tests
+        run: pnpm test:r1a
+
+      - name: Validate local operations entrypoint
+        run: bash -n scripts/dev
+
+      - name: Install Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Rebuild, seed and smoke the empty baseline
+        run: |
+          ./scripts/dev reset --confirm-local-data-loss
+          ./scripts/dev bootstrap
+          ./scripts/dev up
+          ./scripts/dev smoke
+
+      - name: Verify real MySQL and API metric-library flow
+        run: ./scripts/dev verify-r1b
+
+      - name: Verify real R1-A MySQL and API regressions
+        run: ./scripts/dev verify-r1a
+
+      - name: Run R1-B admin and viewer product flows
+        run: pnpm test:r1b:e2e
+
+      - name: Run R1-A Chromium and WebKit product regression
+        run: pnpm test:r1a:e2e
+
+      - name: Verify real R1-C snapshots, permissions, audit and history
+        run: ./scripts/dev verify-r1c
+
+      - name: Run R1-C Chromium and WebKit admin and viewer product flows
+        run: pnpm test:r1c:e2e
+
+      - name: Record the exact verified product commit
+        run: |
+          mkdir -p artifacts
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r1c-evidence.json", JSON.stringify({baseline:"1ad54dff106af1403adbce107e802d0aa56592d9", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R1-C product and accepted R1-A/R1-B regressions", implementation:"delivered for manual review", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
+
+      - name: Upload exact-commit verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r1c-product-evidence
+          path: |
+            artifacts/r1c-evidence.json
+            artifacts/r1c-integration.json
+            test-results
+
+      - name: Capture service logs on failure
+        if: failure()
+        run: ./scripts/dev logs
+
+      - name: Stop local services
+        if: always()
+        run: ./scripts/dev down

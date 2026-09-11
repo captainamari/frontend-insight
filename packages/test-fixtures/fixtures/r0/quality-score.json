@@ -1,0 +1,14 @@
+{
+  "pipelineStatus": "healthy",
+  "minimumSample": 100,
+  "dimensions": [
+    { "key": "js_stability", "weight": 0.25, "score": 90, "sample": 1200 },
+    { "key": "resource_stability", "weight": 0.25, "score": 80, "sample": 1200 },
+    { "key": "api_stability", "weight": 0.25, "score": 70, "sample": 800 },
+    { "key": "page_performance", "weight": 0.25, "score": 85, "sample": 500 }
+  ],
+  "expected": {
+    "status": "available",
+    "qualityScore": 81.25
+  }
+}

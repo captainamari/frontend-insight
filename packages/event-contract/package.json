@@ -1,0 +1,35 @@
+{
+  "name": "@frontend-insight/event-contract",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/src/index.js"
+    },
+    "./constants": {
+      "types": "./src/constants.ts",
+      "import": "./dist/src/constants.js"
+    },
+    "./security": {
+      "types": "./src/security.ts",
+      "import": "./dist/src/security.js"
+    },
+    "./schema": "./schema/event-batch-v3.schema.json",
+    "./schema-v3": "./schema/event-batch-v3.schema.json",
+    "./canonical-names": "./canonical-names.json"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate": "node scripts/generate-types.mjs"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "15.0.4"
+  }
+}

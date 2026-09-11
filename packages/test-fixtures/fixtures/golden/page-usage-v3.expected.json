@@ -1,0 +1,5 @@
+{
+  "scenario": "page_usage_v3",
+  "eventCount": 2,
+  "events": ["page_view", "page_leave"]
+}

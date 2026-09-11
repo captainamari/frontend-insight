@@ -1,0 +1,43 @@
+{
+  "valid": [
+    {
+      "name": "ratio",
+      "ast": {
+        "op": "/",
+        "left": { "metric": "completed_workflows", "unit": "count" },
+        "right": { "metric": "started_workflows", "unit": "count" }
+      },
+      "inputs": { "completed_workflows": 45, "started_workflows": 50 },
+      "expected": 0.9
+    },
+    {
+      "name": "weighted_mean",
+      "ast": {
+        "op": "weighted_mean",
+        "items": [
+          { "metric": "coverage_score", "weight": 0.6 },
+          { "metric": "completion_score", "weight": 0.4 }
+        ]
+      },
+      "inputs": { "coverage_score": 80, "completion_score": 95 },
+      "expected": 86
+    }
+  ],
+  "invalid": [
+    {
+      "name": "arbitrary_sql",
+      "ast": { "sql": "SELECT * FROM raw_events" },
+      "reason": "operator_not_allowed"
+    },
+    {
+      "name": "zero_denominator",
+      "ast": { "op": "/", "left": { "literal": 1 }, "right": { "literal": 0 } },
+      "reason": "metric_not_available"
+    },
+    {
+      "name": "cycle",
+      "dependencies": { "metric_a": ["metric_b"], "metric_b": ["metric_a"] },
+      "reason": "cycle"
+    }
+  ]
+}
