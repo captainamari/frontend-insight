@@ -34,7 +34,6 @@ function controller(role: "owner" | "viewer" | null) {
     restorePageDefinition: vi.fn(async () => undefined),
     archiveWorkflowDefinition: vi.fn(async () => undefined),
     restoreWorkflowDefinition: vi.fn(async () => undefined),
-    retireMetricProfile: vi.fn(async () => undefined),
   };
   const core = { mysql } as unknown as CoreService;
   return { controller: new OperationalController(core), mysql };
@@ -183,13 +182,17 @@ describe("M6 operational authorization", () => {
     expect(mysql.archiveWorkflowDefinition).not.toHaveBeenCalled();
   });
 
-  it("retires profiles through the project-scoped admin boundary", async () => {
-    const { controller: target, mysql } = controller("owner");
-    await target.retireProfile("project-1", "profile-1", admin);
-    expect(mysql.retireMetricProfile).toHaveBeenCalledWith({
-      projectId: "project-1",
-      profileId: "profile-1",
-      actor: admin,
-    });
+  it("does not expose retired score profile or index routes", () => {
+    const routes = Object.getOwnPropertyNames(OperationalController.prototype)
+      .filter((name) => name !== "constructor")
+      .map((name) =>
+        Reflect.getMetadata(
+          "path",
+          (OperationalController.prototype as unknown as Record<string, object>)[name],
+        ),
+      )
+      .filter(Boolean);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.join(" ")).not.toMatch(/metric-profiles|operational-index/);
   });
 });

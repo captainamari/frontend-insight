@@ -38,11 +38,6 @@ export const router = createRouter({
           component: () => import("./views/PageDetailView.vue"),
         },
         {
-          path: "operational-index",
-          name: "operational-index",
-          component: () => import("./views/OperationalIndexView.vue"),
-        },
-        {
           path: "observability",
           name: "observability",
           component: () => import("./views/ObservabilityView.vue"),

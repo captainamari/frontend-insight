@@ -1,3 +1,8 @@
+import {
+  copyStoredScore,
+  validateStoredScore,
+  recordMetricActivation,
+} from "./score-storage.js";
 import { randomUUID } from "node:crypto";
 import { FORBIDDEN_ALIASES } from "@frontend-insight/event-contract";
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
@@ -16,6 +21,8 @@ import type { Principal } from "./model.js";
 import type { MySqlStore } from "./mysql-store.js";
 import {
   METRIC_CATALOG,
+  IDENTITY_DEFINITION_VERSION,
+  isHistoricalIdentityDefinition,
   RESERVED_SYSTEM_METRIC_KEYS,
   systemMetricDefinition,
   type MetricEntityScope,
@@ -326,6 +333,7 @@ export function validateMetricVersionSnapshot(input: {
   const byKey = new Map(input.definitions.map((item) => [item.metricKey, item]));
   for (const system of expectedSystems) {
     const snapshot = byKey.get(system.metricKey);
+    if (!snapshot && system.definitionVersion === "score-input-2026-09-09.1") continue;
     if (!snapshot)
       errors.push({
         code: "SYSTEM_METRIC_MISSING",
@@ -334,7 +342,8 @@ export function validateMetricVersionSnapshot(input: {
       });
     else if (
       snapshot.origin !== "system" ||
-      snapshot.definitionVersion !== system.definitionVersion
+      (snapshot.definitionVersion !== system.definitionVersion &&
+        !isHistoricalIdentityDefinition(snapshot.metricKey, snapshot.definitionVersion))
     ) {
       errors.push({
         code: "SYSTEM_METRIC_CHANGED",
@@ -621,6 +630,49 @@ export class MetricLibraryService {
         )) {
           await this.insertSystemDefinition(connection, id, definition);
         }
+      }
+      if (sourceVersionId) {
+        const current = await this.listDefinitions(id, connection);
+        for (const definition of METRIC_CATALOG.filter(
+          (item) =>
+            libraryIncludesCategory(input.libraryType, item.category) &&
+            !current.some((m) => m.metricKey === item.metricKey),
+        ))
+          await this.insertSystemDefinition(connection, id, definition);
+        // Only the new working draft adopts approved directory metadata. Existing snapshots remain byte-for-byte unchanged.
+        for (const definition of METRIC_CATALOG.filter(
+          (item) => item.definitionVersion === IDENTITY_DEFINITION_VERSION,
+        )) {
+          if (
+            !current.some(
+              (m) =>
+                m.metricKey === definition.metricKey &&
+                isHistoricalIdentityDefinition(m.metricKey, m.definitionVersion),
+            )
+          )
+            continue;
+          await connection.execute(
+            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+            [
+              definition.businessDescription,
+              definition.formulaDescription,
+              definition.numeratorDescription,
+              definition.denominatorDescription,
+              definition.deduplicationKey,
+              definition.missingPolicy,
+              definition.unavailableReason,
+              definition.definitionVersion,
+              id,
+              definition.metricKey,
+            ],
+          );
+        }
+        await copyStoredScore(
+          connection,
+          sourceVersionId,
+          id,
+          Number(versionRows[0]!.next_version),
+        );
       }
       await this.insertAudit(
         connection,
@@ -938,6 +990,9 @@ export class MetricLibraryService {
     const connection = await this.mysql.pool.getConnection();
     try {
       await connection.beginTransaction();
+      await connection.query(`SELECT id FROM projects WHERE id=? FOR UPDATE`, [
+        input.projectId,
+      ]);
       const version = await this.requireVersion(
         connection,
         input.projectId,
@@ -952,12 +1007,13 @@ export class MetricLibraryService {
         throw new MetricLibraryError("METRIC_LIBRARY_VERSION_NOT_ACTIVATABLE", 409);
       }
       const definitions = await this.listDefinitions(version.id, connection);
+      await validateStoredScore(connection, version, definitions);
       const report = validateMetricVersionSnapshot({ version, definitions });
       if (!report.valid)
         throw new MetricLibraryError("METRIC_LIBRARY_VALIDATION_FAILED", 400, {
           errors: report.errors,
         });
-      for (const item of report.definitions) {
+      for (const item of version.status === "draft" ? report.definitions : []) {
         await connection.execute(
           `UPDATE metric_definitions SET implementation_status = ?,
              unavailable_reason = CASE WHEN ? = 'implemented' THEN NULL ELSE '依赖指标尚未全部 implemented。' END
@@ -982,7 +1038,7 @@ export class MetricLibraryService {
          JOIN score_dimensions dimension ON dimension.id = item.score_dimension_id
          JOIN score_definitions score ON score.id = dimension.score_definition_id
          WHERE md.library_version_id = ? AND md.implementation_status = 'not_collected'
-           AND score.status = 'active'`,
+           AND score.status = 'active' AND score.configuration IS NULL`,
         [version.id, version.id],
       );
       if (forbiddenBindingRows.length) {
@@ -1003,6 +1059,7 @@ export class MetricLibraryService {
            superseded_at = NULL, abandoned_at = NULL WHERE id = ?`,
         [version.id],
       );
+      await recordMetricActivation(connection, version);
       await this.insertAudit(
         connection,
         input.projectId,

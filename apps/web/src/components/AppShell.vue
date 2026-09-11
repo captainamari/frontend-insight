@@ -47,7 +47,6 @@ const navigation = [
   { route: "features", label: "功能采用", eyebrow: "默认首页" },
   { route: "operational-overview", label: "运营概览", eyebrow: "持续使用" },
   { route: "pages", label: "页面访问", eyebrow: "访问证据" },
-  { route: "operational-index", label: "项目运营指数", eyebrow: "可解释摘要" },
   { route: "observability", label: "前端可观测性", eyebrow: "错误与性能" },
   { route: "project-metrics", label: "指标管理", eyebrow: "分析对象" },
   { route: "onboarding", label: "项目与接入", eyebrow: "配置和排障" },
@@ -119,8 +118,6 @@ watch(
                 route.name === 'feature-detail' &&
                 route.query.evidence === 'task') ||
               (item.route === 'operational-overview' && route.name === 'page-detail') ||
-              (item.route === 'operational-index' &&
-                route.name === 'operational-config') ||
               (item.route === 'project-metrics' && route.name === 'project-metrics'),
           }"
           type="button"

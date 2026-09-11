@@ -10,16 +10,32 @@ import {
 import type { MetricLibraryError } from "../src/metric-library.js";
 import {
   METRIC_CATALOG,
+  IDENTITY_DEFINITION_VERSION,
+  isHistoricalIdentityDefinition,
   unavailableSystemMetricResult,
 } from "../src/system-metric-catalog.js";
 
 describe("read-only system metric catalog", () => {
   it("registers all 35 attachment keys in the five required categories", () => {
-    expect(METRIC_CATALOG).toHaveLength(35);
-    expect(new Set(METRIC_CATALOG.map((item) => item.metricKey)).size).toBe(35);
+    expect(METRIC_CATALOG).toHaveLength(45);
+    expect(new Set(METRIC_CATALOG.map((item) => item.metricKey)).size).toBe(45);
     expect(new Set(METRIC_CATALOG.map((item) => item.category))).toEqual(
       new Set(["usage", "operation", "performance", "stability", "organization"]),
     );
+  });
+
+  it("uses approved identified business identity consistently without UV aliases", () => {
+    for (const key of ["uv", "dau", "wau", "mau", "hourly_distribution"]) {
+      const item = METRIC_CATALOG.find((m) => m.metricKey === key)!;
+      expect(item.definitionVersion).toBe(IDENTITY_DEFINITION_VERSION);
+      expect(item.deduplicationKey).toContain("project-HMAC(userId)");
+      expect(JSON.stringify(item)).not.toContain("deviceId");
+      expect(isHistoricalIdentityDefinition(key, "system-v1.8.0")).toBe(true);
+    }
+    expect(isHistoricalIdentityDefinition("js_error_rate", "system-v1.8.0")).toBe(
+      false,
+    );
+    expect(isHistoricalIdentityDefinition("uv", "unapproved")).toBe(false);
   });
 
   it("provides complete definition, collection and availability metadata", () => {

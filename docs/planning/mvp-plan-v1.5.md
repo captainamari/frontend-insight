@@ -1,5 +1,7 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
+> **当前授权更新 · 2026-09-09**：Jesse 在本次任务中正式确认 Q04、Q05、Q12。Q04 保留同窗口至少两个项目本地日期活跃用户 / 同范围规范 UV，target 0.5，单日不可参与计算；Q05 一天是查询范围或趋势桶，保留 30 分钟无操作会话、会话样本及窗口重新计算 P50；不新增 cohort 留存。质量默认模板业务 owner 为 Jesse（不绑定或虚构权限账户），批准来源为本次正式补充确认与 §18.8，参数版本 `quality-default-2026-09-09.1`。D2、D3-A、D4-A 继续有效；Q07 步骤部分完成度是独立未决扩展，不阻断 R1-C。下文较早日期的“待批准”仅保留为历史评审轨迹，不代表当前状态。完整产品门禁通过后仍须 Jesse 手工验收；不自动合并、不进入 R2。
+
 > 状态：待技术评审<br>
 > 更新日期：2026-08-27<br>
 > 对应需求：[需求文档 v1.8](../product/requirements-v1.8.md)<br>
@@ -479,9 +481,9 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 10.2 质量指标
 
-新增/注册系统原子与派生指标：
+复用并核对R1-B已注册的系统目录，不重复注册；逐项披露公式、范围、来源、样本及实施状态：
 
-- 附件规范 `js_error_rate/resource_error_rate/api_error_rate`，未具备分母前状态为 `partial`，不得用每千 PV 近似替代；
+- 附件规范 `js_error_rate/resource_error_rate/api_error_rate`，按真实事实和查询能力区分 `partial/not_collected`：已有部分事实但规范查询未齐保持partial，真实分母及规范rate查询未交付的API/resource保持not_collected；不得为验收改标签或用每千PV近似替代（2026-09-08 D2）；
 - `lcp`、`inp`、`cls`、`fcp`、`ttfb` 的 sample、规定分位数和 poor rate；
 - error occurrences、affected user/device/page、error group severity 等扩展诊断指标；
 - release/error correlation evidence；
@@ -492,11 +494,14 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 - 默认四维：JS 稳定性、资源稳定性、API 稳定性、页面性能；
 - 每维使用可配置 lower_better/target_range；
 - 规范 key 为 `quality_score`，与 `operational_score` 使用独立 metric library version；
-- 没有足够 PV/性能样本时不可用；
+- 没有对应来源的足够PV、API请求、资源请求或性能样本时不可用，不用PV代替另外两类曝光；
 - “没有错误事件”但链路无数据时不能得到 100；
 - 默认模板先通过 demo fixture 手算，再允许新项目向导选择激活。
+- 默认参数采用需求§18.8的D3-A批准表；一个系统模板降低项目维护负担，参数进入高级配置；业务 owner 已由 Jesse 于 2026-09-09 兼任，批准来源及参数版本随模板保存；不得编造权限账户。fixture始终与真实项目查询隔离。
 
 ### 10.4 测试
+
+下列检查均保留；新增 `score-management.test.ts`、`r1c-integration.ts` 与 `tests/v1.8/r1c`。产品 workflow 先回归 R1-A/R1-B，再在同一空库测试栈完成 R1-C 两类型、两角色、两浏览器流程，避免把两阶段会改变 active/draft 的验收夹具互相混用。失败不跳过、不降门禁。
 
 - [ ] 运营分数与当前固定 fixture 等价；
 - [ ] `js_error_rate/api_error_rate/resource_error_rate` 分别使用附件规定的 PV、API 请求总数和资源请求总数分母；
@@ -510,7 +515,15 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 10.5 阶段门
 
-两个分数都能从总分沿 lineage 下钻到原子事实，并与手算一致。若质量目标仍无业务 owner，不允许用“临时阈值”伪装正式分数。
+2026-09-10 实施记录：两类分数完整产品流程已实现；`0fb2f79` 已通过本节完整自动化、真实 MySQL/API 与双浏览器门禁。最终收尾提交必须在同一 SHA 复核后交付，手工验收待 Jesse 确认。证据见[结果报告](../progress/v1.8-r1c-results.md)。
+
+2026-09-08用户明确选择D4-A，原“本阶段两个分数均下钻到真实原子事实并与手算一致”的阶段门改为分层验收，详见需求§18.8及[评审记录Q13](../progress/v1.8-r1c-review-2026-09-08.md)。这是经批准的验收时点调整，最终真实数值/事实血缘要求仍保留。
+
+- R1-C必须完成运营/质量两类分数完整配置、保存、草稿复用、校验、diff/impact、激活/supersede、废弃、旧快照重激活、不可变快照、版本/环境隔离、解释/雷达/等价表格；不能以现有预检API替代。
+- 通过固定手算、真实MySQL/API配置和不可用行为、Chromium/WebKit两角色两分数完整产品流、全仓及R1-A/B回归；定义血缘展示真实依赖，无事实明确原因。历史试算无事实时不得伪造数值或重标旧结果。
+- 真实任务数值/事实血缘随R4-B验收；质量真分母、性能与评分随R5-A验收；规范UV/会话/日期/page_leave及相关env健康能力随R6和对应事实交付验收。每阶段须将事实接入同一评分实现，保留真实总分和叶子手算对照；不重复实现公式。
+- Q04/Q05 已于 2026-09-09 明确：窗口跨日持续、一天查询范围、既有 30 分钟会话及窗口 P50；质量模板 owner 为 Jesse。Q07 步骤部分完成度仍为独立未决扩展，不阻断完整 R1-C。
+- 单独 foundation 成功不是完整 R1-C 证据。按实现完成、自动化通过、真实集成通过、手工验收待确认分别记录；最终同一提交上的所有适用 Actions 必须通过。用户手工验收通过并确认前，不进入R2–R8、不自动合并refactor。本调整不授权提前开发后续collector。
 
 ## 11. R2：入口页——全部项目
 

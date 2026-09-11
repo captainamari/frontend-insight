@@ -20,12 +20,16 @@ async function choose(
       "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' el-select__wrapper ')][1]",
     )
     .click();
-  const target = page
-    .locator(".el-select-dropdown:visible")
-    .last()
-    .getByRole("option", { name: option, exact: true });
+  const listboxId = await select.getAttribute("aria-controls");
+  expect(
+    listboxId,
+    "select must identify its own options, including during transitions",
+  ).toBeTruthy();
+  const listbox = page.locator(`[id="${listboxId}"]`);
+  const target = listbox.getByRole("option", { name: option, exact: true });
   await expect(target).toBeVisible();
-  await target.dispatchEvent("click");
+  await target.click();
+  await expect(listbox).toBeHidden();
 }
 
 test("admin manages a controlled business metric while system definitions stay read-only", async ({
