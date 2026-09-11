@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { auth } from "../auth";
 import { projects } from "../projects";
 import { isRangePreset, rangeLabels } from "../range";
+import { safeRedirectTarget } from "../project-entry";
 import type { RangePreset } from "../types";
 
 const route = useRoute();
@@ -44,7 +45,7 @@ const selectedRange = computed<RangePreset>({
 const currentProject = computed(() => projects.find(selectedProject.value));
 
 const navigation = [
-  { route: "features", label: "功能采用", eyebrow: "默认首页" },
+  { route: "features", label: "功能采用", eyebrow: "历史页面" },
   { route: "operational-overview", label: "运营概览", eyebrow: "持续使用" },
   { route: "pages", label: "页面访问", eyebrow: "访问证据" },
   { route: "observability", label: "前端可观测性", eyebrow: "错误与性能" },
@@ -70,7 +71,9 @@ async function logout(): Promise<void> {
   await router.replace({ name: "login" });
 }
 
-onMounted(() => void projects.load(true));
+onMounted(() => {
+  if (!route.params.projectId) void projects.load(true);
+});
 watch(
   () => auth.isAuthenticated.value,
   (authenticated) => {
@@ -83,7 +86,7 @@ watch(
 watch(
   () => projects.state.items,
   (items) => {
-    if (!items.length) return;
+    if (!items.length || route.params.projectId) return;
     if (!projects.find(selectedProject.value)) {
       selectedProject.value = items[0]!.id;
     }
@@ -104,6 +107,20 @@ watch(
       </div>
 
       <nav aria-label="主导航" class="primary-nav">
+        <button
+          type="button"
+          class="nav-item"
+          @click="
+            router.push(
+              safeRedirectTarget(
+                route.query.entryReturn,
+                (path) => path.split('?')[0] === '/projects',
+              ),
+            )
+          "
+        >
+          返回全部项目
+        </button>
         <button
           v-for="item in navigation"
           :key="item.route"

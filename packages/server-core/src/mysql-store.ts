@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 import mysql from "mysql2/promise";
+import { MetricLibraryError } from "./metric-library.js";
+import { scoreDigest } from "./score-storage.js";
 import { AnalysisObjectLifecycleError } from "./analysis-objects.js";
 import type {
   DataStatusRecord,
@@ -392,9 +394,17 @@ export class MySqlStore {
            WHERE pm.user_id = ? ORDER BY p.created_at DESC`,
       admin ? [] : [principal.userId],
     );
-    const projects = await Promise.all(
-      rows.map(async (row) =>
-        projectFromRow(row, await this.listOrigins(String(row.id))),
+    const ids = rows.map((row) => String(row.id));
+    const [origins] = ids.length
+      ? await this.pool.query<RowDataPacket[]>(
+          `SELECT project_id,origin FROM project_origins WHERE project_id IN (?) AND enabled=TRUE ORDER BY origin`,
+          [ids],
+        )
+      : [[]];
+    const projects = rows.map((row) =>
+      projectFromRow(
+        row,
+        origins.filter((o) => o.project_id === row.id).map((o) => String(o.origin)),
       ),
     );
     return projects;
@@ -546,12 +556,42 @@ export class MySqlStore {
     retentionDays: number;
     origins: string[];
     actor: Principal;
+    creationId?: string | undefined;
+    templateVersions?: { operational: string; quality: string } | undefined;
+    initialize?:
+      ((connection: PoolConnection, projectId: string) => Promise<void>) | undefined;
   }): Promise<ProjectRecord> {
     const id = randomUUID();
     const appId = `fi_public_${randomUUID().replaceAll("-", "").slice(0, 20)}`;
     const connection = await this.pool.getConnection();
     try {
       await connection.beginTransaction();
+      if (input.creationId) {
+        const digest = scoreDigest({
+          name: input.name,
+          timezone: input.timezone,
+          retentionDays: input.retentionDays,
+          origins: input.origins,
+          templates: input.templateVersions,
+        });
+        await connection.execute(
+          `INSERT INTO project_creation_requests (actor_user_id,request_id,input_digest) VALUES (?,?,?) ON DUPLICATE KEY UPDATE request_id=VALUES(request_id)`,
+          [input.actor.userId, input.creationId, digest],
+        );
+        const [requests] = await connection.query<RowDataPacket[]>(
+          `SELECT input_digest,project_id FROM project_creation_requests WHERE actor_user_id=? AND request_id=? FOR UPDATE`,
+          [input.actor.userId, input.creationId],
+        );
+        if (requests[0]?.input_digest !== digest)
+          throw new MetricLibraryError("PROJECT_CREATION_REQUEST_CONFLICT", 409);
+        if (requests[0]?.project_id) {
+          const existingId = String(requests[0].project_id);
+          await connection.commit();
+          const existing = await this.getProject(existingId);
+          if (!existing) throw new MetricLibraryError("PROJECT_NOT_FOUND", 404);
+          return { ...existing, role: "owner" };
+        }
+      }
       await connection.execute(
         `INSERT INTO projects
            (id, app_id, name, timezone, status, retention_days, created_by_user_id)
@@ -582,6 +622,12 @@ export class MySqlStore {
         entityId: id,
         metadata: { origins: input.origins.length },
       });
+      await input.initialize?.(connection, id);
+      if (input.creationId)
+        await connection.execute(
+          `UPDATE project_creation_requests SET project_id=? WHERE actor_user_id=? AND request_id=?`,
+          [id, input.actor.userId, input.creationId],
+        );
       await connection.commit();
       return {
         id,

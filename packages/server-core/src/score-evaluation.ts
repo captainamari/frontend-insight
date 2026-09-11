@@ -513,6 +513,19 @@ function weightedMean(
   ).value;
 }
 
+export function scoreColor(
+  value: number | null,
+  bands = { greenMinimum: 85, yellowMinimum: 60 },
+): "gray" | "green" | "yellow" | "red" {
+  return value === null
+    ? "gray"
+    : value >= bands.greenMinimum
+      ? "green"
+      : value >= bands.yellowMinimum
+        ? "yellow"
+        : "red";
+}
+
 export function evaluateScore(input: ScoreEvaluationInput) {
   const validation = validateScoreConfiguration(input.configuration, input.binding);
   const { configuration } = validation;
@@ -811,14 +824,7 @@ export function evaluateScore(input: ScoreEvaluationInput) {
     coverage,
     eligibleDimensions: eligible.length,
     dimensions,
-    color:
-      value === null
-        ? "gray"
-        : value >= configuration.colorBands.greenMinimum
-          ? "green"
-          : value >= configuration.colorBands.yellowMinimum
-            ? "yellow"
-            : "red",
+    color: scoreColor(value, configuration.colorBands),
     radar: configuration.radarDimensions.map((dimensionKey) => {
       const dimension = dimensions.find((item) => item.key === dimensionKey)!;
       return {

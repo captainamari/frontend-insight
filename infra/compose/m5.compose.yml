@@ -1,4 +1,23 @@
 services:
+  r2-verifier:
+    build:
+      context: ../..
+      dockerfile: infra/docker/app.Dockerfile
+    command: [pnpm, --filter, "@frontend-insight/server-core", verify:r2]
+    environment:
+      MYSQL_URL: mysql://frontend_insight:${M24_MYSQL_PASSWORD:-m5-mysql-local-only}@mysql:3306/frontend_insight
+      FI_API_URL: http://api:3000
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_USERNAME: frontend_insight
+      CLICKHOUSE_PASSWORD: ${M24_CLICKHOUSE_PASSWORD:-m24-clickhouse-local-only}
+      MYSQL_UPGRADE_URL: mysql://frontend_insight:${M24_MYSQL_PASSWORD:-m5-mysql-local-only}@mysql:3306/frontend_insight_r2_upgrade
+      GITHUB_RUN_ID: ${GITHUB_RUN_ID:-local}
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles: [tools]
+    networks: [m24]
+
   r1b-verifier:
     build:
       context: ../..

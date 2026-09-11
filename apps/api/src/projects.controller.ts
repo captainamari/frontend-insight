@@ -3,7 +3,11 @@ import type {
   Principal,
   ProjectRole,
 } from "@frontend-insight/server-core";
-import { evaluateDataStatus } from "@frontend-insight/server-core";
+import {
+  evaluateDataStatus,
+  defaultScoreTemplate,
+  type ProjectSummaryQuery,
+} from "@frontend-insight/server-core";
 import {
   Body,
   Controller,
@@ -16,6 +20,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
 } from "@nestjs/common";
 import { z } from "zod";
 import { CoreService } from "./core.service.js";
@@ -39,15 +44,41 @@ const origin = z
   .url()
   .refine((value) => {
     const parsed = new URL(value);
-    return ["http:", "https:"].includes(parsed.protocol) && parsed.origin === value;
+    return (
+      ["http:", "https:"].includes(parsed.protocol) &&
+      parsed.origin === value &&
+      !value.includes("*")
+    );
   }, "origin must contain scheme and host only");
 
-const createProjectSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  timezone: timezone.default("UTC"),
-  retentionDays: z.number().int().min(1).max(365).default(90),
-  origins: z.array(origin).min(1).max(20),
-});
+const createProjectSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    timezone: timezone.default("UTC"),
+    retentionDays: z.number().int().min(1).max(365).default(90),
+    origins: z.array(origin).min(1).max(20),
+    creationId: z.string().uuid().optional(),
+    templates: z
+      .object({ operational: z.string().max(120), quality: z.string().max(120) })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export const projectSummarySchema = z
+  .object({
+    search: z.string().trim().max(120).default(""),
+    page: z.coerce.number().int().min(1).max(100000).default(1),
+    pageSize: z.coerce
+      .number()
+      .refine((n) => [12, 24, 48].includes(n))
+      .default(12),
+    env: z.enum(["prod", "staging", "dev"]).default("prod"),
+    range: z.enum(["7d", "30d", "90d", "180d", "365d", "custom"]).default("7d"),
+    from: z.string().datetime({ offset: true }).optional(),
+    to: z.string().datetime({ offset: true }).optional(),
+    locate: z.string().uuid().optional(),
+  })
+  .strict();
 
 const updateProjectSchema = z
   .object({
@@ -106,12 +137,53 @@ export class ProjectsController {
     return this.core.mysql.listProjects(principal);
   }
 
+  @Get("summary")
+  summary(@Query() raw: unknown, @CurrentPrincipal() principal: Principal) {
+    return this.core.projectSummary.summary(
+      principal,
+      parseInput(projectSummarySchema, raw) as ProjectSummaryQuery,
+    );
+  }
+  @Get("templates")
+  templates(@CurrentPrincipal() principal: Principal) {
+    if (principal.globalRole !== "admin")
+      throw new HttpException("WRITE_FORBIDDEN", 403);
+    return {
+      operational: defaultScoreTemplate("operational"),
+      quality: defaultScoreTemplate("quality"),
+    };
+  }
+  @Get(":projectId/access")
+  async access(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    const role = await this.requireProject(principal, projectId, false);
+    const project = await this.core.mysql.getProject(projectId);
+    return { ...project, role };
+  }
+
   @Post()
   async create(@Body() rawBody: unknown, @CurrentPrincipal() principal: Principal) {
     if (principal.globalRole !== "admin")
       throw new HttpException("WRITE_FORBIDDEN", 403);
     const body = parseInput(createProjectSchema, rawBody);
-    return this.core.mysql.createProject({ ...body, actor: principal });
+    const templates = body.templates ?? {
+      operational: defaultScoreTemplate("operational").version,
+      quality: defaultScoreTemplate("quality").version,
+    };
+    return this.core.mysql.createProject({
+      ...body,
+      templateVersions: templates,
+      actor: principal,
+      initialize: (connection, projectId) =>
+        this.core.scores.initializeProject(connection, {
+          projectId,
+          timezone: body.timezone,
+          actor: principal,
+          templates,
+        }),
+    });
   }
 
   @Patch(":projectId")

@@ -13,7 +13,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "migrate": "tsx src/cli.ts",
-    "verify": "tsx src/verify.ts"
+    "verify": "tsx src/verify.ts",
+    "verify:r2-upgrade": "tsx src/verify-r2-upgrade.ts"
   },
   "dependencies": {
     "@clickhouse/client": "1.23.1",

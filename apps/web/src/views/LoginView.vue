@@ -3,6 +3,7 @@ import { reactive, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ApiError } from "../api";
 import { auth } from "../auth";
+import { safeRedirectTarget } from "../project-entry";
 
 const route = useRoute();
 const router = useRouter();
@@ -17,8 +18,13 @@ async function submit(): Promise<void> {
   requestId.value = null;
   try {
     await auth.login(form.email, form.password);
-    const redirect =
-      typeof route.query.redirect === "string" ? route.query.redirect : "/features";
+    const redirect = safeRedirectTarget(route.query.redirect, (path) => {
+      const target = router.resolve(path);
+      return (
+        target.matched.length > 0 &&
+        target.matched.every((record) => record.path !== "/:pathMatch(.*)*")
+      );
+    });
     await router.replace(redirect);
   } catch (cause) {
     const apiError = cause instanceof ApiError ? cause : null;

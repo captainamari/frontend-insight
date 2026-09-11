@@ -14,6 +14,11 @@ const state = reactive<{
 
 export const projects = {
   state,
+  remember(project: Project): void {
+    const index = state.items.findIndex((p) => p.id === project.id);
+    if (index >= 0) state.items[index] = project;
+    else state.items.push(project);
+  },
   active: computed(() => state.items.filter((project) => project.status === "active")),
   async load(force = false): Promise<Project[]> {
     if (state.loaded && !force) return state.items;

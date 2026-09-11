@@ -1,5 +1,7 @@
 # ADR-019：分数快照、评审与观察范围
 
+> **手工验收与 R2 继承更新 · 2026-09-11**：Jesse 在本会话明确确认“本次手工验收通过”，对应 R1-C `d37059bb32daf2c857747905d0873b719c323de8`，其 [Actions](https://github.com/captainamari/frontend-insight/actions/runs/34451705146) 为 success。已由用户合入 `refactor`；R2 从合并提交 `cfd90863827b7dad64007bcfd681f0b7d29e3489` 创建 `agent/v1-8-r2-project-entry`。下文旧“待手工验收/不进入 R2”保留为历史，已由本确认解除，不再阻断 R2；未补写任何未执行的手工用例。这不代表 R2 已验收，也不代表 R4-B/R5-A/R6 事实已交付。不授权代理合并或修改 refactor/main。
+
 状态：已实现；完整产品门禁在 `0fb2f79` 通过，最终提交继续同 SHA 复核。依据 Jesse 2026-09-09 已批准的 Q04/Q05/Q12、D2、D3-A、D4-A；手工验收待确认。
 
 ## 决策与依据

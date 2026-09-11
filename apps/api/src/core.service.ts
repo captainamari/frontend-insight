@@ -5,6 +5,7 @@ import {
   KafkaEnvelopePublisher,
   MetricLibraryService,
   ScoreManagementService,
+  ProjectSummaryService,
   MySqlStore,
   ObservabilityStore,
 } from "@frontend-insight/server-core";
@@ -52,6 +53,12 @@ export class CoreService implements OnModuleDestroy {
       database: this.environment.CLICKHOUSE_DATABASE,
     },
     this.mysql,
+  );
+
+  readonly projectSummary = new ProjectSummaryService(
+    this.mysql,
+    this.scores,
+    this.analytics,
   );
 
   async onModuleDestroy(): Promise<void> {
