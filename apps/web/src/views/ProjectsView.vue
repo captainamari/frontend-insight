@@ -48,6 +48,7 @@ const form = reactive({
 });
 let creationId = crypto.randomUUID(),
   lastBody = "";
+let createdLocateId: string | null = null;
 const nameInput = ref<HTMLInputElement | null>(null),
   createButton = ref<HTMLButtonElement | null>(null);
 const invalidate = () => {
@@ -64,7 +65,7 @@ function queryString() {
 async function change(values: Record<string, string | undefined>, replace = false) {
   invalidate();
   clearTimeout(timer);
-  const query = { ...route.query, ...values };
+  const query = { ...route.query, search: search.value.trim(), ...values };
   await router[replace ? "replace" : "push"]({ path: "/projects", query });
 }
 function searchChanged() {
@@ -174,7 +175,12 @@ function customRange() {
     error.value = "请输入有效的 UTC 起止时间。";
   }
 }
+function focusAfterCreate() {
+  if (createdLocateId) document.getElementById("project-" + createdLocateId)?.focus();
+  else createButton.value?.focus();
+}
 async function openCreate() {
+  createdLocateId = null;
   dialog.value = true;
   createError.value = "";
   templateLoading.value = true;
@@ -228,6 +234,7 @@ async function create() {
       method: "POST",
       body: JSON.stringify({ ...body, creationId }),
     });
+    createdLocateId = project.id;
     dialog.value = false;
     projects.reset();
     notice.value = `已创建“${project.name}”。已按名称搜索并定位新项目；两类模板已保存为待确认草稿。`;
@@ -519,7 +526,7 @@ onBeforeUnmount(() => {
       :close-on-press-escape="!saving"
       :show-close="!saving"
       @opened="nameInput?.focus()"
-      @closed="createButton?.focus()"
+      @closed="focusAfterCreate"
     >
       <form class="entry-create-form" @submit.prevent="create">
         <p>运营与质量模板分别保存为草稿。创建后还需确认业务配置、评审并激活。</p>

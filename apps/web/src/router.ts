@@ -77,8 +77,11 @@ export const router = createRouter({
   ],
 });
 
+let navigationGeneration = 0;
 router.beforeEach(async (to) => {
+  const generation = ++navigationGeneration;
   await auth.initialize();
+  if (generation !== navigationGeneration) return false;
   if (to.name !== "login" && !auth.isAuthenticated.value) {
     return { name: "login", query: { redirect: to.fullPath } };
   }
@@ -95,8 +98,10 @@ router.beforeEach(async (to) => {
         const project = await api.request<Project>(
           "/api/projects/" + encodeURIComponent(projectId) + "/access",
         );
+        if (generation !== navigationGeneration) return false;
         projects.remember(project);
       } catch (error) {
+        if (generation !== navigationGeneration) return false;
         return {
           name: "project-access-error",
           params: { projectId },

@@ -1,3 +1,7 @@
+import {
+  CANONICAL_ENVIRONMENTS,
+  CANONICAL_RANGES,
+} from "@frontend-insight/event-contract";
 import type {
   FeatureType,
   Principal,
@@ -72,8 +76,8 @@ export const projectSummarySchema = z
       .number()
       .refine((n) => [12, 24, 48].includes(n))
       .default(12),
-    env: z.enum(["prod", "staging", "dev"]).default("prod"),
-    range: z.enum(["7d", "30d", "90d", "180d", "365d", "custom"]).default("7d"),
+    env: z.enum(CANONICAL_ENVIRONMENTS).default("prod"),
+    range: z.enum(CANONICAL_RANGES.map((r) => r.key)).default("7d"),
     from: z.string().datetime({ offset: true }).optional(),
     to: z.string().datetime({ offset: true }).optional(),
     locate: z.string().uuid().optional(),

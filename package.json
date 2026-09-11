@@ -34,7 +34,7 @@
     "check": "pnpm format:check && pnpm check:workspace && pnpm contract:check && pnpm canonical:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "test:r1c": "vitest run packages/server-core/test/score-evaluation.test.ts packages/server-core/test/quality-score-evaluation.test.ts apps/api/test/score-preflight.controller.test.ts packages/server-core/test/score-management.test.ts apps/api/test/score-management.controller.test.ts",
     "test:r1c:e2e": "playwright test --config playwright.r1c.config.ts",
-    "test:r2": "vitest run packages/server-core/test/project-summary.test.ts apps/api/test/projects.controller.test.ts apps/web/test/project-entry.test.ts",
+    "test:r2": "vitest run packages/server-core/test/project-summary.test.ts apps/api/test/projects.controller.test.ts apps/web/test/project-entry.test.ts apps/web/test/projects.test.ts",
     "test:r2:e2e": "playwright test --config playwright.r2.config.ts"
   },
   "devDependencies": {

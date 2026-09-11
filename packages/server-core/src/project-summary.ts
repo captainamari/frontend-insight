@@ -374,7 +374,8 @@ export class ProjectSummaryService {
         metadataQueries,
         transactionStatements,
         clickHouseQueries: rows.length ? 1 : 0,
-        clickHouse: factFailure ? null : facts.statistics,
+        clickHouse:
+          factFailure || principal.globalRole !== "admin" ? null : facts.statistics,
         elapsedMs: performance.now() - started,
       },
     };

@@ -9,6 +9,7 @@ import {
   Catch,
   createParamDecorator,
   HttpException,
+  Logger,
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { ArgumentsHost, ExecutionContext } from "@nestjs/common";
@@ -119,6 +120,36 @@ export class ApiExceptionFilter implements ExceptionFilter {
       code = cause.message;
       message = cause.message;
       statusCode = cause.message.endsWith("NOT_FOUND") ? 404 : 400;
+    }
+
+    if (statusCode === 500) {
+      const diagnostic = cause as {
+        code?: unknown;
+        name?: unknown;
+        errno?: unknown;
+        stack?: unknown;
+      };
+      // Never log SQL/message/body/token: SQL driver messages may include business values.
+      Logger.error(
+        JSON.stringify({
+          event: "api.internal_error",
+          requestId: request.id,
+          errorCode:
+            typeof diagnostic?.code === "string" && /^[A-Z0-9_]+$/.test(diagnostic.code)
+              ? diagnostic.code
+              : "UNEXPECTED_ERROR",
+          errorName: cause instanceof Error ? cause.name : "UnknownError",
+          errno: typeof diagnostic?.errno === "number" ? diagnostic.errno : null,
+          frames:
+            cause instanceof Error
+              ? cause.stack
+                  ?.split("\n")
+                  .filter((line) => /^\s+at /.test(line))
+                  .slice(0, 4)
+              : [],
+        }),
+        "ApiExceptionFilter",
+      );
     }
 
     void response.status(statusCode).send({

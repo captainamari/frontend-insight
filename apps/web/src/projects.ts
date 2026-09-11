@@ -12,9 +12,12 @@ const state = reactive<{
   loaded: false,
 });
 
+let generation = 0;
 export const projects = {
   state,
   remember(project: Project): void {
+    generation++;
+    state.loading = false;
     const index = state.items.findIndex((p) => p.id === project.id);
     if (index >= 0) state.items[index] = project;
     else state.items.push(project);
@@ -22,19 +25,23 @@ export const projects = {
   active: computed(() => state.items.filter((project) => project.status === "active")),
   async load(force = false): Promise<Project[]> {
     if (state.loaded && !force) return state.items;
+    const current = ++generation;
     state.loading = true;
     try {
-      state.items = await api.listProjects();
+      const items = await api.listProjects();
+      if (current !== generation) return state.items;
+      state.items = items;
       state.loaded = true;
       return state.items;
     } finally {
-      state.loading = false;
+      if (current === generation) state.loading = false;
     }
   },
   async refresh(): Promise<Project[]> {
     return this.load(true);
   },
   reset(): void {
+    generation++;
     state.items = [];
     state.loaded = false;
     state.loading = false;

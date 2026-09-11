@@ -530,27 +530,29 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 11. R2：入口页——全部项目
 
-建议分支：`agent/v1-8-r2-project-entry`
+实际分支：`agent/v1-8-r2-project-entry`
+
+2026-09-11：以下勾选表示代码已实现，不表示阶段已验收。本地 `pnpm check` 272项通过；本次真实集成、双浏览器、性能和最终同提交 Actions 正在验证，手工验收待 Jesse。详见 [R2 results](../progress/v1.8-r2-results.md)。
 
 ### 11.1 后端
 
-- [ ] `GET /api/projects/summary`：search、page、pageSize、time range；
-- [ ] 一次批量查询返回项目、角色、两类分数、链路和更新时间；
-- [ ] 告警优先 + 更新时间排序；
-- [ ] 分数 unavailable reasons；
-- [ ] viewer 项目授权过滤；
-- [ ] 查询指标和 N+1 防护测试。
+- [x] `GET /api/projects/summary`：search、page、pageSize、time range；
+- [x] 一次批量查询返回项目、角色、两类分数、链路和更新时间；
+- [x] 告警优先 + 更新时间排序；
+- [x] 分数 unavailable reasons；
+- [x] viewer 项目授权过滤；
+- [x] 查询指标和 N+1 防护测试。
 
 ### 11.2 前端
 
-- [ ] 新 `ProjectsView`；
-- [ ] 登录成功和根路由进入 `/projects`；
-- [ ] 模糊搜索、防抖、创建项目弹窗；
-- [ ] 运营/质量分数、状态、链路、更新时间；
-- [ ] 12/24/48 分页；
-- [ ] loading/empty/error/forbidden；
-- [ ] 创建成功定位新项目；
-- [ ] 点击进入项目概览。
+- [x] 新 `ProjectsView`；
+- [x] 登录成功和根路由进入 `/projects`；
+- [x] 模糊搜索、防抖、创建项目弹窗；
+- [x] 运营/质量分数、状态、链路、更新时间；
+- [x] 12/24/48 分页；
+- [x] loading/empty/error/forbidden；
+- [x] 创建成功定位新项目；
+- [x] 点击进入项目：本会话确认暂到已验收「指标管理」，携带 projectId/env/范围；完整概览仍由 R3 交付（见 R2 decisions D-R2-01）。
 
 ### 11.3 E2E
 
