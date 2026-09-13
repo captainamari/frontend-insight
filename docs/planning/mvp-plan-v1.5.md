@@ -532,7 +532,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 实际分支：`agent/v1-8-r2-project-entry`
 
-2026-09-11：以下勾选表示代码已实现，不表示阶段已验收。本地 `pnpm check` 272项通过；本次真实集成、双浏览器、性能和最终同提交 Actions 正在验证，手工验收待 Jesse。详见 [R2 results](../progress/v1.8-r2-results.md)。
+2026-09-11：以下勾选表示代码已实现，不表示阶段已验收。本地 `pnpm check` 279项通过；本次真实集成、双浏览器、性能和最终同提交 Actions 正在验证，手工验收待 Jesse。详见 [R2 results](../progress/v1.8-r2-results.md)。
 
 ### 11.1 后端
 

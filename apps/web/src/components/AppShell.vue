@@ -84,14 +84,15 @@ watch(
   },
 );
 watch(
-  () => projects.state.items,
-  (items) => {
+  () => projects.state.items.map((project) => project.id).join(","),
+  () => {
+    const items = projects.state.items;
     if (!items.length || route.params.projectId) return;
     if (!projects.find(selectedProject.value)) {
       selectedProject.value = items[0]!.id;
     }
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 );
 </script>
 

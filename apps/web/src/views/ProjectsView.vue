@@ -202,6 +202,7 @@ async function create() {
     .map((v) => v.trim())
     .filter(Boolean);
   try {
+    if (/^[+-]/.test(form.timezone)) throw Error();
     new Intl.DateTimeFormat("en", { timeZone: form.timezone });
     if (!form.name.trim() || !origins.length) throw Error();
     for (const value of origins) {
@@ -482,6 +483,11 @@ onBeforeUnmount(() => {
                 {{ score.scoreKey === "operational_score" ? "运营" : "质量" }}版本：{{
                   score.versionId ?? "—"
                 }}<br />生效时间：{{ date(score.availableFrom, card.timezone) }}
+                <br />计算环境：{{ score.context.env }} · 时区：{{
+                  score.context.timezone
+                }}
+                <br />计算范围：{{ score.context.from }} 至
+                {{ score.context.to }}（不含结束）
               </p>
             </details>
             <button class="entry-primary enter-project" @click="enter(card)">

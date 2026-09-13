@@ -1,4 +1,4 @@
-import { CANONICAL_RANGES } from "@frontend-insight/event-contract";
+import { CANONICAL_RANGES } from "@frontend-insight/event-contract/canonical";
 export const projectRangeLabels = {
   "7d": "最近 7 天",
   "30d": "最近 30 天",
@@ -154,12 +154,14 @@ const reasonLabels: Record<string, string> = {
 export function entryReason(reason: string): string {
   const parts = reason.split(":"),
     code = parts.pop()!;
-  const prefix = parts.shift();
-  return (
-    (prefix === "operational_score"
-      ? "运营："
-      : prefix === "quality_score"
-        ? "质量："
-        : "") + (reasonLabels[code] ?? code)
-  );
+  let family = "";
+  if (parts[0] === "operational_score") {
+    family = "运营：";
+    parts.shift();
+  } else if (parts[0] === "quality_score") {
+    family = "质量：";
+    parts.shift();
+  }
+  const subject = parts.join(" · ");
+  return family + (subject ? subject + "：" : "") + (reasonLabels[code] ?? code);
 }

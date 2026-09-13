@@ -586,9 +586,22 @@ export class MySqlStore {
           throw new MetricLibraryError("PROJECT_CREATION_REQUEST_CONFLICT", 409);
         if (requests[0]?.project_id) {
           const existingId = String(requests[0].project_id);
+          // Reuse this connection: holding a transaction connection while waiting for
+          // another pool connection deadlocks when simultaneous retries fill the pool.
+          const [existingRows] = await connection.query<RowDataPacket[]>(
+            "SELECT * FROM projects WHERE id=?",
+            [existingId],
+          );
+          const [origins] = await connection.query<RowDataPacket[]>(
+            "SELECT origin FROM project_origins WHERE project_id=? AND enabled=TRUE ORDER BY origin",
+            [existingId],
+          );
+          if (!existingRows[0]) throw new MetricLibraryError("PROJECT_NOT_FOUND", 404);
+          const existing = projectFromRow(
+            existingRows[0],
+            origins.map((row) => String(row.origin)),
+          );
           await connection.commit();
-          const existing = await this.getProject(existingId);
-          if (!existing) throw new MetricLibraryError("PROJECT_NOT_FOUND", 404);
           return { ...existing, role: "owner" };
         }
       }

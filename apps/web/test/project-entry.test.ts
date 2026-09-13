@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { safeRedirectTarget } from "../src/project-entry";
+import { safeRedirectTarget, entryReason } from "../src/project-entry";
 describe("R2 safe deep link", () => {
   it.each([
     "https://evil.test",
@@ -18,4 +18,15 @@ describe("R2 safe deep link", () => {
     expect(safeRedirectTarget(path, () => true)).toBe(path);
     expect(safeRedirectTarget("/unknown", () => false)).toBe("/projects");
   });
+});
+
+it("R2 preserves distinct metric facts when translating all unavailable reasons", () => {
+  const reasons = [
+    "operational_score:pv:METRIC_PARTIAL",
+    "operational_score:uv:METRIC_PARTIAL",
+    "quality_score:js_error_rate:METRIC_PARTIAL",
+  ].map(entryReason);
+  expect(new Set(reasons).size).toBe(3);
+  expect(reasons[0]).toContain("运营：pv");
+  expect(reasons[2]).toContain("质量：js_error_rate");
 });

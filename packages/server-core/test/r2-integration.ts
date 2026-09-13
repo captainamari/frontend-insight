@@ -49,6 +49,7 @@ async function call<T>(
   status = 200,
 ): Promise<T> {
   const r = await fetch(apiUrl + path, {
+    signal: AbortSignal.timeout(15000),
     method,
     headers: {
       authorization: "Bearer " + token,
@@ -147,6 +148,15 @@ try {
     call<ProjectRecord>(adminToken, "/api/projects", "POST", request, 201),
   ]);
   assert.equal(first.id, retry.id);
+  const simultaneousRetries = await Promise.all(
+    Array.from({ length: 12 }, () =>
+      call<ProjectRecord>(adminToken, "/api/projects", "POST", request, 201),
+    ),
+  );
+  assert(
+    simultaneousRetries.every((project) => project.id === first.id),
+    "retries exceeding pool size stay idempotent without connection starvation",
+  );
   await call(
     adminToken,
     "/api/projects",
@@ -275,6 +285,8 @@ try {
   );
   assert(result.items.every((p) => p.pipeline.state === "unknown"));
   const second = await call<Summary>(adminToken, query({ page: "2" }));
+  assert.equal(second.diagnostics.metadataQueries, 4);
+  assert.equal(second.diagnostics.clickHouseQueries, 1);
   assert.equal(new Set([...result.items, ...second.items].map((p) => p.id)).size, 20);
   for (const pageSize of ["24", "48"])
     assert.equal(
@@ -421,7 +433,7 @@ try {
   }
   const sorted = [...durations].sort((a, b) => a - b),
     p95 = sorted[Math.ceil(sorted.length * 0.95) - 1]!;
-  assert(p95 <= 2000, `20-project API p95 exceeded: ${p95}`);
+
   Object.assign(evidence, {
     implementation: "R2",
     realMySqlApi: "passed",
@@ -446,6 +458,7 @@ try {
       method: "5 warmups then 40 sequential requests; nearest-rank p95",
       durationsMs: durations,
       p95Ms: p95,
+      passed: p95 <= 2000,
       maxRowsRead: scan,
     },
     manualAcceptance: "pending Jesse",
@@ -454,6 +467,8 @@ try {
   mkdirSync(dir, { recursive: true });
   writeFileSync(dir + "/r2-integration.json", JSON.stringify(evidence, null, 2));
   console.log(JSON.stringify(evidence));
+  assert(scan > 0, "ClickHouse scan statistics must be observed");
+  assert(p95 <= 2000, `20-project API p95 exceeded: ${p95}`);
 } finally {
   await Promise.all([mysql.close(), analytics.close(), ch.close()]);
 }

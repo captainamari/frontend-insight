@@ -6,3 +6,8 @@ node_modules
 npm-debug.log*
 docs
 .env*
+
+# Generated verification evidence stays on host/mounted evidence volumes.
+artifacts
+test-results
+playwright-report

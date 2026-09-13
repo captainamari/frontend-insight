@@ -43,6 +43,8 @@ describe("R2 API authorization and input boundary", () => {
     "https://example.com/#hash",
     "https://user:password@example.com",
     "file:///x",
+    "not-a-url",
+    "https://",
   ])("rejects non-exact origin %s", async (origin) => {
     const { c, core } = setup();
     await expect(
@@ -54,6 +56,7 @@ describe("R2 API authorization and input boundary", () => {
     const { c } = setup();
     for (const values of [
       { timezone: "no/such_zone" },
+      { timezone: "+05:00" },
       { retentionDays: 0 },
       { retentionDays: 366 },
       { role: "owner" },

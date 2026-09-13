@@ -1,4 +1,4 @@
-import { CANONICAL_ROUTES } from "@frontend-insight/event-contract";
+import { CANONICAL_ROUTES } from "@frontend-insight/event-contract/canonical";
 import { createRouter, createWebHistory } from "vue-router";
 import { auth } from "./auth";
 import { api, ApiError } from "./api";

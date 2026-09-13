@@ -78,6 +78,10 @@ test("admin real login, search, paging, failed create retention, templates and p
   await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue(
     "不存在的项目xyz",
   );
+  await page.getByRole("button", { name: "清空搜索", exact: true }).first().click();
+  await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue("");
+  await expect(page).toHaveURL(/search=(?:&|$)/);
+  await search(page, "不存在的项目xyz");
   await page.getByRole("button", { name: "新建项目", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "新建项目" });
   await expect(dialog.getByLabel("项目名称", { exact: true })).toBeFocused();
@@ -184,6 +188,8 @@ test("request generations isolate delayed search and env responses", async ({
   await ready(page);
   let held: (() => void) | undefined;
   let oldStarted: (() => void) | undefined;
+  let completed: (() => void) | undefined;
+  const done = new Promise<void>((r) => (completed = r));
   const start = new Promise<void>((r) => (oldStarted = r));
   const hold = new Promise<void>((r) => (held = r));
   await page.route("**/api/projects/summary?**", async (route) => {
@@ -193,6 +199,7 @@ test("request generations isolate delayed search and env responses", async ({
       oldStarted?.();
       await hold;
       await route.fulfill({ response: result });
+      completed?.();
     } else await route.continue();
   });
   await page.getByLabel("项目名称", { exact: true }).fill("旧搜索");
@@ -202,6 +209,7 @@ test("request generations isolate delayed search and env responses", async ({
   await expect(page).toHaveURL(/env=staging/);
   await ready(page);
   held?.();
+  await done;
   await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue("R2 入口验收");
   await expect(page.locator(".project-entry-card")).toHaveCount(12);
   await expect(page.getByText("没有符合条件的项目")).toHaveCount(0);
@@ -215,6 +223,8 @@ test("isolated old active-version response cannot overwrite a newer env and page
   let release: (() => void) | undefined, started: (() => void) | undefined;
   const held = new Promise<void>((r) => (release = r)),
     pending = new Promise<void>((r) => (started = r));
+  let completed: (() => void) | undefined;
+  const done = new Promise<void>((r) => (completed = r));
   let first = true;
   await page.route("**/api/projects/summary?**", async (route) => {
     const old = first;
@@ -236,6 +246,7 @@ test("isolated old active-version response cannot overwrite a newer env and page
       await held;
     }
     await route.fulfill({ json: body });
+    if (old) completed?.();
   });
   await page.getByRole("button", { name: "刷新列表", exact: true }).click();
   await pending;
@@ -244,6 +255,7 @@ test("isolated old active-version response cannot overwrite a newer env and page
   await page.getByRole("button", { name: "下一页", exact: true }).click();
   await expect(page).toHaveURL(/page=2/);
   release?.();
+  await done;
   await expect(page.locator(".project-entry-card")).toContainText("102");
   await expect(page.locator(".project-entry-card")).toContainText("201");
   await expect(page.locator(".project-entry-card")).not.toContainText("101");
@@ -297,6 +309,11 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
             ? "normal"
             : "insufficient_data";
     card.reasons = reason ? [reason] : [];
+    card.data.reason = reason;
+    card.data.state =
+      reason === "FIRST_NOT_CONNECTED" || reason === "NO_EVENTS_IN_RANGE"
+        ? "no_data"
+        : "partial";
     return card;
   }
   const cards = [
@@ -308,6 +325,10 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
     fixture(null, "no_data", "MISSING_CONFIGURATION", "合成待配置"),
     fixture(null, "unknown", "SCORE_MINIMUM_SAMPLE_NOT_MET", "合成样本不足"),
     fixture(null, "broken", "MISSING_CONFIGURATION", "合成链路异常"),
+    fixture(null, "delayed", "INGESTION_BEHIND_RECEIVE", "合成链路延迟"),
+    fixture(null, "unknown", "NO_EVENTS_IN_RANGE", "合成范围无访问"),
+    fixture(null, "no_data", "FIRST_NOT_CONNECTED", "合成首次未接入"),
+    fixture(null, "unknown", "ENV_EXPOSURE_NOT_VERIFIED", "合成部分事实"),
   ];
   let requests = 0,
     fail = true;
@@ -329,7 +350,7 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
       json: {
         ...real.body,
         items: cards,
-        total: 8,
+        total: cards.length,
         page: 1,
         search: q.get("search") ?? "",
         query: { ...real.body.query, env: q.get("env") ?? "prod" },
@@ -371,6 +392,7 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
 test("20 project first usable browser p95 including navigation, script and single summary", async ({
   page,
   browserName,
+  browser,
 }) => {
   test.setTimeout(120000);
   await login(page, "viewer");
@@ -397,10 +419,10 @@ test("20 project first usable browser p95 including navigation, script and singl
     }
     page.off("request", listener);
   }
-  expect(requests.every((n) => n === 1)).toBe(true);
+
   const sorted = [...times].sort((a, b) => a - b),
     p95 = sorted[Math.ceil(times.length * 0.95) - 1]!;
-  expect(p95).toBeLessThanOrEqual(2000);
+
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     `artifacts/r2-browser-performance-${browserName}.json`,
@@ -408,6 +430,8 @@ test("20 project first usable browser p95 including navigation, script and singl
       {
         testedCommit: process.env.GITHUB_SHA,
         browser: browserName,
+        browserVersion: browser.version(),
+        viewport: page.viewportSize(),
         projects: 20,
         pageSize: 24,
         method:
@@ -415,9 +439,12 @@ test("20 project first usable browser p95 including navigation, script and singl
         durationsMs: times,
         summaryRequests: requests,
         p95Ms: p95,
+        passed: p95 <= 2000,
       },
       null,
       2,
     ),
   );
+  expect(requests.every((n) => n === 1)).toBe(true);
+  expect(p95).toBeLessThanOrEqual(2000);
 });

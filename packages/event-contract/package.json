@@ -8,6 +8,10 @@
       "types": "./src/index.ts",
       "import": "./dist/src/index.js"
     },
+    "./canonical": {
+      "types": "./src/generated/canonical-names.ts",
+      "import": "./dist/src/generated/canonical-names.js"
+    },
     "./constants": {
       "types": "./src/constants.ts",
       "import": "./dist/src/constants.js"

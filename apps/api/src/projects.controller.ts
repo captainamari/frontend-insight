@@ -36,6 +36,7 @@ const timezone = z
   .max(64)
   .refine((value) => {
     try {
+      if (/^[+-]/.test(value)) return false;
       new Intl.DateTimeFormat("en-US", { timeZone: value });
       return true;
     } catch {
@@ -47,12 +48,16 @@ const origin = z
   .string()
   .url()
   .refine((value) => {
-    const parsed = new URL(value);
-    return (
-      ["http:", "https:"].includes(parsed.protocol) &&
-      parsed.origin === value &&
-      !value.includes("*")
-    );
+    try {
+      const parsed = new URL(value);
+      return (
+        ["http:", "https:"].includes(parsed.protocol) &&
+        parsed.origin === value &&
+        !value.includes("*")
+      );
+    } catch {
+      return false;
+    }
   }, "origin must contain scheme and host only");
 
 const createProjectSchema = z
@@ -63,7 +68,10 @@ const createProjectSchema = z
     origins: z.array(origin).min(1).max(20),
     creationId: z.string().uuid().optional(),
     templates: z
-      .object({ operational: z.string().max(120), quality: z.string().max(120) })
+      .object({
+        operational: z.string().min(1).max(120),
+        quality: z.string().min(1).max(120),
+      })
       .strict()
       .optional(),
   })
