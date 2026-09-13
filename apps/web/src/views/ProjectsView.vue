@@ -345,6 +345,7 @@ onBeforeUnmount(() => {
         <label
           >环境<select
             v-model="env"
+            aria-label="环境"
             @change="change({ env, page: '1', locate: undefined })"
           >
             <option value="prod">生产 prod</option>

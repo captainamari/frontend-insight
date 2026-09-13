@@ -17,7 +17,7 @@ async function ready(page: Page) {
   await expect(page.getByText("正在加载项目…")).toHaveCount(0);
 }
 async function search(page: Page, text: string) {
-  await page.getByLabel("项目名称", { exact: true }).fill(text);
+  await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill(text);
   await expect(page).toHaveURL(
     new RegExp("search=" + encodeURIComponent(text).replace(/%20/g, "(?:%20|\\+)")),
   );
@@ -75,11 +75,13 @@ test("admin real login, search, paging, failed create retention, templates and p
   await expect(page.getByLabel("每页项目数")).toHaveValue("48");
   await search(page, "不存在的项目xyz");
   await expect(page.getByRole("heading", { name: "没有符合条件的项目" })).toBeVisible();
-  await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue(
-    "不存在的项目xyz",
-  );
+  await expect(
+    page.getByRole("searchbox", { name: "项目名称", exact: true }),
+  ).toHaveValue("不存在的项目xyz");
   await page.getByRole("button", { name: "清空搜索", exact: true }).first().click();
-  await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue("");
+  await expect(
+    page.getByRole("searchbox", { name: "项目名称", exact: true }),
+  ).toHaveValue("");
   await expect(page).toHaveURL(/search=(?:&|$)/);
   await search(page, "不存在的项目xyz");
   await page.getByRole("button", { name: "新建项目", exact: true }).click();
@@ -114,7 +116,9 @@ test("admin real login, search, paging, failed create retention, templates and p
   await expect(dialog).toBeHidden();
   await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   await expect(page.locator(".located")).toBeFocused();
-  await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue(name);
+  await expect(
+    page.getByRole("searchbox", { name: "项目名称", exact: true }),
+  ).toHaveValue(name);
   const card = page.locator(".located"),
     id = (await card.getAttribute("id"))!.replace("project-", "");
   await expect(card.locator(".entry-score strong")).toHaveText(["—", "—"]);
@@ -202,7 +206,7 @@ test("request generations isolate delayed search and env responses", async ({
       completed?.();
     } else await route.continue();
   });
-  await page.getByLabel("项目名称", { exact: true }).fill("旧搜索");
+  await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill("旧搜索");
   await start;
   await search(page, "R2 入口验收");
   await page.getByLabel("环境", { exact: true }).selectOption("staging");
@@ -210,7 +214,9 @@ test("request generations isolate delayed search and env responses", async ({
   await ready(page);
   held?.();
   await done;
-  await expect(page.getByLabel("项目名称", { exact: true })).toHaveValue("R2 入口验收");
+  await expect(
+    page.getByRole("searchbox", { name: "项目名称", exact: true }),
+  ).toHaveValue("R2 入口验收");
   await expect(page.locator(".project-entry-card")).toHaveCount(12);
   await expect(page.getByText("没有符合条件的项目")).toHaveCount(0);
 });
@@ -370,16 +376,16 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
     ["合成八十五", "green", "85.00", "正常"],
     ["合成待配置", "gray", "—", "待配置"],
   ]) {
-    const card = page.getByRole("article", { name: name! });
+    const card = page.getByRole("article", { name: name!, exact: true });
     await expect(card.locator(".entry-score").first()).toHaveClass(new RegExp(color!));
     await expect(card.locator(".entry-score strong").first()).toHaveText(value!);
     await expect(card.locator(".project-state")).toHaveText(state!);
   }
   const before = requests;
   await page.clock.install();
-  await page.getByLabel("项目名称", { exact: true }).fill("中");
+  await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill("中");
   await page.clock.fastForward(100);
-  await page.getByLabel("项目名称", { exact: true }).fill("中文");
+  await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill("中文");
   await page.clock.fastForward(299);
   expect(requests).toBe(before);
   await page.clock.fastForward(1);
@@ -446,5 +452,14 @@ test("20 project first usable browser p95 including navigation, script and singl
     ),
   );
   expect(requests.every((n) => n === 1)).toBe(true);
+  console.log(
+    JSON.stringify({
+      testedCommit: process.env.GITHUB_SHA,
+      browser: browserName,
+      p95Ms: p95,
+      durationsMs: times,
+      summaryRequests: requests,
+    }),
+  );
   expect(p95).toBeLessThanOrEqual(2000);
 });
