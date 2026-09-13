@@ -94,6 +94,16 @@ jobs:
       - name: Run R2 Chromium and WebKit full admin and viewer flows
         run: pnpm test:r2:e2e
 
+      - name: Verify project search values stay out of access logs
+        run: |
+          curl --silent --output /dev/null 'http://127.0.0.1:4173/api/projects/summary?search=FI_R2_PRIVATE_QUERY_SENTINEL'
+          ./scripts/dev logs web > /tmp/r2-web-access.log
+          if grep -q FI_R2_PRIVATE_QUERY_SENTINEL /tmp/r2-web-access.log; then
+            echo 'R2 search value leaked into web access logs'
+            exit 1
+          fi
+          grep -q '"requestId"' /tmp/r2-web-access.log
+
       - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts

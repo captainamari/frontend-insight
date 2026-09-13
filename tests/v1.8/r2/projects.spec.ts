@@ -382,7 +382,10 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
     await expect(card.locator(".project-state")).toHaveText(state!);
   }
   const before = requests;
-  await page.clock.install();
+  // install() alone keeps advancing with wall time between Playwright actions.
+  // Pause before input so 299 + 1 ms tests the actual debounce boundary.
+  await page.clock.install({ time: new Date("2026-09-13T12:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-09-13T12:00:01Z"));
   await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill("中");
   await page.clock.fastForward(100);
   await page.getByRole("searchbox", { name: "项目名称", exact: true }).fill("中文");
@@ -390,6 +393,8 @@ test("300ms debounce, loading, error retry and controlled visual state fixtures"
   expect(requests).toBe(before);
   await page.clock.fastForward(1);
   await expect.poll(() => requests).toBe(before + 1);
+  await page.clock.resume();
+  await expect(page.getByRole("heading", { name: "合成真实零" })).toBeVisible();
   await page.screenshot({
     path: `test-results/r2-${test.info().project.name}-fixture-cards.png`,
     fullPage: true,
