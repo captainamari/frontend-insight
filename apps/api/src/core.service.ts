@@ -6,6 +6,8 @@ import {
   MetricLibraryService,
   ScoreManagementService,
   ProjectSummaryService,
+  ProjectOverviewService,
+  OverviewFactStore,
   MySqlStore,
   ObservabilityStore,
 } from "@frontend-insight/server-core";
@@ -61,10 +63,25 @@ export class CoreService implements OnModuleDestroy {
     this.analytics,
   );
 
+  readonly overviewFacts = new OverviewFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
+  readonly projectOverview = new ProjectOverviewService(
+    this.mysql,
+    this.scores,
+    this.analytics,
+    this.overviewFacts,
+    this.observability,
+  );
+
   async onModuleDestroy(): Promise<void> {
     await Promise.allSettled([
       this.publisher.disconnect(),
       this.analytics.close(),
+      this.overviewFacts.close(),
       this.observability.close(),
       this.mysql.close(),
     ]);

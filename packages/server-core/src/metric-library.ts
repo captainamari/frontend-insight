@@ -534,6 +534,83 @@ export class MetricLibraryService {
     return { version, definitions: await this.listDefinitions(versionId) };
   }
 
+  async overviewBindings(projectId: string, versionId: string) {
+    const snapshot = await this.getVersion(projectId, versionId);
+    const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
+      `SELECT d.metric_key FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name='project-overview' AND b.surface_key='overview' ORDER BY b.display_order,d.metric_key`,
+      [versionId],
+    );
+    return { ...snapshot, metricKeys: rows.map((r) => String(r.metric_key)) };
+  }
+  async saveOverviewBindings(
+    projectId: string,
+    versionId: string,
+    metricKeys: string[],
+    actor: Principal,
+  ) {
+    if (metricKeys.length > 24 || new Set(metricKeys).size !== metricKeys.length)
+      throw new MetricLibraryError("OVERVIEW_BINDING_LIMIT", 400);
+    const requested = await this.getVersion(projectId, versionId);
+    if (requested.version.libraryType !== "operational")
+      throw new MetricLibraryError("OVERVIEW_OPERATIONAL_LIBRARY_REQUIRED", 400);
+    const version =
+      requested.version.status === "draft"
+        ? requested.version
+        : await this.createDraft({
+            projectId,
+            libraryType: "operational",
+            sourceVersionId: versionId,
+            actor,
+          });
+    const connection = await this.mysql.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      await connection.query("SELECT id FROM projects WHERE id=? FOR UPDATE", [
+        projectId,
+      ]);
+      const locked = await this.requireVersion(connection, projectId, version.id, true);
+      if (locked.status !== "draft")
+        throw new MetricLibraryError("METRIC_LIBRARY_VERSION_IMMUTABLE", 409);
+      const definitions = await this.listDefinitions(version.id, connection);
+      for (const key of metricKeys) {
+        const d = definitions.find((d) => d.metricKey === key);
+        if (!d || !d.enabled || !d.entityScopes.includes("project"))
+          throw new MetricLibraryError("OVERVIEW_BINDING_INVALID", 400);
+        if (d.implementationStatus === "not_collected")
+          throw new MetricLibraryError("NOT_COLLECTED_METRIC_BINDING_FORBIDDEN", 400);
+      }
+      await connection.execute(
+        `DELETE b FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name='project-overview' AND b.surface_key='overview'`,
+        [version.id],
+      );
+      for (const [i, key] of metricKeys.entries())
+        await connection.execute(
+          `INSERT INTO metric_display_bindings (id,metric_definition_id,route_name,surface_key,display_order) VALUES (?,?,'project-overview','overview',?)`,
+          [randomUUID(), definitions.find((d) => d.metricKey === key)!.id, i],
+        );
+      await connection.execute(
+        "UPDATE score_definitions SET reviewed_digest=NULL WHERE library_version_id=?",
+        [version.id],
+      );
+      await this.insertAudit(
+        connection,
+        projectId,
+        actor.userId,
+        "metric_library.overview_bindings_saved",
+        "metric_library_version",
+        version.id,
+        { count: metricKeys.length },
+      );
+      await connection.commit();
+    } catch (e) {
+      await connection.rollback();
+      throw e;
+    } finally {
+      connection.release();
+    }
+    return this.overviewBindings(projectId, version.id);
+  }
+
   async catalog(
     projectId: string,
     libraryType: MetricLibraryType,
@@ -695,6 +772,10 @@ export class MetricLibraryService {
             ],
           );
         }
+        await connection.execute(
+          `INSERT INTO metric_display_bindings (id,metric_definition_id,route_name,surface_key,display_order) SELECT UUID(),target.id,b.route_name,b.surface_key,b.display_order FROM metric_display_bindings b JOIN metric_definitions source ON source.id=b.metric_definition_id JOIN metric_definitions target ON target.metric_key=source.metric_key AND target.library_version_id=? WHERE source.library_version_id=?`,
+          [id, sourceVersionId],
+        );
         await copyStoredScore(
           connection,
           sourceVersionId,

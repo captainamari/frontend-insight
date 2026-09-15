@@ -115,6 +115,35 @@ export class MetricLibraryController {
     return this.core.metricLibrary.getVersion(projectId, versionId);
   }
 
+  @Get("versions/:versionId/overview-bindings")
+  async overviewBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return this.core.metricLibrary.overviewBindings(projectId, versionId);
+  }
+  @Put("versions/:versionId/overview-bindings")
+  async saveOverviewBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() raw: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const body = parseInput(
+      z.object({ metricKeys: z.array(metricKeySchema).max(24) }).strict(),
+      raw,
+    );
+    return this.core.metricLibrary.saveOverviewBindings(
+      projectId,
+      versionId,
+      body.metricKeys,
+      principal,
+    );
+  }
+
   @Post("versions/:versionId/validate")
   @HttpCode(200)
   async validate(

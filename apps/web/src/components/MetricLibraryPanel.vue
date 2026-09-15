@@ -16,6 +16,7 @@ import "element-plus/es/components/radio-group/style/css";
 import "element-plus/es/components/steps/style/css";
 import { useRoute, useRouter } from "vue-router";
 import { api, ApiError } from "../api";
+import OverviewBindingsPanel from "./OverviewBindingsPanel.vue";
 import MetricDefinitionDrawer from "./MetricDefinitionDrawer.vue";
 import MetricLineageDrawer from "./MetricLineageDrawer.vue";
 
@@ -1055,6 +1056,18 @@ onBeforeUnmount(() => {
     />
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
 
+    <OverviewBindingsPanel
+      v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
+      :project-id="projectId"
+      :version-id="selectedVersion.id"
+      :can-write="canWrite"
+      @saved="
+        (id) => {
+          selectedVersionId = id;
+          void load();
+        }
+      "
+    />
     <div class="library-toolbar">
       <el-select
         v-if="versionsOnly"

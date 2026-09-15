@@ -5,6 +5,7 @@ import { api, ApiError } from "./api";
 import { projects } from "./projects";
 import type { Project } from "./types";
 import AppShell from "./components/AppShell.vue";
+import LegacyShell from "./components/LegacyShell.vue";
 import LoginView from "./views/LoginView.vue";
 
 export const router = createRouter({
@@ -22,8 +23,37 @@ export const router = createRouter({
       component: () => import("./views/ProjectAccessView.vue"),
     },
     {
-      path: "/",
+      path: "/projects/:projectId",
       component: AppShell,
+      children: [
+        {
+          path: "",
+          redirect: (to) => ({
+            name: "project-overview",
+            params: to.params,
+            query: to.query,
+          }),
+        },
+        {
+          path: "overview",
+          name: "project-overview",
+          component: () => import("./views/ProjectOverviewView.vue"),
+        },
+        {
+          path: "metrics",
+          name: "project-metrics",
+          component: () => import("./views/MetricsView.vue"),
+        },
+        ...(["business", "pages", "settings"] as const).map((module) => ({
+          path: module,
+          name: "project-" + module,
+          component: () => import("./views/ProjectStageView.vue"),
+        })),
+      ],
+    },
+    {
+      path: "/",
+      component: LegacyShell,
       children: [
         { path: "", redirect: { name: "projects" } },
         {
@@ -60,11 +90,6 @@ export const router = createRouter({
           path: "operational-config",
           name: "operational-config",
           component: () => import("./views/OperationalConfigView.vue"),
-        },
-        {
-          path: "projects/:projectId/metrics",
-          name: "project-metrics",
-          component: () => import("./views/MetricsView.vue"),
         },
         {
           path: "onboarding",
@@ -106,6 +131,7 @@ router.beforeEach(async (to) => {
           name: "project-access-error",
           params: { projectId },
           query: {
+            retry: to.fullPath,
             kind:
               error instanceof ApiError && error.status === 403 ? "forbidden" : "error",
           },

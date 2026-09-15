@@ -23,6 +23,7 @@ Commands:
   smoke                          Verify the data flow and all three HTTP services
   verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
   verify-r1b                     Verify R1-B versions, formula safety and audit
+  verify-r3                      Verify R3 MySQL/ClickHouse/API and performance
   verify-r2                      Verify R2 MySQL/ClickHouse/API and performance
   verify-r2-upgrade              Verify 001+002 -> 003 with retained test data
   verify-r1c                     Verify R1-C score storage, API and historical behavior
@@ -178,6 +179,12 @@ verify_r2() {
   mkdir -p "$ROOT_DIR/artifacts"
   compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier || fail "R2 real storage/API/performance verification failed"
 }
+verify_r3() {
+  ensure_env
+  require_command docker
+  mkdir -p "$ROOT_DIR/artifacts"
+  compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:r3 || fail "R3 real storage/API/performance verification failed"
+}
 verify_r2_upgrade() {
   ensure_env
   require_command docker
@@ -250,6 +257,7 @@ case "$command_name" in
   verify-r1a) verify_r1a "$@" ;;
   verify-r1b) verify_r1b "$@" ;;
   verify-r1c) verify_r1c "$@" ;;
+  verify-r3) verify_r3 "$@" ;;
   verify-r2) verify_r2 "$@" ;;
   verify-r2-upgrade) verify_r2_upgrade "$@" ;;
   status) status "$@" ;;

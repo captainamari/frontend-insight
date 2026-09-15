@@ -92,6 +92,21 @@ export const projectSummarySchema = z
   })
   .strict();
 
+export const projectOverviewSchema = z
+  .object({
+    env: z.enum(CANONICAL_ENVIRONMENTS).default("prod"),
+    range: z.enum(CANONICAL_RANGES.map((r) => r.key)).default("7d"),
+    from: z.string().datetime({ offset: true }).optional(),
+    to: z.string().datetime({ offset: true }).optional(),
+    metrics: z
+      .string()
+      .max(1100)
+      .transform((s) => (s ? s.split(",") : []))
+      .pipe(z.array(z.string().regex(/^[a-z][a-z0-9_]{1,63}$/)).max(16))
+      .optional(),
+  })
+  .strict();
+
 const updateProjectSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
@@ -173,6 +188,19 @@ export class ProjectsController {
     const role = await this.requireProject(principal, projectId, false);
     const project = await this.core.mysql.getProject(projectId);
     return { ...project, role };
+  }
+
+  @Get(":projectId/overview")
+  async overview(
+    @Param("projectId") projectId: string,
+    @Query() raw: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, false);
+    return this.core.projectOverview.overview(
+      projectId,
+      parseInput(projectOverviewSchema, raw),
+    );
   }
 
   @Post()

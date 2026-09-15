@@ -1,5 +1,7 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
+> **R2 手工验收确认与 R3 继承 · 2026-09-15**：来源为用户本次任务明确确认：“R2手工验收通过，并且已经合并到refactor分支。”对应已验收提交 `4b5946c8a38c882871d7f4c4a975a4f6d163f597`，最终 [R2 Actions 34765702742](https://github.com/captainamari/frontend-insight/actions/runs/34765702742)。本次重新核对远端 `refactor` 为合并提交 `405da94499c4d112b212a13886637e770cc522e2`，R3 从该 SHA 创建 `agent/v1-8-r3-project-overview`。2026-09-15 是确认日期，不是补写的手工执行日期；未虚构步骤或截图。旧“R2 待手工验收/不得进入 R3”保留为历史并由此次确认解除。这不表示 R3 已验收，不表示 R4-B/R5-A/R6 事实能力完成。只在 R3 分支实施，不自动合并、不进入 R4。
+
 > **手工验收与 R2 继承更新 · 2026-09-11**：Jesse 在本会话明确确认“本次手工验收通过”，对应 R1-C `d37059bb32daf2c857747905d0873b719c323de8`，其 [Actions](https://github.com/captainamari/frontend-insight/actions/runs/34451705146) 为 success。已由用户合入 `refactor`；R2 从合并提交 `cfd90863827b7dad64007bcfd681f0b7d29e3489` 创建 `agent/v1-8-r2-project-entry`。下文旧“待手工验收/不进入 R2”保留为历史，已由本确认解除，不再阻断 R2；未补写任何未执行的手工用例。这不代表 R2 已验收，也不代表 R4-B/R5-A/R6 事实已交付。不授权代理合并或修改 refactor/main。
 
 

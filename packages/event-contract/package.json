@@ -22,7 +22,11 @@
     },
     "./schema": "./schema/event-batch-v3.schema.json",
     "./schema-v3": "./schema/event-batch-v3.schema.json",
-    "./canonical-names": "./canonical-names.json"
+    "./canonical-names": "./canonical-names.json",
+    "./project-range": {
+      "types": "./src/project-range.ts",
+      "import": "./dist/src/project-range.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

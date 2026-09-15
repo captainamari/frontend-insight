@@ -195,6 +195,71 @@ export class ObservabilityStore {
     this.client = createClient(clickhouse);
   }
 
+  async overviewEvidence(
+    projectId: string,
+    input: { from: string; to: string; timezone: string; env: string },
+  ) {
+    const range = { ...input, granularity: "day" as const };
+    const [errors, vitals] = await Promise.all([
+      this.errorGroupsQuery(projectId, range, 500, input.env),
+      this.webVitalsQuery(projectId, range, 1000, input.env),
+    ]);
+    const items = buildFixedAlerts({
+      errors,
+      vitals,
+      dataState: "no_data",
+      updatedAt: null,
+    });
+    return {
+      status: items.length
+        ? "alerts_observed"
+        : errors.length || vitals.some((v) => v.sampleSize >= 20)
+          ? "no_alerts_observed"
+          : vitals.length
+            ? "insufficient_sample"
+            : "unavailable",
+      reason:
+        !errors.length && vitals.length && vitals.every((v) => v.sampleSize < 20)
+          ? "ALERT_INSUFFICIENT_SAMPLE"
+          : "ENV_EXPOSURE_NOT_VERIFIED",
+      completeness: "limited",
+      truncated: errors.length === 500 || vitals.length === 1000,
+      scope: { projectId, ...input },
+      rules: {
+        error_spike:
+          "既有诊断规则：critical≥50次或≥10账号或HTTP≥500且≥20次；high≥10次或≥5浏览器；warning≥5次且≥3浏览器。不是规范质量rate。",
+        web_vital_poor:
+          "既有诊断规则：≥20个样本且poor占比≥30%；≥50%为high。使用已上报rating，不作为新的质量评分阈值。",
+      },
+      items: items.map((alert) => ({
+        ...alert,
+        scope: { projectId, ...input },
+        sample:
+          alert.entityType === "error_group"
+            ? (errors.find((e) => e.groupId === alert.entityKey)?.occurrences ?? null)
+            : (vitals.find(
+                (v) => `${v.pageRoute}:${v.vitalName}:${v.release}` === alert.entityKey,
+              )?.sampleSize ?? null),
+        detail:
+          alert.entityType === "error_group"
+            ? errors
+                .filter((e) => e.groupId === alert.entityKey)
+                .map((e) => ({
+                  occurrences: e.occurrences,
+                  affectedUsers: e.affectedUsers,
+                  affectedBrowsers: e.affectedBrowsers,
+                  affectedPages: e.affectedPages,
+                  httpStatus: e.httpStatus,
+                  firstSeenAt: e.firstSeenAt,
+                  lastSeenAt: e.lastSeenAt,
+                }))
+            : vitals.filter(
+                (v) => `${v.pageRoute}:${v.vitalName}:${v.release}` === alert.entityKey,
+              ),
+      })),
+    };
+  }
+
   async close(): Promise<void> {
     await this.client.close();
   }
@@ -448,11 +513,22 @@ export class ObservabilityStore {
     projectId: string,
     range: AnalyticsRange,
     limit: number,
+    env?: string,
   ): Promise<ErrorGroupSummary[]> {
     const response = await this.client.query({
-      query: this.errorGroupsSql("", limit),
-      query_params: { projectId, from: range.from, to: range.to },
+      query: this.errorGroupsSql(env ? "AND env = {env:String}" : "", limit),
+      query_params: {
+        projectId,
+        from: range.from,
+        to: range.to,
+        ...(env ? { env } : {}),
+      },
       format: "JSONEachRow",
+      clickhouse_settings: {
+        max_execution_time: 5,
+        max_rows_to_read: "400000000",
+        read_overflow_mode: "throw",
+      },
     });
     return (await response.json<Record<string, unknown>>()).map((row) =>
       this.mapErrorGroup(row),
@@ -489,6 +565,7 @@ export class ObservabilityStore {
     projectId: string,
     range: AnalyticsRange,
     limit: number,
+    env?: string,
   ): Promise<WebVitalSummary[]> {
     const response = await this.client.query({
       query: `
@@ -501,12 +578,22 @@ export class ObservabilityStore {
           countIf(vital_rating = 'poor') AS poor_samples,
           countIf(vital_rating = 'poor') / count() AS poor_rate,
           max(timestamp) AS last_seen_at
-        FROM (${observabilityEventsWhere("AND event = 'performance' AND vital_value IS NOT NULL")})
+        FROM (${observabilityEventsWhere("AND event = 'performance' AND vital_value IS NOT NULL" + (env ? " AND env={env:String}" : ""))})
         GROUP BY pageRoute, vital_name, release
         ORDER BY poor_rate DESC, sample_size DESC, pageRoute
         LIMIT ${Math.max(1, Math.min(1000, limit))}
       `,
-      query_params: { projectId, from: range.from, to: range.to },
+      query_params: {
+        projectId,
+        from: range.from,
+        to: range.to,
+        ...(env ? { env } : {}),
+      },
+      clickhouse_settings: {
+        max_execution_time: 5,
+        max_rows_to_read: "400000000",
+        read_overflow_mode: "throw",
+      },
       format: "JSONEachRow",
     });
     return (await response.json<Record<string, unknown>>()).map((row) => ({

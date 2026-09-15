@@ -19,7 +19,8 @@
     "verify:r1b": "tsx test/r1b-integration.ts",
     "verify:flow": "tsx test/integration-flow.ts",
     "verify:r1c": "tsx test/r1c-preflight-integration.ts && tsx test/r1c-integration.ts",
-    "verify:r2": "tsx test/r2-integration.ts"
+    "verify:r2": "tsx test/r2-integration.ts",
+    "verify:r3": "tsx test/r3-integration.ts"
   },
   "dependencies": {
     "@clickhouse/client": "1.23.1",

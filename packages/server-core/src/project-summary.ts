@@ -349,7 +349,7 @@ export class ProjectSummaryService {
             localTo: format(query.to),
             boundary: "[from,to)",
           },
-          entry: { module: "metrics", path: `/projects/${id}/metrics` },
+          entry: { module: "overview", path: `/projects/${id}/overview` },
         };
       })
       .sort(compareProjectCards);

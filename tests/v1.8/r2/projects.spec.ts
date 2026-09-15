@@ -135,9 +135,9 @@ test("admin real login, search, paging, failed create retention, templates and p
   expect(op.body[0]!.id).not.toBe(quality.body[0]!.id);
   const entryUrl = page.url();
   await card.getByRole("button", { name: "进入项目", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/projects/${id}/metrics`));
+  await expect(page).toHaveURL(new RegExp(`/projects/${id}/overview`));
   await expect(
-    page.getByRole("heading", { name: "分数管理", exact: true }),
+    page.getByRole("heading", { name: "项目概览", exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(/env=prod/);
   await page.getByRole("button", { name: "返回全部项目", exact: true }).click();

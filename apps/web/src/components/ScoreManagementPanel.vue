@@ -102,13 +102,17 @@ async function load() {
   openedTrials.value = {};
   env.value = typeof route.query.env === "string" ? route.query.env : "prod";
   to.value =
-    typeof route.query.scoreTo === "string"
-      ? route.query.scoreTo
-      : new Date().toISOString().slice(0, 16);
+    typeof route.query.to === "string"
+      ? new Date(route.query.to).toISOString().replace(/Z$/, "")
+      : typeof route.query.scoreTo === "string"
+        ? route.query.scoreTo
+        : new Date().toISOString().slice(0, 16);
   from.value =
-    typeof route.query.scoreFrom === "string"
-      ? route.query.scoreFrom
-      : new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 16);
+    typeof route.query.from === "string"
+      ? new Date(route.query.from).toISOString().replace(/Z$/, "")
+      : typeof route.query.scoreFrom === "string"
+        ? route.query.scoreFrom
+        : new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 16);
   if (!props.projectId) {
     busy.value = false;
     return;
@@ -355,7 +359,15 @@ async function trial() {
 }
 async function refresh() {
   await router.replace({
-    query: { ...route.query, env: env.value, scoreFrom: from.value, scoreTo: to.value },
+    query: {
+      ...route.query,
+      env: env.value,
+      range: "custom",
+      from: new Date(from.value + "Z").toISOString(),
+      to: new Date(to.value + "Z").toISOString(),
+      scoreFrom: from.value,
+      scoreTo: to.value,
+    },
   });
   await load();
 }
@@ -367,6 +379,8 @@ watch(
     route.query.env,
     route.query.scoreFrom,
     route.query.scoreTo,
+    route.query.from,
+    route.query.to,
   ],
   () => void load(),
   { immediate: true },

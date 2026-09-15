@@ -1,3 +1,8 @@
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
+import {
+  CANONICAL_RANGES,
+  CANONICAL_ENVIRONMENTS,
+} from "@frontend-insight/event-contract/canonical";
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { projects } from "./projects";
@@ -15,7 +20,31 @@ export function useDashboardContext() {
     isRangePreset(route.query.range) ? route.query.range : "7d",
   );
   const range = computed(() =>
-    project.value ? buildRangeQuery(preset.value, project.value.timezone) : null,
+    project.value
+      ? route.params.projectId &&
+        typeof route.query.from === "string" &&
+        typeof route.query.to === "string"
+        ? (() => {
+            try {
+              const q = resolveProjectCalendar(
+                {
+                  range:
+                    CANONICAL_RANGES.find((r) => r.key === route.query.range)?.key ??
+                    "custom",
+                  env:
+                    CANONICAL_ENVIRONMENTS.find((e) => e === route.query.env) ?? "prod",
+                  from: route.query.from,
+                  to: route.query.to,
+                },
+                project.value!.timezone,
+              );
+              return { ...q, granularity: "day" as const };
+            } catch {
+              return null;
+            }
+          })()
+        : buildRangeQuery(preset.value, project.value.timezone)
+      : null,
   );
   const search = computed(() => (range.value ? rangeSearch(range.value) : ""));
   return { projectId, project, preset, range, search };
