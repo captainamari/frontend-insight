@@ -7,7 +7,7 @@ describe("v1.8 empty-database migration inventory", () => {
     for (const engine of ["mysql", "clickhouse"] as const) {
       const migrations = await discoverMigrations(engine);
       expect(migrations.map((migration) => migration.version)).toEqual(
-        engine === "mysql" ? [1, 2] : [1],
+        engine === "mysql" ? [1, 2, 3] : [1],
       );
       expect(migrations[0]?.name).toBe("v18_baseline");
       expect(migrations[0]?.checksum).toHaveLength(64);

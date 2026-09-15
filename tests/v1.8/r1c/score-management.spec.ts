@@ -8,6 +8,10 @@ async function login(page: Page, role: "admin" | "viewer") {
     .fill(role === "admin" ? "LocalAdmin-1234" : "LocalViewer-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(
+    page.getByRole("heading", { name: "全部项目", exact: true }),
+  ).toBeVisible();
+  await page.goto("/features");
+  await expect(
     page.getByRole("heading", { name: "功能采用", exact: true }),
   ).toBeVisible();
 }

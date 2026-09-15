@@ -1,9 +1,14 @@
 import { expectedScoreDates, CANONICAL_SCORE_IDENTITY } from "./score-observation.js";
 import { randomUUID } from "node:crypto";
-import type { RowDataPacket } from "mysql2/promise";
+import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import type { Principal } from "./model.js";
 import type { MySqlStore } from "./mysql-store.js";
-import { type MetricLibraryService, MetricLibraryError } from "./metric-library.js";
+import {
+  type MetricLibraryService,
+  MetricLibraryError,
+  versionFromRow,
+  definitionFromRow,
+} from "./metric-library.js";
 import {
   evaluateScore,
   parseScoreConfiguration,
@@ -299,9 +304,29 @@ export class ScoreManagementService {
     mode: "current" | "historical_trial" = "current",
   ) {
     const snapshot = await this.get(projectId, versionId);
+    const [periods] = await this.mysql.pool.query<RowDataPacket[]>(
+      `SELECT library_version_id AS versionId,effective_from AS effectiveFrom,effective_to AS effectiveTo FROM metric_activation_periods WHERE project_id=? AND library_type=? AND effective_from<? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from`,
+      [
+        projectId,
+        snapshot.version.libraryType,
+        new Date(query.to),
+        new Date(query.from),
+      ],
+    );
+    return this.evaluateQuery(snapshot, query, periods, mode);
+  }
+  /** All real single-project and batch reads use this same evaluator and explanation. */
+  evaluateQuery(
+    snapshot: Awaited<ReturnType<ScoreManagementService["get"]>>,
+    query: ScoreQuery,
+    periods: RowDataPacket[],
+    mode: "current" | "historical_trial" = "current",
+  ) {
     if (!snapshot.score)
       throw new MetricLibraryError("SCORE_CONFIGURATION_NOT_SAVED", 404);
     const { configuration, dependencies } = snapshot.score;
+    const projectId = snapshot.version.projectId,
+      versionId = snapshot.version.id;
     const definitionVersion = snapshotDigest(
       versionId,
       configuration,
@@ -328,10 +353,6 @@ export class ScoreManagementService {
       mode,
     });
     result.reasons.push("ENV_EXPOSURE_NOT_VERIFIED");
-    const [periods] = await this.mysql.pool.query<RowDataPacket[]>(
-      `SELECT library_version_id AS versionId,effective_from AS effectiveFrom,effective_to AS effectiveTo FROM metric_activation_periods WHERE project_id=? AND library_type=? AND effective_from<? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from`,
-      [projectId, configuration.libraryType, new Date(query.to), new Date(query.from)],
-    );
     if (
       mode === "current" &&
       (snapshot.version.status !== "active" ||
@@ -375,6 +396,133 @@ export class ScoreManagementService {
         reason: "R4-B/R5-A/R6 事实查询待交付。",
       },
     };
+  }
+  async readActiveBatch(
+    connection: PoolConnection,
+    projectIds: string[],
+    query: ScoreQuery,
+  ) {
+    if (!projectIds.length) return [];
+    const [versions] = await connection.query<RowDataPacket[]>(
+      `SELECT v.*,s.id AS score_id,s.configuration,s.dependency_snapshot FROM metric_library_versions v LEFT JOIN score_definitions s ON s.library_version_id=v.id WHERE v.project_id IN (?) AND v.status='active' ORDER BY v.project_id,v.library_type`,
+      [projectIds],
+    );
+    const ids = versions.map((v) => String(v.id));
+    const [definitions] = await connection.query<RowDataPacket[]>(
+      `SELECT d.* FROM metric_definitions d JOIN metric_library_versions v ON v.id=d.library_version_id WHERE v.project_id IN (?) AND v.status='active' ORDER BY d.library_version_id,d.origin DESC,d.category,d.metric_key`,
+      [projectIds],
+    );
+    const [periods] = await connection.query<RowDataPacket[]>(
+      `SELECT project_id,library_type,library_version_id AS versionId,effective_from AS effectiveFrom,effective_to AS effectiveTo FROM metric_activation_periods WHERE project_id IN (?) AND effective_from<? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from`,
+      [projectIds, new Date(query.to), new Date(query.from)],
+    );
+    const byVersion = new Map(
+      ids.map((id) => [
+        id,
+        definitions
+          .filter((d) => String(d.library_version_id) === id)
+          .map(definitionFromRow),
+      ]),
+    );
+    return versions.map((row) => {
+      const snapshot: Awaited<ReturnType<ScoreManagementService["get"]>> = {
+        version: versionFromRow(row),
+        definitions: byVersion.get(String(row.id)) ?? [],
+        score: row.configuration
+          ? {
+              id: String(row.score_id),
+              configuration: jsonValue(row.configuration),
+              dependencies: jsonValue(row.dependency_snapshot),
+            }
+          : null,
+      };
+      const result = snapshot.score
+        ? this.evaluateQuery(
+            snapshot,
+            query,
+            periods.filter(
+              (p) =>
+                p.project_id === row.project_id && p.library_type === row.library_type,
+            ),
+          )
+        : null;
+      return {
+        projectId: snapshot.version.projectId,
+        libraryType: snapshot.version.libraryType,
+        version: snapshot.version,
+        result,
+      };
+    });
+  }
+  async initializeProject(
+    connection: PoolConnection,
+    input: {
+      projectId: string;
+      timezone: string;
+      actor: Principal;
+      templates: { operational: string; quality: string };
+    },
+  ) {
+    for (const type of ["operational", "quality"] as const) {
+      const template = selectedScoreTemplate(type, null, input.templates[type]);
+      if (!template)
+        throw new MetricLibraryError("SCORE_TEMPLATE_VERSION_INVALID", 400);
+      const versionId = await this.library.initializeProjectDraft(
+        connection,
+        input.projectId,
+        type,
+        input.actor,
+      );
+      const id = randomUUID(),
+        configuration = template.configuration;
+      const dependencies = {
+        projectId: input.projectId,
+        timezone: input.timezone,
+        scopeId: input.projectId,
+        confirmed: false,
+        optionsDigest: "",
+        settings: null,
+        modules: [],
+        pages: [],
+        workflows: [],
+        workflowWeights: {},
+        durationMinimumSample: 5,
+        template,
+        pageTemplateVersion: "page-duration-v1.8",
+        pageTargets: PAGE_TEMPLATE_DURATION_TARGETS,
+        identityPolicy: CANONICAL_SCORE_IDENTITY,
+        initialization: "unconfirmed_template",
+      };
+      await connection.execute(
+        `INSERT INTO score_definitions (id,library_version_id,score_key,display_name,version,gate_ast,color_bands,status,configuration,dependency_snapshot) VALUES (?,?,?,?,1,?,?,'draft',?,?)`,
+        [
+          id,
+          versionId,
+          configuration.scoreKey,
+          configuration.displayName,
+          JSON.stringify(configuration.gate),
+          JSON.stringify(configuration.colorBands),
+          JSON.stringify(configuration),
+          JSON.stringify(dependencies),
+        ],
+      );
+      await writeScoreItems(connection, id, versionId, configuration);
+      await connection.execute(
+        `INSERT INTO audit_logs (project_id,actor_user_id,action,entity_type,entity_id,metadata,request_id) VALUES (?,?,'score.template_initialized','score_definition',?,?,?)`,
+        [
+          input.projectId,
+          input.actor.userId,
+          id,
+          JSON.stringify({
+            versionId,
+            libraryType: type,
+            templateVersion: template.version,
+            confirmed: false,
+          }),
+          randomUUID(),
+        ],
+      );
+    }
   }
   async trial(
     projectId: string,

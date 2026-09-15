@@ -15,3 +15,5 @@ export * from "./status.js";
 
 export * from "./score-management.js";
 export * from "./score-templates.js";
+
+export * from "./project-summary.js";

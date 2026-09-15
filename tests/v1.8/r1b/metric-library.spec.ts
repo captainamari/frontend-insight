@@ -7,6 +7,10 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await page.getByLabel("邮箱").fill(email);
   await page.getByLabel("密码").fill(password);
   await page.getByRole("button", { name: "登录" }).click();
+  await expect(
+    page.getByRole("heading", { name: "全部项目", exact: true }),
+  ).toBeVisible();
+  await page.goto("/features");
   await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 

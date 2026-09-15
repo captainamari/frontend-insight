@@ -245,7 +245,7 @@ function jsonValue<T>(value: unknown): T {
   return (typeof value === "string" ? JSON.parse(value) : value) as T;
 }
 
-function versionFromRow(row: RowDataPacket): MetricLibraryVersion {
+export function versionFromRow(row: RowDataPacket): MetricLibraryVersion {
   return {
     id: String(row.id),
     projectId: String(row.project_id),
@@ -263,7 +263,7 @@ function versionFromRow(row: RowDataPacket): MetricLibraryVersion {
   };
 }
 
-function definitionFromRow(row: RowDataPacket): MetricLibraryDefinition {
+export function definitionFromRow(row: RowDataPacket): MetricLibraryDefinition {
   return {
     id: String(row.id),
     libraryVersionId: String(row.library_version_id),
@@ -477,6 +477,34 @@ function deriveImplementationStatus(
 
 export class MetricLibraryService {
   constructor(private readonly mysql: MySqlStore) {}
+
+  /** Called inside project creation's transaction; never activates a template. */
+  async initializeProjectDraft(
+    connection: PoolConnection,
+    projectId: string,
+    libraryType: MetricLibraryType,
+    actor: Principal,
+  ) {
+    const id = randomUUID();
+    await connection.execute(
+      `INSERT INTO metric_library_versions (id,project_id,library_type,version,status,manifest_version,created_by_user_id) VALUES (?,?,?,1,'draft','1.8.0',?)`,
+      [id, projectId, libraryType, actor.userId],
+    );
+    for (const definition of METRIC_CATALOG.filter((item) =>
+      libraryIncludesCategory(libraryType, item.category),
+    ))
+      await this.insertSystemDefinition(connection, id, definition);
+    await this.insertAudit(
+      connection,
+      projectId,
+      actor.userId,
+      "metric_library.draft_created",
+      "metric_library_version",
+      id,
+      { libraryType, sourceVersionId: null },
+    );
+    return id;
+  }
 
   async listVersions(
     projectId: string,
@@ -1372,7 +1400,7 @@ export class MetricLibraryService {
         metric.owner,
         metric.definitionVersion,
         metric.implementationStatus,
-        metric.availableFrom,
+        metric.availableFrom ? new Date(metric.availableFrom) : null,
         metric.unavailableReason,
         metric.milestone,
       ],

@@ -8,6 +8,9 @@ function workspaceSource(relativePath: string): string {
 export default defineConfig({
   resolve: {
     alias: {
+      "@frontend-insight/event-contract/canonical": workspaceSource(
+        "./packages/event-contract/src/generated/canonical-names.ts",
+      ),
       "@frontend-insight/event-contract/constants": workspaceSource(
         "./packages/event-contract/src/constants.ts",
       ),
