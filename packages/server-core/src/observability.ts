@@ -1,3 +1,4 @@
+import { SafeClickHouseLogger } from "./clickhouse-logger.js";
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { assertClickHouseReady } from "./clickhouse-health.js";
 import { validateAnalyticsRange, type AnalyticsRange } from "./analytics.js";
@@ -192,17 +193,21 @@ export class ObservabilityStore {
     },
     private readonly mysql: MySqlStore,
   ) {
-    this.client = createClient(clickhouse);
+    this.client = createClient({
+      ...clickhouse,
+      log: { LoggerClass: SafeClickHouseLogger },
+    });
   }
 
   async overviewEvidence(
     projectId: string,
     input: { from: string; to: string; timezone: string; env: string },
+    onQuery?: () => void,
   ) {
     const range = { ...input, granularity: "day" as const };
     const [errors, vitals] = await Promise.all([
-      this.errorGroupsQuery(projectId, range, 500, input.env),
-      this.webVitalsQuery(projectId, range, 1000, input.env),
+      this.errorGroupsQuery(projectId, range, 500, input.env, onQuery),
+      this.webVitalsQuery(projectId, range, 1000, input.env, onQuery),
     ]);
     const items = buildFixedAlerts({
       errors,
@@ -514,7 +519,9 @@ export class ObservabilityStore {
     range: AnalyticsRange,
     limit: number,
     env?: string,
+    onQuery?: () => void,
   ): Promise<ErrorGroupSummary[]> {
+    onQuery?.();
     const response = await this.client.query({
       query: this.errorGroupsSql(env ? "AND env = {env:String}" : "", limit),
       query_params: {
@@ -566,7 +573,9 @@ export class ObservabilityStore {
     range: AnalyticsRange,
     limit: number,
     env?: string,
+    onQuery?: () => void,
   ): Promise<WebVitalSummary[]> {
+    onQuery?.();
     const response = await this.client.query({
       query: `
         SELECT

@@ -1,4 +1,5 @@
-import { createClient, type ClickHouseClient } from "@clickhouse/client";
+import { SafeClickHouseLogger } from "./clickhouse-logger.js";
+import { createClient, TupleParam, type ClickHouseClient } from "@clickhouse/client";
 import type { CalendarBucket } from "@frontend-insight/event-contract/project-range";
 import { IDENTITY_DEFINITION_VERSION } from "./system-metric-catalog.js";
 import type { FormulaInputValue } from "./formula.js";
@@ -33,7 +34,10 @@ export class OverviewFactStore {
     password: string;
     database: string;
   }) {
-    this.client = createClient(config);
+    this.client = createClient({
+      ...config,
+      log: { LoggerClass: SafeClickHouseLogger },
+    });
   }
   async close() {
     await this.client.close();
@@ -43,9 +47,11 @@ export class OverviewFactStore {
     env: string,
     buckets: CalendarBucket[],
     pages: PageRevisionWindow[],
+    onQuery?: () => void,
   ): Promise<OverviewFacts> {
     const from = buckets[0]!.from,
       to = buckets.at(-1)!.to;
+    onQuery?.();
     const r = await this.client.query({
       query: `SELECT windowIndex,count() AS events,countIf(event='page_view' AND user_id IS NOT NULL AND user_id!='' AND arrayExists(p -> p.1=page_route AND timestamp>=parseDateTime64BestEffort(p.2,3) AND timestamp<parseDateTime64BestEffort(p.3,3),{pages:Array(Tuple(String,String,String))})) AS pv,toString(max(received_at)) AS lastDataAt,toString(min(timestamp)) AS firstDataAt FROM (SELECT *,arrayJoin([-1,toInt32(arrayFirstIndex(b -> timestamp>=parseDateTime64BestEffort(b.1,3) AND timestamp<parseDateTime64BestEffort(b.2,3),{buckets:Array(Tuple(String,String))}))-1]) AS windowIndex FROM (SELECT event_id,event,timestamp,received_at,page_route,user_id FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3) ORDER BY received_at DESC LIMIT 1 BY event_id)) GROUP BY windowIndex`,
       query_params: {
@@ -53,8 +59,8 @@ export class OverviewFactStore {
         env,
         from,
         to,
-        buckets: buckets.map((b) => [b.from, b.to]),
-        pages: pages.map((p) => [p.pageRoute, p.from, p.to]),
+        buckets: buckets.map((b) => new TupleParam([b.from, b.to])),
+        pages: pages.map((p) => new TupleParam([p.pageRoute, p.from, p.to])),
       },
       format: "JSON",
       clickhouse_settings: {

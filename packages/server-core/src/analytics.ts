@@ -1,3 +1,4 @@
+import { SafeClickHouseLogger } from "./clickhouse-logger.js";
 import { expectedScoreDates } from "./score-observation.js";
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { assertClickHouseReady } from "./clickhouse-health.js";
@@ -233,14 +234,19 @@ export class AnalyticsStore {
     },
     private readonly mysql: MySqlStore,
   ) {
-    this.client = createClient(clickhouse);
+    this.client = createClient({
+      ...clickhouse,
+      log: { LoggerClass: SafeClickHouseLogger },
+    });
   }
 
   /** One bounded, parameterized query for every authorized candidate, independent of page size. */
   async projectObservations(
     projects: { id: string; appId: string }[],
     query: { env: string; from: string; to: string },
+    onQuery?: () => void,
   ) {
+    onQuery?.();
     const response = await this.client.query({
       query: `SELECT toString(project_id) AS projectId,count() AS retainedEvents,countIf(timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowEvents,countIf(event='page_view' AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowPageViews,toString(max(received_at)) AS lastDataAt FROM raw_events WHERE app_id IN {appIds:Array(String)} AND project_id IN {projectIds:Array(UUID)} AND env={env:String} GROUP BY project_id`,
       query_params: {

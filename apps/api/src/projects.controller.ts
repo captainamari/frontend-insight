@@ -102,7 +102,7 @@ export const projectOverviewSchema = z
       .string()
       .max(1100)
       .transform((s) => (s ? s.split(",") : []))
-      .pipe(z.array(z.string().regex(/^[a-z][a-z0-9_]{1,63}$/)).max(16))
+      .pipe(z.array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/)).max(16))
       .optional(),
   })
   .strict();

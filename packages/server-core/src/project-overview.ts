@@ -253,13 +253,18 @@ export class ProjectOverviewService {
     );
     if (segments.length > 800)
       throw new MetricLibraryError("OVERVIEW_SEGMENT_LIMIT", 400);
+    let clickHouseQueries = 0;
+    const onQuery = () => {
+      clickHouseQueries++;
+    };
     const settled = await Promise.allSettled([
       this.analytics.projectObservations(
         [{ id: projectId, appId: String(row.app_id) }],
         query,
+        onQuery,
       ),
-      this.facts.read(projectId, query.env, segments, pages),
-      this.observability.overviewEvidence(projectId, query),
+      this.facts.read(projectId, query.env, segments, pages, onQuery),
+      this.observability.overviewEvidence(projectId, query, onQuery),
     ]);
     const observation =
       settled[0].status === "fulfilled" ? settled[0].value.items[0] : undefined;
@@ -450,6 +455,17 @@ export class ProjectOverviewService {
       }),
       pipeline,
       ...state,
+      ...(pipelineAlerts.length || alertEvidence.items.length
+        ? {
+            state: "alert" as const,
+            alert: true,
+            reasons: [
+              ...state.reasons,
+              ...pipelineAlerts.map((a) => "FIXED_ALERT:" + a.ruleKey),
+              ...alertEvidence.items.map((a) => "FIXED_ALERT:" + a.ruleKey),
+            ],
+          }
+        : {}),
       data: {
         state: failure ? "broken" : observation?.windowEvents ? "partial" : "no_data",
         reason: unavailableReason,
@@ -489,7 +505,7 @@ export class ProjectOverviewService {
       },
       diagnostics: {
         metadataQueries,
-        clickHouseQueries: 4,
+        clickHouseQueries,
         elapsedMs: performance.now() - started,
         scans: facts.statistics,
         physicalRetentionDays: 90,
