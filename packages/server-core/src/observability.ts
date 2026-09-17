@@ -5,6 +5,11 @@ import { validateAnalyticsRange, type AnalyticsRange } from "./analytics.js";
 import type { MySqlStore } from "./mysql-store.js";
 import { evaluateDataStatus, type DataState } from "./status.js";
 
+export interface OverviewScan {
+  rowsRead: number;
+  bytesRead: number;
+  elapsedSeconds: number;
+}
 export const OBSERVABILITY_DEFINITION_VERSION = "observability_v1.0.0";
 
 export type ErrorType = "js" | "resource" | "api";
@@ -205,9 +210,13 @@ export class ObservabilityStore {
     onQuery?: () => void,
   ) {
     const range = { ...input, granularity: "day" as const };
+    const scans: OverviewScan[] = [];
+    const onScan = (scan: OverviewScan) => {
+      scans.push(scan);
+    };
     const [errors, vitals] = await Promise.all([
-      this.errorGroupsQuery(projectId, range, 500, input.env, onQuery),
-      this.webVitalsQuery(projectId, range, 1000, input.env, onQuery),
+      this.errorGroupsQuery(projectId, range, 500, input.env, onQuery, onScan),
+      this.webVitalsQuery(projectId, range, 1000, input.env, onQuery, onScan),
     ]);
     const items = buildFixedAlerts({
       errors,
@@ -228,6 +237,14 @@ export class ObservabilityStore {
           ? "ALERT_INSUFFICIENT_SAMPLE"
           : "ENV_EXPOSURE_NOT_VERIFIED",
       completeness: "limited",
+      statistics: scans.reduce(
+        (sum, scan) => ({
+          rowsRead: sum.rowsRead + scan.rowsRead,
+          bytesRead: sum.bytesRead + scan.bytesRead,
+          elapsedSeconds: sum.elapsedSeconds + scan.elapsedSeconds,
+        }),
+        { rowsRead: 0, bytesRead: 0, elapsedSeconds: 0 },
+      ),
       truncated: errors.length === 500 || vitals.length === 1000,
       scope: { projectId, ...input },
       rules: {
@@ -520,6 +537,7 @@ export class ObservabilityStore {
     limit: number,
     env?: string,
     onQuery?: () => void,
+    onScan?: (scan: OverviewScan) => void,
   ): Promise<ErrorGroupSummary[]> {
     onQuery?.();
     const response = await this.client.query({
@@ -530,16 +548,20 @@ export class ObservabilityStore {
         to: range.to,
         ...(env ? { env } : {}),
       },
-      format: "JSONEachRow",
+      format: "JSON",
       clickhouse_settings: {
         max_execution_time: 5,
         max_rows_to_read: "400000000",
         read_overflow_mode: "throw",
       },
     });
-    return (await response.json<Record<string, unknown>>()).map((row) =>
-      this.mapErrorGroup(row),
-    );
+    const body = await response.json<Record<string, unknown>>();
+    onScan?.({
+      rowsRead: body.statistics?.rows_read ?? 0,
+      bytesRead: body.statistics?.bytes_read ?? 0,
+      elapsedSeconds: body.statistics?.elapsed ?? 0,
+    });
+    return body.data.map((row) => this.mapErrorGroup(row));
   }
 
   private mapErrorGroup(row: Record<string, unknown>): ErrorGroupSummary {
@@ -574,6 +596,7 @@ export class ObservabilityStore {
     limit: number,
     env?: string,
     onQuery?: () => void,
+    onScan?: (scan: OverviewScan) => void,
   ): Promise<WebVitalSummary[]> {
     onQuery?.();
     const response = await this.client.query({
@@ -603,9 +626,15 @@ export class ObservabilityStore {
         max_rows_to_read: "400000000",
         read_overflow_mode: "throw",
       },
-      format: "JSONEachRow",
+      format: "JSON",
     });
-    return (await response.json<Record<string, unknown>>()).map((row) => ({
+    const body = await response.json<Record<string, unknown>>();
+    onScan?.({
+      rowsRead: body.statistics?.rows_read ?? 0,
+      bytesRead: body.statistics?.bytes_read ?? 0,
+      elapsedSeconds: body.statistics?.elapsed ?? 0,
+    });
+    return body.data.map((row) => ({
       pageRoute: String(row.pageRoute),
       vitalName: String(row.vital_name) as WebVitalSummary["vitalName"],
       release: String(row.release),

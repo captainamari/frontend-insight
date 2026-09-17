@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveProjectCalendar as range } from "../src/project-range.js";
+import {
+  resolveProjectCalendar as range,
+  projectLocalInstant,
+} from "../src/project-range.js";
 
 describe("R3 project calendar", () => {
   it.each([
@@ -100,4 +103,16 @@ describe("R3 project calendar", () => {
       expect(() => range(q as typeof input, "UTC")).toThrow("PROJECT_RANGE_INVALID");
     expect(() => range(input, "+08:00")).toThrow("TIMEZONE_INVALID");
   });
+});
+
+it("R3 custom local input resolves DST gaps/overlaps explicitly and rejects invalid dates", () => {
+  expect(projectLocalInstant("2026-03-08T02:30", "America/New_York")).toBe(
+    "2026-03-08T07:30:00.000Z",
+  );
+  expect(projectLocalInstant("2026-11-01T01:30", "America/New_York")).toBe(
+    "2026-11-01T05:30:00.000Z",
+  );
+  expect(() => projectLocalInstant("2026-02-30T12:00", "UTC")).toThrow(
+    "LOCAL_TIME_INVALID",
+  );
 });

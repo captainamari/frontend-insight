@@ -1,13 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import type { OverviewResponse } from "../../../../apps/web/src/overview-types";
-import { defaultScoreTemplate } from "../../../../packages/server-core/src/score-templates";
-import { scoreExamples } from "../../../../packages/server-core/src/score-examples";
-const projectId = (
-  JSON.parse(readFileSync("artifacts/r3-integration.json", "utf8")) as {
-    projectId: string;
-  }
-).projectId;
+import type { OverviewResponse } from "../../../apps/web/src/overview-types";
+import { defaultScoreTemplate } from "../../../packages/server-core/src/score-templates";
+import { resolveProjectCalendar } from "../../../packages/event-contract/src/project-range";
+import { scoreExamples } from "../../../packages/server-core/src/score-examples";
+const { projectId, projectName } = JSON.parse(
+  readFileSync("artifacts/r3-integration.json", "utf8"),
+) as { projectId: string; projectName: string };
 async function login(page: Page, role: "admin" | "viewer") {
   await page.goto("/login");
   await page.getByLabel("邮箱").fill(role + "@example.invalid");
@@ -53,10 +52,8 @@ for (const role of ["admin", "viewer"] as const) {
     await login(page, role);
     await page
       .getByRole("searchbox", { name: "项目名称", exact: true })
-      .fill("R3 isolated overview");
-    const card = page
-      .locator(".project-entry-card")
-      .filter({ hasText: "R3 isolated overview" });
+      .fill(projectName);
+    const card = page.locator(".project-entry-card").filter({ hasText: projectName });
     await expect(card).toHaveCount(1);
     const entry = page.url();
     const start = performance.now();
@@ -243,12 +240,25 @@ for (const role of ["admin", "viewer"] as const) {
     };
     let mode: "normal" | "hold" | "failure" = "normal";
     let release: (() => void) | undefined;
+    let revision = 1;
     await page.route(`**/api/projects/${projectId}/overview?*`, async (route) => {
       const url = new URL(route.request().url());
       const response = structuredClone(fixture);
-      response.query.env = (url.searchParams.get("env") ?? "prod") as
-        "prod" | "dev" | "staging";
-      response.identity += "-" + response.query.env;
+      response.query = resolveProjectCalendar(
+        {
+          range: (url.searchParams.get("range") ?? "7d") as "7d",
+          env: (url.searchParams.get("env") ?? "prod") as "prod",
+          from: url.searchParams.get("from") ?? fixture.query.from,
+          to: url.searchParams.get("to") ?? fixture.query.to,
+        },
+        fixture.project.timezone,
+      );
+      response.identity = `ISOLATED-R3-FIXTURE-v${revision}-${response.query.env}`;
+      if (revision > 1 && response.operational.version && response.operational.result) {
+        response.operational.version.id = "isolated-active-v" + revision;
+        response.operational.result.context.metricSetVersion =
+          response.operational.version.id;
+      }
       if (url.searchParams.has("metrics"))
         response.metrics.selected = url.searchParams
           .get("metrics")!
@@ -285,9 +295,22 @@ for (const role of ["admin", "viewer"] as const) {
     ).toContainText("72.95");
     await expect(page.getByRole("table", { name: "运营分数维度等价表" })).toBeVisible();
     const operational = page.getByRole("region", { name: "运营分数", exact: true });
+    await expect(operational.locator("svg circle")).toHaveCount(4);
+    for (const dimension of fixture.operational.result!.dimensions) {
+      const row = operational
+        .getByRole("row")
+        .filter({ hasText: dimension.displayName });
+      await expect(row.getByRole("cell").nth(1)).toHaveText(
+        dimension.score!.toFixed(2),
+      );
+      await expect(row.getByRole("cell").nth(2)).toHaveText(
+        dimension.contribution!.toFixed(2),
+      );
+    }
     await operational.getByText("雷达展示设置", { exact: true }).click();
     await operational.getByRole("checkbox").last().uncheck();
     await expect(page).toHaveURL(/operationalRadar=/);
+    await expect(operational.locator("svg circle")).toHaveCount(3);
     await expect(operational).toContainText("76.15");
     await page.reload();
     await ready(page);
@@ -301,10 +324,20 @@ for (const role of ["admin", "viewer"] as const) {
         .getByRole("checkbox", { name: "隔离指标1（views）" }),
     ).toBeDisabled();
     await expect(page.locator(".trend-group")).toHaveCount(2);
+    const views = page.locator(".trend-group").first();
+    await expect(views.locator("polyline")).toHaveCount(8);
+    await expect(views.locator("circle")).toHaveCount(12);
+    await views.locator("summary").click();
+    await expect(views.getByRole("table")).toContainText("NO_EVENTS_IN_BUCKET");
+    await expect(views.getByRole("table")).toContainText("fixture-old");
+    await expect(views.getByRole("table")).toContainText("fixture-new");
     await page
       .getByRole("region", { name: "运营指标卡片，可用左右方向键滚动" })
       .focus();
     await page.keyboard.press("ArrowRight");
+    await expect
+      .poll(() => page.locator(".metric-scroll").evaluate((el) => el.scrollLeft))
+      .toBeGreaterThan(0);
     const button = cards.first().getByRole("button");
     await button.click();
     await expect(page.getByRole("dialog")).toContainText("fixture_0");
@@ -346,5 +379,56 @@ for (const role of ["admin", "viewer"] as const) {
     await expect(page.getByRole("region", { name: "链路与数据状态" })).toContainText(
       "ISOLATED-R3-FIXTURE-v1-dev",
     );
+
+    // A new active snapshot at the same query identity must win over an older refresh.
+    mode = "hold";
+    release = undefined;
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await expect.poll(() => Boolean(release)).toBe(true);
+    const priorVersion = release!;
+    revision = 2;
+    mode = "normal";
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(operational).toContainText("isolated-active-v2");
+    priorVersion();
+    await expect(operational).toContainText("isolated-active-v2");
+    await expect(
+      page.getByRole("region", { name: "质量分数", exact: true }),
+    ).toContainText(fixture.quality.version!.id);
+    // Changing context during a drill closes its old evidence; old range data cannot reappear.
+    await cards.first().getByRole("button").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    mode = "hold";
+    release = undefined;
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await expect.poll(() => Boolean(release)).toBe(true);
+    const priorRange = release!;
+    mode = "normal";
+    await page.getByLabel("选择时间范围", { exact: true }).selectOption("30d");
+    await ready(page);
+    priorRange();
+    await expect(page).toHaveURL(/range=30d/);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await cards.first().getByRole("button").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.goBack();
+    await ready(page);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.goForward();
+    await ready(page);
+    // Project navigation destroys the old resource, including pending responses.
+    mode = "hold";
+    release = undefined;
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await expect.poll(() => Boolean(release)).toBe(true);
+    const priorProject = release!;
+    mode = "normal";
+    await page.goto("/projects/11111111-1111-4111-8111-111111111111/overview");
+    await ready(page);
+    priorProject();
+    await expect(
+      page.getByRole("region", { name: "链路与数据状态" }),
+    ).not.toContainText("隔离 fixture");
   });
 }

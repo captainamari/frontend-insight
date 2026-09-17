@@ -248,7 +248,7 @@ export class AnalyticsStore {
   ) {
     onQuery?.();
     const response = await this.client.query({
-      query: `SELECT toString(project_id) AS projectId,count() AS retainedEvents,countIf(timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowEvents,countIf(event='page_view' AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowPageViews,toString(max(received_at)) AS lastDataAt FROM raw_events WHERE app_id IN {appIds:Array(String)} AND project_id IN {projectIds:Array(UUID)} AND env={env:String} GROUP BY project_id`,
+      query: `SELECT toString(project_id) AS projectId,count() AS retainedEvents,countIf(timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowEvents,countIf(event='page_view' AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)) AS windowPageViews,toString(max(received_at)) AS lastDataAt,toString(min(timestamp)) AS availableFrom FROM raw_events WHERE app_id IN {appIds:Array(String)} AND project_id IN {projectIds:Array(UUID)} AND env={env:String} GROUP BY project_id`,
       query_params: {
         appIds: projects.map((p) => p.appId),
         projectIds: projects.map((p) => p.id),
@@ -267,6 +267,7 @@ export class AnalyticsStore {
       windowEvents: string;
       windowPageViews: string;
       lastDataAt: string;
+      availableFrom: string;
     }>();
     return {
       items: body.data.map((row) => ({
@@ -275,6 +276,9 @@ export class AnalyticsStore {
         windowEvents: Number(row.windowEvents),
         windowPageViews: Number(row.windowPageViews),
         lastDataAt: new Date(row.lastDataAt.replace(" ", "T") + "Z").toISOString(),
+        availableFrom: new Date(
+          row.availableFrom.replace(" ", "T") + "Z",
+        ).toISOString(),
       })),
       statistics: {
         rowsRead: body.statistics?.rows_read ?? 0,

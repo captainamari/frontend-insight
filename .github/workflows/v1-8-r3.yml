@@ -70,6 +70,12 @@ jobs:
           ./scripts/dev up
           ./scripts/dev smoke
 
+      - name: Verify R3 real MySQL, ClickHouse, isolated versions, bindings and p95
+        run: ./scripts/dev verify-r3
+
+      - name: Run R3 Chromium and WebKit admin/viewer flows and isolated fixtures
+        run: pnpm test:r3:e2e
+
       - name: Verify data-preserving 001-002 to 003 migration
         run: ./scripts/dev verify-r2-upgrade
 
@@ -106,12 +112,6 @@ jobs:
             exit 1
           fi
           grep -q '"requestId"' /tmp/r2-web-access.log
-
-      - name: Verify R3 real MySQL, ClickHouse, isolated versions, bindings and p95
-        run: ./scripts/dev verify-r3
-
-      - name: Run R3 Chromium and WebKit admin/viewer flows and isolated fixtures
-        run: pnpm test:r3:e2e
 
       - name: Record the exact verified product commit
         run: |

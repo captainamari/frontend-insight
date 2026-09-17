@@ -13,11 +13,14 @@ const chosen = computed(() => {
   const keys = props.selection.length
     ? props.selection
     : (props.score.result?.radar.map((d) => d.key) ?? []);
-  const selected = dims.value.filter((d) => keys.includes(d.key));
-  return selected.length >= 3 && selected.length <= 6
-    ? selected
-    : dims.value.slice(0, 6);
+  return dims.value.filter((d) => keys.includes(d.key));
 });
+const invalidSelection = computed(
+  () =>
+    props.selection.length > 0 &&
+    (new Set(props.selection).size !== props.selection.length ||
+      props.selection.some((k) => !dims.value.some((d) => d.key === k))),
+);
 const point = (i: number, n: number) => {
   const angle = (Math.PI * 2 * i) / chosen.value.length - Math.PI / 2;
   return `${150 + ((100 * n) / 100) * Math.cos(angle)},${150 + ((100 * n) / 100) * Math.sin(angle)}`;
@@ -54,7 +57,7 @@ const show = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2)
         {{ score.result.reasons.map(entryReason).join("；") }}
       </p>
       <svg
-        v-if="chosen.length >= 3"
+        v-if="chosen.length >= 3 && chosen.length <= 6 && !invalidSelection"
         viewBox="0 0 300 300"
         role="img"
         :aria-label="label + '维度雷达，0至100分，与下方表格一致'"
@@ -90,7 +93,14 @@ const show = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2)
           </text>
         </g>
       </svg>
-      <p v-else>实际定义不足3维，无法形成雷达；保留可得维度表。</p>
+      <p v-else-if="dims.length < 3">实际定义不足3维，无法形成雷达；保留可得维度表。</p>
+      <p v-else role="status">
+        URL中的展示选择不适用于此版本，请选择3–6个实际维度或<button
+          @click="emit('selection', [])"
+        >
+          恢复默认展示</button
+        >。维度表与公式不受影响。
+      </p>
       <table :aria-label="label + '维度等价表'">
         <thead>
           <tr>

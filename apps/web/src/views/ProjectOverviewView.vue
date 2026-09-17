@@ -95,10 +95,15 @@ async function load() {
 }
 function dims(type: string) {
   const text = route.query[type + "Radar"];
-  return typeof text === "string" ? text.split(",") : [];
+  return typeof text === "string" && text.length ? text.split(",") : [];
 }
 async function selection(type: string, value: string[]) {
-  await router.push({ query: { ...route.query, [type + "Radar"]: value.join(",") } });
+  await router.push({
+    query: {
+      ...route.query,
+      [type + "Radar"]: value.length ? value.join(",") : undefined,
+    },
+  });
 }
 async function trend(metric: OverviewMetric, checked: boolean) {
   const selected = data.value?.metrics.selected ?? [],
@@ -177,7 +182,7 @@ onBeforeUnmount(() => {
           }}
         </p>
         <p>
-          最近数据更新时间：{{ time(data.lastDataAt) }}；所选范围可用事实起点：{{
+          最近数据更新时间：{{ time(data.lastDataAt) }}；当前环境保留数据起点：{{
             time(data.availableFrom)
           }}
         </p>

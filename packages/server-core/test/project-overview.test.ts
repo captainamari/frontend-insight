@@ -131,6 +131,10 @@ describe("R3 same evaluator, versions and honest facts", () => {
     const input = operationalScoreFixture();
     const r = evaluateScore(input);
     expect(r.value).toBeCloseTo(76.15, 8);
+    expect(r.dimensions.reduce((sum, d) => sum + (d.contribution ?? 0), 0)).toBeCloseTo(
+      r.value!,
+      8,
+    );
     const before = JSON.stringify(r);
     const selected = r.dimensions.slice(0, 3);
     expect(

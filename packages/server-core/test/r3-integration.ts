@@ -62,7 +62,7 @@ const evidence: Record<string, unknown> = {
 try {
   const admin = await login("admin"),
     viewer = await login("viewer");
-  const project = await call<{ id: string; appId: string }>(
+  const project = await call<{ id: string; appId: string; name: string }>(
     admin,
     "/api/projects",
     "POST",
@@ -281,6 +281,24 @@ try {
       device_id: "error-browser-" + i,
     })),
   });
+  await ch.insert({
+    table: "raw_events",
+    format: "JSONEachRow",
+    values: [
+      {
+        ...values[0]!,
+        event_id: randomUUID(),
+        env: "staging",
+        event: "error",
+        error_group_id: "r3-info-only",
+        error_type: "js",
+        error_category: "runtime",
+        error_name: "R3 isolated below threshold",
+        timestamp: stamp(now),
+        received_at: stamp(now),
+      },
+    ],
+  });
   const instant = new Date(now + 1000).toISOString();
   const narrow =
     path +
@@ -304,6 +322,13 @@ try {
   );
   assert.equal(observed.alerts.status, "alerts_observed");
   assert(observed.alerts.items.some((a) => a.ruleKey === "error_spike"));
+  const belowThreshold = await call<Overview>(
+    viewer,
+    narrow.replace("env=prod", "env=staging"),
+  );
+  assert.equal(belowThreshold.alerts.status, "no_alerts_observed");
+  assert.equal(belowThreshold.alerts.items.length, 0);
+  assert.equal(belowThreshold.pipeline.envVerified, false);
   const otherEnv = await call<Overview>(viewer, narrow.replace("env=prod", "env=dev"));
   assert.equal(otherEnv.lastDataAt, null);
   assert.equal(otherEnv.alerts.status, "unavailable");
@@ -355,9 +380,21 @@ try {
   assert.equal(reactivated.operational.version!.id, versions.operational);
   assert.notEqual(reactivated.identity, configured.identity);
   const measurements = [];
-  for (const range of ["7d", "30d", "90d", "180d", "365d", "custom"]) {
-    const params = new URLSearchParams({ range, env: "prod" });
-    if (range === "custom") {
+  for (const range of [
+    "7d",
+    "30d",
+    "90d",
+    "180d",
+    "365d",
+    "custom",
+    "long-day",
+    "long-week",
+  ]) {
+    const params = new URLSearchParams({
+      range: range === "long-day" ? "7d" : range === "long-week" ? "90d" : range,
+      env: "prod",
+    });
+    if (["custom", "long-day", "long-week"].includes(range)) {
       const start = new Date(now);
       start.setUTCMonth(start.getUTCMonth() - 13);
       params.set("from", start.toISOString());
@@ -372,6 +409,8 @@ try {
       const r = await call<Overview>(admin, url);
       durationsMs.push(performance.now() - start);
       diagnostics.push(r.diagnostics);
+      assert.notEqual(r.data.reason, "FACT_STORE_UNAVAILABLE");
+      assert(r.diagnostics.scans.rowsRead > 0);
       assert.equal(r.diagnostics.metadataQueries, 6);
       assert.equal(r.diagnostics.clickHouseQueries, 4);
     }
@@ -396,8 +435,9 @@ try {
   assert(audit.some((a) => a.action === "metric_library.overview_bindings_saved"));
   Object.assign(evidence, {
     projectId: project.id,
+    projectName: project.name,
     projectCount: 1,
-    observations: values.length + 20,
+    observations: values.length + 21,
     eventCoverageDays: 90,
     receivedAtCoverage: "all synthetic insertions received now",
     physicalRetentionDays: 90,

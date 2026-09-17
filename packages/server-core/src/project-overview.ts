@@ -438,6 +438,24 @@ export class ProjectOverviewService {
             items: [],
             scope: { projectId, ...query },
           };
+    const scanSources = {
+      metrics: facts.statistics,
+      observations:
+        settled[0].status === "fulfilled" ? settled[0].value.statistics : null,
+      alerts: settled[2].status === "fulfilled" ? settled[2].value.statistics : null,
+    };
+    const scans = Object.values(scanSources).reduce<{
+      rowsRead: number;
+      bytesRead: number;
+      elapsedSeconds: number;
+    }>(
+      (total, item) => ({
+        rowsRead: total.rowsRead + (item?.rowsRead ?? 0),
+        bytesRead: total.bytesRead + (item?.bytesRead ?? 0),
+        elapsedSeconds: total.elapsedSeconds + (item?.elapsedSeconds ?? 0),
+      }),
+      { rowsRead: 0, bytesRead: 0, elapsedSeconds: 0 },
+    );
     return {
       project: {
         id: projectId,
@@ -473,7 +491,8 @@ export class ProjectOverviewService {
       lastDataAt: observation?.lastDataAt ?? null,
       lastDataSource:
         "ClickHouse raw_events.received_at / selected env / retained data",
-      availableFrom: facts.availableFrom,
+      availableFrom: observation?.availableFrom ?? facts.availableFrom,
+      windowAvailableFrom: facts.availableFrom,
       operational: result(operational),
       quality: result(quality),
       metrics: {
@@ -507,7 +526,8 @@ export class ProjectOverviewService {
         metadataQueries,
         clickHouseQueries,
         elapsedMs: performance.now() - started,
-        scans: facts.statistics,
+        scans,
+        scanSources,
         physicalRetentionDays: 90,
         coverage:
           "Long windows may predate the physical 90-day TTL; query timing is not a production capacity claim.",
