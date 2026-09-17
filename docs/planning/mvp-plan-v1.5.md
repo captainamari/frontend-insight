@@ -572,7 +572,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 实施分支：`agent/v1-8-r3-project-overview`
 
-2026-09-17 实施跟踪：以下勾选仅表示代码已实施。完整同提交门禁仍在执行，R3 手工验收待用户确认；不表示后置真实事实能力完成，不进入 R4。最新候选、失败修复与最终证据见 [R3 results](../progress/v1.8-r3-results.md)，手工流程见 [Mac 指引](../guides/v1.8-r3-local-acceptance-macos.md)。R2 的 metrics 临时落点已按原计划切换为 overview，搜索/分页/创建定位/权限/返回上下文继续回归。
+2026-09-17 实施跟踪：以下勾选仅表示代码已实施。完整门禁已在 `fd252e4b` 同提交通过，收尾增量以最终 HEAD 的同提交 workflow 及附件为准；R3 手工验收待用户确认；不表示后置真实事实能力完成，不进入 R4。最新候选、失败修复与最终证据见 [R3 results](../progress/v1.8-r3-results.md)，手工流程见 [Mac 指引](../guides/v1.8-r3-local-acceptance-macos.md)。R2 的 metrics 临时落点已按原计划切换为 overview，搜索/分页/创建定位/权限/返回上下文继续回归。
 
 ### 12.1 项目框架
 

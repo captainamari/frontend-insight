@@ -85,6 +85,16 @@ async function load() {
       { signal: controller.signal },
     );
     if (id !== generation || key !== signature.value) return;
+    const storageFailure =
+      result.data.reason === "FACT_STORE_UNAVAILABLE"
+        ? result.data.reason
+        : result.alerts.reason === "ALERT_FACT_STORE_UNAVAILABLE"
+          ? result.alerts.reason
+          : null;
+    if (storageFailure && data.value?.identity === result.identity) {
+      error.value = storageFailure + " · " + entryReason(storageFailure);
+      return;
+    }
     if (data.value?.identity !== result.identity) drill.value = "";
     data.value = result;
     dataRequest.value = key;
@@ -93,6 +103,14 @@ async function load() {
     if (e instanceof ApiError && [401, 403].includes(e.status)) {
       data.value = null;
       drill.value = "";
+      if (e.status === 403) {
+        projects.reset();
+        void router.replace({
+          name: "project-access-error",
+          params: { projectId: String(route.params.projectId) },
+          query: { kind: "forbidden", retry: route.fullPath },
+        });
+      }
     }
     error.value =
       e instanceof ApiError
@@ -199,6 +217,10 @@ onBeforeUnmount(() => {
           {{ entryReason(data.data.reason) }}。{{
             data.pipeline.reasons.map(entryReason).join("；")
           }}
+        </p>
+        <p v-if="data.reasons.length">
+          主状态依据：{{ data.reasons.map(entryReason).join("；") }}。
+          可用分数不高于80触发告警；85/60分色带独立，不代替状态判断。
         </p>
         <details>
           <summary>范围、来源与版本身份</summary>

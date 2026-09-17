@@ -24,6 +24,9 @@ async function ready(page: Page) {
   ).toBeVisible();
   await expect(page.getByText("正在加载项目概览…", { exact: true })).toHaveCount(0);
   await expect(
+    page.getByRole("button", { name: "刷新数据", exact: true }),
+  ).toBeEnabled();
+  await expect(
     page.getByRole("region", { name: "链路与数据状态", exact: true }),
   ).toBeVisible();
 }
@@ -295,11 +298,18 @@ for (const role of ["admin", "viewer"] as const) {
         to: fixture.query.to,
       },
     });
-    let mode: "normal" | "hold" | "failure" = "normal";
+    let mode: "normal" | "hold" | "failure" | "store-failure" | "forbidden" = "normal";
     let release: (() => void) | undefined;
     let revision = 1;
     await page.route(`**/api/projects/${projectId}/overview?*`, async (route) => {
       const url = new URL(route.request().url());
+      if (mode === "forbidden") {
+        await route.fulfill({
+          status: 403,
+          json: { code: "PROJECT_FORBIDDEN", requestId: "r3-fixture-denied" },
+        });
+        return;
+      }
       const response = structuredClone(fixture);
       response.query = resolveProjectCalendar(
         {
@@ -321,6 +331,10 @@ for (const role of ["admin", "viewer"] as const) {
           .get("metrics")!
           .split(",")
           .filter(Boolean);
+      if (mode === "store-failure") {
+        response.data = { state: "broken", reason: "FACT_STORE_UNAVAILABLE" };
+        response.metrics.cards = [];
+      }
       if (mode === "hold")
         await new Promise<void>((resolve) => {
           release = resolve;
@@ -434,6 +448,17 @@ for (const role of ["admin", "viewer"] as const) {
     await page.getByRole("button", { name: "重试", exact: true }).click();
     await ready(page);
     await expect(page.getByRole("alert")).toHaveCount(0);
+    mode = "store-failure";
+    await page.getByRole("button", { name: "刷新数据", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("FACT_STORE_UNAVAILABLE");
+    await expect(
+      page.getByText("刷新失败，保留上次数据", { exact: false }),
+    ).toBeVisible();
+    await expect(cards).toHaveCount(6);
+    mode = "normal";
+    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await ready(page);
+    await expect(page.getByRole("alert")).toHaveCount(0);
     mode = "hold";
     release = undefined;
     await page.getByRole("button", { name: "刷新数据", exact: true }).click();
@@ -501,5 +526,13 @@ for (const role of ["admin", "viewer"] as const) {
     await expect(
       page.getByRole("region", { name: "链路与数据状态" }),
     ).not.toContainText("隔离 fixture");
+    // A denied resource must also clear previously authorized shell metadata.
+    mode = "forbidden";
+    await page.goto(`/projects/${projectId}/overview`);
+    await expect(
+      page.getByRole("heading", { name: "无项目权限", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("body")).not.toContainText(projectName);
+    await expect(page.locator("body")).not.toContainText("隔离 fixture");
   });
 }
