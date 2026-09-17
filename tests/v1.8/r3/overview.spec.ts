@@ -60,6 +60,15 @@ for (const role of ["admin", "viewer"] as const) {
     await card.getByRole("button", { name: "进入项目", exact: true }).click();
     await ready(page);
     const usableMs = performance.now() - start;
+    console.log(
+      JSON.stringify({
+        testedCommit: process.env.GITHUB_SHA,
+        browserName,
+        role,
+        projectId,
+        firstUsableMs: usableMs,
+      }),
+    );
     expect(new URL(page.url()).pathname).toBe(`/projects/${projectId}/overview`);
     expect(new URL(page.url()).searchParams.has("project")).toBe(false);
     const original = new URL(page.url());
@@ -83,6 +92,40 @@ for (const role of ["admin", "viewer"] as const) {
     await expect(
       page.getByRole("heading", { name: "指标管理", exact: true }),
     ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "指标管理区域" })
+      .getByRole("button", { name: "运营指标", exact: true })
+      .click();
+    const bindings = page.locator(".bindings");
+    await bindings.locator("summary").click();
+    const pvBinding = bindings.getByRole("checkbox", { name: / · pv · / });
+    await expect(pvBinding).toBeChecked();
+    if (role === "admin") {
+      const activeBefore = await request(page, `/api/projects/${projectId}/overview`);
+      const saved = page.waitForResponse(
+        (r) => r.url().endsWith("/overview-bindings") && r.request().method() === "PUT",
+      );
+      await bindings
+        .getByRole("button", { name: "保存概览展示到草稿", exact: true })
+        .click();
+      const savedResponse = await saved;
+      expect(savedResponse.status()).toBe(200);
+      const draft = await savedResponse.json();
+      expect(draft.version.status).toBe("draft");
+      expect(draft.metricKeys).toContain("pv");
+      const activeAfter = await request(page, `/api/projects/${projectId}/overview`);
+      expect(activeAfter.body.operational.version.id).toBe(
+        activeBefore.body.operational.version.id,
+      );
+      expect(activeAfter.body.quality.version.id).toBe(
+        activeBefore.body.quality.version.id,
+      );
+    } else {
+      await expect(pvBinding).toBeDisabled();
+      await expect(
+        bindings.getByRole("button", { name: "保存概览展示到草稿", exact: true }),
+      ).toHaveCount(0);
+    }
     await nav.getByRole("button", { name: "项目概览", exact: true }).click();
     await ready(page);
     expect(new URL(page.url()).searchParams.get("from")).toBe(
@@ -238,6 +281,18 @@ for (const role of ["admin", "viewer"] as const) {
         },
       ],
     };
+    fixture.alerts.items.push({
+      ...fixture.alerts.items[0]!,
+      id: "isolated-project-pipeline",
+      title: "隔离项目级链路证据",
+      scope: {
+        projectId,
+        env: null,
+        scope: "project",
+        from: fixture.query.from,
+        to: fixture.query.to,
+      },
+    });
     let mode: "normal" | "hold" | "failure" = "normal";
     let release: (() => void) | undefined;
     let revision = 1;
@@ -343,8 +398,22 @@ for (const role of ["admin", "viewer"] as const) {
     await expect(page.getByRole("dialog")).toContainText("fixture_0");
     await page.keyboard.press("Escape");
     await expect(button).toBeFocused();
-    await page.getByRole("button", { name: "查看告警证据", exact: true }).click();
+    await page
+      .locator("article")
+      .filter({ hasText: "隔离错误证据" })
+      .getByRole("button", { name: "查看告警证据", exact: true })
+      .click();
     await expect(page.getByRole("dialog")).toContainText("20");
+    await expect(page.getByRole("dialog")).toContainText("环境 prod");
+    await page.keyboard.press("Escape");
+    await page
+      .locator("article")
+      .filter({ hasText: "隔离项目级链路证据" })
+      .getByRole("button", { name: "查看告警证据", exact: true })
+      .click();
+    await expect(page.getByRole("dialog")).toContainText(
+      "项目级链路证据，未验证当前环境健康",
+    );
     await page.keyboard.press("Escape");
     mode = "hold";
     await page.getByRole("button", { name: "刷新数据", exact: true }).click();

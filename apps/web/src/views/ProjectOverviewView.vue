@@ -365,10 +365,12 @@ onBeforeUnmount(() => {
             {{ selectedAlert.definitionVersion }}
           </p>
           <p>
-            项目 {{ data.project.id }}，环境 {{ data.query.env }}；{{
-              data.query.from
-            }}
-            — {{ data.query.to }}；触发观察 {{ selectedAlert.triggeredAt }}
+            项目 {{ selectedAlert.scope.projectId }}，{{
+              selectedAlert.scope.env == null
+                ? "项目级链路证据，未验证当前环境健康"
+                : `环境 ${selectedAlert.scope.env}`
+            }}；{{ selectedAlert.scope.from }} — {{ selectedAlert.scope.to }}；触发观察
+            {{ selectedAlert.triggeredAt }}
           </p>
           <pre>{{ JSON.stringify(selectedAlert.detail, null, 2) }}</pre>
         </section></ElDrawer

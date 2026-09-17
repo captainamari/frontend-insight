@@ -24,6 +24,9 @@ export interface PageRevisionWindow {
 const iso = (s: string | null) =>
   s ? new Date(s.replace(" ", "T") + "Z").toISOString() : null;
 /** Bounded aggregate states: one window and all calendar buckets in one request.
+ * Calendar/version segments form a contiguous partition. ASOF locates its preceding
+ * boundary, not a previous metric value; missing buckets still remain null. This
+ * avoids materializing an events × bucket-count array for long daily windows.
  * Only PV has an exact existing observed primitive. Completeness remains unverified.
  * UV/VV/workflows/quality denominators are not inferred from page-view counts. */
 export class OverviewFactStore {
@@ -53,13 +56,27 @@ export class OverviewFactStore {
       to = buckets.at(-1)!.to;
     onQuery?.();
     const r = await this.client.query({
-      query: `SELECT windowIndex,count() AS events,countIf(event='page_view' AND user_id IS NOT NULL AND user_id!='' AND arrayExists(p -> p.1=page_route AND timestamp>=parseDateTime64BestEffort(p.2,3) AND timestamp<parseDateTime64BestEffort(p.3,3),{pages:Array(Tuple(String,String,String))})) AS pv,toString(max(received_at)) AS lastDataAt,toString(min(timestamp)) AS firstDataAt FROM (SELECT *,arrayJoin([-1,toInt32(arrayFirstIndex(b -> timestamp>=parseDateTime64BestEffort(b.1,3) AND timestamp<parseDateTime64BestEffort(b.2,3),{buckets:Array(Tuple(String,String))}))-1]) AS windowIndex FROM (SELECT event_id,event,timestamp,received_at,page_route,user_id FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3) ORDER BY received_at DESC LIMIT 1 BY event_id)) GROUP BY windowIndex`,
+      query: `SELECT windowIndex,count() AS events,countIf(event='page_view' AND user_id IS NOT NULL AND user_id!='' AND arrayExists(p -> p.1=page_route AND timestamp>=parseDateTime64BestEffort(p.2,3) AND timestamp<parseDateTime64BestEffort(p.3,3),{pages:Array(Tuple(String,String,String))})) AS pv,toString(max(received_at)) AS lastDataAt,toString(min(timestamp)) AS firstDataAt
+FROM (
+  SELECT e.event,e.timestamp,e.received_at,e.page_route,e.user_id,arrayJoin([-1,b.bucketIndex]) AS windowIndex
+  FROM (
+    SELECT event_id,event,timestamp,received_at,page_route,user_id,toUInt8(1) AS bucketKey
+    FROM raw_events
+    WHERE project_id={projectId:UUID} AND env={env:String} AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)
+    ORDER BY received_at DESC LIMIT 1 BY event_id
+  ) AS e
+  ASOF LEFT JOIN (
+    SELECT toUInt8(1) AS bucketKey,parseDateTime64BestEffort(item.1,3) AS bucketStart,item.2 AS bucketIndex
+    FROM (SELECT arrayJoin({buckets:Array(Tuple(String,Int32))}) AS item)
+    ORDER BY bucketStart
+  ) AS b ON e.bucketKey=b.bucketKey AND e.timestamp>=b.bucketStart
+) GROUP BY windowIndex`,
       query_params: {
         projectId,
         env,
         from,
         to,
-        buckets: buckets.map((b) => new TupleParam([b.from, b.to])),
+        buckets: buckets.map((b, i) => new TupleParam([b.from, i])),
         pages: pages.map((p) => new TupleParam([p.pageRoute, p.from, p.to])),
       },
       format: "JSON",

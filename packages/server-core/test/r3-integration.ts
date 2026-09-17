@@ -1,10 +1,17 @@
 // Isolated R3 projects and raw observations; never a source of production scoring facts.
 import assert from "node:assert/strict";
+import {
+  resolveProjectCalendar,
+  localDateTime,
+  projectLocalInstant,
+  type ProjectRangeKey,
+} from "@frontend-insight/event-contract/project-range";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import { createClient } from "@clickhouse/client";
 import { MySqlStore } from "../src/mysql-store.js";
+import { OverviewFactStore } from "../src/overview-facts.js";
 import { defaultScoreTemplate } from "../src/score-templates.js";
 import type { ScoreManagementService } from "../src/score-management.js";
 import type { ProjectOverviewService } from "../src/project-overview.js";
@@ -13,6 +20,12 @@ import type { RowDataPacket } from "mysql2/promise";
 const apiUrl = process.env.FI_API_URL ?? "http://127.0.0.1:3000";
 if (!process.env.MYSQL_URL) throw new Error("MYSQL_URL_REQUIRED");
 const mysql = new MySqlStore(process.env.MYSQL_URL);
+const factStore = new OverviewFactStore({
+  url: process.env.CLICKHOUSE_URL ?? "http://clickhouse:8123",
+  username: process.env.CLICKHOUSE_USERNAME ?? "frontend_insight",
+  password: process.env.CLICKHOUSE_PASSWORD ?? "",
+  database: "frontend_insight",
+});
 const ch = createClient({
   url: process.env.CLICKHOUSE_URL ?? "http://clickhouse:8123",
   username: process.env.CLICKHOUSE_USERNAME ?? "frontend_insight",
@@ -395,12 +408,66 @@ try {
       env: "prod",
     });
     if (["custom", "long-day", "long-week"].includes(range)) {
-      const start = new Date(now);
+      const start = new Date(
+        localDateTime(new Date(now).toISOString(), "America/New_York") + "Z",
+      );
+      const day = start.getUTCDate();
+      start.setUTCDate(1);
       start.setUTCMonth(start.getUTCMonth() - 13);
-      params.set("from", start.toISOString());
+      start.setUTCDate(
+        Math.min(
+          day,
+          new Date(
+            Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0),
+          ).getUTCDate(),
+        ),
+      );
+      params.set(
+        "from",
+        projectLocalInstant(start.toISOString().slice(0, -1), "America/New_York"),
+      );
       params.set("to", new Date(now).toISOString());
     }
+    const calendar = resolveProjectCalendar(
+      {
+        range: params.get("range") as ProjectRangeKey,
+        env: "prod",
+        from: params.get("from") ?? undefined,
+        to: params.get("to") ?? undefined,
+      },
+      "America/New_York",
+      new Date(now),
+    );
+    params.set("from", calendar.from);
+    params.set("to", calendar.to);
+    const raw = await factStore.read(project.id, "prod", calendar.buckets, [
+      { pageRoute: "/r3", from: calendar.from, to: calendar.to },
+    ]);
+    const prodTimes = values
+      .filter((v) => v.env === "prod")
+      .map((v) => Date.parse(v.timestamp.replace(" ", "T") + "Z"));
+    const countIn = (from: string, to: string) => {
+      const a = Date.parse(from),
+        b = Date.parse(to);
+      return prodTimes.filter((t) => t >= a && t < b).length;
+    };
+    assert.equal(raw.window.raw.pv!.value, countIn(calendar.from, calendar.to));
+    assert.equal(
+      raw.buckets.reduce((n, b) => n + b.events, 0),
+      raw.window.events,
+    );
+    calendar.buckets.forEach((b, i) => {
+      const expected = countIn(b.from, b.to);
+      assert.equal(raw.buckets[i]!.raw.pv!.value, expected || null);
+    });
     const url = path + "?" + params;
+    console.log(
+      JSON.stringify({
+        phase: "R3 performance",
+        range,
+        buckets: calendar.buckets.length,
+      }),
+    );
     for (let i = 0; i < 5; i++) await call(admin, url);
     const durationsMs: number[] = [],
       diagnostics = [];
@@ -419,6 +486,14 @@ try {
     ]!;
     measurements.push({
       range,
+      query: {
+        from: calendar.from,
+        to: calendar.to,
+        timezone: calendar.timezone,
+        env: calendar.env,
+        granularity: calendar.granularity,
+        buckets: calendar.buckets.length,
+      },
       warmups: 5,
       samples: 40,
       algorithm: "nearest-rank ceil(n*0.95)-1 on sorted samples",
@@ -463,9 +538,20 @@ try {
     JSON.stringify({
       projectId: project.id,
       testedCommit: process.env.GITHUB_SHA,
-      p95: measurements.map((m) => ({ range: m.range, p95Ms: m.p95Ms })),
+      observations: evidence.observations,
+      eventCoverageDays: evidence.eventCoverageDays,
+      environment: evidence.environment,
+      p95: measurements.map((m) => ({
+        range: m.range,
+        ...m.query,
+        p95Ms: m.p95Ms,
+        maxRowsRead: Math.max(...m.diagnostics.map((d) => d.scans.rowsRead)),
+        maxBytesRead: Math.max(...m.diagnostics.map((d) => d.scans.bytesRead)),
+        metadataQueries: m.diagnostics[0]!.metadataQueries,
+        clickHouseQueries: m.diagnostics[0]!.clickHouseQueries,
+      })),
     }),
   );
 } finally {
-  await Promise.all([mysql.close(), ch.close()]);
+  await Promise.all([mysql.close(), ch.close(), factStore.close()]);
 }
