@@ -83,7 +83,9 @@ for (const role of ["admin", "viewer"] as const) {
       ["设置", "settings"],
     ]) {
       await nav.getByRole("button", { name, exact: true }).click();
-      expect(new URL(page.url()).pathname).toBe(`/projects/${projectId}/${suffix}`);
+      await expect
+        .poll(() => new URL(page.url()).pathname)
+        .toBe(`/projects/${projectId}/${suffix}`);
       await expect(
         page.getByText("当前阶段尚未开放正文功能", { exact: false }),
       ).toBeVisible();
@@ -139,13 +141,13 @@ for (const role of ["admin", "viewer"] as const) {
     const dev = page.url();
     await page.reload();
     await ready(page);
-    expect(page.url()).toBe(dev);
+    await expect(page).toHaveURL(dev);
     await page.getByLabel("选择时间范围", { exact: true }).selectOption("90d");
     await ready(page);
     await expect(page.locator(".project-window")).toContainText("week");
     await page.goBack();
     await ready(page);
-    expect(page.url()).toBe(dev);
+    await expect(page).toHaveURL(dev);
     await page.goForward();
     await ready(page);
     await expect(page.locator(".project-window")).toContainText("week");

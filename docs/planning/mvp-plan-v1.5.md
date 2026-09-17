@@ -570,39 +570,41 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 12. R3：项目框架与项目概览
 
-建议分支：`agent/v1-8-r3-project-overview`
+实施分支：`agent/v1-8-r3-project-overview`
+
+2026-09-17 实施跟踪：以下勾选仅表示代码已实施。完整同提交门禁仍在执行，R3 手工验收待用户确认；不表示后置真实事实能力完成，不进入 R4。最新候选、失败修复与最终证据见 [R3 results](../progress/v1.8-r3-results.md)，手工流程见 [Mac 指引](../guides/v1.8-r3-local-acceptance-macos.md)。R2 的 metrics 临时落点已按原计划切换为 overview，搜索/分页/创建定位/权限/返回上下文继续回归。
 
 ### 12.1 项目框架
 
-- [ ] 左上项目名和返回全部项目；
-- [ ] 左下 5 个新导航；
-- [ ] 右上公共时间、时区、账号；
-- [ ] 7d/30d/90d/180d/365d；
-- [ ] day/week/month gap fill；
-- [ ] URL path 使用 projectId，不再依赖全局 project query；
-- [ ] 项目切换回入口页，不在所有页面保留项目下拉。
+- [x] 左上项目名和返回全部项目；
+- [x] 左下 5 个新导航；
+- [x] 右上公共时间、时区、账号；
+- [x] 7d/30d/90d/180d/365d；
+- [x] day/week/month gap fill；
+- [x] URL path 使用 projectId，不再依赖全局 project query；
+- [x] 项目切换回入口页，不在所有页面保留项目下拉。
 
 未交付的后续模块可以显示明确“尚未在当前里程碑交付”，但不能链接到旧同名页面冒充完成。
 
 ### 12.2 项目概览 read model
 
-- [ ] 链路、更新时间；
-- [ ] 运营分数和维度；
-- [ ] 质量分数和维度；
-- [ ] 概览运营指标 display bindings；
-- [ ] 多指标趋势；
-- [ ] P0 固定告警摘要；
-- [ ] definition/metric library/score version；
-- [ ] unavailable/partial reason。
+- [x] 链路、更新时间；
+- [x] 运营分数和维度；
+- [x] 质量分数和维度；
+- [x] 概览运营指标 display bindings；
+- [x] 多指标趋势；
+- [x] P0 固定告警摘要；
+- [x] definition/metric library/score version；
+- [x] unavailable/partial reason。
 
 ### 12.3 前端
 
-- [ ] 两个雷达与等价表格；
-- [ ] 分数下钻；
-- [ ] 指标卡可滚动但保持键盘访问；
-- [ ] 同单位多线、混合单位小多图；
-- [ ] 维度设置只改变展示，公式修改进入指标管理新版本；
-- [ ] 刷新保留旧数据并标记 stale。
+- [x] 两个雷达与等价表格；
+- [x] 分数下钻；
+- [x] 指标卡可滚动但保持键盘访问；
+- [x] 同单位多线、混合单位小多图；
+- [x] 维度设置只改变展示，公式修改进入指标管理新版本；
+- [x] 刷新保留旧数据并标记 stale。
 
 ### 12.4 阶段门
 

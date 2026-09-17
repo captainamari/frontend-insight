@@ -55,6 +55,15 @@ const selectedScore = computed(() =>
 const stale = computed(
   () => Boolean(data.value) && (loading.value || Boolean(error.value)),
 );
+function scrollCards(event: KeyboardEvent) {
+  if (event.target !== event.currentTarget) return;
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const element = event.currentTarget as HTMLElement;
+  if (event.key === "Home") element.scrollTo({ left: 0 });
+  else if (event.key === "End") element.scrollTo({ left: element.scrollWidth });
+  else element.scrollBy({ left: event.key === "ArrowRight" ? 320 : -320 });
+}
 async function load() {
   const id = ++generation,
     key = signature.value;
@@ -244,6 +253,7 @@ onBeforeUnmount(() => {
           tabindex="0"
           role="region"
           aria-label="运营指标卡片，可用左右方向键滚动"
+          @keydown="scrollCards"
         >
           <article
             v-for="m in data.metrics.cards"
@@ -324,6 +334,7 @@ onBeforeUnmount(() => {
         ><ScoreExplanation v-if="selectedScore" :result="selectedScore" />
         <section v-if="selectedMetric">
           <h2>{{ selectedMetric.definition.displayName }}</h2>
+          <p>指标标识 {{ selectedMetric.definition.metricKey }}</p>
           <p>
             指标版本 {{ data.metrics.version?.id }} / 定义版本
             {{ selectedMetric.definition.definitionVersion }}
@@ -381,6 +392,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .overview {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 20px;
 }
 .overview-heading {
@@ -392,6 +405,7 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 .panel {
+  min-width: 0;
   padding: 22px;
   border: 1px solid #dbe3ec;
   border-radius: 12px;
