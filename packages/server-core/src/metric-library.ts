@@ -569,10 +569,13 @@ export class MetricLibraryService {
     surface: "overview" | "business",
   ) {
     if (metricKeys.length > 24 || new Set(metricKeys).size !== metricKeys.length)
-      throw new MetricLibraryError("OVERVIEW_BINDING_LIMIT", 400);
+      throw new MetricLibraryError(`${surface.toUpperCase()}_BINDING_LIMIT`, 400);
     const requested = await this.getVersion(projectId, versionId);
     if (requested.version.libraryType !== "operational")
-      throw new MetricLibraryError("OVERVIEW_OPERATIONAL_LIBRARY_REQUIRED", 400);
+      throw new MetricLibraryError(
+        `${surface.toUpperCase()}_OPERATIONAL_LIBRARY_REQUIRED`,
+        400,
+      );
     const version =
       requested.version.status === "draft"
         ? requested.version
@@ -599,7 +602,7 @@ export class MetricLibraryService {
           !d.enabled ||
           !d.entityScopes.includes(surface === "overview" ? "project" : "module")
         )
-          throw new MetricLibraryError("OVERVIEW_BINDING_INVALID", 400);
+          throw new MetricLibraryError(`${surface.toUpperCase()}_BINDING_INVALID`, 400);
         if (d.implementationStatus === "not_collected")
           throw new MetricLibraryError("NOT_COLLECTED_METRIC_BINDING_FORBIDDEN", 400);
       }

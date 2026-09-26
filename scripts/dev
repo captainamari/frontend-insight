@@ -24,6 +24,7 @@ Commands:
   verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
   verify-r1b                     Verify R1-B versions, formula safety and audit
   verify-r3                      Verify R3 MySQL/ClickHouse/API and performance
+  verify-r4a                     Verify R4-A modules, storage/API and performance
   verify-r2                      Verify R2 MySQL/ClickHouse/API and performance
   verify-r2-upgrade              Verify 001+002 -> 003 with retained test data
   verify-r1c                     Verify R1-C score storage, API and historical behavior

@@ -34,8 +34,35 @@ const signature = computed(() =>
 const selectedMetric = computed(() =>
   data.value?.metrics.cards.find((m) => m.definition.metricKey === drill.value),
 );
+const observedTrends = computed(() => route.query.businessValues === "observed");
+const trendMetrics = computed(() => {
+  const metrics = data.value?.metrics;
+  if (!metrics || !observedTrends.value) return metrics;
+  return {
+    ...metrics,
+    trends: metrics.trends.map((b) => ({
+      ...b,
+      metrics: b.metrics.map((m) => ({
+        ...m,
+        value: m.rawValue,
+        reason: m.rawValue === null ? m.reason : "OBSERVED_ONLY_NOT_FORMAL",
+      })),
+    })),
+  };
+});
+function showObserved(event: Event) {
+  void router.push({
+    query: {
+      ...route.query,
+      businessValues: (event.target as HTMLInputElement).checked
+        ? "observed"
+        : undefined,
+    },
+  });
+}
 const labels: Record<string, string> = {
   no_modules: "所选范围无功能模块配置",
+  no_active_module: "所选范围没有启用的模块版本",
   missing_active: "尚无激活的运营指标版本",
   missing_bindings: "当前版本未配置业务分析展示指标",
   configured: "当前版本已配置",
@@ -211,7 +238,7 @@ onBeforeUnmount(() => {
         </p>
         <p>
           运营版本 {{ data.metrics.version?.version ?? "—" }} /
-          {{ data.metrics.version?.id ?? "—" }} · 观察起点
+          {{ data.metrics.version?.id ?? "—" }} · 所选项目窗口观察起点
           {{ data.availableFrom ?? "未知" }} · 最近数据 {{ data.lastDataAt ?? "—" }}
         </p>
         <button @click="configure()">查看指标配置与版本</button>
@@ -257,7 +284,17 @@ onBeforeUnmount(() => {
         <p>
           同版本与页面配置快照；日/周/月逐桶使用同一公式，缺口不补零，版本切换处不连线。
         </p>
-        <OverviewTrends :metrics="data.metrics" />
+        <label
+          ><input
+            type="checkbox"
+            :checked="observedTrends"
+            @change="showObserved"
+          />显示观察值趋势（非正式指标）</label
+        >
+        <p v-if="observedTrends">
+          当前绘制卡片中的观察值：仅已识别页面访问及其同源公式结果，不代表完整业务活动或可信正式指标。
+        </p>
+        <OverviewTrends v-if="trendMetrics" :metrics="trendMetrics" />
       </section>
       <section class="panel">
         <h2>页面构成与观察证据</h2>

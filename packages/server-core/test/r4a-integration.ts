@@ -81,6 +81,9 @@ try {
   );
   const root = `/api/projects/${project.id}`,
     path = root + "/business";
+  const unauthenticated = await fetch(apiUrl + path);
+  assert.equal(unauthenticated.status, 401);
+  assert(!JSON.stringify(await unauthenticated.json()).includes(project.name));
   const denied = await call<{ code: string }>(viewer, path, "GET", undefined, 403);
   assert.equal(denied.code, "PROJECT_FORBIDDEN");
   const [users] = await mysql.pool.query<RowDataPacket[]>(
@@ -106,6 +109,7 @@ try {
     },
     201,
   );
+  assert.equal((await call<Overview>(viewer, path)).metrics.status, "missing_active");
   await call(
     admin,
     root + "/page-definitions",
@@ -200,7 +204,9 @@ try {
     if (type === "operational") {
       const bindingPath = root + `/metrics/versions/${version.id}/business-bindings`;
       await call(viewer, bindingPath, "PUT", { metricKeys: ["pv"] }, 403);
-      await call(admin, bindingPath, "PUT", { metricKeys: ["pv", "uv", "vv"] });
+      await call(admin, bindingPath, "PUT", {
+        metricKeys: ["pv", "uv", "task_duration"],
+      });
       await call(admin, bindingPath, "PUT", { metricKeys: ["pv", "pv"] }, 400);
       await call(admin, bindingPath, "PUT", { metricKeys: ["missing_metric"] }, 400);
     }
@@ -216,7 +222,7 @@ try {
         admin,
         root + `/metrics/versions/${version.id}/business-bindings`,
         "PUT",
-        { metricKeys: ["pv", "uv", "vv"] },
+        { metricKeys: ["pv", "uv", "task_duration"] },
       );
       await call(
         admin,
@@ -326,6 +332,7 @@ try {
     "moduleId=" + randomUUID(),
     "timezone=UTC",
     "metrics=unbound",
+    "range=custom&from=2024-01-01T00:00:00Z&to=2026-01-01T00:00:00Z",
   ])
     await call(
       admin,
@@ -346,6 +353,13 @@ try {
     root + `/metrics/versions/${versions.operational}/business-bindings`,
     "PUT",
     { metricKeys: ["module_penetration"] },
+    400,
+  );
+  await call(
+    admin,
+    root + `/metrics/versions/${versions.operational}/business-bindings`,
+    "PUT",
+    { metricKeys: ["operation_fail_rate"] },
     400,
   );
   const copied = await call<{ version: MetricLibraryVersion; metricKeys: string[] }>(
@@ -428,6 +442,97 @@ try {
       page_route: "/r4a-load-" + (i % 24),
     })),
   });
+  const [foreignModules] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT id FROM modules WHERE project_id<>? LIMIT 1",
+    [project.id],
+  );
+  assert(foreignModules.length);
+  await call(
+    viewer,
+    path + "?moduleId=" + String(foreignModules[0]!.id),
+    "GET",
+    undefined,
+    404,
+  );
+  await call(
+    viewer,
+    root + "/modules/" + module.id,
+    "PATCH",
+    { status: "disabled" },
+    403,
+  );
+  const specialAt = now + 3600000;
+  const special = (
+    route: string,
+    offset: number,
+    user: string | null = "isolated-hmac-special",
+  ) => ({
+    ...values[1]!,
+    event_id: randomUUID(),
+    env: "prod",
+    page_route: route,
+    timestamp: stamp(specialAt + offset),
+    user_id: user,
+  });
+  await ch.insert({
+    table: "raw_events",
+    format: "JSONEachRow",
+    values: [
+      special("/r4a", 100),
+      special("/r4a-second", 100),
+      special("/unclassified", 100),
+      special("/r4a", 100, null),
+    ],
+  });
+  const specialQuery = new URLSearchParams({
+    range: "custom",
+    env: "prod",
+    moduleId: module.id,
+    from: new Date(specialAt).toISOString(),
+    to: new Date(specialAt + 1000).toISOString(),
+  });
+  const classified = await call<Overview>(viewer, path + "?" + specialQuery);
+  assert.equal(classified.observation!.pv, 1);
+  assert.equal(classified.observation!.uv, 1);
+  assert.equal(classified.observation!.unidentified, 1);
+  assert.equal(classified.observation!.unclassified, 1);
+  assert.equal(classified.observation!.excluded, 2);
+  assert(classified.pages.some((p) => p.reason === "PAGE_DISABLED"));
+  await call(admin, root + "/page-definitions/" + second.id, "PATCH", {
+    moduleId: largeModule.id,
+    status: "active",
+    effectiveFrom: new Date(specialAt + 1000).toISOString(),
+  });
+  await ch.insert({
+    table: "raw_events",
+    format: "JSONEachRow",
+    values: [special("/r4a-second", 1100)],
+  });
+  specialQuery.set("from", new Date(specialAt + 1000).toISOString());
+  specialQuery.set("to", new Date(specialAt + 2000).toISOString());
+  const movedOut = await call<Overview>(viewer, path + "?" + specialQuery);
+  assert.equal(movedOut.observation!.pv, 0);
+  specialQuery.set("moduleId", largeModule.id);
+  const movedIn = await call<Overview>(viewer, path + "?" + specialQuery);
+  assert.equal(movedIn.observation!.pv, 1);
+  assert.equal(
+    (await call<Overview>(viewer, path + "?" + params)).observation!.pv,
+    360,
+  );
+  await call(admin, root + "/modules/" + largeModule.id, "PATCH", {
+    status: "disabled",
+    effectiveFrom: new Date(specialAt + 2000).toISOString(),
+  });
+  await ch.insert({
+    table: "raw_events",
+    format: "JSONEachRow",
+    values: [special("/r4a-second", 2100)],
+  });
+  specialQuery.set("from", new Date(specialAt + 2000).toISOString());
+  specialQuery.set("to", new Date(specialAt + 3000).toISOString());
+  const disabled = await call<Overview>(viewer, path + "?" + specialQuery);
+  assert.equal(disabled.observation!.pv, 0);
+  assert(disabled.pages.every((p) => p.reason === "MODULE_DISABLED"));
   const measurements = [];
   for (const population of [
     { id: module.id, pages: 2 },
@@ -522,7 +627,7 @@ try {
     query: Object.fromEntries(params),
     measurements,
     alternateModuleId: largeModule.id,
-    events: values.length * 2,
+    events: values.length * 2 + 6,
     physicalRetentionDays: 90,
     coverage: "90 synthetic event dates, not production capacity",
     environment: {

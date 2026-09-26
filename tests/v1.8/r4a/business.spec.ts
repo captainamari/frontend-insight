@@ -4,6 +4,7 @@ import type { BusinessResponse } from "../../../apps/web/src/business-types";
 const evidence = JSON.parse(readFileSync("artifacts/r4a-integration.json", "utf8")) as {
   project: { id: string; name: string };
   moduleId: string;
+  alternateModuleId: string;
   query: Record<string, string>;
   versions: { operational: string };
 };
@@ -73,6 +74,13 @@ for (const role of ["admin", "viewer"] as const)
     await ready(page);
     const firstUsableMs = Date.now() - start;
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/business`));
+    const defaultModule = new URL(page.url()).searchParams.get("moduleId");
+    expect([evidence.moduleId, evidence.alternateModuleId]).toContain(defaultModule);
+    await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
+      defaultModule!,
+    );
+    await page.getByLabel("功能模块", { exact: true }).selectOption(evidence.moduleId);
+    await ready(page);
     await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
       evidence.moduleId,
     );
@@ -81,12 +89,29 @@ for (const role of ["admin", "viewer"] as const)
     await page.goto(url);
     await ready(page);
     await expect(page.locator(".cards article")).toHaveCount(3);
-    await page.getByLabel("环境", { exact: true }).selectOption("dev");
+    await page.getByLabel("显示观察值趋势（非正式指标）", { exact: true }).check();
+    await expect(page).toHaveURL(/businessValues=observed/);
+    await page.goBack();
+    await ready(page);
+    await expect(
+      page.getByLabel("显示观察值趋势（非正式指标）", { exact: true }),
+    ).not.toBeChecked();
+    await page.getByLabel("项目环境", { exact: true }).selectOption("dev");
     await ready(page);
     await expect(page).toHaveURL(/env=dev/);
     await page.goBack();
     await ready(page);
     await expect(page).toHaveURL(/env=prod/);
+    await page
+      .getByLabel("功能模块", { exact: true })
+      .selectOption(evidence.alternateModuleId);
+    await ready(page);
+    await expect(page).toHaveURL(new RegExp("moduleId=" + evidence.alternateModuleId));
+    await page.goBack();
+    await ready(page);
+    await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
+      evidence.moduleId,
+    );
     const analysis = page.url();
     await page.locator(".cards article").first().getByRole("button").click();
     await expect(page.getByRole("dialog", { name: "模块指标解释" })).toBeVisible();
@@ -228,6 +253,10 @@ test("late responses cannot overwrite a changed env or an open drill context", a
   await login(page, "viewer");
   await page.goto(url);
   await ready(page);
+  await page.getByLabel("项目环境", { exact: true }).selectOption("dev");
+  await ready(page);
+  await page.goBack();
+  await ready(page);
   let release: () => void = () => {},
     started: () => void = () => {},
     completed: () => void = () => {};
@@ -251,8 +280,11 @@ test("late responses cannot overwrite a changed env or an open drill context", a
   });
   await page.getByRole("button", { name: "刷新业务分析", exact: true }).click();
   await start;
-  await page.getByLabel("环境", { exact: true }).selectOption("dev");
+  await page.locator(".cards article").first().getByRole("button").click();
+  await expect(page.getByRole("dialog", { name: "模块指标解释" })).toBeVisible();
+  await page.goForward();
   await ready(page);
+  await expect(page.getByRole("dialog", { name: "模块指标解释" })).not.toBeVisible();
   release();
   await done;
   await expect(page).toHaveURL(/env=dev/);

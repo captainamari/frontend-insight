@@ -1,5 +1,7 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
+> **R4-A 实施状态 · 2026-09-26**：已实现正式业务分析路由、版本化业务展示绑定、模块批量读模型、时态页面构成、同源趋势和专项门禁；最终自动化以本提交完整Actions及实际checkout证据为准。`module_penetration` 的90日近似窗口是局部未决，未启用计算，不阻断其他实现。未宣称R4-A完整验收通过。详见 [R4-A results](../progress/v1.8-r4a-results.md) 与 decisions。
+
 > **R3 授权与 R4-A 继承 · 2026-09-18 用户确认，本次同步**：R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。R3 最终提交 `96db4d9ad6e0a774c014cb6e55003e5887ee0edd`，Actions `35225954810` 为 success。R3 关键体验并入 R4-A 联合手工验收；未执行或虚构 R3 独立手工步骤、日期、截图。周一、含今日第 N 日零点至当前瞬时、显式 from/to 优先、URL 展示偏好及 R3 其他原建议已获确认。Q04/Q05、Jesse owner、D2/D3-A/D4-A 继承；Q07 独立未决。旧“不得进入 R4”保留为历史，由本次授权解除。本次只实施 R4-A，不自动合并或进入 R4-B。
 
 
@@ -615,31 +617,35 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 13. R4-A：业务分析——功能模块指标
 
-建议分支：`agent/v1-8-r4a-business-analysis`
+工作分支：`agent/v1-8-r4a-business-analysis`
+
+实施进度（不代表最终门禁或手工通过）：以下明确部分已落地；自动化证据见 R4-A results。
 
 ### 13.1 后端
 
-- [ ] 功能模块列表；
-- [ ] 功能模块指标 read model；
-- [ ] 按功能模块聚合 page/task 指标；
-- [ ] 排除未归类/停用页面；
-- [ ] 指标 display bindings；
+- [x] 功能模块列表；
+- [x] 功能模块指标 read model；
+- [ ] 按功能模块聚合 page/task 指标：page_view观察已实现；task事实按原计划后置R4-B；
+- [x] 排除未归类/停用页面；
+- [x] 指标 display bindings；
 - [ ] `module_penetration`：去重 `userId` / 系统总用户数，返回分母来源与目录版本；
 - [ ] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；
-- [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回；
-- [ ] 功能模块趋势逐桶公式；
-- [ ] 功能模块 data status 和 sample。
+- [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回：pv/uv观察已实现，正式完整性及task/质量事实不绕过后置门禁；
+- [x] 功能模块趋势逐桶公式；
+- [x] 功能模块 data status 和 sample。
 
 ### 13.2 前端
 
-- [ ] 功能模块单选；
-- [ ] 运营指标卡；
-- [ ] 同源趋势；
-- [ ] 无配置、无数据、部分数据；
-- [ ] 指标定义/版本入口；
-- [ ] 工作流区先显示定义和“数据将在 R4-B 接入”的明确状态。
+- [x] 功能模块单选；
+- [x] 运营指标卡；
+- [x] 同源趋势；
+- [x] 无配置、无数据、部分数据；
+- [x] 指标定义/版本入口；
+- [x] 工作流区先显示定义和“数据将在 R4-B 接入”的明确状态。
 
 ### 13.3 阶段门
+
+当前仍为待验收；渗透率近似窗口局部未决，不能勾选全阶段通过。
 
 同一功能模块的卡片、趋势和原始页面汇总手算一致；`module_penetration` 的分子、分母和目录版本可解释；切换功能模块和时间范围后 URL 可恢复。
 

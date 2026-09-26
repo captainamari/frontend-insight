@@ -425,6 +425,7 @@ function apiMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "请求失败";
 }
 
+let appliedAnalysisVersion = "";
 async function load(): Promise<void> {
   const sequence = ++loadSequence;
   if (!props.projectId) return;
@@ -451,8 +452,14 @@ async function load(): Promise<void> {
     catalog.value = catalogResult;
     versions.value = versionResult.flat();
     const requested = scoreRoute.query.metricVersion;
-    if (typeof requested === "string" && versions.value.some((v) => v.id === requested))
+    if (
+      typeof requested === "string" &&
+      appliedAnalysisVersion !== requested &&
+      versions.value.some((v) => v.id === requested)
+    ) {
       selectedVersionId.value = requested;
+      appliedAnalysisVersion = requested;
+    }
     selectVisibleVersion();
     await loadVersion();
   } catch (cause) {

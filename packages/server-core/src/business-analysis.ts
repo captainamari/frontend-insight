@@ -63,7 +63,7 @@ export class BusinessAnalysisService {
           throw e;
         }
         const [modules] = await c.query<RowDataPacket[]>(
-          `SELECT m.id,m.module_key,m.archived_at,r.id AS revision_id,r.name,r.status,r.revision,r.effective_from,r.effective_to FROM modules m JOIN module_revisions r ON r.module_id=m.id WHERE m.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) ORDER BY r.effective_from,r.display_order,m.id`,
+          `SELECT m.id,m.module_key,m.archived_at,r.id AS revision_id,r.name,r.status,r.revision,r.effective_from,r.effective_to FROM modules m JOIN module_revisions r ON r.module_id=m.id WHERE m.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) ORDER BY r.effective_from,r.display_order,m.id LIMIT 10001`,
           [projectId, new Date(query.to), new Date(query.from)],
         );
         // Explicit selection must belong to this project even when there is no revision in the window.
@@ -89,7 +89,7 @@ export class BusinessAnalysisService {
           [active?.version.id ?? ""],
         );
         const [pageRows] = await c.query<RowDataPacket[]>(
-          `SELECT p.id AS page_id,p.page_route,r.id AS page_revision_id,r.name,r.module_id,r.status AS page_status,mr.id AS module_revision_id,mr.status AS module_status,GREATEST(r.effective_from,mr.effective_from) AS effective_from,LEAST(COALESCE(r.effective_to,?),COALESCE(mr.effective_to,?)) AS effective_to FROM page_definitions p JOIN page_definition_revisions r ON r.page_definition_id=p.id JOIN module_revisions mr ON mr.module_id=r.module_id AND mr.effective_from<COALESCE(r.effective_to,?) AND (mr.effective_to IS NULL OR mr.effective_to>r.effective_from) WHERE p.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) AND mr.effective_from<? AND (mr.effective_to IS NULL OR mr.effective_to>?) ORDER BY p.id,r.effective_from,mr.effective_from`,
+          `SELECT p.id AS page_id,p.page_route,r.id AS page_revision_id,r.name,r.module_id,r.status AS page_status,mr.id AS module_revision_id,mr.status AS module_status,GREATEST(r.effective_from,mr.effective_from) AS effective_from,LEAST(COALESCE(r.effective_to,?),COALESCE(mr.effective_to,?)) AS effective_to FROM page_definitions p JOIN page_definition_revisions r ON r.page_definition_id=p.id JOIN module_revisions mr ON mr.module_id=r.module_id AND mr.effective_from<COALESCE(r.effective_to,?) AND (mr.effective_to IS NULL OR mr.effective_to>r.effective_from) WHERE p.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) AND mr.effective_from<? AND (mr.effective_to IS NULL OR mr.effective_to>?) ORDER BY p.id,r.effective_from,mr.effective_from LIMIT 10001`,
           [
             new Date(query.to),
             new Date(query.to),
@@ -121,9 +121,11 @@ export class BusinessAnalysisService {
                 : "INCLUDED",
         }));
         const [workflows] = await c.query<RowDataPacket[]>(
-          `SELECT w.id,w.workflow_key,w.status AS object_status,v.id AS version_id,v.version,v.name,v.status,v.activated_at,v.effective_to,v.timeout_seconds,s.step_key,s.name AS step_name,s.step_order FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id=? AND v.module_id=? AND v.status='active' ORDER BY w.id,s.step_order`,
+          `SELECT w.id,w.workflow_key,w.status AS object_status,v.id AS version_id,v.version,v.name,v.status,v.activated_at,v.effective_to,v.timeout_seconds,s.step_key,s.name AS step_name,s.step_order FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id=? AND v.module_id=? AND v.status='active' ORDER BY w.id,s.step_order LIMIT 4001`,
           [projectId, selected ?? ""],
         );
+        if (workflows.length > 4000)
+          throw new MetricLibraryError("BUSINESS_WORKFLOW_LIMIT", 400);
         await c.commit();
         return {
           p,
@@ -225,6 +227,9 @@ export class BusinessAnalysisService {
         ]),
       ).values(),
     ];
+    const hasActiveRevision = snapshot.modules.some(
+      (m) => m.id === moduleId && m.status === "active",
+    );
     const identity = scoreDigest({
       projectId,
       moduleId,
@@ -304,14 +309,18 @@ export class BusinessAnalysisService {
       data: {
         state: !moduleId
           ? "no_modules"
-          : !observation?.window.events
-            ? "no_data"
-            : "partial",
+          : !hasActiveRevision
+            ? "no_active_module"
+            : !observation?.window.events
+              ? "no_data"
+              : "partial",
         reason: !moduleId
           ? "NO_MODULE_IN_RANGE"
-          : !observation?.window.events
-            ? "NO_EVENTS_IN_RANGE"
-            : "IDENTITY_AND_ENV_COVERAGE_NOT_VERIFIED",
+          : !hasActiveRevision
+            ? "NO_ACTIVE_MODULE_REVISION_IN_RANGE"
+            : !observation?.window.events
+              ? "NO_EVENTS_IN_RANGE"
+              : "IDENTITY_AND_ENV_COVERAGE_NOT_VERIFIED",
       },
       availableFrom: observation?.window.firstDataAt ?? null,
       availabilityScope:

@@ -117,6 +117,28 @@ describe("R4-A module aggregation and shared evaluator", () => {
       )[0]?.reason,
     ).toBe("METRIC_NOT_COLLECTED");
   });
+  it("does not substitute page percentiles or legacy operation duration for task samples", () => {
+    const task = definition("task_duration");
+    expect(task.percentiles).toEqual(["p50", "p90", "p75", "p99"]);
+    const f = businessFactWindow({
+      ...emptyBusinessObservation(),
+      events: 100,
+      pv: 100,
+      uv: 10,
+    });
+    const result = evaluateOverviewMetrics(
+      [task],
+      ["task_duration"],
+      f,
+      "day",
+      null,
+      "module",
+    )[0]!;
+    expect(result.value).toBeNull();
+    expect(result.rawValue).toBeNull();
+    expect(result.reason).toContain("R4-B");
+    expect(f.inputs.task_duration).toBeUndefined();
+  });
   it("never relabels prior identity definitions or crosses activation boundaries", () => {
     const f = businessFactWindow({
       ...emptyBusinessObservation(),
