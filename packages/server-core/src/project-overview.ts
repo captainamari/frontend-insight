@@ -77,6 +77,7 @@ export function evaluateOverviewMetrics(
   fact: FactWindow,
   granularity: string,
   boundaryReason: string | null,
+  scope: "project" | "module" = "project",
 ) {
   const values: Record<string, FormulaInputValue> = {},
     rawValues: Record<string, FormulaInputValue> = {},
@@ -98,8 +99,12 @@ export function evaluateOverviewMetrics(
     if (!d.enabled) value = missing("METRIC_DISABLED");
     else if (!d.timeGranularities.includes(granularity as never))
       value = missing("METRIC_GRANULARITY_UNSUPPORTED");
-    else if (!d.entityScopes.includes("project"))
-      value = missing("PROJECT_METRIC_SCOPE_REQUIRED");
+    else if (!d.entityScopes.includes(scope))
+      value = missing(
+        scope === "project"
+          ? "PROJECT_METRIC_SCOPE_REQUIRED"
+          : "MODULE_METRIC_SCOPE_REQUIRED",
+      );
     else if (d.implementationStatus === "not_collected")
       value = missing("METRIC_NOT_COLLECTED");
     else if (d.formulaAst) value = evaluateFormula(d.formulaAst, values);
@@ -109,14 +114,14 @@ export function evaluateOverviewMetrics(
       : fact.raw[key];
     if (
       d.origin === "system" &&
-      key === "pv" &&
+      (key === "pv" || (scope === "module" && key === "uv")) &&
       d.definitionVersion !== OBSERVED_PV_DEFINITION
     )
       observed = undefined;
     if (
       !d.enabled ||
       d.implementationStatus === "not_collected" ||
-      !d.entityScopes.includes("project") ||
+      !d.entityScopes.includes(scope) ||
       !d.timeGranularities.includes(granularity as never)
     )
       observed = undefined;

@@ -44,7 +44,13 @@ export const router = createRouter({
           name: "project-metrics",
           component: () => import("./views/MetricsView.vue"),
         },
-        ...(["business", "pages", "settings"] as const).map((module) => ({
+        {
+          path: "business",
+          name: "project-business",
+          component: () => import("./views/BusinessAnalysisView.vue"),
+          meta: { requiresAuth: true },
+        },
+        ...(["pages", "settings"] as const).map((module) => ({
           path: module,
           name: "project-" + module,
           component: () => import("./views/ProjectStageView.vue"),

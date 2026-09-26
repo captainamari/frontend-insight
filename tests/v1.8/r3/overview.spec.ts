@@ -89,9 +89,18 @@ for (const role of ["admin", "viewer"] as const) {
       await expect
         .poll(() => new URL(page.url()).pathname)
         .toBe(`/projects/${projectId}/${suffix}`);
-      await expect(
-        page.getByText("当前阶段尚未开放正文功能", { exact: false }),
-      ).toBeVisible();
+      if (suffix === "business") {
+        await expect(
+          page.getByRole("heading", { name: "业务分析", exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByText("工作流事实将在 R4-B 接入", { exact: true }),
+        ).toBeVisible();
+      } else {
+        await expect(
+          page.getByText("当前阶段尚未开放正文功能", { exact: false }),
+        ).toBeVisible();
+      }
     }
     await nav.getByRole("button", { name: "指标管理", exact: true }).click();
     await expect(
@@ -101,7 +110,9 @@ for (const role of ["admin", "viewer"] as const) {
       .getByRole("navigation", { name: "指标管理区域" })
       .getByRole("button", { name: "运营指标", exact: true })
       .click();
-    const bindings = page.locator(".bindings");
+    const bindings = page
+      .locator(".bindings")
+      .filter({ hasText: "概览展示指标（版本化）" });
     await bindings.locator("summary").click();
     const pvBinding = bindings.getByRole("checkbox", { name: / · pv · / });
     await expect(pvBinding).toBeChecked();

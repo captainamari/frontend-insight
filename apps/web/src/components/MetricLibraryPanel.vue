@@ -450,6 +450,9 @@ async function load(): Promise<void> {
     if (sequence !== loadSequence) return;
     catalog.value = catalogResult;
     versions.value = versionResult.flat();
+    const requested = scoreRoute.query.metricVersion;
+    if (typeof requested === "string" && versions.value.some((v) => v.id === requested))
+      selectedVersionId.value = requested;
     selectVisibleVersion();
     await loadVersion();
   } catch (cause) {
@@ -482,7 +485,15 @@ async function loadVersion(): Promise<void> {
     const result = await api.request<VersionResponse>(
       `/api/projects/${props.projectId}/metrics/versions/${selectedVersionId.value}`,
     );
-    if (sequence === snapshotSequence) snapshot.value = result;
+    if (sequence === snapshotSequence) {
+      snapshot.value = result;
+      const requested = scoreRoute.query.metricKey;
+      const item = result.definitions.find((d) => d.metricKey === requested);
+      if (item) {
+        definitionItem.value = item;
+        definitionOpen.value = true;
+      }
+    }
   } catch (cause) {
     if (sequence === snapshotSequence) error.value = apiMessage(cause);
   }
@@ -1057,6 +1068,19 @@ onBeforeUnmount(() => {
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
 
     <OverviewBindingsPanel
+      v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
+      :project-id="projectId"
+      :version-id="selectedVersion.id"
+      :can-write="canWrite"
+      @saved="
+        (id) => {
+          selectedVersionId = id;
+          void load();
+        }
+      "
+    />
+    <OverviewBindingsPanel
+      surface="business"
       v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
       :project-id="projectId"
       :version-id="selectedVersion.id"

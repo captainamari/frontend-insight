@@ -107,6 +107,13 @@ export const projectOverviewSchema = z
   })
   .strict();
 
+export const businessAnalysisSchema = projectOverviewSchema
+  .extend({
+    moduleId: z.string().uuid().optional(),
+    versionId: z.string().uuid().optional(),
+  })
+  .strict();
+
 const updateProjectSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
@@ -200,6 +207,19 @@ export class ProjectsController {
     return this.core.projectOverview.overview(
       projectId,
       parseInput(projectOverviewSchema, raw),
+    );
+  }
+
+  @Get(":projectId/business")
+  async business(
+    @Param("projectId") projectId: string,
+    @Query() raw: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, false);
+    return this.core.businessAnalysis.analysis(
+      projectId,
+      parseInput(businessAnalysisSchema, raw),
     );
   }
 

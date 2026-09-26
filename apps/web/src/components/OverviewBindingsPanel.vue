@@ -5,6 +5,7 @@ const props = defineProps<{
   projectId: string;
   versionId: string;
   canWrite: boolean;
+  surface?: "overview" | "business";
 }>();
 const emit = defineEmits<{ saved: [string] }>();
 interface Snapshot {
@@ -25,9 +26,9 @@ const data = ref<Snapshot | null>(null),
   busy = ref(false);
 let generation = 0;
 const base = () =>
-  `/api/projects/${props.projectId}/metrics/versions/${props.versionId}/overview-bindings`;
+  `/api/projects/${props.projectId}/metrics/versions/${props.versionId}/${props.surface ?? "overview"}-bindings`;
 watch(
-  () => [props.projectId, props.versionId],
+  () => [props.projectId, props.versionId, props.surface],
   async () => {
     const id = ++generation;
     busy.value = false;
@@ -73,7 +74,9 @@ onBeforeUnmount(() => generation++);
 </script>
 <template>
   <details v-if="data?.version.libraryType === 'operational'" class="bindings">
-    <summary>概览展示指标（版本化）</summary>
+    <summary>
+      {{ surface === "business" ? "业务分析" : "概览" }}展示指标（版本化）
+    </summary>
     <p>
       当前版本的指标卡与趋势共用此绑定，最多24项。修改已激活版本会创建或复用草稿；不会直接改线上显示。partial
       可绑定并显示实际限制，not_collected 不可绑定。
@@ -81,9 +84,11 @@ onBeforeUnmount(() => generation++);
     <p v-if="error" role="alert">{{ error }}</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <fieldset :disabled="!canWrite || busy || data.version.status === 'abandoned'">
-      <legend>选择概览指标</legend>
+      <legend>选择{{ surface === "business" ? "业务分析" : "概览" }}指标</legend>
       <label
-        v-for="d in data.definitions.filter((d) => d.entityScopes.includes('project'))"
+        v-for="d in data.definitions.filter((d) =>
+          d.entityScopes.includes(surface === 'business' ? 'module' : 'project'),
+        )"
         :key="d.metricKey"
         ><input
           v-model="keys"
@@ -102,7 +107,7 @@ onBeforeUnmount(() => generation++);
       :disabled="busy"
       @click="save"
     >
-      保存概览展示到草稿
+      保存{{ surface === "business" ? "业务分析" : "概览" }}展示到草稿
     </button>
   </details>
   <p v-else-if="error" role="alert">{{ error }}</p>

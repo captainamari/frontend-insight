@@ -534,19 +534,39 @@ export class MetricLibraryService {
     return { version, definitions: await this.listDefinitions(versionId) };
   }
 
-  async overviewBindings(projectId: string, versionId: string) {
+  overviewBindings(projectId: string, versionId: string) {
+    return this.displayBindings(projectId, versionId, "overview");
+  }
+  saveOverviewBindings(
+    projectId: string,
+    versionId: string,
+    keys: string[],
+    actor: Principal,
+  ) {
+    return this.saveDisplayBindings(projectId, versionId, keys, actor, "overview");
+  }
+  async displayBindings(
+    projectId: string,
+    versionId: string,
+    surface: "overview" | "business",
+  ) {
     const snapshot = await this.getVersion(projectId, versionId);
     const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
-      `SELECT d.metric_key FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name='project-overview' AND b.surface_key='overview' ORDER BY b.display_order,d.metric_key`,
-      [versionId],
+      `SELECT d.metric_key FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name=? AND b.surface_key=? ORDER BY b.display_order,d.metric_key`,
+      [
+        versionId,
+        surface === "overview" ? "project-overview" : "project-business",
+        surface,
+      ],
     );
     return { ...snapshot, metricKeys: rows.map((r) => String(r.metric_key)) };
   }
-  async saveOverviewBindings(
+  async saveDisplayBindings(
     projectId: string,
     versionId: string,
     metricKeys: string[],
     actor: Principal,
+    surface: "overview" | "business",
   ) {
     if (metricKeys.length > 24 || new Set(metricKeys).size !== metricKeys.length)
       throw new MetricLibraryError("OVERVIEW_BINDING_LIMIT", 400);
@@ -574,19 +594,33 @@ export class MetricLibraryService {
       const definitions = await this.listDefinitions(version.id, connection);
       for (const key of metricKeys) {
         const d = definitions.find((d) => d.metricKey === key);
-        if (!d || !d.enabled || !d.entityScopes.includes("project"))
+        if (
+          !d ||
+          !d.enabled ||
+          !d.entityScopes.includes(surface === "overview" ? "project" : "module")
+        )
           throw new MetricLibraryError("OVERVIEW_BINDING_INVALID", 400);
         if (d.implementationStatus === "not_collected")
           throw new MetricLibraryError("NOT_COLLECTED_METRIC_BINDING_FORBIDDEN", 400);
       }
       await connection.execute(
-        `DELETE b FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name='project-overview' AND b.surface_key='overview'`,
-        [version.id],
+        `DELETE b FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name=? AND b.surface_key=?`,
+        [
+          version.id,
+          surface === "overview" ? "project-overview" : "project-business",
+          surface,
+        ],
       );
       for (const [i, key] of metricKeys.entries())
         await connection.execute(
-          `INSERT INTO metric_display_bindings (id,metric_definition_id,route_name,surface_key,display_order) VALUES (?,?,'project-overview','overview',?)`,
-          [randomUUID(), definitions.find((d) => d.metricKey === key)!.id, i],
+          `INSERT INTO metric_display_bindings (id,metric_definition_id,route_name,surface_key,display_order) VALUES (?,?,?,?,?)`,
+          [
+            randomUUID(),
+            definitions.find((d) => d.metricKey === key)!.id,
+            surface === "overview" ? "project-overview" : "project-business",
+            surface,
+            i,
+          ],
         );
       await connection.execute(
         "UPDATE score_definitions SET reviewed_digest=NULL WHERE library_version_id=?",
@@ -596,7 +630,7 @@ export class MetricLibraryService {
         connection,
         projectId,
         actor.userId,
-        "metric_library.overview_bindings_saved",
+        `metric_library.${surface}_bindings_saved`,
         "metric_library_version",
         version.id,
         { count: metricKeys.length },
@@ -608,7 +642,7 @@ export class MetricLibraryService {
     } finally {
       connection.release();
     }
-    return this.overviewBindings(projectId, version.id);
+    return this.displayBindings(projectId, version.id, surface);
   }
 
   async catalog(

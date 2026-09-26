@@ -808,6 +808,16 @@ watch(
 </script>
 
 <template>
+  <button
+    v-if="
+      typeof route.query.analysisReturn === 'string' &&
+      route.query.analysisReturn.split('?')[0] ===
+        '/projects/' + String(route.params.projectId) + '/business'
+    "
+    @click="router.push(String(route.query.analysisReturn))"
+  >
+    返回原业务分析
+  </button>
   <div>
     <PageHeader
       eyebrow="METRIC CENTER · R1"

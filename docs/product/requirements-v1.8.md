@@ -1,5 +1,8 @@
 # Frontend Insight 前端监测平台——需求文档 v1.8
 
+> **R3 授权与 R4-A 继承 · 2026-09-18 用户确认，本次同步**：R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。R3 最终提交 `96db4d9ad6e0a774c014cb6e55003e5887ee0edd`，Actions `35225954810` 为 success。R3 关键体验并入 R4-A 联合手工验收；未执行或虚构 R3 独立手工步骤、日期、截图。周一、含今日第 N 日零点至当前瞬时、显式 from/to 优先、URL 展示偏好及 R3 其他原建议已获确认。Q04/Q05、Jesse owner、D2/D3-A/D4-A 继承；Q07 独立未决。旧“不得进入 R4”保留为历史，由本次授权解除。本次只实施 R4-A，不自动合并或进入 R4-B。
+
+
 > **R2 手工验收确认与 R3 继承 · 2026-09-15**：来源为用户本次任务明确确认：“R2手工验收通过，并且已经合并到refactor分支。”对应已验收提交 `4b5946c8a38c882871d7f4c4a975a4f6d163f597`，最终 [R2 Actions 34765702742](https://github.com/captainamari/frontend-insight/actions/runs/34765702742)。本次重新核对远端 `refactor` 为合并提交 `405da94499c4d112b212a13886637e770cc522e2`，R3 从该 SHA 创建 `agent/v1-8-r3-project-overview`。2026-09-15 是确认日期，不是补写的手工执行日期；未虚构步骤或截图。旧“R2 待手工验收/不得进入 R3”保留为历史并由此次确认解除。这不表示 R3 已验收，不表示 R4-B/R5-A/R6 事实能力完成。只在 R3 分支实施，不自动合并、不进入 R4。
 
 > **手工验收与 R2 继承更新 · 2026-09-11**：Jesse 在本会话明确确认“本次手工验收通过”，对应 R1-C `d37059bb32daf2c857747905d0873b719c323de8`，其 [Actions](https://github.com/captainamari/frontend-insight/actions/runs/34451705146) 为 success。已由用户合入 `refactor`；R2 从合并提交 `cfd90863827b7dad64007bcfd681f0b7d29e3489` 创建 `agent/v1-8-r2-project-entry`。下文旧“待手工验收/不进入 R2”保留为历史，已由本确认解除，不再阻断 R2；未补写任何未执行的手工用例。这不代表 R2 已验收，也不代表 R4-B/R5-A/R6 事实已交付。不授权代理合并或修改 refactor/main。
