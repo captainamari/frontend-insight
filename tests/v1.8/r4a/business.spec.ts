@@ -120,7 +120,14 @@ for (const role of ["admin", "viewer"] as const)
       page.getByRole("heading", { name: "指标管理", exact: true }),
     ).toBeVisible();
     await expect(page.getByTestId("metric-library")).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "指标定义", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId("metric-definition")).toContainText("pv");
     await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("dialog", { name: "指标定义", exact: true }),
+    ).not.toBeVisible();
     const binding = page
       .locator(".bindings")
       .filter({ hasText: "业务分析展示指标（版本化）" });
