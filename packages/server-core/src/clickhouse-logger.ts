@@ -32,9 +32,7 @@ export class SafeClickHouseLogger implements Logger {
 /** Only transport enums and numeric ClickHouse codes may enter operational logs. */
 export function storageFailureCode(cause: unknown): string {
   const code =
-    typeof cause === "object" && cause !== null && "code" in cause
-      ? cause.code
-      : null;
+    typeof cause === "object" && cause !== null && "code" in cause ? cause.code : null;
   const normalized =
     typeof code === "string" || typeof code === "number" ? String(code) : "";
   if (/^[0-9]{1,5}$/.test(normalized)) return `CLICKHOUSE_${normalized}`;
