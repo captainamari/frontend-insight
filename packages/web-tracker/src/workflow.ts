@@ -8,6 +8,8 @@ import type {
 export interface WorkflowDefinition {
   workflowKey: string;
   version: number;
+  startPolicy?: "explicit_sdk" | "first_step";
+  canStart?: boolean;
   timeoutSeconds: number;
   steps: readonly {
     stepKey: string;
@@ -26,7 +28,8 @@ export interface WorkflowDefinition {
     canceledStepKey: string | null;
   };
 }
-export type WorkflowState = "started" | "completed" | "failed" | "canceled" | "expired";
+export type WorkflowState =
+  "pending" | "started" | "completed" | "failed" | "canceled" | "expired";
 export interface WorkflowHandle {
   reachStep(stepKey: string): void;
   complete(): void;
@@ -39,9 +42,28 @@ export interface WorkflowHandle {
   ): OperationHandle;
   /** Bind a selector to this instance's explicit root; no global DOM scanning. */
   bindInteractions(root: Element): () => void;
+  /** Opt-in wrapper: business success predicate is mandatory; response stays in the host. */
+  observeNetwork<T>(
+    stepKey: string,
+    request: { method: string; pathPattern: string },
+    execute: () => Promise<T>,
+    accepted: (response: T) => boolean,
+  ): Promise<T>;
+  /** Explicit host lifecycle target; event.detail and DOM content are never read. */
+  bindPageLifecycle(target: EventTarget): () => void;
   getState(): WorkflowState;
 }
+interface SavedWorkflow {
+  instance: string;
+  workflowKey: string;
+  version: number;
+  session: string;
+  startedAt: number;
+  reached: string[];
+  pending: boolean;
+}
 export interface WorkflowHost {
+  persistence?: { read(): unknown; write(value: SavedWorkflow[]): void };
   runtime: TrackerRuntime;
   session(): string;
   emit(name: string, control: EventPayload): void;
@@ -68,24 +90,81 @@ export function noopWorkflow(): WorkflowHandle {
     cancel() {},
     startOperation: noopOperation,
     bindInteractions: () => () => {},
+    bindPageLifecycle: () => () => {},
+    observeNetwork: <T>(_key: string, _request: unknown, execute: () => Promise<T>) =>
+      execute(),
     getState: () => "expired" as const,
   });
 }
 /** Explicit instance engine. Adapter listeners never infer a target from session or key. */
 export class WorkflowRuntime {
-  private readonly active = new Map<string, { expire(): void; startedAt: number }>();
+  private readonly active = new Map<
+    string,
+    {
+      expire(): void;
+      startedAt: number;
+      snapshot(): SavedWorkflow;
+      handle?: WorkflowHandle;
+    }
+  >();
   private destroyed = false;
   constructor(
     private readonly host: WorkflowHost,
     private readonly definitions: readonly WorkflowDefinition[],
-  ) {}
+  ) {
+    try {
+      const saved = host.persistence?.read();
+      if (Array.isArray(saved) && saved.length <= 32)
+        for (const item of saved) {
+          if (
+            !item ||
+            typeof item !== "object" ||
+            typeof item.instance !== "string" ||
+            !/^wf_[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/.test(item.instance) ||
+            typeof item.workflowKey !== "string" ||
+            !Number.isSafeInteger(item.version) ||
+            !Number.isSafeInteger(item.startedAt) ||
+            typeof item.pending !== "boolean" ||
+            !Array.isArray(item.reached) ||
+            item.reached.length > 20 ||
+            !item.reached.every((k: unknown) => typeof k === "string") ||
+            item.session !== host.session()
+          )
+            continue;
+          this.create(item.workflowKey, item as SavedWorkflow);
+        }
+    } catch {
+      host.warn("WORKFLOW_STORAGE_UNAVAILABLE");
+    }
+  }
+  handles(workflowKey: string): readonly WorkflowHandle[] {
+    return [...this.active.values()]
+      .filter((v) => v.snapshot().workflowKey === workflowKey)
+      .flatMap((v) => (v.handle ? [v.handle] : []));
+  }
+  private persist() {
+    try {
+      this.host.persistence?.write([...this.active.values()].map((v) => v.snapshot()));
+    } catch {
+      this.host.warn("WORKFLOW_STORAGE_UNAVAILABLE");
+    }
+  }
   start(workflowKey: string): WorkflowHandle {
+    return this.create(workflowKey);
+  }
+  private create(workflowKey: string, saved?: SavedWorkflow): WorkflowHandle {
     try {
       const now = this.host.runtime.now();
       for (const value of this.active.values())
         if (now - value.startedAt > 604800000) value.expire();
-      const configured = this.definitions.find((d) => d.workflowKey === workflowKey);
+      const configured = this.definitions.find(
+        (d) =>
+          d.workflowKey === workflowKey &&
+          (saved ? d.version === saved.version : d.canStart !== false),
+      );
       if (this.destroyed || !configured) return this.reject("WORKFLOW_NOT_CONFIGURED");
+      if (saved && this.active.has(saved.instance))
+        return this.reject("WORKFLOW_RESTORE_DUPLICATE");
       if (this.active.size >= 32) return this.reject("WORKFLOW_INSTANCE_LIMIT");
       const definition = structuredClone(configured);
       if (
@@ -108,23 +187,38 @@ export class WorkflowRuntime {
       )
         return this.reject("WORKFLOW_CONFIG_INVALID");
       const session = this.host.session();
-      const instance = `wf_${this.host.runtime.crypto.randomUUID().replaceAll("-", "")}`;
+      if (
+        saved &&
+        (saved.startedAt > now ||
+          now >= saved.startedAt + definition.timeoutSeconds * 1000 ||
+          saved.reached.some((k) => !definition.steps.some((s) => s.stepKey === k)))
+      )
+        return this.reject("WORKFLOW_RESTORE_EXPIRED_OR_INVALID");
+      const instance =
+        saved?.instance ??
+        `wf_${this.host.runtime.crypto.randomUUID().replaceAll("-", "")}`;
       const association: EventPayload = {
         workflowInstanceId: instance,
         workflowKey,
         workflowDefinitionVersion: definition.version,
       };
-      let state: WorkflowState = "started";
+      let state: WorkflowState = (
+        saved ? saved.pending : definition.startPolicy === "first_step"
+      )
+        ? "pending"
+        : "started";
+      let startedAt = saved?.startedAt ?? now;
       let operations = 0;
-      const reached = new Set<string>();
+      const reached = new Set<string>(saved?.reached ?? []);
       const cleanup = new Set<() => void>();
       const release = () => {
         for (const stop of [...cleanup]) stop();
         cleanup.clear();
         this.active.delete(instance);
+        this.persist();
       };
       const expire = () => {
-        if (state === "started") {
+        if (state === "started" || state === "pending") {
           state = "expired";
           release();
         }
@@ -133,10 +227,10 @@ export class WorkflowRuntime {
         if (
           this.destroyed ||
           this.host.session() !== session ||
-          this.host.runtime.now() >= now + definition.timeoutSeconds * 1000
+          this.host.runtime.now() >= startedAt + definition.timeoutSeconds * 1000
         )
           expire();
-        return state === "started";
+        return state === "started" || state === "pending";
       };
       const safe = (action: () => void) => {
         try {
@@ -152,6 +246,11 @@ export class WorkflowRuntime {
             !reached.has(definition.terminalPolicy.completedStepKey)
           ) {
             this.host.warn("WORKFLOW_SUCCESS_STEP_REQUIRED");
+            return;
+          }
+          if (state === "pending") {
+            state = next;
+            release();
             return;
           }
           state = next;
@@ -170,7 +269,23 @@ export class WorkflowRuntime {
             return;
           }
           if (reached.has(key)) return;
+          if (state === "pending") {
+            if (step.stepOrder !== 1) {
+              this.host.warn("WORKFLOW_FIRST_STEP_REQUIRED");
+              return;
+            }
+            startedAt = this.host.runtime.now();
+            record.startedAt = startedAt;
+            state = "started";
+            this.host.runtime.clearTimeout(timer);
+            timer = this.host.runtime.setTimeout(
+              expire,
+              definition.timeoutSeconds * 1000,
+            );
+            if (state === "started") this.host.emit("workflow_started", association);
+          }
           reached.add(key);
+          this.persist();
           this.host.emit("workflow_step_reached", {
             ...association,
             workflowStepKey: key,
@@ -182,14 +297,33 @@ export class WorkflowRuntime {
           else if (key === definition.terminalPolicy.canceledStepKey)
             finish("canceled");
         });
-      this.active.set(instance, { expire, startedAt: now });
-      const timer = this.host.runtime.setTimeout(
+      const record: {
+        expire(): void;
+        startedAt: number;
+        snapshot(): SavedWorkflow;
+        handle?: WorkflowHandle;
+      } = {
         expire,
-        definition.timeoutSeconds * 1000,
+        startedAt,
+        snapshot: () => ({
+          instance,
+          workflowKey,
+          version: definition.version,
+          session,
+          startedAt,
+          reached: [...reached],
+          pending: state === "pending",
+        }),
+      };
+      this.active.set(instance, record);
+      let timer = this.host.runtime.setTimeout(
+        expire,
+        Math.max(0, startedAt + definition.timeoutSeconds * 1000 - now),
       );
       cleanup.add(() => this.host.runtime.clearTimeout(timer));
-      this.host.emit("workflow_started", association);
-      return Object.freeze({
+      if (!saved && state === "started")
+        this.host.emit("workflow_started", association);
+      const handle: WorkflowHandle = Object.freeze({
         reachStep: (key: string) => reach(key, "explicit_sdk"),
         complete: () => finish("completed"),
         fail: () => finish("failed"),
@@ -231,6 +365,57 @@ export class WorkflowRuntime {
             return noopOperation();
           }
         },
+        observeNetwork: async <T>(
+          stepKey: string,
+          request: { method: string; pathPattern: string },
+          execute: () => Promise<T>,
+          accepted: (response: T) => boolean,
+        ): Promise<T> => {
+          // Execute exactly once, preserve rejection and the original result; no fetch patch.
+          const result = await execute();
+          safe(() => {
+            const step = definition.steps.find((s) => s.stepKey === stepKey);
+            if (
+              !step ||
+              step.triggerKind !== "network_request" ||
+              step.triggerConfig.method !== request.method ||
+              step.triggerConfig.pathPattern !== request.pathPattern ||
+              !/^\/[^?#]*$/.test(request.pathPattern)
+            ) {
+              this.host.warn("WORKFLOW_NETWORK_CONFIG_MISMATCH");
+              return;
+            }
+            if (accepted(result) === true) reach(stepKey, "network_request");
+          });
+          return result;
+        },
+        bindPageLifecycle: (target: EventTarget) => {
+          const stops: (() => void)[] = [];
+          safe(() => {
+            for (const event of ["loaded", "refreshed"] as const) {
+              const listener = () =>
+                safe(() => {
+                  for (const step of definition.steps)
+                    if (
+                      step.triggerKind === "page_lifecycle" &&
+                      step.triggerConfig.event === event
+                    )
+                      reach(step.stepKey, "page_lifecycle");
+                });
+              const name = `fi:page-${event}`;
+              target.addEventListener(name, listener);
+              const stop = () => target.removeEventListener(name, listener);
+              stops.push(stop);
+              cleanup.add(stop);
+            }
+          });
+          return () => {
+            for (const stop of stops) {
+              stop();
+              cleanup.delete(stop);
+            }
+          };
+        },
         bindInteractions: (root: Element) => {
           const stops: (() => void)[] = [];
           safe(() => {
@@ -271,6 +456,9 @@ export class WorkflowRuntime {
           };
         },
       });
+      record.handle = handle;
+      this.persist();
+      return handle;
     } catch {
       return this.reject("WORKFLOW_INTERNAL_ERROR");
     }

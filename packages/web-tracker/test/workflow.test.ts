@@ -189,3 +189,150 @@ describe("R4-B explicit SDK instances", () => {
     expect(f.tracker.startWorkflow("download").getState()).toBe("expired");
   });
 });
+
+describe("R4-B opt-in adapters", () => {
+  it("requires matching request configuration and explicit business success; preserves host result and rejection", async () => {
+    const f = fixture();
+    f.definition.steps[1] = {
+      stepKey: "received",
+      stepOrder: 2,
+      triggerKind: "network_request",
+      triggerConfig: { method: "POST", pathPattern: "/synthetic/result" },
+    };
+    const w = f.tracker.startWorkflow("download");
+    w.reachStep("requested");
+    const response = { status: 200, valid: false, secret: "DO_NOT_COLLECT" };
+    expect(
+      await w.observeNetwork(
+        "received",
+        { method: "POST", pathPattern: "/synthetic/result" },
+        async () => response,
+        (r) => r.valid,
+      ),
+    ).toBe(response);
+    expect(w.getState()).toBe("started");
+    await expect(
+      w.observeNetwork(
+        "received",
+        { method: "POST", pathPattern: "/synthetic/result" },
+        async () => {
+          throw new Error("host failure");
+        },
+        () => true,
+      ),
+    ).rejects.toThrow("host failure");
+    await w.observeNetwork(
+      "received",
+      { method: "GET", pathPattern: "/synthetic/result" },
+      async () => response,
+      () => true,
+    );
+    expect(w.getState()).toBe("started");
+    await w.observeNetwork(
+      "received",
+      { method: "POST", pathPattern: "/synthetic/result" },
+      async () => response,
+      () => {
+        throw new Error("predicate failure");
+      },
+    );
+    expect(w.getState()).toBe("started");
+    await w.observeNetwork(
+      "received",
+      { method: "POST", pathPattern: "/synthetic/result" },
+      async () => response,
+      () => true,
+    );
+    expect(w.getState()).toBe("completed");
+    expect(JSON.stringify(await f.events())).not.toContain("DO_NOT_COLLECT");
+  });
+  it("uses a scoped lifecycle target and removes listeners at terminal", async () => {
+    const f = fixture();
+    f.definition.steps[1] = {
+      stepKey: "received",
+      stepOrder: 2,
+      triggerKind: "page_lifecycle",
+      triggerConfig: { event: "loaded" },
+    };
+    const w = f.tracker.startWorkflow("download"),
+      a = new EventTarget(),
+      b = new EventTarget();
+    w.reachStep("requested");
+    w.bindPageLifecycle(a);
+    b.dispatchEvent(new Event("fi:page-loaded"));
+    expect(w.getState()).toBe("started");
+    a.dispatchEvent(
+      new CustomEvent("fi:page-loaded", { detail: { secret: "DO_NOT_COLLECT" } }),
+    );
+    a.dispatchEvent(new Event("fi:page-loaded"));
+    expect(w.getState()).toBe("completed");
+    const events = await f.events();
+    expect(events.filter((e) => e.payload.name === "workflow_completed")).toHaveLength(
+      1,
+    );
+    expect(JSON.stringify(events)).not.toContain("DO_NOT_COLLECT");
+  });
+  it("first_step begins at the first configured step rather than handle allocation", async () => {
+    const f = fixture();
+    f.definition.startPolicy = "first_step";
+    const w = f.tracker.startWorkflow("download");
+    expect(w.getState()).toBe("pending");
+    w.reachStep("received");
+    expect(w.getState()).toBe("pending");
+    vi.advanceTimersByTime(5000);
+    w.reachStep("requested");
+    vi.advanceTimersByTime(5001);
+    expect(w.getState()).toBe("started");
+    w.reachStep("received");
+    expect(
+      (await f.events()).filter((e) => e.payload.name === "workflow_started"),
+    ).toHaveLength(1);
+  });
+});
+
+describe("R4-B reload persistence", () => {
+  it("restores SDK-owned IDs and pinned retired version only in the same live session", async () => {
+    const { WorkflowRuntime } = await import("../src/workflow.js");
+    const f = fixture();
+    let saved: unknown = null,
+      session = "controlled-session";
+    const emitted: { name: string; control: unknown }[] = [];
+    const host = {
+      runtime: f.runtime,
+      session: () => session,
+      emit: (name: string, control: unknown) => emitted.push({ name, control }),
+      operation: () => ({
+        succeed() {},
+        fail() {},
+        cancel() {},
+        getState: () => "started" as const,
+      }),
+      warn: vi.fn(),
+      persistence: {
+        read: () => saved,
+        write: (value: unknown) => {
+          saved = structuredClone(value);
+        },
+      },
+    };
+    const a = new WorkflowRuntime(host, [f.definition]);
+    a.start("download").reachStep("requested");
+    const retired = { ...f.definition, canStart: false };
+    const b = new WorkflowRuntime(host, [retired, { ...f.definition, version: 2 }]);
+    expect(b.handles("download")).toHaveLength(1);
+    b.handles("download")[0]!.reachStep("received");
+    expect(emitted.filter((e) => e.name === "workflow_started")).toHaveLength(1);
+    expect(
+      emitted.filter((e) => e.name === "workflow_completed")[0]!.control,
+    ).toMatchObject({ workflowDefinitionVersion: 1 });
+    expect(saved).toEqual([]);
+    a.start("download");
+    session = "rotated-session";
+    const c = new WorkflowRuntime(host, [f.definition]);
+    expect(c.handles("download")).toHaveLength(0);
+    expect(a.handles("download")[0]!.getState()).toBe("expired");
+    a.destroy();
+    b.destroy();
+    c.destroy();
+  });
+});

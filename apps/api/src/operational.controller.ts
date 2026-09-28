@@ -1,5 +1,6 @@
 import {
   normalizePageRouteDefinition,
+  readWorkflowFactDefinitions,
   validateWorkflowDefinition,
   type Principal,
   type ProjectRole,
@@ -148,7 +149,7 @@ const workflowConfigurationSchema = z.object({
     canceledStepKey: workflowStepKey.nullable(),
     timeoutState: z.literal("approximate_abandoned"),
   }),
-  timeoutSeconds: z.number().int().min(30).max(604_800),
+  timeoutSeconds: z.number().int().min(1).max(604_800),
   steps: z.array(workflowStepSchema).min(2).max(20),
 });
 const createWorkflowSchema = workflowConfigurationSchema.extend({
@@ -340,6 +341,25 @@ export class OperationalController {
       includeArchived: parsed.includeArchived === "true",
       ...(parsed.moduleId ? { moduleId: parsed.moduleId } : {}),
     });
+  }
+
+  @Get("workflow-definitions/:workflowId/versions/:versionId")
+  async workflowVersion(
+    @Param("projectId") projectId: string,
+    @Param("workflowId") workflowId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    parseInput(
+      z.object({ workflowId: z.string().uuid(), versionId: z.string().uuid() }),
+      { workflowId, versionId },
+    );
+    const version = (
+      await readWorkflowFactDefinitions(this.core.mysql.pool, projectId)
+    ).find((d) => d.id === workflowId && d.versionId === versionId);
+    if (!version) throw new HttpException({ code: "WORKFLOW_VERSION_NOT_FOUND" }, 404);
+    return version;
   }
 
   @Post("workflow-definitions")

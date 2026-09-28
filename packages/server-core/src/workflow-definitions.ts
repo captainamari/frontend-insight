@@ -3,6 +3,7 @@ import type { FrontendInsightEventV3 } from "@frontend-insight/event-contract";
 import { jsonValue } from "./score-storage.js";
 import type { WorkflowStepInput, WorkflowTerminalPolicy } from "./model.js";
 export interface WorkflowFactDefinition {
+  admissionPeriods?: { from: string; to: string | null }[];
   id: string;
   versionId: string;
   workflowKey: string;
@@ -65,6 +66,17 @@ export async function readWorkflowFactDefinitions(
         triggerConfig: jsonValue<WorkflowStepInput["triggerConfig"]>(r.trigger_config),
       });
   }
+  const [periods] = await pool.query<RowDataPacket[]>(
+    `SELECT p.workflow_definition_version_id AS versionId,p.effective_from,p.effective_to FROM workflow_admission_periods p JOIN workflow_definition_versions v ON v.id=p.workflow_definition_version_id JOIN workflow_definitions w ON w.id=v.workflow_definition_id WHERE w.project_id=? ORDER BY p.effective_from LIMIT 10001`,
+    [projectId],
+  );
+  if (periods.length > 10000) throw new Error("WORKFLOW_ADMISSION_LIMIT");
+  for (const d of definitions.values()) d.admissionPeriods = [];
+  for (const p of periods)
+    definitions.get(String(p.versionId))?.admissionPeriods!.push({
+      from: new Date(p.effective_from as string).toISOString(),
+      to: p.effective_to ? new Date(p.effective_to as string).toISOString() : null,
+    });
   return [...definitions.values()];
 }
 /** Definition validation is stateless; instance consistency is additionally checked by the reducer. */
@@ -84,10 +96,11 @@ export function workflowEventDefinitionError(
     return "WORKFLOW_VERSION_NOT_EFFECTIVE";
   if (
     name === "workflow_started" &&
-    (d.status !== "active" ||
-      d.objectStatus !== "active" ||
-      d.archived ||
-      (d.effectiveTo && event.timestamp >= Date.parse(d.effectiveTo)))
+    !(d.admissionPeriods ?? [{ from: d.effectiveFrom, to: d.effectiveTo }]).some(
+      (p) =>
+        event.timestamp >= Date.parse(p.from) &&
+        (!p.to || event.timestamp < Date.parse(p.to)),
+    )
   )
     return "WORKFLOW_START_VERSION_INACTIVE";
   if (

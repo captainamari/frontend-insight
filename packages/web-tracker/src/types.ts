@@ -93,6 +93,7 @@ export interface TrackerRuntime {
   document: Document;
   navigator: Pick<Navigator, "sendBeacon" | "userAgent">;
   storage?: Pick<Storage, "getItem" | "setItem">;
+  sessionStorage?: Pick<Storage, "getItem" | "setItem">;
   fetch: typeof fetch;
   crypto: Pick<Crypto, "randomUUID">;
   now: () => number;
@@ -104,6 +105,7 @@ export interface TrackerRuntime {
 
 export interface Tracker {
   startWorkflow(workflowKey: string): WorkflowHandle;
+  getActiveWorkflows(workflowKey: string): readonly WorkflowHandle[];
   setUser(userId: string | null): void;
   track(name: string, payload?: EventPayload): void;
   featureExposed(featureKey: string, payload?: EventPayload): void;

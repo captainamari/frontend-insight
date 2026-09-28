@@ -66,17 +66,31 @@ export class IngestionController {
       .header("access-control-allow-origin", origin)
       .header("vary", "Origin")
       .header("cache-control", "no-store");
-    const definitions = (
-      await readWorkflowFactDefinitions(this.core.mysql.pool, project.id)
-    ).filter(
-      (d) => d.status === "active" && d.objectStatus === "active" && !d.archived,
+    const definitions = await readWorkflowFactDefinitions(
+      this.core.mysql.pool,
+      project.id,
+    );
+    const recent = definitions.filter(
+      (d) =>
+        d.status === "active" ||
+        (d.effectiveTo && Date.parse(d.effectiveTo) >= Date.now() - 604800000),
+    );
+    if (recent.length > 200) throw new IngestionError("WORKFLOW_CONFIG_LIMIT", 413);
+    const modules = await this.core.mysql.listModules(project.id);
+    const enabledModules = new Set(
+      modules.filter((m) => m.status === "active" && !m.archivedAt).map((m) => m.id),
     );
     return {
       appId: input.appId,
       env: input.env,
       schemaVersion: 3,
-      definitions: definitions.map((d) => ({
+      definitions: recent.map((d) => ({
         workflowKey: d.workflowKey,
+        canStart:
+          d.status === "active" &&
+          d.objectStatus === "active" &&
+          !d.archived &&
+          enabledModules.has(d.moduleId),
         version: d.version,
         startPolicy: d.startPolicy,
         timeoutSeconds: d.timeoutSeconds,

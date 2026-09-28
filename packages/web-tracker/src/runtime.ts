@@ -9,6 +9,7 @@ export function browserRuntime(): TrackerRuntime {
     document,
     navigator,
     storage: window.localStorage,
+    sessionStorage: window.sessionStorage,
     fetch: globalThis.fetch.bind(globalThis),
     crypto: globalThis.crypto,
     now: Date.now,

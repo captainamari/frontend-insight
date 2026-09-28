@@ -56,6 +56,14 @@ try {
       }),
     ],
   );
+  await pool.execute(
+    `INSERT INTO workflow_admission_periods (id,workflow_definition_version_id,effective_from) SELECT ?,?,CURRENT_TIMESTAMP(3) WHERE NOT EXISTS (SELECT 1 FROM workflow_admission_periods WHERE workflow_definition_version_id=?)`,
+    [
+      stableUuid("r4b", "seed-workflow-admission"),
+      workflowVersionId,
+      workflowVersionId,
+    ],
+  );
   for (const [key, name, order] of [
     ["opened", "发现异常", 1],
     ["acknowledged", "确认处置", 2],

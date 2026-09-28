@@ -43,7 +43,28 @@ interface OperationRegistryItem {
   name: string;
 }
 
+interface FrozenWorkflowVersion {
+  workflowKey: string;
+  version: number;
+  name: string;
+  status: string;
+  startPolicy: string;
+  timeoutSeconds: number;
+  terminalPolicy: {
+    completedStepKey: string;
+    failedStepKey: string | null;
+    canceledStepKey: string | null;
+  };
+  steps: {
+    stepKey: string;
+    stepOrder: number;
+    name: string;
+    triggerKind: string;
+    triggerConfig: Record<string, string | boolean>;
+  }[];
+}
 interface AnalysisObjectsData {
+  frozenWorkflow: FrozenWorkflowVersion | null;
   modules: ProjectModule[];
   pages: PageDefinition[];
   workflows: WorkflowDefinition[];
@@ -232,22 +253,30 @@ async function load(): Promise<void> {
           `/api/projects/${projectId}/analytics/modules?${context.search.value}`,
         )
       : Promise.resolve({ unclassified: [] });
-    const [modules, pages, workflows, operations, moduleAnalytics] = await Promise.all([
-      api.request<ProjectModule[]>(
-        `/api/projects/${projectId}/modules${archivedQuery}`,
-      ),
-      api.request<PageDefinition[]>(
-        `/api/projects/${projectId}/page-definitions${archivedQuery}`,
-      ),
-      api.request<WorkflowDefinition[]>(
-        `/api/projects/${projectId}/workflow-definitions${archivedQuery}`,
-      ),
-      api.request<OperationRegistryItem[]>(
-        `/api/projects/${projectId}/operation-registry`,
-      ),
-      analytics,
-    ]);
+    const [modules, pages, workflows, operations, moduleAnalytics, frozenWorkflow] =
+      await Promise.all([
+        api.request<ProjectModule[]>(
+          `/api/projects/${projectId}/modules${archivedQuery}`,
+        ),
+        api.request<PageDefinition[]>(
+          `/api/projects/${projectId}/page-definitions${archivedQuery}`,
+        ),
+        api.request<WorkflowDefinition[]>(
+          `/api/projects/${projectId}/workflow-definitions${archivedQuery}`,
+        ),
+        api.request<OperationRegistryItem[]>(
+          `/api/projects/${projectId}/operation-registry`,
+        ),
+        analytics,
+        typeof route.query.workflowId === "string" &&
+        typeof route.query.workflowDefinitionVersion === "string"
+          ? api.request<FrozenWorkflowVersion>(
+              `/api/projects/${projectId}/workflow-definitions/${encodeURIComponent(route.query.workflowId)}/versions/${encodeURIComponent(route.query.workflowDefinitionVersion)}`,
+            )
+          : Promise.resolve(null),
+      ]);
     return {
+      frozenWorkflow,
       modules,
       pages,
       workflows,
@@ -786,7 +815,13 @@ function goToR6(): void {
 }
 
 watch(
-  () => [context.projectId.value, context.search.value, showArchived.value],
+  () => [
+    context.projectId.value,
+    context.search.value,
+    showArchived.value,
+    route.query.workflowId,
+    route.query.workflowDefinitionVersion,
+  ],
   () => void load(),
   { immediate: true },
 );
@@ -832,6 +867,37 @@ watch(
         >刷新</el-button
       >
     </PageHeader>
+    <section
+      v-if="resource.data.value?.frozenWorkflow && !resource.stale.value"
+      aria-label="分析引用的工作流版本"
+    >
+      <h2>
+        分析引用的工作流版本：{{ resource.data.value.frozenWorkflow.name }} v{{
+          resource.data.value.frozenWorkflow.version
+        }}
+      </h2>
+      <p>
+        只读不可变快照 · {{ resource.data.value.frozenWorkflow.workflowKey }} ·
+        {{ resource.data.value.frozenWorkflow.status }} · 超时
+        {{ resource.data.value.frozenWorkflow.timeoutSeconds }} 秒
+      </p>
+      <p>
+        成功步骤：{{
+          resource.data.value.frozenWorkflow.terminalPolicy.completedStepKey
+        }}；开始策略：{{ resource.data.value.frozenWorkflow.startPolicy }}
+      </p>
+      <el-table :data="resource.data.value.frozenWorkflow.steps">
+        <el-table-column prop="stepOrder" label="顺序" />
+        <el-table-column prop="stepKey" label="步骤 key" />
+        <el-table-column prop="name" label="名称" />
+        <el-table-column prop="triggerKind" label="触发方式" />
+        <el-table-column label="冻结条件"
+          ><template #default="scope">{{
+            JSON.stringify(scope.row.triggerConfig)
+          }}</template></el-table-column
+        >
+      </el-table>
+    </section>
     <nav class="metric-area-tabs" aria-label="指标管理区域">
       <button
         v-for="area in areas"

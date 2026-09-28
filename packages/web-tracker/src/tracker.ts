@@ -139,6 +139,22 @@ export class BrowserTracker implements Tracker {
     this.sessionId = id(runtime, "ses");
     this.pageViewId = id(runtime, "pv");
     this.lastActivityAt = runtime.now();
+    try {
+      const saved = JSON.parse(
+        runtime.sessionStorage?.getItem(this.sessionStorageKey()) ?? "null",
+      ) as { id?: unknown; at?: unknown } | null;
+      if (
+        saved &&
+        typeof saved.id === "string" &&
+        /^ses_[0-9a-f]{32}$/.test(saved.id) &&
+        typeof saved.at === "number" &&
+        saved.at <= runtime.now() &&
+        runtime.now() - saved.at <= config.sessionTimeoutMs
+      )
+        this.sessionId = saved.id;
+    } catch {
+      this.warn("SESSION_STORAGE_UNAVAILABLE");
+    }
     this.visibleStartedAt = this.isVisible() ? this.lastActivityAt : null;
     this.pageRoute = this.resolvePageRoute();
     this.originalPushState = runtime.window.history.pushState.bind(
@@ -158,6 +174,19 @@ export class BrowserTracker implements Tracker {
     this.workflows = new WorkflowRuntime(
       {
         runtime,
+        persistence: {
+          read: () =>
+            JSON.parse(
+              runtime.sessionStorage?.getItem(
+                this.sessionStorageKey() + ".workflows",
+              ) ?? "null",
+            ),
+          write: (value) =>
+            runtime.sessionStorage?.setItem(
+              this.sessionStorageKey() + ".workflows",
+              JSON.stringify(value),
+            ),
+        },
         session: () =>
           this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs
             ? "expired"
@@ -176,6 +205,10 @@ export class BrowserTracker implements Tracker {
       () => void this.flush("normal"),
       config.flushIntervalMs,
     );
+  }
+
+  private sessionStorageKey() {
+    return `frontend-insight.session.${this.config.appId}.${this.config.env}`;
   }
 
   private loadOrCreateDevice(): string {
@@ -281,6 +314,14 @@ export class BrowserTracker implements Tracker {
       this.sessionId = id(this.runtime, "ses");
     }
     this.lastActivityAt = now;
+    try {
+      this.runtime.sessionStorage?.setItem(
+        this.sessionStorageKey(),
+        JSON.stringify({ id: this.sessionId, at: now }),
+      );
+    } catch {
+      this.warn("SESSION_STORAGE_UNAVAILABLE");
+    }
   }
 
   private emit(
@@ -412,6 +453,10 @@ export class BrowserTracker implements Tracker {
       }
       this.feature("feature_failed", featureKey, payload, { reasonCode });
     });
+  }
+
+  getActiveWorkflows(workflowKey: string) {
+    return this.workflows.handles(workflowKey);
   }
 
   startWorkflow(workflowKey: string) {

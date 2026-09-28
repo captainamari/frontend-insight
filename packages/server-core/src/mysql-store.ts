@@ -1513,29 +1513,45 @@ export class MySqlStore {
       if (!workflow) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
       await this.requireProjectModule(this.pool, projectId, workflow.moduleId);
     }
-    const [result] = await this.pool.execute(
-      `UPDATE workflow_definitions SET status = ?, disabled_at = ?
-       WHERE id = ? AND project_id = ? AND archived_at IS NULL`,
-      [
-        input.status,
-        input.status === "disabled" ? new Date() : null,
-        workflowId,
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const [rows] = await connection.query<RowDataPacket[]>(
+        "SELECT id,status FROM workflow_definitions WHERE id=? AND project_id=? AND archived_at IS NULL FOR UPDATE",
+        [workflowId, projectId],
+      );
+      if (!rows.length) throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+      const now = new Date();
+      if (rows[0]!.status !== input.status) {
+        await connection.execute(
+          "UPDATE workflow_definitions SET status=?,disabled_at=? WHERE id=?",
+          [input.status, input.status === "disabled" ? now : null, workflowId],
+        );
+        await connection.execute(
+          `UPDATE workflow_admission_periods p JOIN workflow_definition_versions v ON v.id=p.workflow_definition_version_id SET p.effective_to=? WHERE v.workflow_definition_id=? AND p.effective_to IS NULL`,
+          [now, workflowId],
+        );
+        if (input.status === "active")
+          await connection.execute(
+            `INSERT INTO workflow_admission_periods (id,workflow_definition_version_id,effective_from) SELECT UUID(),id,? FROM workflow_definition_versions WHERE workflow_definition_id=? AND status='active'`,
+            [now, workflowId],
+          );
+      }
+      await this.insertAudit(connection, {
         projectId,
-      ],
-    );
-    if ((result as { affectedRows: number }).affectedRows !== 1) {
-      throw new Error("WORKFLOW_DEFINITION_NOT_FOUND");
+        actorUserId: input.actor.userId,
+        action: "workflow_definition.updated",
+        entityType: "workflow",
+        entityId: workflowId,
+        metadata: { changedFields: ["status"] },
+      });
+      await connection.commit();
+    } catch (cause) {
+      await connection.rollback();
+      throw cause;
+    } finally {
+      connection.release();
     }
-    await this.audit({
-      projectId,
-      actorUserId: input.actor.userId,
-      action: "workflow_definition.updated",
-      entityType: "workflow",
-      entityId: workflowId,
-      metadata: {
-        changedFields: Object.keys(input).filter((key) => key !== "actor"),
-      },
-    });
     const workflow = (await this.listWorkflowDefinitions(projectId)).find(
       (item) => item.id === workflowId,
     );
@@ -1679,6 +1695,10 @@ export class MySqlStore {
       );
       const effectiveFrom = new Date();
       await connection.execute(
+        `UPDATE workflow_admission_periods p JOIN workflow_definition_versions v ON v.id=p.workflow_definition_version_id SET p.effective_to=? WHERE v.workflow_definition_id=? AND p.effective_to IS NULL`,
+        [effectiveFrom, input.workflowId],
+      );
+      await connection.execute(
         `UPDATE workflow_definition_versions
          SET status = 'retired', effective_to = ?
          WHERE workflow_definition_id = ? AND status = 'active'`,
@@ -1694,6 +1714,10 @@ export class MySqlStore {
         `UPDATE workflow_definitions SET module_id = ?, name = ?
          WHERE id = ? AND project_id = ?`,
         [rows[0]!.module_id, rows[0]!.name, input.workflowId, input.projectId],
+      );
+      await connection.execute(
+        `INSERT INTO workflow_admission_periods (id,workflow_definition_version_id,effective_from) SELECT UUID(),?,? FROM workflow_definitions WHERE id=? AND status='active' AND archived_at IS NULL`,
+        [input.versionId, effectiveFrom, input.workflowId],
       );
       await this.insertAudit(connection, {
         projectId: input.projectId,

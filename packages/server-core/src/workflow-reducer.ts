@@ -43,6 +43,7 @@ export function reduceWorkflowInstances(
   asOf: number,
 ) {
   const dedup = new Map<string, WorkflowFactEvent>();
+  const conflicted = new Set<string>();
   const groups = new Map<string, WorkflowFactEvent[]>();
   const rejected: Record<string, number> = {};
   const reject = (reason: string) => {
@@ -56,6 +57,7 @@ export function reduceWorkflowInstances(
       e.receivedAt > asOf
     )
       continue;
+    if (conflicted.has(e.eventId)) continue;
     const prior = dedup.get(e.eventId);
     if (
       prior &&
@@ -63,6 +65,8 @@ export function reduceWorkflowInstances(
         JSON.stringify({ ...e, receivedAt: 0 })
     ) {
       reject("EVENT_ID_CONFLICT");
+      dedup.delete(e.eventId);
+      conflicted.add(e.eventId);
       continue;
     }
     if (!prior || e.receivedAt < prior.receivedAt) dedup.set(e.eventId, e);
@@ -100,7 +104,7 @@ export function reduceWorkflowInstances(
       reasons.push("WORKFLOW_CONTEXT_CONFLICT");
     if (starts.some((s) => s.timestamp !== start.timestamp))
       reasons.push("WORKFLOW_MULTIPLE_STARTS");
-    if (es.some((e) => e.timestamp < start.timestamp))
+    if (es.some((e) => e.name.startsWith("workflow_") && e.timestamp < start.timestamp))
       reasons.push("WORKFLOW_EVENT_BEFORE_START");
     const stepMap = new Map<string, { key: string; order: number; at: number }>();
     for (const e of es.filter((e) => e.name === "workflow_step_reached")) {
@@ -121,7 +125,7 @@ export function reduceWorkflowInstances(
         const opStart = op.find(
           (o) =>
             o.name === "feature_started" &&
-            o.timestamp >= start.timestamp &&
+            (d.startPolicy === "first_step" || o.timestamp >= start.timestamp) &&
             o.timestamp <= e.timestamp,
         );
         const terminals = op
