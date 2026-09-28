@@ -36,6 +36,28 @@ export function snapshotDigest(
 ) {
   return scoreDigest({ versionId, configuration, dependencies, definitions });
 }
+/** Review includes persisted display bindings without changing the scoring definition digest. */
+export async function readReviewBindings(
+  connection: Pick<PoolConnection, "query">,
+  versionId: string,
+) {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `SELECT d.metric_key,b.route_name,b.surface_key,b.display_order FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? ORDER BY b.route_name,b.surface_key,b.display_order,d.metric_key`,
+    [versionId],
+  );
+  return rows.map((r) => ({
+    metricKey: r.metric_key,
+    route: r.route_name,
+    surface: r.surface_key,
+    order: Number(r.display_order),
+  }));
+}
+export function reviewDigest(
+  snapshot: string,
+  bindings: Awaited<ReturnType<typeof readReviewBindings>>,
+) {
+  return bindings.length ? scoreDigest({ snapshot, bindings }) : snapshot;
+}
 export async function writeScoreItems(
   connection: PoolConnection,
   scoreId: string,
@@ -135,7 +157,10 @@ export async function validateStoredScore(
     throw new MetricLibraryError("SCORE_CONFIGURATION_INCOMPLETE", 400);
   if (
     row.reviewed_digest !==
-    snapshotDigest(version.id, configuration, dependencies, definitions)
+    reviewDigest(
+      snapshotDigest(version.id, configuration, dependencies, definitions),
+      await readReviewBindings(connection, version.id),
+    )
   )
     throw new MetricLibraryError("SCORE_ACTIVATION_REVIEW_REQUIRED", 409);
 }

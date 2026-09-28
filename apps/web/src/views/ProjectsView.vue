@@ -256,13 +256,10 @@ async function enter(card: EntryCard) {
   await router.push({
     path: card.entry.path,
     query: {
-      tab: "scores",
       env: card.range.env,
       range: range.value,
       from: card.range.from,
       to: card.range.to,
-      scoreFrom: card.range.from.replace(/Z$/, ""),
-      scoreTo: card.range.to.replace(/Z$/, ""),
       entryReturn: route.fullPath,
     },
   });
@@ -493,7 +490,7 @@ onBeforeUnmount(() => {
             </details>
             <button class="entry-primary enter-project" @click="enter(card)">
               进入项目</button
-            ><small>当前进入指标管理；项目概览将在 R3 交付。</small>
+            ><small>进入项目概览，查看状态、指标与证据。</small>
           </article>
         </section>
         <nav class="entry-pagination" aria-label="项目分页">

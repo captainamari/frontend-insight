@@ -24,6 +24,8 @@ import {
   jsonValue,
   scoreDigest,
   snapshotDigest,
+  readReviewBindings,
+  reviewDigest,
   writeScoreItems,
 } from "./score-storage.js";
 export interface ScoreBusinessInput {
@@ -450,6 +452,17 @@ export class ScoreManagementService {
         projectId: snapshot.version.projectId,
         libraryType: snapshot.version.libraryType,
         version: snapshot.version,
+        snapshot,
+        activationPeriods: periods
+          .filter(
+            (p) =>
+              p.project_id === row.project_id && p.library_type === row.library_type,
+          )
+          .map((p) => ({
+            versionId: String(p.versionId),
+            effectiveFrom: new Date(p.effectiveFrom).toISOString(),
+            effectiveTo: p.effectiveTo ? new Date(p.effectiveTo).toISOString() : null,
+          })),
         result,
       };
     });
@@ -588,6 +601,7 @@ export class ScoreManagementService {
     query: ScoreQuery,
     actor: Principal,
   ) {
+    const bindings = await readReviewBindings(this.mysql.pool, versionId);
     const snapshot = await this.get(projectId, versionId);
     if (!snapshot.score)
       throw new MetricLibraryError("SCORE_CONFIGURATION_NOT_SAVED", 404);
@@ -597,11 +611,14 @@ export class ScoreManagementService {
       snapshot.score.configuration,
     );
     const trial = await this.trial(projectId, versionId, query, actor);
-    const digest = snapshotDigest(
-      versionId,
-      snapshot.score.configuration,
-      snapshot.score.dependencies,
-      snapshot.definitions,
+    const digest = reviewDigest(
+      snapshotDigest(
+        versionId,
+        snapshot.score.configuration,
+        snapshot.score.dependencies,
+        snapshot.definitions,
+      ),
+      bindings,
     );
     // A changed draft cannot use an old review: activation recomputes this digest under lock.
     await this.mysql.pool.execute(
@@ -612,6 +629,7 @@ export class ScoreManagementService {
       ...preview,
       trial,
       digest,
+      displayBindings: bindings,
       businessConfirmed: snapshot.score.dependencies.confirmed,
     };
   }

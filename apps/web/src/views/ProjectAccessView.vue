@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from "vue-router";
+import { safeRedirectTarget } from "../project-entry";
 const route = useRoute(),
   router = useRouter();
 </script>
@@ -12,9 +13,14 @@ const route = useRoute(),
     <el-button @click="router.replace('/projects')">返回全部项目</el-button
     ><el-button
       @click="
-        router.replace({
-          path: '/projects/' + String(route.params.projectId) + '/metrics',
-        })
+        router.replace(
+          safeRedirectTarget(
+            route.query.retry,
+            (path) =>
+              path.startsWith('/projects/' + String(route.params.projectId) + '/') &&
+              !path.includes('/access-error'),
+          ),
+        )
       "
       >重试</el-button
     >

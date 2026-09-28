@@ -16,6 +16,7 @@ import "element-plus/es/components/radio-group/style/css";
 import "element-plus/es/components/steps/style/css";
 import { useRoute, useRouter } from "vue-router";
 import { api, ApiError } from "../api";
+import OverviewBindingsPanel from "./OverviewBindingsPanel.vue";
 import MetricDefinitionDrawer from "./MetricDefinitionDrawer.vue";
 import MetricLineageDrawer from "./MetricLineageDrawer.vue";
 
@@ -424,6 +425,7 @@ function apiMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : "请求失败";
 }
 
+let appliedAnalysisVersion = "";
 async function load(): Promise<void> {
   const sequence = ++loadSequence;
   if (!props.projectId) return;
@@ -449,6 +451,15 @@ async function load(): Promise<void> {
     if (sequence !== loadSequence) return;
     catalog.value = catalogResult;
     versions.value = versionResult.flat();
+    const requested = scoreRoute.query.metricVersion;
+    if (
+      typeof requested === "string" &&
+      appliedAnalysisVersion !== requested &&
+      versions.value.some((v) => v.id === requested)
+    ) {
+      selectedVersionId.value = requested;
+      appliedAnalysisVersion = requested;
+    }
     selectVisibleVersion();
     await loadVersion();
   } catch (cause) {
@@ -481,7 +492,15 @@ async function loadVersion(): Promise<void> {
     const result = await api.request<VersionResponse>(
       `/api/projects/${props.projectId}/metrics/versions/${selectedVersionId.value}`,
     );
-    if (sequence === snapshotSequence) snapshot.value = result;
+    if (sequence === snapshotSequence) {
+      snapshot.value = result;
+      const requested = scoreRoute.query.metricKey;
+      const item = result.definitions.find((d) => d.metricKey === requested);
+      if (item) {
+        definitionItem.value = item;
+        definitionOpen.value = true;
+      }
+    }
   } catch (cause) {
     if (sequence === snapshotSequence) error.value = apiMessage(cause);
   }
@@ -1055,6 +1074,31 @@ onBeforeUnmount(() => {
     />
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" />
 
+    <OverviewBindingsPanel
+      v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
+      :project-id="projectId"
+      :version-id="selectedVersion.id"
+      :can-write="canWrite"
+      @saved="
+        (id) => {
+          selectedVersionId = id;
+          void load();
+        }
+      "
+    />
+    <OverviewBindingsPanel
+      surface="business"
+      v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
+      :project-id="projectId"
+      :version-id="selectedVersion.id"
+      :can-write="canWrite"
+      @saved="
+        (id) => {
+          selectedVersionId = id;
+          void load();
+        }
+      "
+    />
     <div class="library-toolbar">
       <el-select
         v-if="versionsOnly"

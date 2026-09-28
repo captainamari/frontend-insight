@@ -1,5 +1,12 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
+> **R4-A 实施状态 · 2026-09-26**：已实现正式业务分析路由、版本化业务展示绑定、模块批量读模型、时态页面构成、同源趋势和专项门禁；最终自动化以本提交完整Actions及实际checkout证据为准。`module_penetration` 的90日近似窗口是局部未决，未启用计算，不阻断其他实现。未宣称R4-A完整验收通过。详见 [R4-A results](../progress/v1.8-r4a-results.md) 与 decisions。
+
+> **R3 授权与 R4-A 继承 · 2026-09-18 用户确认，本次同步**：R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。R3 最终提交 `96db4d9ad6e0a774c014cb6e55003e5887ee0edd`，Actions `35225954810` 为 success。R3 关键体验并入 R4-A 联合手工验收；未执行或虚构 R3 独立手工步骤、日期、截图。周一、含今日第 N 日零点至当前瞬时、显式 from/to 优先、URL 展示偏好及 R3 其他原建议已获确认。Q04/Q05、Jesse owner、D2/D3-A/D4-A 继承；Q07 独立未决。旧“不得进入 R4”保留为历史，由本次授权解除。本次只实施 R4-A，不自动合并或进入 R4-B。
+
+
+> **R2 手工验收确认与 R3 继承 · 2026-09-15**：来源为用户本次任务明确确认：“R2手工验收通过，并且已经合并到refactor分支。”对应已验收提交 `4b5946c8a38c882871d7f4c4a975a4f6d163f597`，最终 [R2 Actions 34765702742](https://github.com/captainamari/frontend-insight/actions/runs/34765702742)。本次重新核对远端 `refactor` 为合并提交 `405da94499c4d112b212a13886637e770cc522e2`，R3 从该 SHA 创建 `agent/v1-8-r3-project-overview`。2026-09-15 是确认日期，不是补写的手工执行日期；未虚构步骤或截图。旧“R2 待手工验收/不得进入 R3”保留为历史并由此次确认解除。这不表示 R3 已验收，不表示 R4-B/R5-A/R6 事实能力完成。只在 R3 分支实施，不自动合并、不进入 R4。
+
 > **手工验收与 R2 继承更新 · 2026-09-11**：Jesse 在本会话明确确认“本次手工验收通过”，对应 R1-C `d37059bb32daf2c857747905d0873b719c323de8`，其 [Actions](https://github.com/captainamari/frontend-insight/actions/runs/34451705146) 为 success。已由用户合入 `refactor`；R2 从合并提交 `cfd90863827b7dad64007bcfd681f0b7d29e3489` 创建 `agent/v1-8-r2-project-entry`。下文旧“待手工验收/不进入 R2”保留为历史，已由本确认解除，不再阻断 R2；未补写任何未执行的手工用例。这不代表 R2 已验收，也不代表 R4-B/R5-A/R6 事实已交付。不授权代理合并或修改 refactor/main。
 
 
@@ -568,39 +575,41 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 12. R3：项目框架与项目概览
 
-建议分支：`agent/v1-8-r3-project-overview`
+实施分支：`agent/v1-8-r3-project-overview`
+
+2026-09-17 实施跟踪：以下勾选仅表示代码已实施。完整门禁已在 `fd252e4b` 同提交通过，收尾增量以最终 HEAD 的同提交 workflow 及附件为准；R3 手工验收待用户确认；不表示后置真实事实能力完成，不进入 R4。最新候选、失败修复与最终证据见 [R3 results](../progress/v1.8-r3-results.md)，手工流程见 [Mac 指引](../guides/v1.8-r3-local-acceptance-macos.md)。R2 的 metrics 临时落点已按原计划切换为 overview，搜索/分页/创建定位/权限/返回上下文继续回归。
 
 ### 12.1 项目框架
 
-- [ ] 左上项目名和返回全部项目；
-- [ ] 左下 5 个新导航；
-- [ ] 右上公共时间、时区、账号；
-- [ ] 7d/30d/90d/180d/365d；
-- [ ] day/week/month gap fill；
-- [ ] URL path 使用 projectId，不再依赖全局 project query；
-- [ ] 项目切换回入口页，不在所有页面保留项目下拉。
+- [x] 左上项目名和返回全部项目；
+- [x] 左下 5 个新导航；
+- [x] 右上公共时间、时区、账号；
+- [x] 7d/30d/90d/180d/365d；
+- [x] day/week/month gap fill；
+- [x] URL path 使用 projectId，不再依赖全局 project query；
+- [x] 项目切换回入口页，不在所有页面保留项目下拉。
 
 未交付的后续模块可以显示明确“尚未在当前里程碑交付”，但不能链接到旧同名页面冒充完成。
 
 ### 12.2 项目概览 read model
 
-- [ ] 链路、更新时间；
-- [ ] 运营分数和维度；
-- [ ] 质量分数和维度；
-- [ ] 概览运营指标 display bindings；
-- [ ] 多指标趋势；
-- [ ] P0 固定告警摘要；
-- [ ] definition/metric library/score version；
-- [ ] unavailable/partial reason。
+- [x] 链路、更新时间；
+- [x] 运营分数和维度；
+- [x] 质量分数和维度；
+- [x] 概览运营指标 display bindings；
+- [x] 多指标趋势；
+- [x] P0 固定告警摘要；
+- [x] definition/metric library/score version；
+- [x] unavailable/partial reason。
 
 ### 12.3 前端
 
-- [ ] 两个雷达与等价表格；
-- [ ] 分数下钻；
-- [ ] 指标卡可滚动但保持键盘访问；
-- [ ] 同单位多线、混合单位小多图；
-- [ ] 维度设置只改变展示，公式修改进入指标管理新版本；
-- [ ] 刷新保留旧数据并标记 stale。
+- [x] 两个雷达与等价表格；
+- [x] 分数下钻；
+- [x] 指标卡可滚动但保持键盘访问；
+- [x] 同单位多线、混合单位小多图；
+- [x] 维度设置只改变展示，公式修改进入指标管理新版本；
+- [x] 刷新保留旧数据并标记 stale。
 
 ### 12.4 阶段门
 
@@ -608,31 +617,35 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 13. R4-A：业务分析——功能模块指标
 
-建议分支：`agent/v1-8-r4a-business-analysis`
+工作分支：`agent/v1-8-r4a-business-analysis`
+
+实施进度（不代表最终门禁或手工通过）：以下明确部分已落地；自动化证据见 R4-A results。
 
 ### 13.1 后端
 
-- [ ] 功能模块列表；
-- [ ] 功能模块指标 read model；
-- [ ] 按功能模块聚合 page/task 指标；
-- [ ] 排除未归类/停用页面；
-- [ ] 指标 display bindings；
+- [x] 功能模块列表；
+- [x] 功能模块指标 read model；
+- [ ] 按功能模块聚合 page/task 指标：page_view观察已实现；task事实按原计划后置R4-B；
+- [x] 排除未归类/停用页面；
+- [x] 指标 display bindings；
 - [ ] `module_penetration`：去重 `userId` / 系统总用户数，返回分母来源与目录版本；
 - [ ] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；
-- [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回；
-- [ ] 功能模块趋势逐桶公式；
-- [ ] 功能模块 data status 和 sample。
+- [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回：pv/uv观察已实现，正式完整性及task/质量事实不绕过后置门禁；
+- [x] 功能模块趋势逐桶公式；
+- [x] 功能模块 data status 和 sample。
 
 ### 13.2 前端
 
-- [ ] 功能模块单选；
-- [ ] 运营指标卡；
-- [ ] 同源趋势；
-- [ ] 无配置、无数据、部分数据；
-- [ ] 指标定义/版本入口；
-- [ ] 工作流区先显示定义和“数据将在 R4-B 接入”的明确状态。
+- [x] 功能模块单选；
+- [x] 运营指标卡；
+- [x] 同源趋势；
+- [x] 无配置、无数据、部分数据；
+- [x] 指标定义/版本入口；
+- [x] 工作流区先显示定义和“数据将在 R4-B 接入”的明确状态。
 
 ### 13.3 阶段门
+
+当前仍为待验收；渗透率近似窗口局部未决，不能勾选全阶段通过。
 
 同一功能模块的卡片、趋势和原始页面汇总手算一致；`module_penetration` 的分子、分母和目录版本可解释；切换功能模块和时间范围后 URL 可恢复。
 
