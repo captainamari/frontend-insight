@@ -1,3 +1,5 @@
+import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
+import type { WorkflowFactStore } from "./workflow-facts.js";
 import type { RowDataPacket } from "mysql2/promise";
 import {
   resolveProjectCalendar,
@@ -19,16 +21,19 @@ import {
   type BusinessPageWindow,
 } from "./business-facts.js";
 import { IDENTITY_DEFINITION_VERSION } from "./system-metric-catalog.js";
+import { evaluateModulePenetration } from "./module-penetration.js";
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 export interface BusinessQuery extends OverviewQuery {
   moduleId?: string | undefined;
   versionId?: string | undefined;
+  workflowPage?: number | undefined;
 }
 export class BusinessAnalysisService {
   constructor(
     private readonly mysql: MySqlStore,
     private readonly scores: ScoreManagementService,
     private readonly facts: BusinessFactStore,
+    private readonly workflowFacts?: WorkflowFactStore,
   ) {}
   async analysis(projectId: string, input: BusinessQuery) {
     const started = performance.now(),
@@ -126,8 +131,12 @@ export class BusinessAnalysisService {
         );
         if (workflows.length > 4000)
           throw new MetricLibraryError("BUSINESS_WORKFLOW_LIMIT", 400);
+        const workflowDefinitions = this.workflowFacts
+          ? await readWorkflowFactDefinitions(c, projectId)
+          : [];
         await c.commit();
         return {
+          workflowDefinitions,
           p,
           query,
           modules,
@@ -193,6 +202,24 @@ export class BusinessAnalysisService {
             throw new MetricLibraryError("FACT_STORE_UNAVAILABLE", 503);
           })
       : null;
+    const workflowAnalysis =
+      this.workflowFacts && moduleId
+        ? await this.workflowFacts
+            .read(
+              projectId,
+              query.env,
+              query.from,
+              query.to,
+              snapshot.workflowDefinitions.filter((d) => d.moduleId === moduleId),
+              query.buckets,
+              pages,
+              new Date(),
+              input.workflowPage ?? 1,
+            )
+            .catch(() => {
+              throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
     const fact = observation
       ? businessFactWindow(observation.window)
       : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
@@ -285,6 +312,18 @@ export class BusinessAnalysisService {
               : null;
           return {
             ...b,
+            penetration: evaluateModulePenetration({
+              scope: {
+                projectId,
+                env: query.env,
+                identityVersion: IDENTITY_DEFINITION_VERSION,
+                activityScope: "identified_valid_classified_business_activity",
+              },
+              from: b.from,
+              to: b.to,
+              timezone: query.timezone,
+              observedNumerator: observation?.buckets[i]?.uv ?? null,
+            }),
             reason,
             metrics: evaluate(
               observation ? businessFactWindow(observation.buckets[i]!) : fact,
@@ -332,23 +371,18 @@ export class BusinessAnalysisService {
         observationScope: "page_view only",
         complete: false,
       },
-      penetration: {
-        metricKey: "module_penetration",
-        value: null,
-        numerator: observation?.window.uv ?? null,
-        numeratorStatus: "observed_page_view_only",
-        denominator: null,
-        denominatorSource: null,
-        directoryVersion: null,
-        sourceVersion: null,
-        observationWindow: null,
-        coverage: "unknown",
-        estimated: false,
-        availability: "unavailable",
-        reason: "PENETRATION_WINDOW_DECISION_REQUIRED",
-        explanation:
-          "未发现受治理系统用户目录。90日活跃近似的锚点及长范围语义待确认；未启用近似计算，不改变分子窗口。",
-      },
+      penetration: evaluateModulePenetration({
+        scope: {
+          projectId,
+          env: query.env,
+          identityVersion: IDENTITY_DEFINITION_VERSION,
+          activityScope: "identified_valid_classified_business_activity",
+        },
+        from: query.from,
+        to: query.to,
+        timezone: query.timezone,
+        observedNumerator: observation?.window.uv ?? null,
+      }),
       workflows: snapshot.workflows.map((w) => ({
         id: String(w.id),
         workflowKey: String(w.workflow_key),
@@ -361,10 +395,14 @@ export class BusinessAnalysisService {
         stepOrder: Number(w.step_order ?? 0),
         activatedAt: iso(w.activated_at),
       })),
-      workflowFacts: { status: "not_collected", reason: "工作流事实将在 R4-B 接入" },
+      workflowAnalysis,
+      workflowFacts: workflowAnalysis
+        ? { status: workflowAnalysis.status, reason: workflowAnalysis.reason }
+        : { status: "not_collected", reason: "未安装工作流事实查询服务" },
       diagnostics: {
         metadataQueries,
-        clickHouseQueries,
+        clickHouseQueries:
+          clickHouseQueries + (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,
         scans: observation?.statistics ?? null,
         physicalRetentionDays: 90,

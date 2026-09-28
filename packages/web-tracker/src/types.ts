@@ -1,3 +1,4 @@
+import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
 import type {
   FrontendInsightEnvironment,
   FrontendInsightEventBatchV3,
@@ -73,6 +74,7 @@ export interface TrackerConfig {
   deptId?: string | null;
   roleId?: string | null;
   registeredFeatures?: readonly string[];
+  workflowDefinitions?: readonly WorkflowDefinition[];
   staticPayload?: EventPayload;
   normalizePageRoute?: (url: URL) => string;
   beforeSend?: (context: BeforeSendContext) => TrackerEvent | null;
@@ -101,6 +103,7 @@ export interface TrackerRuntime {
 }
 
 export interface Tracker {
+  startWorkflow(workflowKey: string): WorkflowHandle;
   setUser(userId: string | null): void;
   track(name: string, payload?: EventPayload): void;
   featureExposed(featureKey: string, payload?: EventPayload): void;

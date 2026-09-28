@@ -1,3 +1,4 @@
+import { noopWorkflow } from "./workflow.js";
 import type { Tracker, TrackerDiagnostics } from "./types.js";
 
 export function createNoopTracker(code: string, development = false): Tracker {
@@ -15,6 +16,7 @@ export function createNoopTracker(code: string, development = false): Tracker {
   };
   if (development) console.warn(`[frontend-insight] tracker disabled: ${code}`);
   return {
+    startWorkflow: noopWorkflow,
     setUser() {},
     track() {},
     featureExposed() {},

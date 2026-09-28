@@ -236,6 +236,49 @@ const schema = {
       type: "object",
       additionalProperties: false,
       required: ["name"],
+      allOf: [
+        {
+          if: {
+            properties: { name: { type: "string", pattern: "^workflow_" } },
+            required: ["name"],
+          },
+          then: {
+            required: [
+              "workflowInstanceId",
+              "workflowKey",
+              "workflowDefinitionVersion",
+            ],
+            properties: {
+              workflowInstanceId: true,
+              workflowKey: true,
+              workflowDefinitionVersion: true,
+              labels: false,
+              featureKey: false,
+              visibleDurationMs: false,
+            },
+          },
+        },
+        {
+          if: {
+            properties: { name: { const: "workflow_step_reached" } },
+            required: ["name"],
+          },
+          then: {
+            required: ["workflowStepKey", "workflowStepOrder"],
+            properties: { workflowStepKey: true, workflowStepOrder: true },
+          },
+        },
+        {
+          if: {
+            required: ["workflowInstanceId"],
+            properties: { workflowInstanceId: true },
+          },
+          then: {
+            required: ["workflowKey", "workflowDefinitionVersion"],
+            properties: { workflowKey: true, workflowDefinitionVersion: true },
+          },
+        },
+      ],
       properties: {
         name: { enum: manifest.customEventNames },
         featureKey: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$" },
@@ -251,7 +294,7 @@ const schema = {
         },
         workflowInstanceId: {
           type: "string",
-          pattern: "^wf_[A-Za-z0-9_-]{16,64}$",
+          pattern: "^wf_[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$",
         },
         workflowKey: {
           type: "string",
@@ -262,7 +305,7 @@ const schema = {
           type: "string",
           pattern: "^[a-z][a-z0-9_]{0,63}$",
         },
-        workflowStepOrder: { type: "integer", minimum: 0, maximum: 19 },
+        workflowStepOrder: { type: "integer", minimum: 1, maximum: 20 },
         interactionType: {
           enum: ["click", "submit", "keyboard", "programmatic", "automatic"],
         },

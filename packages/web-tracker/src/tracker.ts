@@ -1,3 +1,4 @@
+import { WorkflowRuntime, type WorkflowDefinition } from "./workflow.js";
 import type {
   FrontendInsightEventBatchV3,
   FrontendInsightEventName,
@@ -88,6 +89,7 @@ export class BrowserTracker implements Tracker {
     duplicateOperationTerminals: 0,
     warnings: [],
   };
+  private readonly workflows: WorkflowRuntime;
   private readonly registeredFeatures: ReadonlySet<string> | null;
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
@@ -130,6 +132,7 @@ export class BrowserTracker implements Tracker {
     },
     private readonly runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
+    workflowDefinitions: readonly WorkflowDefinition[] = [],
   ) {
     this.registeredFeatures = registeredFeatures ? new Set(registeredFeatures) : null;
     this.deviceId = this.loadOrCreateDevice();
@@ -152,6 +155,20 @@ export class BrowserTracker implements Tracker {
           (event, payload) => this.emit(event, payload),
         )
       : null;
+    this.workflows = new WorkflowRuntime(
+      {
+        runtime,
+        session: () =>
+          this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs
+            ? "expired"
+            : this.sessionId,
+        emit: (name, control) => this.emit("custom", { name, ...control }),
+        operation: (key, payload, interaction, association, onTerminal) =>
+          this.associatedOperation(key, payload, interaction, association, onTerminal),
+        warn: (code) => this.drop(code),
+      },
+      workflowDefinitions,
+    );
     this.emit("page_view", {});
     this.observability?.start();
     this.installLifecycle();
@@ -365,7 +382,11 @@ export class BrowserTracker implements Tracker {
   }
 
   track(name: string, payload: EventPayload = {}): void {
-    this.safe(() => this.custom(name, payload));
+    this.safe(() =>
+      name.startsWith("workflow_")
+        ? this.drop("WORKFLOW_HANDLE_REQUIRED")
+        : this.custom(name, payload),
+    );
   }
 
   featureExposed(featureKey: string, payload: EventPayload = {}): void {
@@ -393,12 +414,33 @@ export class BrowserTracker implements Tracker {
     });
   }
 
+  startWorkflow(workflowKey: string) {
+    this.refreshSession();
+    return this.workflows.start(workflowKey);
+  }
+
   startOperation(
-    featureKey: string,
+    operationKey: string,
     payload: EventPayload = {},
     interactionType: InteractionType = "programmatic",
   ): OperationHandle {
-    if (this.destroyed) {
+    return this.associatedOperation(operationKey, payload, interactionType);
+  }
+
+  private associatedOperation(
+    featureKey: string,
+    payload: EventPayload = {},
+    interactionType: InteractionType = "programmatic",
+    association: EventPayload = {},
+    onTerminal?: (state: string, operationInstanceId: string) => void,
+  ): OperationHandle {
+    if (
+      this.destroyed ||
+      !/^[a-z][a-z0-9_]{0,63}$/.test(featureKey) ||
+      (this.registeredFeatures && !this.registeredFeatures.has(featureKey)) ||
+      !normalizePayload(payload)
+    ) {
+      this.drop("OPERATION_CONFIG_INVALID");
       return {
         succeed() {},
         fail() {},
@@ -412,6 +454,7 @@ export class BrowserTracker implements Tracker {
       this.feature("feature_started", featureKey, payload, {
         operationInstanceId,
         interactionType,
+        ...association,
       }),
     );
     const terminal = (
@@ -436,8 +479,10 @@ export class BrowserTracker implements Tracker {
         this.feature(`feature_${next}`, featureKey, terminalPayload, {
           operationInstanceId,
           interactionType,
+          ...association,
           ...(reasonCode ? { reasonCode } : {}),
         });
+        onTerminal?.(next, operationInstanceId);
       });
     };
     return Object.freeze({
@@ -614,6 +659,7 @@ export class BrowserTracker implements Tracker {
 
   destroy(): void {
     if (this.destroyed) return;
+    this.workflows.destroy();
     this.observability?.stop();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);

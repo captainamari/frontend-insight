@@ -71,6 +71,11 @@ export function applyRestrictedBeforeSend(
   ) {
     return null;
   }
+  if (
+    original.payload.workflowInstanceId &&
+    JSON.stringify(candidate.payload) !== JSON.stringify(original.payload)
+  )
+    return null;
   if (findCredentialLeak(candidate.payload)) return null;
   return candidate;
 }

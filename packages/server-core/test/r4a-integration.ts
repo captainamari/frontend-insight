@@ -251,7 +251,7 @@ try {
   assert.equal(configured.metrics.cards.length, 3);
   assert.equal(configured.metrics.version!.id, versions.operational);
   assert.equal(configured.workflows.length, 2);
-  assert.equal(configured.workflowFacts.status, "not_collected");
+  assert.equal(configured.workflowFacts.status, "no_facts");
   const second = await call<{ id: string }>(
     admin,
     root + "/page-definitions",
@@ -323,9 +323,9 @@ try {
   assert.equal(observed.penetration.value, null);
   assert.equal(observed.penetration.denominator, null);
   assert.equal(observed.penetration.directoryVersion, null);
-  assert.equal(observed.penetration.reason, "PENETRATION_WINDOW_DECISION_REQUIRED");
+  assert.equal(observed.penetration.reason, "PENETRATION_SOURCE_MISSING");
   assert(!JSON.stringify(observed).includes("isolated-hmac-"));
-  assert.equal(observed.diagnostics.clickHouseQueries, 1);
+  assert.equal(observed.diagnostics.clickHouseQueries, 2);
   for (const bad of [
     "env=all",
     "range=24h",
@@ -616,7 +616,7 @@ try {
         queries,
         scans,
       });
-      assert(queries.every((n) => n === 1));
+      assert(queries.every((n) => n === 2));
       assert(p95 <= 2000, `${range}: ${p95}`);
     }
   }
@@ -639,7 +639,7 @@ try {
       memory: os.totalmem(),
     },
     automation: "passed",
-    semanticBlocker: "PENETRATION_WINDOW_DECISION_REQUIRED",
+    dataDependency: "PENETRATION_SOURCE_MISSING",
   });
 } finally {
   const directory = process.env.FI_EVIDENCE_DIR ?? "artifacts";

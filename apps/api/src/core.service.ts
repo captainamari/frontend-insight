@@ -9,6 +9,7 @@ import {
   ProjectOverviewService,
   OverviewFactStore,
   BusinessFactStore,
+  WorkflowFactStore,
   BusinessAnalysisService,
   MySqlStore,
   ObservabilityStore,
@@ -85,10 +86,17 @@ export class CoreService implements OnModuleDestroy {
     password: this.environment.CLICKHOUSE_PASSWORD,
     database: this.environment.CLICKHOUSE_DATABASE,
   });
+  readonly workflowFacts = new WorkflowFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
   readonly businessAnalysis = new BusinessAnalysisService(
     this.mysql,
     this.scores,
     this.businessFacts,
+    this.workflowFacts,
   );
 
   async onModuleDestroy(): Promise<void> {
@@ -97,6 +105,7 @@ export class CoreService implements OnModuleDestroy {
       this.analytics.close(),
       this.overviewFacts.close(),
       this.businessFacts.close(),
+      this.workflowFacts.close(),
       this.observability.close(),
       this.mysql.close(),
     ]);

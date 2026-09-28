@@ -1,9 +1,9 @@
-name: v1.8 R4-A business analysis and accepted regressions
+name: v1.8 R4-B workflow implementation and accepted regressions
 
 on:
   push:
     branches:
-      - "agent/v1-8-r4a-*"
+      - "agent/v1-8-r4b-*"
   workflow_dispatch:
 
 permissions:
@@ -11,11 +11,11 @@ permissions:
   statuses: write
 
 concurrency:
-  group: v1-8-r4a-${{ github.ref }}
+  group: v1-8-r4b-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  r4a-product:
+  r4b-product:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -41,6 +41,9 @@ jobs:
 
       - name: Verify actual checkout SHA
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Run focused R4-B tests
+        run: pnpm test:r4b
 
       - name: Run focused R4-A tests
         run: pnpm test:r4a
@@ -112,6 +115,9 @@ jobs:
       - name: Run R4-A Chromium and WebKit admin viewer products
         run: pnpm test:r4a:e2e
 
+      - name: Verify real R4-B browser SDK and product chain
+        run: pnpm test:r4b:e2e
+
       - name: Verify project search values stay out of access logs
         run: |
           curl --silent --output /dev/null 'http://127.0.0.1:4173/api/projects/summary?search=FI_R2_PRIVATE_QUERY_SENTINEL'
@@ -125,13 +131,13 @@ jobs:
       - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4a-evidence.json", JSON.stringify({baseline:"96db4d9ad6e0a774c014cb6e55003e5887ee0edd", inheritedAcceptedCommit:"4b5946c8a38c882871d7f4c4a975a4f6d163f597", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-A business and R1-A/R1-B/R1-C/R2/R3 regressions", implementation:"approved penetration calculation implemented; complete source absent", dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"4b5946c8a38c882871d7f4c4a975a4f6d163f597", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B implementation checkpoint plus R1-A through R4-A regressions", implementation:"in progress; not full R4-B acceptance", dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
 
       - name: Upload exact-commit verification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: r4a-product-evidence
+          name: r4b-product-evidence
           path: |
             artifacts/*.json
             test-results

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
 import type { Tracker, TrackerEvent } from "@frontend-insight/web-tracker";
 import { computed, onBeforeUnmount, reactive, ref } from "vue";
@@ -323,6 +324,7 @@ onBeforeUnmount(() => {
         进入场景实验室
       </button>
     </form>
+    <WorkflowDemo />
   </main>
 
   <div v-else class="demo-shell">

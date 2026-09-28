@@ -23,3 +23,6 @@ export * from "./overview-facts.js";
 
 export * from "./business-analysis.js";
 export * from "./business-facts.js";
+
+export * from "./workflow-facts.js";
+export * from "./workflow-definitions.js";
