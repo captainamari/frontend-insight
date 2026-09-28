@@ -14,7 +14,7 @@ const data = ref<BusinessResponse | null>(null),
   loading = ref(false),
   error = ref(""),
   drill = ref(""),
-  dataRequest = ref("");
+  dataScope = ref("");
 let generation = 0,
   controller: AbortController | null = null;
 const signature = computed(() =>
@@ -32,6 +32,21 @@ const signature = computed(() =>
       "workflowVersion",
       "workflowEvidencePage",
     ].map((k) => route.query[k]),
+  ]),
+);
+const scopeSignature = computed(() =>
+  JSON.stringify([
+    route.params.projectId,
+    ...[
+      "env",
+      "range",
+      "from",
+      "to",
+      "moduleId",
+      "businessTrends",
+      "businessVersion",
+      "workflowPage",
+    ].map((key) => route.query[key]),
   ]),
 );
 const selectedMetric = computed(() =>
@@ -91,7 +106,7 @@ async function load() {
   controller = new AbortController();
   loading.value = true;
   error.value = "";
-  if (dataRequest.value !== key) {
+  if (dataScope.value !== scopeSignature.value) {
     data.value = null;
     drill.value = "";
   }
@@ -119,7 +134,7 @@ async function load() {
     if (id !== generation || key !== signature.value) return;
     if (data.value?.identity !== r.identity) drill.value = "";
     data.value = r;
-    dataRequest.value = key;
+    dataScope.value = scopeSignature.value;
     if (!route.query.moduleId && r.moduleId) {
       await router.replace({ query: { ...route.query, moduleId: r.moduleId } });
       return;

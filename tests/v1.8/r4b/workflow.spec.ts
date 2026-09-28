@@ -250,6 +250,7 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     moduleId: module.id,
   });
   const analysisPath = root + "/business?" + query;
+  mkdirSync("artifacts", { recursive: true });
   await expect
     .poll(
       async () => {
@@ -257,9 +258,20 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
         if (r.status() !== 200) return { httpStatus: r.status(), completed: -1 };
         const b = await r.json();
         const sent = payloads.flatMap(
-          (body) => JSON.parse(body).events as { payload: { name?: string } }[],
+          (body) =>
+            JSON.parse(body).events as {
+              payload: { name?: string };
+              timestamp: number;
+            }[],
         );
-        return {
+        const health = await request.get("http://127.0.0.1:3200/health/ready");
+        expect(health.status()).toBe(200);
+        const diagnostic = {
+          consumer: (await health.json()).metrics,
+          cohort: { from, to, asOf: b.workflowAnalysis?.context.asOf },
+          sentWorkflowTimes: sent
+            .filter((e) => e.payload.name === "workflow_started")
+            .map((e) => new Date(e.timestamp).toISOString()),
           completed: b.workflowAnalysis?.definitions.reduce(
             (n: number, d: { completed: number }) => n + d.completed,
             0,
@@ -285,10 +297,19 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
             (e) => e.payload.name === "workflow_completed",
           ).length,
         };
+        writeFileSync(
+          `artifacts/r4b-safe-poll-${info.project.name}.json`,
+          JSON.stringify(
+            { testedCommit: process.env.GITHUB_SHA ?? null, ...diagnostic },
+            null,
+            2,
+          ),
+        );
+        return diagnostic;
       },
       { timeout: 45000, intervals: [500, 1000, 2000] },
     )
-    .toMatchObject({ completed: 4 });
+    .toEqual(expect.objectContaining({ completed: 4 }));
   const response = await request.get(analysisPath, { headers });
   const result = await response.json();
   expect(
@@ -532,6 +553,38 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
   ).toBeVisible();
   await expect(page.getByText("有效成功样本 3", { exact: false })).toBeVisible();
   const detailFirstUsableMs = Date.now() - detailBegan;
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).not.toBeVisible();
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).toBeVisible();
+  await page.goForward();
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).not.toBeVisible();
+  const detailButton = page.getByRole("button", {
+    name: "查看 admin_model_download v1",
+    exact: true,
+  });
+  await detailButton.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(detailButton).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(
+    page.getByRole("heading", { name: "阶段漏斗与相邻阶段耗时", exact: true }),
+  ).toBeVisible();
+
   await page.getByRole("button", { name: "查看工作流定义与版本", exact: true }).click();
   await expect(
     page.getByRole("region", { name: "分析引用的工作流版本" }),

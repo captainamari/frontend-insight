@@ -28,6 +28,7 @@ interface ConsumerMetrics {
   insertedBatches: number;
   retries: number;
   deadLetters: number;
+  lastDeadLetterCode: string | null;
   lag: number;
   lastErrorCode: string | null;
 }
@@ -103,6 +104,7 @@ export class EventConsumerRuntime {
     insertedBatches: 0,
     retries: 0,
     deadLetters: 0,
+    lastDeadLetterCode: null,
     lag: 0,
     lastErrorCode: null,
   };
@@ -441,6 +443,7 @@ export class EventConsumerRuntime {
     });
     if (projectId) await this.mysql.markDeadLetter(projectId).catch(() => {});
     this.metrics.deadLetters += 1;
+    this.metrics.lastDeadLetterCode = metadata.code;
   }
 
   private startHealthServer(): void {
