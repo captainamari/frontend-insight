@@ -225,7 +225,9 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await page.getByRole("option", { name: "operation 终态", exact: true }).click();
   await expect(secondStep.getByLabel("匹配的 operation")).toBeVisible();
   await expect(secondStep.getByLabel("operation 终态")).toBeVisible();
-  await expect(secondStep.getByText(/当前 R1-A 只配置定义/)).toBeVisible();
+  await expect(
+    secondStep.getByText(/使用兼容SDK和显式workflow handle建立关联/),
+  ).toBeVisible();
   await expect(secondStep.getByText(/独立 tracker.startOperation/)).toBeVisible();
   await openSelect(secondStep, "operation 终态");
   await expect(

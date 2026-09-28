@@ -209,6 +209,33 @@ describe("R4-B explicit SDK instances", () => {
     a.querySelector("button")!.click();
     expect(wa.getState()).toBe("canceled");
   });
+  it("records scoped selector progress before a host click handler completes the workflow", async () => {
+    const f = fixture();
+    f.definition.steps[0] = {
+      stepKey: "requested",
+      stepOrder: 1,
+      triggerKind: "selector",
+      triggerConfig: { event: "click", selector: "#controlled_action" },
+    };
+    const root = document.createElement("div"),
+      button = document.createElement("button");
+    button.id = "controlled_action";
+    root.append(button);
+    const w = f.tracker.startWorkflow("download");
+    w.bindInteractions(root);
+    button.addEventListener("click", () => w.reachStep("received"));
+    button.click();
+    button.click();
+    const events = await f.events();
+    expect(
+      events
+        .filter((e) => e.payload.name === "workflow_step_reached")
+        .map((e) => e.payload.workflowStepOrder),
+    ).toEqual([1, 2]);
+    expect(events.filter((e) => e.payload.name === "workflow_completed")).toHaveLength(
+      1,
+    );
+  });
   it("destroys active handles and never accepts explicit SDK events for an operation trigger", () => {
     const f = fixture(true),
       w = f.tracker.startWorkflow("download");

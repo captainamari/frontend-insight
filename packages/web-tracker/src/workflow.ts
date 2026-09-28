@@ -442,8 +442,10 @@ export class WorkflowRuntime {
                     if (match && root.contains(match)) reach(step.stepKey, "selector");
                   }
                 });
-              root.addEventListener(event, listener);
-              const stop = () => root.removeEventListener(event, listener);
+              // Observe the configured action before the host target handler can
+              // synchronously reach later steps or complete this instance.
+              root.addEventListener(event, listener, true);
+              const stop = () => root.removeEventListener(event, listener, true);
               stops.push(stop);
               cleanup.add(stop);
             }

@@ -578,7 +578,7 @@ function sdkExample(step: WorkflowStepForm): string {
 }
 
 function operationExample(step: WorkflowStepForm): string {
-  return `const workflow = tracker.startWorkflow("${workflowForm.workflowKey || "workflow_key"}");\nconst operation = workflow.startOperation("${step.operationKey || "operation_key"}", {}, "click");\noperation.${step.operationState === "succeeded" ? "succeed" : step.operationState === "failed" ? "fail" : "cancel"}();`;
+  return `const workflow = tracker.startWorkflow("${workflowForm.workflowKey || "workflow_key"}");\nconst operation = workflow.startOperation("${step.operationKey || "operation_key"}", {}, "click");\noperation.${step.operationState === "succeeded" ? "succeed" : step.operationState === "failed" ? "fail" : "cancel"}(${step.operationState === "failed" ? '"business_rejected"' : ""});`;
 }
 
 function openWorkflow(item?: WorkflowDefinition): void {
@@ -1127,7 +1127,7 @@ watch(
                   <span class="eyebrow">WORKFLOW DEFINITIONS</span>
                   <h2>工作流定义</h2>
                   <p>
-                    R1-A 仅保存并解释定义；workflow SDK collector 和事实关联在 R4-B。
+                    激活后按版本向兼容SDK提供配置；采集结果在业务分析的工作流追踪中查看。
                   </p>
                 </div>
                 <el-button v-if="canWrite" type="primary" @click="openWorkflow()"
@@ -1597,7 +1597,7 @@ watch(
                   v-if="step.triggerKind === 'operation_terminal'"
                   class="sdk-example"
                 >
-                  <label>R4-B 目标关联示例（只读）</label>
+                  <label>SDK 关联示例（只读）</label>
                   <el-input
                     :model-value="operationExample(step)"
                     type="textarea"
@@ -1607,7 +1607,7 @@ watch(
                   <el-alert
                     type="warning"
                     :closable="false"
-                    title="当前 R1-A 只配置定义；关联采集在 R4-B 交付。独立 tracker.startOperation(featureKey) 不能驱动 workflow step。"
+                    title="使用兼容SDK和显式workflow handle建立关联。独立 tracker.startOperation(operationKey) 不能驱动 workflow step。"
                   />
                 </div>
                 <p class="step-preview">{{ stepPreview(step) }}</p>
