@@ -1,3 +1,4 @@
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
 import { describe, it, expect } from "vitest";
 import {
   reduceWorkflowInstances,
@@ -263,4 +264,48 @@ describe("R4-B immutable instance facts", () => {
       expect(JSON.stringify(r.instances)).not.toContain("another-internal-scope");
     }
   });
+  it.each([
+    ["2026-03-07T05:00:00Z", "2026-03-10T04:00:00Z", "day"],
+    ["2026-10-31T04:00:00Z", "2026-11-03T05:00:00Z", "day"],
+    ["2026-03-04T10:00:00Z", "2026-03-18T10:00:00Z", "week"],
+    ["2026-01-31T00:00:00Z", "2026-04-01T00:00:00Z", "month"],
+    ["2025-08-28T04:00:00Z", "2026-09-28T04:00:00Z", "month"],
+  ] as const)(
+    "assigns workflow starts exactly once across calendar buckets %s/%s/%s",
+    (from, to, granularity) => {
+      const calendar = resolveProjectCalendar(
+        {
+          range: granularity === "day" ? "7d" : granularity === "week" ? "90d" : "365d",
+          env: "dev",
+          from,
+          to,
+        },
+        "America/New_York",
+        new Date("2027-01-01T00:00:00Z"),
+      );
+      expect(calendar.granularity).toBe(granularity);
+      const events = calendar.buckets.flatMap((b, index) =>
+        success(Date.parse(b.from), 1000, `bucket${index}`),
+      );
+      const instances = reduceWorkflowInstances(
+        events,
+        [definition],
+        Date.parse(to) + 2000,
+      ).instances;
+      const summaries = calendar.buckets.map((b) =>
+        summarizeWorkflowCohort(
+          instances,
+          definition,
+          Date.parse(b.from),
+          Date.parse(b.to),
+        ),
+      );
+      expect(
+        summaries.every(
+          (s) => s.started === 1 && s.completed === 1 && s.task_duration.p50 === 1000,
+        ),
+      ).toBe(true);
+      expect(summaries.reduce((sum, s) => sum + s.started, 0)).toBe(instances.length);
+    },
+  );
 });

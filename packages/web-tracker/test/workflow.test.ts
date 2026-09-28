@@ -107,6 +107,36 @@ describe("R4-B explicit SDK instances", () => {
       new Set(operationEvents.map((e) => e.payload.operationInstanceId)).size,
     ).toBe(4);
   });
+  it("keeps three same-key operations within one workflow distinct and terminal-once", async () => {
+    const f = fixture(true),
+      w = f.tracker.startWorkflow("download");
+    w.reachStep("requested");
+    const operations = Array.from({ length: 3 }, () => w.startOperation("download"));
+    operations[0]!.fail("rejected");
+    operations[1]!.cancel();
+    operations[0]!.succeed();
+    expect(w.getState()).toBe("started");
+    operations[2]!.succeed();
+    const events = await f.events();
+    const terminals = events.filter((e) =>
+      ["feature_succeeded", "feature_failed", "feature_canceled"].includes(
+        String(e.payload.name),
+      ),
+    );
+    expect(terminals.map((e) => e.payload.name)).toEqual([
+      "feature_failed",
+      "feature_canceled",
+      "feature_succeeded",
+    ]);
+    expect(new Set(terminals.map((e) => e.payload.operationInstanceId)).size).toBe(3);
+    const step = events.find((e) => e.payload.workflowStepKey === "received");
+    expect(step?.payload.operationInstanceId).toBe(
+      terminals[2]?.payload.operationInstanceId,
+    );
+    expect(events.filter((e) => e.payload.name === "workflow_completed")).toHaveLength(
+      1,
+    );
+  });
   it("pins version, deduplicates steps and terminal; no business payload API on workflow", async () => {
     const f = fixture(),
       w = f.tracker.startWorkflow("download");

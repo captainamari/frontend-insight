@@ -34,7 +34,7 @@ export class WorkflowFactStore {
     const start = Date.parse(from),
       end = asOf.valueOf();
     const response = await this.client.query({
-      query: `SELECT project_id AS projectId,event_id AS eventId,toUnixTimestamp64Milli(timestamp) AS timestamp,toUnixTimestamp64Milli(received_at) AS receivedAt,session_id AS sessionId,ifNull(user_id,'') AS identityScope,user_id IS NOT NULL AND user_id!='' AS identified,JSONExtractString(payload_json,'name') AS name,workflow_instance_id AS workflowInstanceId,workflow_key AS workflowKey,workflow_definition_version AS version,workflow_step_key AS stepKey,workflow_step_order AS stepOrder,operation_instance_id AS operationInstanceId,feature_key AS operationKey FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND workflow_instance_id IS NOT NULL AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY timestamp,event_id LIMIT 50001`,
+      query: `SELECT project_id AS projectId,event_id AS eventId,toUnixTimestamp64Milli(timestamp) AS timestampMs,toUnixTimestamp64Milli(received_at) AS receivedAt,session_id AS sessionId,ifNull(user_id,'') AS identityScope,user_id IS NOT NULL AND user_id!='' AS identified,JSONExtractString(payload_json,'name') AS name,workflow_instance_id AS workflowInstanceId,workflow_key AS workflowKey,workflow_definition_version AS version,workflow_step_key AS stepKey,workflow_step_order AS stepOrder,operation_instance_id AS operationInstanceId,feature_key AS operationKey FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND workflow_instance_id IS NOT NULL AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY timestamp,event_id LIMIT 50001`,
       query_params: { projectIds, env, start: start - 604800000, end },
       format: "JSON",
       clickhouse_settings: {
@@ -48,7 +48,7 @@ export class WorkflowFactStore {
     const events = body.data.map((r) => ({
       projectId: String(r.projectId),
       eventId: String(r.eventId),
-      timestamp: Number(r.timestamp),
+      timestamp: Number(r.timestampMs),
       receivedAt: Number(r.receivedAt),
       sessionId: String(r.sessionId),
       identified: Boolean(Number(r.identified)),
@@ -142,14 +142,14 @@ export class WorkflowFactStore {
     }[] = [];
     if (sessionIds.length) {
       const response = await this.client.query({
-        query: `SELECT toUnixTimestamp64Milli(timestamp) AS timestamp,session_id AS sessionId,page_route AS pageRoute,page_view_id AS pageViewId FROM (SELECT event_id,timestamp,session_id,page_route,page_view_id FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event='page_view' AND session_id IN {sessionIds:Array(String)} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY received_at,event_id LIMIT 1 BY event_id) ORDER BY timestamp,event_id LIMIT 50001`,
+        query: `SELECT toUnixTimestamp64Milli(timestamp) AS timestampMs,session_id AS sessionId,page_route AS pageRoute,page_view_id AS pageViewId FROM (SELECT event_id,timestamp,session_id,page_route,page_view_id FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event='page_view' AND session_id IN {sessionIds:Array(String)} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY received_at,event_id LIMIT 1 BY event_id) ORDER BY timestamp,event_id LIMIT 50001`,
         query_params: { projectId, env, sessionIds, start: start - 1800000, end },
         format: "JSON",
         clickhouse_settings: { max_execution_time: 5 },
       });
       queries++;
       const pathBody = await response.json<{
-        timestamp: string;
+        timestampMs: string;
         sessionId: string;
         pageRoute: string;
         pageViewId: string;
@@ -172,7 +172,7 @@ export class WorkflowFactStore {
       pathConflicts = conflicts.size;
       pathRows = [...uniqueViews]
         .filter(([key]) => !conflicts.has(key))
-        .map(([, r]) => ({ ...r, timestamp: Number(r.timestamp) }));
+        .map(([, r]) => ({ ...r, timestamp: Number(r.timestampMs) }));
     }
     const paths = new Map(
       completed.map((i) => {

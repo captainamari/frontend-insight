@@ -473,7 +473,7 @@ export class BrowserTracker implements Tracker {
   }
 
   private associatedOperation(
-    featureKey: string,
+    operationKey: string,
     payload: EventPayload = {},
     interactionType: InteractionType = "programmatic",
     association: EventPayload = {},
@@ -481,8 +481,8 @@ export class BrowserTracker implements Tracker {
   ): OperationHandle {
     if (
       this.destroyed ||
-      !/^[a-z][a-z0-9_]{0,63}$/.test(featureKey) ||
-      (this.registeredFeatures && !this.registeredFeatures.has(featureKey)) ||
+      !/^[a-z][a-z0-9_]{0,63}$/.test(operationKey) ||
+      (this.registeredFeatures && !this.registeredFeatures.has(operationKey)) ||
       !normalizePayload(payload) ||
       (Boolean(association.workflowInstanceId) && Object.keys(payload).length > 0)
     ) {
@@ -497,7 +497,7 @@ export class BrowserTracker implements Tracker {
     const operationInstanceId = id(this.runtime, "op");
     let state: OperationState = "started";
     this.safe(() =>
-      this.feature("feature_started", featureKey, payload, {
+      this.feature("feature_started", operationKey, payload, {
         operationInstanceId,
         interactionType,
         ...association,
@@ -529,7 +529,7 @@ export class BrowserTracker implements Tracker {
           return;
         }
         state = next;
-        this.feature(`feature_${next}`, featureKey, terminalPayload, {
+        this.feature(`feature_${next}`, operationKey, terminalPayload, {
           operationInstanceId,
           interactionType,
           ...association,

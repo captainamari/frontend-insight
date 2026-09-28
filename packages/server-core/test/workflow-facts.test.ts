@@ -58,7 +58,7 @@ function store(instanceCount: number) {
     ].map(([name, delta, stepKey, stepOrder], n) => ({
       projectId: "p",
       eventId: `${i}-${n}`,
-      timestamp: from + Number(delta),
+      timestampMs: from + Number(delta),
       receivedAt: from + Number(delta),
       sessionId: "s",
       identified: 1,
@@ -84,7 +84,7 @@ function store(instanceCount: number) {
   ].map(([pageRoute, delta, pageViewId]) => ({
     sessionId: "s",
     pageRoute,
-    timestamp: from + Number(delta),
+    timestampMs: from + Number(delta),
     pageViewId,
   }));
   const query = vi

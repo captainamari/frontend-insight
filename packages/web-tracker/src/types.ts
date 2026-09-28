@@ -113,7 +113,7 @@ export interface Tracker {
   featureSucceeded(featureKey: string, payload?: EventPayload): void;
   featureFailed(featureKey: string, reasonCode: string, payload?: EventPayload): void;
   startOperation(
-    featureKey: string,
+    operationKey: string,
     payload?: EventPayload,
     interactionType?: InteractionType,
   ): OperationHandle;

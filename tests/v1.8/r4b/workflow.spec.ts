@@ -516,6 +516,29 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
       .filter((d: { canStart: boolean }) => d.canStart)
       .map((d: { version: number }) => d.version),
   ).toEqual([2]);
+  await page.getByRole("button", { name: "加载工作流配置", exact: true }).click();
+  await expect(page.getByText("示例SDK已就绪", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "并发三个传输", exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        (await liveAnalysis()).workflowAnalysis.definitions.find(
+          (d: { versionId: string }) => d.versionId === revision.latestVersion.id,
+        ).completed,
+      { timeout: 15000 },
+    )
+    .toBe(3);
+  scoreQuery.set("to", new Date().toISOString());
+  const frozenScore = await (
+    await request.get(
+      root + `/score-management/versions/${draft.id}/result?${scoreQuery}`,
+      { headers },
+    )
+  ).json();
+  expect(frozenScore.workflowObservation.workflowVersions).not.toContain(
+    revision.latestVersion.id,
+  );
+  expect(frozenScore.workflowObservation.values.completionRate).toBe(15 / 22);
   const poison = JSON.parse(payloads.find((p) => p.includes("workflow_started"))!);
   poison.events = [
     poison.events.find(
@@ -657,7 +680,7 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
       workflows: 20,
       definitionVersions: 21,
       stepsPerDefinition: [2, 20],
-      sdkInstances: 9,
+      sdkInstances: 12,
       concurrentSdkInstances: 3,
       qualification: "sparse controlled sample, not production capacity",
     });
