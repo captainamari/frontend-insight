@@ -1,3 +1,4 @@
+import { storageFailureCode } from "../src/clickhouse-logger.js";
 import { describe, expect, it, vi } from "vitest";
 import { WorkflowFactStore } from "../src/workflow-facts.js";
 import type { WorkflowFactDefinition } from "../src/workflow-definitions.js";
@@ -138,4 +139,27 @@ describe("R4-B bounded canonical path read model", () => {
       });
     },
   );
+});
+
+describe("R4-B storage failure diagnostics privacy", () => {
+  it.each([
+    ["ECONNRESET", "ECONNRESET"],
+    ["UND_ERR_SOCKET", "UND_ERR_SOCKET"],
+    ["159", "CLICKHOUSE_159"],
+    [241, "CLICKHOUSE_241"],
+  ])("keeps only bounded transport/storage codes: %s", (code, expected) => {
+    expect(storageFailureCode({ code })).toBe(expected);
+  });
+  it("drops messages, SQL, query, header values and arbitrary error codes", () => {
+    const sensitive = "FI_PRIVATE_BODY_QUERY_HEADER_PATH";
+    const cause = Object.assign(new Error(sensitive), { code: sensitive });
+    expect(storageFailureCode(cause)).toBe("FACT_READ_FAILED");
+    expect(storageFailureCode(new RangeError(sensitive))).toBe("INVALID_FACT_VALUE");
+    expect(storageFailureCode(new SyntaxError(sensitive))).toBe(
+      "INVALID_FACT_RESPONSE",
+    );
+    expect(storageFailureCode(new TypeError(sensitive))).toBe(
+      "FACT_RESPONSE_TYPE_ERROR",
+    );
+  });
 });

@@ -1,3 +1,4 @@
+import { storageFailureCode } from "./clickhouse-logger.js";
 import { mergeWorkflowFacts } from "./workflow-score-facts.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
 import type { WorkflowFactStore } from "./workflow-facts.js";
@@ -214,7 +215,13 @@ export class BusinessAnalysisService {
             pages,
             () => clickHouseQueries++,
           )
-          .catch(() => {
+          .catch((cause: unknown) => {
+            console.warn(
+              JSON.stringify({
+                source: "business-facts",
+                code: storageFailureCode(cause),
+              }),
+            );
             throw new MetricLibraryError("FACT_STORE_UNAVAILABLE", 503);
           })
       : null;

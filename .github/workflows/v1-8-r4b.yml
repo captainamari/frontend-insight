@@ -124,12 +124,18 @@ jobs:
       - name: Verify real R4-B browser SDK and product chain
         run: pnpm test:r4b:e2e
 
-      - name: Verify project search values stay out of access logs
+      - name: Verify query and header values stay out of access and proxy error logs
         run: |
           curl --silent --output /dev/null 'http://127.0.0.1:4173/api/projects/summary?search=FI_R2_PRIVATE_QUERY_SENTINEL'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("/tmp/r4b-privacy-headers", "X-Fi-Privacy: FI_R4B_PRIVATE_HEADER_SENTINEL" + "a".repeat(9000))'
+          privacy_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --header @/tmp/r4b-privacy-headers 'http://127.0.0.1:4173/api/projects/summary?search=FI_R4B_PRIVATE_QUERY_SENTINEL')"
+          case "$privacy_status" in
+            400|431) ;;
+            *) echo "Expected controlled oversized-header rejection"; exit 1 ;;
+          esac
           ./scripts/dev logs web > /tmp/r2-web-access.log
-          if grep -q FI_R2_PRIVATE_QUERY_SENTINEL /tmp/r2-web-access.log; then
-            echo 'R2 search value leaked into web access logs'
+          if grep -qE 'FI_R2_PRIVATE_QUERY_SENTINEL|FI_R4B_PRIVATE_(QUERY|HEADER)_SENTINEL|request: "' /tmp/r2-web-access.log; then
+            echo 'Unredacted query/header/request context leaked into proxy logs'
             exit 1
           fi
           grep -q '"requestId"' /tmp/r2-web-access.log
