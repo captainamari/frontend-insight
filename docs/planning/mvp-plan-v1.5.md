@@ -656,47 +656,47 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 工作分支：`agent/v1-8-r4b-workflow-tracking`
 
-实现与验证分开记录：§14.1–§14.3 已有候选代码和专项单测，§14.4 已有真实 SDK 双浏览器门禁；完整最终 CI 尚待通过，故下列阶段清单暂不作全项验收勾选。逐项位置、证据及 Q08 受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
+实现与验收分开记录：下列勾选表示代码已落地，不表示Jesse手工验收通过。§14.4真实SDK与继承回归的最终门禁必须核对同一提交的Actions及artifact；手工仍待Jesse。逐项位置、证据、门禁状态及Q08受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
 
 ### 14.1 SDK/contract
 
-- [ ] contract v3 schema/types/golden fixtures；
-- [ ] `startWorkflow(workflowKey)` handle；
-- [ ] `reachStep(stepKey)`；
-- [ ] workflow handle 增加 `startOperation(operationKey, payload?, interactionType?)`（或 ADR 确认的等价嵌套 API），同时生成随机 operation/workflow instance 关联；业务方不能传 instance ID；
-- [ ] 保留独立 `tracker.startOperation(featureKey)` 的单次 operation 能力，但未显式绑定 workflow handle 时不得驱动 workflow step；
-- [ ] 已登记且 `operationLifecycleEnabled=true` 的 `featureKey` 收敛为工作流配置中的 `operationKey` 来源，不建立双 key；参数/DTO 的最终规范名由 breaking Pre-1.0 ADR 冻结；
-- [ ] operation 终态使用 `succeeded/failed/canceled`，`completed` 只表示 workflow 成功；关联 operation 终态按激活定义中的 `operationKey + state` 达成对应步骤；
-- [ ] complete/fail/cancel；
-- [ ] instance ID 由 SDK 生成；
-- [ ] terminal 只生效一次；
-- [ ] 跨页面实例只在受控 session 范围内保存，TTL 到期清除；
-- [ ] data-fi-action/ID adapter；
-- [ ] 网络/lifecycle adapter 显式 opt-in；
-- [ ] 宿主异常隔离和 bundle diff。
+- [x] contract v3 schema/types/golden fixtures；
+- [x] `startWorkflow(workflowKey)` handle；
+- [x] `reachStep(stepKey)`；
+- [x] workflow handle 增加 `startOperation(operationKey, payload?, interactionType?)`（或 ADR 确认的等价嵌套 API），同时生成随机 operation/workflow instance 关联；业务方不能传 instance ID；
+- [x] 保留独立 `tracker.startOperation(operationKey)` 的单次 operation 能力，但未显式绑定 workflow handle 时不得驱动 workflow step；
+- [x] 已登记且 `operationLifecycleEnabled=true` 的 `featureKey` 收敛为工作流配置中的 `operationKey` 来源，不建立双 key；参数/DTO 的最终规范名由 breaking Pre-1.0 ADR 冻结；
+- [x] operation 终态使用 `succeeded/failed/canceled`，`completed` 只表示 workflow 成功；关联 operation 终态按激活定义中的 `operationKey + state` 达成对应步骤；
+- [x] complete/fail/cancel；
+- [x] instance ID 由 SDK 生成；
+- [x] terminal 只生效一次；
+- [x] 跨页面实例只在受控 session 范围内保存，TTL 到期清除；
+- [x] data-fi-action/ID adapter；
+- [x] 网络/lifecycle adapter 显式 opt-in；
+- [x] 宿主异常隔离和 bundle diff。
 
 ### 14.2 ingestion/consumer
 
-- [ ] v3 权威校验；
-- [ ] step key/version/order；
-- [ ] operation/workflow 显式关联校验；拒绝无关联实例、错误 `operationKey/state` 和跨项目/跨版本匹配；
-- [ ] 禁止按同一 session、最近事件或时间邻近关系推断 operation 属于哪个 workflow instance；
-- [ ] ClickHouse 新字段；
-- [ ] 重复、乱序、冲突终态诊断；
-- [ ] 日志/死信无 payload；
-- [ ] 完成 v3 后删除 v1/v2 接收测试。
+- [x] v3 权威校验；
+- [x] step key/version/order；
+- [x] operation/workflow 显式关联校验；拒绝无关联实例、错误 `operationKey/state` 和跨项目/跨版本匹配；
+- [x] 禁止按同一 session、最近事件或时间邻近关系推断 operation 属于哪个 workflow instance；
+- [x] ClickHouse字段运行链路：复用R1-A已迁移字段，补齐v3写入/读取，不重复建列；
+- [x] 重复、乱序、冲突终态诊断；
+- [x] 日志/死信无 payload；
+- [x] 完成v3后删除/改造v1/v2正向接收路径，保留旧协议及alias拒绝回归。
 
 ### 14.3 查询
 
-- [ ] started、每阶段到达、终态；
-- [ ] 阶段到达率和流失；
-- [ ] `task_duration` 总耗时按任务类型输出 P50/P90，并同时提供 P75/P99；
-- [ ] 工作流阶段耗时作为独立扩展指标，不占用 `task_duration` key；
-- [ ] 并发实例；
-- [ ] 超时后 approximate abandonment；
-- [ ] availableFrom 和 definition version；
-- [ ] `path_steps`：任务完成前去重页面数、总步数和回退步数；
-- [ ] 任务前功能模块跨度作为扩展诊断字段。
+- [x] started、每阶段到达、终态；
+- [x] 阶段到达率和流失；
+- [x] `task_duration` 总耗时按任务类型输出 P50/P90，并同时提供 P75/P99；
+- [x] 工作流阶段耗时作为独立扩展指标，不占用 `task_duration` key；
+- [x] 并发实例；
+- [x] 超时后 approximate abandonment；
+- [x] availableFrom 和 definition version；
+- [x] `path_steps`：任务完成前去重页面数、总步数和回退步数；
+- [x] 任务前功能模块跨度作为扩展诊断字段。
 
 ### 14.4 E2E 与阶段门
 

@@ -228,6 +228,24 @@ const selectedWorkflow = computed(() =>
     (w) => w.versionId === route.query.workflowVersion,
   ),
 );
+const workflowDialog = ref<HTMLDialogElement | null>(null);
+let workflowReturnFocus: HTMLElement | null = null;
+watch(
+  selectedWorkflow,
+  (selected) => {
+    const dialog = workflowDialog.value;
+    if (selected && dialog && !dialog.open) {
+      workflowReturnFocus =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    } else if (!selected && dialog?.open) {
+      dialog.close();
+      if (workflowReturnFocus?.isConnected) workflowReturnFocus.focus();
+      workflowReturnFocus = null;
+    }
+  },
+  { flush: "post" },
+);
 function showWorkflow(versionId?: string) {
   void router.push({
     query: {
@@ -554,13 +572,18 @@ onBeforeUnmount(() => {
           下一页工作流
         </button>
       </section>
-      <ElDrawer
-        v-if="selectedWorkflow"
-        :model-value="true"
-        title="工作流详情"
-        size="min(900px, 95vw)"
-        @close="selectedWorkflow && showWorkflow()"
+      <dialog
+        ref="workflowDialog"
+        class="workflow-dialog"
+        aria-label="工作流详情"
+        @cancel.prevent="showWorkflow()"
       >
+        <header>
+          <h2>工作流详情</h2>
+          <button autofocus aria-label="关闭工作流详情" @click="showWorkflow()">
+            关闭
+          </button>
+        </header>
         <template v-if="selectedWorkflow && data.workflowAnalysis">
           <h2>{{ selectedWorkflow.name }} · v{{ selectedWorkflow.version }}</h2>
           <p>
@@ -672,7 +695,7 @@ onBeforeUnmount(() => {
           </article>
           <button @click="workflowDefinition">查看工作流定义与版本</button>
         </template>
-      </ElDrawer>
+      </dialog>
       <section class="panel">
         <h2>当前工作流定义</h2>
         <p>{{ data.workflowFacts.reason }}</p>
@@ -727,6 +750,25 @@ onBeforeUnmount(() => {
   </div>
 </template>
 <style scoped>
+.workflow-dialog {
+  box-sizing: border-box;
+  width: min(900px, 95vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 24px;
+  border: 0;
+  overflow: auto;
+}
+.workflow-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.workflow-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .business-analysis {
   min-width: 0;
   max-width: 100%;
