@@ -23,7 +23,19 @@ export interface BusinessResponse {
   }[];
   moduleId: string | null;
   moduleRevisions: unknown[];
-  metrics: Omit<OverviewResponse["metrics"], "trends"> & {
+  metrics: Omit<OverviewResponse["metrics"], "trends" | "cards"> & {
+    cards: (OverviewResponse["metrics"]["cards"][number] & {
+      workflowBreakdown?: {
+        workflowKey: string;
+        versionId: string;
+        version: number;
+        p50: number | null;
+        p90: number | null;
+        p75: number | null;
+        p99: number | null;
+        sample: number;
+      }[];
+    })[];
     trends: (OverviewResponse["metrics"]["trends"][number] & {
       penetration?: { observationWindow: { from: string; to: string }; reason: string };
     })[];

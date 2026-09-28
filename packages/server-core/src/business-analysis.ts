@@ -21,7 +21,10 @@ import {
   businessFactWindow,
   type BusinessPageWindow,
 } from "./business-facts.js";
-import { IDENTITY_DEFINITION_VERSION } from "./system-metric-catalog.js";
+import {
+  IDENTITY_DEFINITION_VERSION,
+  WORKFLOW_FACT_DEFINITION_VERSION,
+} from "./system-metric-catalog.js";
 import { evaluateModulePenetration } from "./module-penetration.js";
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 export interface BusinessQuery extends OverviewQuery {
@@ -238,7 +241,16 @@ export class BusinessAnalysisService {
               input.workflowVersion,
               input.workflowEvidencePage ?? 1,
             )
-            .catch(() => {
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                [
+                  "WORKFLOW_FACT_LIMIT",
+                  "WORKFLOW_SESSION_LIMIT",
+                  "WORKFLOW_PATH_LIMIT",
+                ].includes(cause.message)
+              )
+                throw new MetricLibraryError(cause.message, 400);
               throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);
             })
         : null;
@@ -265,8 +277,20 @@ export class BusinessAnalysisService {
         "module",
       ).map((m) => ({
         ...m,
+        workflowBreakdown:
+          m.definition.metricKey === "task_duration" &&
+          m.definition.definitionVersion === WORKFLOW_FACT_DEFINITION_VERSION
+            ? (workflowAnalysis?.definitions ?? []).map((w) => ({
+                workflowKey: w.workflowKey,
+                versionId: w.versionId,
+                version: w.version,
+                ...w.task_duration,
+              }))
+            : undefined,
         rawScope:
-          "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
+          m.definition.metricKey === "task_duration"
+            ? "按工作流定义版本分别输出普通P50/P90/P75/P99，不把不同任务类型的分位数合并成标量；当前页与工作流列表一致，覆盖未知。"
+            : "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
       }));
     const moduleRows = [
       ...new Map(

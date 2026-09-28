@@ -309,7 +309,7 @@ onBeforeUnmount(() => {
       <section class="panel">
         <h2>模块指标</h2>
         <p>
-          正式值遵守定义与完整性要求。下列观察值仅为已识别、有效归属的页面访问；不代表完整业务活动。
+          正式值遵守定义与完整性要求。页面访问与工作流观察分别按其事实范围解释；观察值不代表完整业务活动。
         </p>
         <div
           class="cards"
@@ -324,6 +324,18 @@ onBeforeUnmount(() => {
             <p>{{ m.definition.metricKey }} · {{ m.status }}</p>
             <p>{{ m.reason ?? "可用" }} · 样本 {{ m.sampleSize ?? "未知" }}</p>
             <p>观察值 {{ m.rawValue ?? "—" }}</p>
+            <template v-if="m.workflowBreakdown?.length">
+              <p>按任务类型与定义版本查看（同工作流列表页；覆盖未知）</p>
+              <ul>
+                <li v-for="w in m.workflowBreakdown" :key="w.versionId">
+                  <button @click="showWorkflow(w.versionId)">
+                    {{ w.workflowKey }} v{{ w.version }}
+                  </button>
+                  P50/P90：{{ w.p50 ?? "—" }} / {{ w.p90 ?? "—" }} ms；样本
+                  {{ w.sample }}
+                </li>
+              </ul>
+            </template>
             <button @click="drill = m.definition.metricKey">
               解释 {{ m.definition.displayName }}</button
             ><label

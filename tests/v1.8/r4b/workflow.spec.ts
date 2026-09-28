@@ -211,6 +211,14 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     },
   });
   expect(saved.status()).toBe(200);
+  expect(
+    (
+      await request.put(root + `/metrics/versions/${draft.id}/business-bindings`, {
+        headers,
+        data: { metricKeys: ["pv", "uv", "task_duration"] },
+      })
+    ).status(),
+  ).toBe(200);
   const activeAfter = await (
     await request.get(root + `/metrics/versions/${initialActive.id}`, { headers })
   ).json();
@@ -246,16 +254,41 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     .poll(
       async () => {
         const r = await request.get(analysisPath, { headers });
-        if (r.status() !== 200) return -1;
+        if (r.status() !== 200) return { httpStatus: r.status(), completed: -1 };
         const b = await r.json();
-        return b.workflowAnalysis?.definitions.reduce(
-          (n: number, d: { completed: number }) => n + d.completed,
-          0,
+        const sent = payloads.flatMap(
+          (body) => JSON.parse(body).events as { payload: { name?: string } }[],
         );
+        return {
+          completed: b.workflowAnalysis?.definitions.reduce(
+            (n: number, d: { completed: number }) => n + d.completed,
+            0,
+          ),
+          states: b.workflowAnalysis?.definitions.map(
+            (d: { workflowKey: string; started: number; unresolved: number }) => ({
+              key: d.workflowKey,
+              started: d.started,
+              unresolved: d.unresolved,
+            }),
+          ),
+          rejected: b.workflowAnalysis?.rejected,
+          collector: b.workflowAnalysis?.collector,
+          reasons: b.workflowAnalysis?.evidence.map(
+            (e: { state: string; reasons: string[] }) => ({
+              state: e.state,
+              reasons: e.reasons,
+            }),
+          ),
+          sentWorkflowStarts: sent.filter((e) => e.payload.name === "workflow_started")
+            .length,
+          sentWorkflowCompleted: sent.filter(
+            (e) => e.payload.name === "workflow_completed",
+          ).length,
+        };
       },
       { timeout: 45000, intervals: [500, 1000, 2000] },
     )
-    .toBe(4);
+    .toMatchObject({ completed: 4 });
   const response = await request.get(analysisPath, { headers });
   const result = await response.json();
   expect(
@@ -268,6 +301,16 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     [3, 3],
   ]);
   expect(result.workflowAnalysis.evidence).toHaveLength(4);
+  expect(
+    result.metrics.cards
+      .find(
+        (m: { definition: { metricKey: string } }) =>
+          m.definition.metricKey === "task_duration",
+      )
+      .workflowBreakdown.find(
+        (w: { workflowKey: string }) => w.workflowKey === "admin_model_download",
+      ),
+  ).toMatchObject({ sample: 3 });
   expect(payloads.length).toBeGreaterThan(0);
   expect(payloads.join("\n")).not.toContain("FI_PRIVATE_QUERY_SENTINEL");
   expect(payloads.join("\n")).not.toContain("Synthetic transfer fixture");
