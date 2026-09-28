@@ -1045,7 +1045,10 @@
             ],
             "properties": {
               "workflowKey": true,
-              "workflowDefinitionVersion": true
+              "workflowDefinitionVersion": true,
+              "labels": false,
+              "reasonCode": false,
+              "visibleDurationMs": false
             }
           }
         }

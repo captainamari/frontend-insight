@@ -1,3 +1,10 @@
+import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
+import type { WorkflowFactStore } from "./workflow-facts.js";
+import { reduceWorkflowInstances } from "./workflow-reducer.js";
+import {
+  workflowScoreFacts,
+  type WorkflowScoreObservation,
+} from "./workflow-score-facts.js";
 import { expectedScoreDates, CANONICAL_SCORE_IDENTITY } from "./score-observation.js";
 import { randomUUID } from "node:crypto";
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
@@ -46,6 +53,7 @@ export class ScoreManagementService {
   constructor(
     private readonly mysql: MySqlStore,
     private readonly library: MetricLibraryService,
+    private readonly workflowFacts?: WorkflowFactStore,
   ) {}
   async businessOptions(projectId: string) {
     const [project, settings, modules, pages, workflows] = await Promise.all([
@@ -315,7 +323,18 @@ export class ScoreManagementService {
         new Date(query.from),
       ],
     );
-    return this.evaluateQuery(snapshot, query, periods, mode);
+    const observation = await this.workflowObservations(
+      this.mysql.pool,
+      [snapshot],
+      query,
+    );
+    return this.evaluateQuery(
+      snapshot,
+      query,
+      periods,
+      mode,
+      observation.get(projectId),
+    );
   }
   /** All real single-project and batch reads use this same evaluator and explanation. */
   evaluateQuery(
@@ -323,6 +342,7 @@ export class ScoreManagementService {
     query: ScoreQuery,
     periods: RowDataPacket[],
     mode: "current" | "historical_trial" = "current",
+    workflowObservation?: WorkflowScoreObservation,
   ) {
     if (!snapshot.score)
       throw new MetricLibraryError("SCORE_CONFIGURATION_NOT_SAVED", 404);
@@ -343,13 +363,17 @@ export class ScoreManagementService {
       scopeId: dependencies.scopeId,
       timezone: dependencies.timezone,
     };
-    // D4-A: canonical workflow/quality/usage facts are deferred. No fixture fallback.
+    const workflow = workflowObservation
+      ? workflowScoreFacts(workflowObservation, dependencies, context)
+      : null;
+    // Workflow observations are real; unknown exposure never becomes an available leaf.
+    // Quality/usage remain at their previously approved later-stage boundaries.
     const result = evaluateScore({
       configuration,
       binding: scoreBinding(snapshot, definitionVersion),
       context,
-      facts: {},
-      pipelineStatus: "no_data",
+      facts: workflow?.facts ?? {},
+      pipelineStatus: workflow?.samples.total ? "healthy" : "no_data",
       configurationConfirmed: dependencies.confirmed,
       effectiveAt: snapshot.version.activatedAt,
       mode,
@@ -378,7 +402,8 @@ export class ScoreManagementService {
       source: "project_query",
       calculatedAt: new Date().toISOString(),
       trend: null,
-      samples: {
+      workflowObservation: workflow,
+      samples: workflow?.samples ?? {
         total: null,
         valid: null,
         excluded: null,
@@ -395,9 +420,50 @@ export class ScoreManagementService {
         activeDates: null,
         numerator: null,
         denominator: null,
-        reason: "R4-B/R5-A/R6 事实查询待交付。",
+        reason: workflow
+          ? "工作流样本已接入；覆盖未验证时保持 partial。质量/使用事实仍属 R5-A/R6。"
+          : "尚无工作流依赖快照或事实源；质量/使用事实属 R5-A/R6。",
       },
     };
+  }
+  private async workflowObservations(
+    connection: Pick<MySqlStore["pool"], "query">,
+    snapshots: Awaited<ReturnType<ScoreManagementService["get"]>>[],
+    query: ScoreQuery,
+  ) {
+    const result = new Map<string, WorkflowScoreObservation>();
+    const projectIds = [
+      ...new Set(
+        snapshots
+          .filter((s) => s.score?.dependencies.workflows.length)
+          .map((s) => s.version.projectId),
+      ),
+    ];
+    if (!this.workflowFacts || !projectIds.length) return result;
+    const definitions = await readWorkflowFactDefinitions(connection, projectIds);
+    const asOf = new Date();
+    const { events } = await this.workflowFacts.readEvents(
+      projectIds,
+      query.env,
+      query.from,
+      asOf,
+    );
+    for (const projectId of projectIds) {
+      const reduced = reduceWorkflowInstances(
+        events.filter((e) => e.projectId === projectId),
+        definitions.filter((d) => d.projectId === projectId),
+        asOf.valueOf(),
+      );
+      result.set(projectId, {
+        ...reduced,
+        asOf: asOf.toISOString(),
+        coverage:
+          Date.parse(query.from) < asOf.valueOf() - 90 * 86400000
+            ? "insufficient"
+            : "unknown",
+      });
+    }
+    return result;
   }
   async readActiveBatch(
     connection: PoolConnection,
@@ -426,7 +492,7 @@ export class ScoreManagementService {
           .map(definitionFromRow),
       ]),
     );
-    return versions.map((row) => {
+    const snapshots = versions.map((row) => {
       const snapshot: Awaited<ReturnType<ScoreManagementService["get"]>> = {
         version: versionFromRow(row),
         definitions: byVersion.get(String(row.id)) ?? [],
@@ -438,6 +504,11 @@ export class ScoreManagementService {
             }
           : null,
       };
+      return snapshot;
+    });
+    const observations = await this.workflowObservations(connection, snapshots, query);
+    return versions.map((row, index) => {
+      const snapshot = snapshots[index]!;
       const result = snapshot.score
         ? this.evaluateQuery(
             snapshot,
@@ -446,6 +517,8 @@ export class ScoreManagementService {
               (p) =>
                 p.project_id === row.project_id && p.library_type === row.library_type,
             ),
+            "current",
+            observations.get(snapshot.version.projectId),
           )
         : null;
       return {

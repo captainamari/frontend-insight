@@ -29,6 +29,8 @@ const signature = computed(() =>
       "businessTrends",
       "businessVersion",
       "workflowPage",
+      "workflowVersion",
+      "workflowEvidencePage",
     ].map((k) => route.query[k]),
   ]),
 );
@@ -94,7 +96,16 @@ async function load() {
     drill.value = "";
   }
   const params = new URLSearchParams();
-  for (const k of ["env", "range", "from", "to", "moduleId", "workflowPage"])
+  for (const k of [
+    "env",
+    "range",
+    "from",
+    "to",
+    "moduleId",
+    "workflowPage",
+    "workflowVersion",
+    "workflowEvidencePage",
+  ])
     if (typeof route.query[k] === "string") params.set(k, String(route.query[k]));
   if (typeof route.query.businessTrends === "string")
     params.set("metrics", route.query.businessTrends);
@@ -203,7 +214,13 @@ const selectedWorkflow = computed(() =>
   ),
 );
 function showWorkflow(versionId?: string) {
-  void router.push({ query: { ...route.query, workflowVersion: versionId } });
+  void router.push({
+    query: {
+      ...route.query,
+      workflowVersion: versionId,
+      workflowEvidencePage: undefined,
+    },
+  });
 }
 function workflowPage(page: number) {
   void router.push({
@@ -426,6 +443,15 @@ onBeforeUnmount(() => {
             data.workflowAnalysis.context.asOf
           }}。迟到事实可能更新结果，覆盖尚未证明完整。
         </p>
+        <p>
+          采集状态：{{
+            data.workflowAnalysis.collector === "compatible_sdk_observed"
+              ? "已观察到兼容SDK；不代表完整覆盖"
+              : data.workflowAnalysis.collector === "compatible_sdk_not_observed"
+                ? "有访问事实，但未观察到兼容工作流SDK"
+                : "尚不能验证SDK安装"
+          }}
+        </p>
         <p v-if="!data.workflowAnalysis.definitions.length">
           没有已激活过的工作流定义。
         </p>
@@ -438,7 +464,7 @@ onBeforeUnmount(() => {
                 <th>成功 / 失败 / 取消 / 近似超时</th>
                 <th>成功率</th>
                 <th>总耗时 P50 / P90（ms）</th>
-                <th>样本 / 未解析</th>
+                <th>样本 / 未解析 / 状态</th>
                 <th>详情</th>
               </tr>
             </thead>
@@ -460,7 +486,18 @@ onBeforeUnmount(() => {
                 <td>
                   {{ w.task_duration.p50 ?? "—" }} / {{ w.task_duration.p90 ?? "—" }}
                 </td>
-                <td>{{ w.task_duration.sample }} / {{ w.unresolved }}</td>
+                <td>
+                  {{ w.task_duration.sample }} / {{ w.unresolved }} /
+                  {{
+                    w.sampleState === "no_facts"
+                      ? "无事实"
+                      : w.sampleState === "in_progress"
+                        ? "进行中"
+                        : w.sampleState === "insufficient_sample"
+                          ? "不足5个有效耗时样本"
+                          : "部分可用，覆盖未验证"
+                  }}
+                </td>
                 <td>
                   <button @click="showWorkflow(w.versionId)">
                     查看 {{ w.name }} v{{ w.version }}
@@ -562,6 +599,32 @@ onBeforeUnmount(() => {
             </tbody>
           </table>
           <h3>安全实例证据</h3>
+          <button
+            :disabled="data.workflowAnalysis.evidencePage <= 1"
+            @click="
+              router.push({
+                query: {
+                  ...route.query,
+                  workflowEvidencePage: String(data.workflowAnalysis.evidencePage - 1),
+                },
+              })
+            "
+          >
+            上一页实例
+          </button>
+          <button
+            :disabled="!data.workflowAnalysis.evidenceTruncated"
+            @click="
+              router.push({
+                query: {
+                  ...route.query,
+                  workflowEvidencePage: String(data.workflowAnalysis.evidencePage + 1),
+                },
+              })
+            "
+          >
+            下一页实例
+          </button>
           <p>
             实例计数包含未识别身份；未识别
             {{ selectedWorkflow.unidentified }}

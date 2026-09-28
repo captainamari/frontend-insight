@@ -32,7 +32,7 @@ try {
     workflow = "99999999-9999-4999-8999-999999999995",
     workflowVersion = "99999999-9999-4999-8999-999999999996";
   await pool.execute(
-    "INSERT INTO modules (id,project_id,module_key,name,status) VALUES (?,?,'upgrade_workflow','Preserved workflow','active')",
+    "INSERT INTO modules (id,project_id,module_key,status) VALUES (?,?,'upgrade_workflow','active')",
     [module, project],
   );
   await pool.execute(

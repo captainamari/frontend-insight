@@ -373,7 +373,9 @@ export class ProjectSummaryService {
         candidateProjects: total,
         metadataQueries,
         transactionStatements,
-        clickHouseQueries: rows.length ? 1 : 0,
+        clickHouseQueries:
+          (rows.length ? 1 : 0) +
+          (active.some((a) => a.result?.workflowObservation) ? 1 : 0),
         clickHouse:
           factFailure || principal.globalRole !== "admin" ? null : facts.statistics,
         elapsedMs: performance.now() - started,

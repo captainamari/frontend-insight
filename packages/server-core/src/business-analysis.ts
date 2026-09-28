@@ -27,6 +27,8 @@ export interface BusinessQuery extends OverviewQuery {
   moduleId?: string | undefined;
   versionId?: string | undefined;
   workflowPage?: number | undefined;
+  workflowEvidencePage?: number | undefined;
+  workflowVersion?: string | undefined;
 }
 export class BusinessAnalysisService {
   constructor(
@@ -187,7 +189,7 @@ export class BusinessAnalysisService {
     );
     if (segments.length > 800)
       throw new MetricLibraryError("BUSINESS_SEGMENT_LIMIT", 400);
-    let clickHouseQueries = 0;
+    let clickHouseQueries = active?.result?.workflowObservation ? 1 : 0;
     const observation = moduleId
       ? await this.facts
           .read(
@@ -202,6 +204,13 @@ export class BusinessAnalysisService {
             throw new MetricLibraryError("FACT_STORE_UNAVAILABLE", 503);
           })
       : null;
+    if (
+      input.workflowVersion &&
+      !snapshot.workflowDefinitions.some(
+        (d) => d.versionId === input.workflowVersion && d.moduleId === moduleId,
+      )
+    )
+      throw new MetricLibraryError("WORKFLOW_VERSION_NOT_FOUND", 404);
     const workflowAnalysis =
       this.workflowFacts && moduleId
         ? await this.workflowFacts
@@ -215,6 +224,8 @@ export class BusinessAnalysisService {
               pages,
               new Date(),
               input.workflowPage ?? 1,
+              input.workflowVersion,
+              input.workflowEvidencePage ?? 1,
             )
             .catch(() => {
               throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);

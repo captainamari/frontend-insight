@@ -24,23 +24,18 @@ export class WorkflowFactStore {
   close() {
     return this.client.close();
   }
-  async read(
-    projectId: string,
+  async readEvents(
+    projectIds: string[],
     env: string,
     from: string,
-    to: string,
-    definitions: WorkflowFactDefinition[],
-    buckets: CalendarBucket[],
-    pages: BusinessPageWindow[],
-    asOf = new Date(),
-    page = 1,
+    asOf: Date,
+    includeSdk = false,
   ) {
-    const end = asOf.valueOf(),
-      start = Date.parse(from);
-    let queries = 0;
+    const start = Date.parse(from),
+      end = asOf.valueOf();
     const response = await this.client.query({
-      query: `SELECT event_id AS eventId,toUnixTimestamp64Milli(timestamp) AS timestamp,toUnixTimestamp64Milli(received_at) AS receivedAt,session_id AS sessionId,user_id IS NOT NULL AND user_id!='' AS identified,JSONExtractString(payload_json,'name') AS name,workflow_instance_id AS workflowInstanceId,workflow_key AS workflowKey,workflow_definition_version AS version,workflow_step_key AS stepKey,workflow_step_order AS stepOrder,operation_instance_id AS operationInstanceId,feature_key AS operationKey FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND workflow_instance_id IS NOT NULL AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY timestamp,event_id LIMIT 50001`,
-      query_params: { projectId, env, start: start - 604800000, end },
+      query: `SELECT project_id AS projectId,event_id AS eventId,toUnixTimestamp64Milli(timestamp) AS timestamp,toUnixTimestamp64Milli(received_at) AS receivedAt,session_id AS sessionId,ifNull(user_id,'') AS identityScope,user_id IS NOT NULL AND user_id!='' AS identified,JSONExtractString(payload_json,'name') AS name,workflow_instance_id AS workflowInstanceId,workflow_key AS workflowKey,workflow_definition_version AS version,workflow_step_key AS stepKey,workflow_step_order AS stepOrder,operation_instance_id AS operationInstanceId,feature_key AS operationKey FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND workflow_instance_id IS NOT NULL AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY timestamp,event_id LIMIT 50001`,
+      query_params: { projectIds, env, start: start - 604800000, end },
       format: "JSON",
       clickhouse_settings: {
         max_execution_time: 5,
@@ -48,15 +43,16 @@ export class WorkflowFactStore {
         read_overflow_mode: "throw",
       },
     });
-    queries++;
     const body = await response.json<Record<string, unknown>>();
     if (body.data.length > 50000) throw new Error("WORKFLOW_FACT_LIMIT");
     const events = body.data.map((r) => ({
+      projectId: String(r.projectId),
       eventId: String(r.eventId),
       timestamp: Number(r.timestamp),
       receivedAt: Number(r.receivedAt),
       sessionId: String(r.sessionId),
       identified: Boolean(Number(r.identified)),
+      identityScope: String(r.identityScope),
       name: String(r.name),
       workflowInstanceId: String(r.workflowInstanceId),
       workflowKey: String(r.workflowKey),
@@ -69,6 +65,52 @@ export class WorkflowFactStore {
         : {}),
       ...(r.operationKey ? { operationKey: String(r.operationKey) } : {}),
     })) satisfies WorkflowFactEvent[];
+    let sdk: { projectId: string; observed: number; compatible: number }[] = [];
+    if (includeSdk) {
+      const metadata = await this.client.query({
+        query: `SELECT project_id AS projectId,count() AS observed,countIf(sdk_version='0.5.0') AS compatible FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) GROUP BY project_id`,
+        query_params: {
+          projectIds,
+          env,
+          start: Math.max(start, end - 90 * 86400000),
+          end,
+        },
+        format: "JSONEachRow",
+        clickhouse_settings: { max_execution_time: 5 },
+      });
+      sdk = (
+        await metadata.json<{
+          projectId: string;
+          observed: string;
+          compatible: string;
+        }>()
+      ).map((r) => ({
+        projectId: r.projectId,
+        observed: Number(r.observed),
+        compatible: Number(r.compatible),
+      }));
+    }
+    return { events, sdk, statistics: body.statistics, queries: includeSdk ? 2 : 1 };
+  }
+  async read(
+    projectId: string,
+    env: string,
+    from: string,
+    to: string,
+    definitions: WorkflowFactDefinition[],
+    buckets: CalendarBucket[],
+    pages: BusinessPageWindow[],
+    asOf = new Date(),
+    page = 1,
+    evidenceVersion?: string,
+    evidencePage = 1,
+  ) {
+    const end = asOf.valueOf(),
+      start = Date.parse(from);
+    let queries = 0;
+    const body = await this.readEvents([projectId], env, from, asOf, true);
+    queries += body.queries;
+    const events = body.events;
     const reduced = reduceWorkflowInstances(events, definitions, end);
     const instances = reduced.instances.filter(
       (i) => i.startedAt >= start && i.startedAt < Date.parse(to),
@@ -137,6 +179,13 @@ export class WorkflowFactStore {
         ] as const;
       }),
     );
+    const evidenceItems = instances
+      .filter((i) => !evidenceVersion || i.versionId === evidenceVersion)
+      .sort(
+        (a, b) =>
+          b.startedAt - a.startedAt ||
+          a.workflowInstanceId.localeCompare(b.workflowInstanceId),
+      );
     return {
       context: {
         projectId,
@@ -150,6 +199,11 @@ export class WorkflowFactStore {
         completion: "provisional; late events may change observations",
         physicalRetentionDays: 90,
       },
+      collector: body.sdk.some((s) => s.compatible > 0)
+        ? "compatible_sdk_observed"
+        : body.sdk.some((s) => s.observed > 0)
+          ? "compatible_sdk_not_observed"
+          : "sdk_installation_unverified",
       status: definitions.length
         ? instances.length
           ? "partial"
@@ -177,6 +231,17 @@ export class WorkflowFactStore {
         effectiveFrom: d.effectiveFrom,
         effectiveTo: d.effectiveTo,
         timeoutSeconds: d.timeoutSeconds,
+        sampleState: !instances.some((i) => i.versionId === d.versionId)
+          ? "no_facts"
+          : instances
+                .filter((i) => i.versionId === d.versionId)
+                .every((i) => i.state === "started")
+            ? "in_progress"
+            : instances.filter(
+                  (i) => i.versionId === d.versionId && i.durationMs !== null,
+                ).length < 5
+              ? "insufficient_sample"
+              : "partial",
         ...summarizeWorkflowCohort(instances, d, start, Date.parse(to)),
         trends: buckets.map((b) => ({
           from: b.from,
@@ -190,22 +255,26 @@ export class WorkflowFactStore {
           ),
         })),
       })),
-      evidence: instances.slice(0, 100).map((i) => ({
-        workflowInstanceId: i.workflowInstanceId,
-        workflowKey: i.workflowKey,
-        versionId: i.versionId,
-        startedAt: new Date(i.startedAt).toISOString(),
-        terminalAt: i.terminalAt === null ? null : new Date(i.terminalAt).toISOString(),
-        state: i.state,
-        durationMs: i.durationMs,
-        identified: i.identified,
-        steps: i.steps,
-        reasons: i.reasons,
-        path_steps: paths.get(i.workflowInstanceId) ?? null,
-      })),
-      evidenceTotal: instances.length,
-      evidenceLimit: 100,
-      evidenceTruncated: instances.length > 100,
+      evidence: evidenceItems
+        .slice((evidencePage - 1) * 50, evidencePage * 50)
+        .map((i) => ({
+          workflowInstanceId: i.workflowInstanceId,
+          workflowKey: i.workflowKey,
+          versionId: i.versionId,
+          startedAt: new Date(i.startedAt).toISOString(),
+          terminalAt:
+            i.terminalAt === null ? null : new Date(i.terminalAt).toISOString(),
+          state: i.state,
+          durationMs: i.durationMs,
+          identified: i.identified,
+          steps: i.steps,
+          reasons: i.reasons,
+          path_steps: paths.get(i.workflowInstanceId) ?? null,
+        })),
+      evidencePage,
+      evidenceTotal: evidenceItems.length,
+      evidenceLimit: 50,
+      evidenceTruncated: evidenceItems.length > evidencePage * 50,
       diagnostics: {
         clickHouseQueries: queries,
         rowsRead: body.statistics?.rows_read ?? 0,

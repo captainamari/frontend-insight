@@ -1416,7 +1416,7 @@ watch(
           <el-form-item label="整体超时（秒）"
             ><el-input-number
               v-model="workflowForm.timeoutSeconds"
-              :min="30"
+              :min="1"
               :max="604800"
           /></el-form-item>
         </div>

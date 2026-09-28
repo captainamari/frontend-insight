@@ -275,7 +275,13 @@ const schema = {
           },
           then: {
             required: ["workflowKey", "workflowDefinitionVersion"],
-            properties: { workflowKey: true, workflowDefinitionVersion: true },
+            properties: {
+              workflowKey: true,
+              workflowDefinitionVersion: true,
+              labels: false,
+              reasonCode: false,
+              visibleDurationMs: false,
+            },
           },
         },
       ],

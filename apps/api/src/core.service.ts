@@ -26,7 +26,17 @@ export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
   readonly metricLibrary = new MetricLibraryService(this.mysql);
-  readonly scores = new ScoreManagementService(this.mysql, this.metricLibrary);
+  readonly workflowFacts = new WorkflowFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
+  readonly scores = new ScoreManagementService(
+    this.mysql,
+    this.metricLibrary,
+    this.workflowFacts,
+  );
   readonly publisher = new KafkaEnvelopePublisher(
     this.environment.KAFKA_BROKERS,
     this.environment.KAFKA_EVENTS_TOPIC,
@@ -81,12 +91,6 @@ export class CoreService implements OnModuleDestroy {
   );
 
   readonly businessFacts = new BusinessFactStore({
-    url: this.environment.CLICKHOUSE_URL,
-    username: this.environment.CLICKHOUSE_USERNAME,
-    password: this.environment.CLICKHOUSE_PASSWORD,
-    database: this.environment.CLICKHOUSE_DATABASE,
-  });
-  readonly workflowFacts = new WorkflowFactStore({
     url: this.environment.CLICKHOUSE_URL,
     username: this.environment.CLICKHOUSE_USERNAME,
     password: this.environment.CLICKHOUSE_PASSWORD,

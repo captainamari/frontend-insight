@@ -6,6 +6,7 @@ export interface WorkflowFactEvent {
   receivedAt: number;
   sessionId: string;
   identified: boolean;
+  identityScope?: string;
   name: string;
   workflowInstanceId: string;
   workflowKey: string;
@@ -93,12 +94,22 @@ export function reduceWorkflowInstances(
     }
     const reasons: string[] = [];
     if (
+      d.admissionPeriods &&
+      !d.admissionPeriods.some(
+        (p) =>
+          start.timestamp >= Date.parse(p.from) &&
+          (!p.to || start.timestamp < Date.parse(p.to)),
+      )
+    )
+      reasons.push("WORKFLOW_START_OUTSIDE_ADMISSION");
+    if (
       es.some(
         (e) =>
           e.sessionId !== start.sessionId ||
           e.workflowKey !== start.workflowKey ||
           e.version !== start.version ||
-          e.identified !== start.identified,
+          e.identified !== start.identified ||
+          e.identityScope !== start.identityScope,
       )
     )
       reasons.push("WORKFLOW_CONTEXT_CONFLICT");

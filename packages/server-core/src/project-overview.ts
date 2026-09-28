@@ -258,7 +258,7 @@ export class ProjectOverviewService {
     );
     if (segments.length > 800)
       throw new MetricLibraryError("OVERVIEW_SEGMENT_LIMIT", 400);
-    let clickHouseQueries = 0;
+    let clickHouseQueries = active.some((a) => a.result?.workflowObservation) ? 1 : 0;
     const onQuery = () => {
       clickHouseQueries++;
     };

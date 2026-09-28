@@ -325,7 +325,7 @@ try {
   assert.equal(observed.penetration.directoryVersion, null);
   assert.equal(observed.penetration.reason, "PENETRATION_SOURCE_MISSING");
   assert(!JSON.stringify(observed).includes("isolated-hmac-"));
-  assert.equal(observed.diagnostics.clickHouseQueries, 2);
+  assert.equal(observed.diagnostics.clickHouseQueries, 3);
   for (const bad of [
     "env=all",
     "range=24h",

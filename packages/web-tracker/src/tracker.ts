@@ -36,7 +36,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.4.0";
+const SDK_VERSION = "0.5.0";
 const deviceStorageKey = "frontend-insight.device-id.v2";
 const canonicalCustomNames = new Set<string>(STANDARD_CUSTOM_EVENT_NAMES);
 
@@ -483,7 +483,8 @@ export class BrowserTracker implements Tracker {
       this.destroyed ||
       !/^[a-z][a-z0-9_]{0,63}$/.test(featureKey) ||
       (this.registeredFeatures && !this.registeredFeatures.has(featureKey)) ||
-      !normalizePayload(payload)
+      !normalizePayload(payload) ||
+      (Boolean(association.workflowInstanceId) && Object.keys(payload).length > 0)
     ) {
       this.drop("OPERATION_CONFIG_INVALID");
       return {
@@ -520,12 +521,19 @@ export class BrowserTracker implements Tracker {
           this.drop("REASON_CODE_INVALID");
           return;
         }
+        if (
+          !normalizePayload(terminalPayload) ||
+          (association.workflowInstanceId && Object.keys(terminalPayload).length)
+        ) {
+          this.drop("OPERATION_PAYLOAD_REJECTED");
+          return;
+        }
         state = next;
         this.feature(`feature_${next}`, featureKey, terminalPayload, {
           operationInstanceId,
           interactionType,
           ...association,
-          ...(reasonCode ? { reasonCode } : {}),
+          ...(reasonCode && !association.workflowInstanceId ? { reasonCode } : {}),
         });
         onTerminal?.(next, operationInstanceId);
       });

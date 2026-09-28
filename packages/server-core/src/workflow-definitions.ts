@@ -3,6 +3,7 @@ import type { FrontendInsightEventV3 } from "@frontend-insight/event-contract";
 import { jsonValue } from "./score-storage.js";
 import type { WorkflowStepInput, WorkflowTerminalPolicy } from "./model.js";
 export interface WorkflowFactDefinition {
+  projectId?: string;
   admissionPeriods?: { from: string; to: string | null }[];
   id: string;
   versionId: string;
@@ -22,11 +23,11 @@ export interface WorkflowFactDefinition {
 }
 export async function readWorkflowFactDefinitions(
   pool: Pick<Pool, "query">,
-  projectId: string,
+  projectId: string | string[],
 ): Promise<WorkflowFactDefinition[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT w.id,w.workflow_key,w.status AS object_status,w.archived_at,v.id AS version_id,v.version,v.module_id,v.name,v.status,v.start_policy,v.activated_at,v.effective_to,v.timeout_seconds,v.terminal_policy,s.step_key,s.step_order,s.name AS step_name,s.trigger_kind,s.trigger_config FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id=? AND v.activated_at IS NOT NULL ORDER BY w.id,v.version,s.step_order LIMIT 40001`,
-    [projectId],
+    `SELECT w.id,w.project_id,w.workflow_key,w.status AS object_status,w.archived_at,v.id AS version_id,v.version,v.module_id,v.name,v.status,v.start_policy,v.activated_at,v.effective_to,v.timeout_seconds,v.terminal_policy,s.step_key,s.step_order,s.name AS step_name,s.trigger_kind,s.trigger_config FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id IN (?) AND v.activated_at IS NOT NULL ORDER BY w.id,v.version,s.step_order LIMIT 40001`,
+    [Array.isArray(projectId) ? projectId : [projectId]],
   );
   if (rows.length > 40000) throw new Error("WORKFLOW_DEFINITION_LIMIT");
   const definitions = new Map<string, WorkflowFactDefinition>();
@@ -35,6 +36,7 @@ export async function readWorkflowFactDefinitions(
     let d = definitions.get(key);
     if (!d) {
       d = {
+        projectId: String(r.project_id),
         id: String(r.id),
         versionId: key,
         workflowKey: String(r.workflow_key),
@@ -67,8 +69,8 @@ export async function readWorkflowFactDefinitions(
       });
   }
   const [periods] = await pool.query<RowDataPacket[]>(
-    `SELECT p.workflow_definition_version_id AS versionId,p.effective_from,p.effective_to FROM workflow_admission_periods p JOIN workflow_definition_versions v ON v.id=p.workflow_definition_version_id JOIN workflow_definitions w ON w.id=v.workflow_definition_id WHERE w.project_id=? ORDER BY p.effective_from LIMIT 10001`,
-    [projectId],
+    `SELECT p.workflow_definition_version_id AS versionId,p.effective_from,p.effective_to FROM workflow_admission_periods p JOIN workflow_definition_versions v ON v.id=p.workflow_definition_version_id JOIN workflow_definitions w ON w.id=v.workflow_definition_id WHERE w.project_id IN (?) ORDER BY p.effective_from LIMIT 10001`,
+    [Array.isArray(projectId) ? projectId : [projectId]],
   );
   if (periods.length > 10000) throw new Error("WORKFLOW_ADMISSION_LIMIT");
   for (const d of definitions.values()) d.admissionPeriods = [];

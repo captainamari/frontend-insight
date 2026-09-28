@@ -77,6 +77,7 @@ export interface BusinessResponse {
 }
 
 export interface WorkflowAnalysis {
+  collector: string;
   context: { asOf: string; cohort: string; terminalWindow: string; completion: string };
   status: string;
   reason: string;
@@ -91,6 +92,7 @@ export interface WorkflowAnalysis {
     workflowKey: string;
     name: string;
     version: number;
+    sampleState: string;
     started: number;
     completed: number;
     failed: number;
@@ -137,6 +139,7 @@ export interface WorkflowAnalysis {
     reasons: string[];
     path_steps: unknown;
   }[];
+  evidencePage: number;
   evidenceTotal: number;
   evidenceLimit: number;
   evidenceTruncated: boolean;
