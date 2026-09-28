@@ -26,7 +26,7 @@ export async function readWorkflowFactDefinitions(
   projectId: string | string[],
 ): Promise<WorkflowFactDefinition[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT w.id,w.project_id,w.workflow_key,w.status AS object_status,w.archived_at,v.id AS version_id,v.version,v.module_id,v.name,v.status,v.start_policy,v.activated_at,v.effective_to,v.timeout_seconds,v.terminal_policy,s.step_key,s.step_order,s.name AS step_name,s.trigger_kind,s.trigger_config FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id IN (?) AND v.activated_at IS NOT NULL ORDER BY w.id,v.version,s.step_order LIMIT 40001`,
+    `SELECT w.id,w.project_id,w.workflow_key,w.status AS object_status,w.archived_at,v.id AS version_id,v.version,v.module_id,v.name,v.status,v.start_policy,v.activated_at,v.effective_to,v.timeout_seconds,v.terminal_policy,s.step_key,s.step_order,s.name AS step_name,s.trigger_kind,s.trigger_config FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id IN (?) ORDER BY w.id,v.version,s.step_order LIMIT 40001`,
     [Array.isArray(projectId) ? projectId : [projectId]],
   );
   if (rows.length > 40000) throw new Error("WORKFLOW_DEFINITION_LIMIT");

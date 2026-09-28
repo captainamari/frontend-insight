@@ -336,3 +336,65 @@ describe("R4-B reload persistence", () => {
     c.destroy();
   });
 });
+
+it("records bounded synchronous SDK cost for 2–20 steps and three concurrent instances", async () => {
+  const clock = performance.now.bind(performance);
+  const f = fixture();
+  const results: unknown[] = [];
+  for (const stepCount of [2, 20]) {
+    const keys = Array.from({ length: stepCount }, (_, i) => `stage_${i + 1}`);
+    f.definition.steps = keys.map((stepKey, i) => ({
+      stepKey,
+      stepOrder: i + 1,
+      triggerKind: "explicit_sdk" as const,
+      triggerConfig: {},
+    }));
+    f.definition.terminalPolicy.completedStepKey = keys.at(-1)!;
+    for (const concurrency of [1, 3]) {
+      const rawMs: number[] = [];
+      for (let i = 0; i < 110; i++) {
+        const start = clock();
+        const workflows = Array.from({ length: concurrency }, () =>
+          f.tracker.startWorkflow("download"),
+        );
+        for (const key of keys) for (const w of workflows) w.reachStep(key);
+        const elapsed = clock() - start;
+        if (i >= 10) rawMs.push(elapsed);
+        expect(workflows.every((w) => w.getState() === "completed")).toBe(true);
+        await f.tracker.flush();
+      }
+      const p95 = [...rawMs].sort((a, b) => a - b)[Math.ceil(rawMs.length * 0.95) - 1]!;
+      expect(p95).toBeLessThan(16);
+      results.push({
+        steps: stepCount,
+        concurrency,
+        warmup: 10,
+        sampleCount: rawMs.length,
+        rawMs,
+        p95,
+        budgetMs: 16,
+        p95Algorithm: "nearest_rank_ceil_0.95n",
+      });
+    }
+  }
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    "artifacts/r4b-sdk-synchronous.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA ?? null,
+        environment: {
+          node: process.version,
+          platform: process.platform,
+          arch: process.arch,
+        },
+        measurement:
+          "Node/happy-dom synchronous handle+event enqueue only; fetch stub; not browser main-thread production capacity",
+        results,
+      },
+      null,
+      2,
+    ),
+  );
+});

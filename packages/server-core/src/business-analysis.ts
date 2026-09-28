@@ -1,3 +1,4 @@
+import { mergeWorkflowFacts } from "./workflow-score-facts.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
 import type { WorkflowFactStore } from "./workflow-facts.js";
 import type { RowDataPacket } from "mysql2/promise";
@@ -38,6 +39,7 @@ export class BusinessAnalysisService {
     private readonly workflowFacts?: WorkflowFactStore,
   ) {}
   async analysis(projectId: string, input: BusinessQuery) {
+    const asOf = new Date();
     const started = performance.now(),
       raw = await this.mysql.pool.getConnection();
     let metadataQueries = 0;
@@ -86,9 +88,12 @@ export class BusinessAnalysisService {
           modules.find((m) => m.status === "active")?.id ??
           modules[0]?.id ??
           null;
-        const active = (await this.scores.readActiveBatch(c, [projectId], query)).find(
-          (a) => a.libraryType === "operational",
-        );
+        const active = (
+          await this.scores.readActiveBatch(c, [projectId], {
+            ...query,
+            asOf: asOf.toISOString(),
+          })
+        ).find((a) => a.libraryType === "operational");
         if (input.versionId && input.versionId !== active?.version.id)
           throw new MetricLibraryError("BUSINESS_ACTIVE_VERSION_CHANGED", 409);
         const [bindings] = await c.query<RowDataPacket[]>(
@@ -222,7 +227,7 @@ export class BusinessAnalysisService {
               snapshot.workflowDefinitions.filter((d) => d.moduleId === moduleId),
               query.buckets,
               pages,
-              new Date(),
+              asOf,
               input.workflowPage ?? 1,
               input.workflowVersion,
               input.workflowEvidencePage ?? 1,
@@ -234,6 +239,13 @@ export class BusinessAnalysisService {
     const fact = observation
       ? businessFactWindow(observation.window)
       : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
+    const workflowScore = active?.result;
+    if (
+      workflowScore?.workflowObservation &&
+      workflowScore.configurationSnapshot.scope === "module" &&
+      workflowScore.dependencySnapshot.scopeId === moduleId
+    )
+      mergeWorkflowFacts(fact, workflowScore.workflowObservation.facts);
     const activeFrom = active?.version.activatedAt;
     const boundary =
       !activeFrom || query.from < activeFrom ? "VERSION_RANGE_BOUNDARY" : null;
@@ -317,6 +329,19 @@ export class BusinessAnalysisService {
             versionId: p.versionId,
           })) ?? [],
         trends: segments.map((b, i) => {
+          const bucketFact = observation
+            ? businessFactWindow(observation.buckets[i]!)
+            : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
+          if (
+            workflowScore?.workflowObservation &&
+            workflowScore.configurationSnapshot.scope === "module" &&
+            workflowScore.dependencySnapshot.scopeId === moduleId
+          ) {
+            const trend = workflowScore.workflowObservation.trends.find(
+              (t) => t.from === b.from && t.to === b.to,
+            );
+            if (trend) mergeWorkflowFacts(bucketFact, trend.facts);
+          }
           const reason =
             b.versionId !== active?.version.id || b.segment !== activeFrom
               ? "HISTORICAL_VERSION_NOT_RECALCULATED"
@@ -336,11 +361,7 @@ export class BusinessAnalysisService {
               observedNumerator: observation?.buckets[i]?.uv ?? null,
             }),
             reason,
-            metrics: evaluate(
-              observation ? businessFactWindow(observation.buckets[i]!) : fact,
-              selected,
-              reason,
-            ).map((m) => ({
+            metrics: evaluate(bucketFact, selected, reason).map((m) => ({
               metricKey: m.definition.metricKey,
               value: m.value,
               rawValue: m.rawValue,

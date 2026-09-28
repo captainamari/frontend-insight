@@ -877,7 +877,7 @@ watch(
         }}
       </h2>
       <p>
-        只读不可变快照 · {{ resource.data.value.frozenWorkflow.workflowKey }} ·
+        只读版本详情 · {{ resource.data.value.frozenWorkflow.workflowKey }} ·
         {{ resource.data.value.frozenWorkflow.status }} · 超时
         {{ resource.data.value.frozenWorkflow.timeoutSeconds }} 秒
       </p>

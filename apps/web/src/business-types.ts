@@ -78,6 +78,7 @@ export interface BusinessResponse {
 
 export interface WorkflowAnalysis {
   collector: string;
+  configurationStatus: string;
   context: { asOf: string; cohort: string; terminalWindow: string; completion: string };
   status: string;
   reason: string;

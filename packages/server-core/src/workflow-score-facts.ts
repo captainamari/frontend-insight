@@ -1,3 +1,4 @@
+import type { FactWindow } from "./overview-facts.js";
 import type { ScoreFact, ScoreQueryContext } from "./score-evaluation.js";
 import type { WorkflowInstanceFact } from "./workflow-reducer.js";
 import { workflowScoreSamples } from "./score-observation.js";
@@ -103,4 +104,25 @@ export function workflowScoreFacts(
     workflowVersions: [...versions.keys()],
     algorithm: "approved_type_weights; pooled_weighted_nearest_rank_p50; start_cohort",
   };
+}
+
+/** Shared AST/card input adapter. Observation values do not grant scoring eligibility. */
+export function mergeWorkflowFacts(
+  window: FactWindow,
+  facts: Readonly<Record<string, ScoreFact>>,
+) {
+  for (const [key, fact] of Object.entries(facts)) {
+    window.raw[key] = {
+      value: fact.value,
+      sampleSize: fact.sampleSize,
+      status: fact.value === null ? "missing" : "available",
+      reason: fact.reason,
+    };
+    window.inputs[key] = {
+      value: fact.status === "available" ? fact.value : null,
+      sampleSize: fact.sampleSize,
+      status: fact.status === "available" ? "available" : "metric_not_available",
+      reason: fact.reason,
+    };
+  }
 }

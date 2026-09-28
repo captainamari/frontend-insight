@@ -1,3 +1,4 @@
+import { mergeWorkflowFacts } from "./workflow-score-facts.js";
 import {
   resolveProjectCalendar,
   ProjectRangeError,
@@ -158,7 +159,11 @@ export function evaluateOverviewMetrics(
       ...result,
       rawValue: rawValues[key]?.value ?? null,
       rawScope:
-        "同窗口已观测、按事件时间匹配有效页面 revision 的已识别 PV；曝光完整性未验证。业务指标观察值使用同一 AST，非可信正式值。",
+        key === "key_task_completion_rate" ||
+        key === "task_adverse_outcome_rate" ||
+        key === "key_task_duration_p50"
+          ? "冻结工作流版本与权重的已识别开始cohort；未知覆盖仅为观察值，不能视为合格评分输入。"
+          : "同窗口已观测、按事件时间匹配有效页面 revision 的已识别 PV；曝光完整性未验证。业务指标观察值使用同一 AST，非可信正式值。",
       dataAt: fact.lastDataAt,
       upstream: d.formulaAst ? collectFormulaDependencies(d.formulaAst) : [],
     };
@@ -283,6 +288,20 @@ export class ProjectOverviewService {
             availableFrom: null,
             statistics: { rowsRead: 0, bytesRead: 0, elapsedSeconds: 0 },
           };
+    const workflowScore = active.find((a) => a.libraryType === "operational")?.result;
+    if (
+      workflowScore?.workflowObservation &&
+      workflowScore.configurationSnapshot.scope === "project"
+    ) {
+      mergeWorkflowFacts(facts.window, workflowScore.workflowObservation.facts);
+      segments.forEach((segment, index) => {
+        const trend = workflowScore.workflowObservation!.trends.find(
+          (b) => b.from === segment.from && b.to === segment.to,
+        );
+        if (trend && facts.buckets[index])
+          mergeWorkflowFacts(facts.buckets[index]!, trend.facts);
+      });
+    }
     const projectPipeline = evaluateDataStatus({
       projectId,
       lastReceivedAt: iso(row.last_received_at),

@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 60
     env:
       M5_ALLOW_NON_ARM64: "1"
+      FI_PRIVACY_NO_TRACE: "1"
 
     steps:
       - name: Check out repository
@@ -38,6 +39,11 @@ jobs:
 
       - name: Run complete static, unit and build gate
         run: pnpm check
+
+      - name: Record SDK bundle delta against the inherited base
+        run: |
+          git fetch --depth=1 origin 76a96dea8aeb00db9088e2547250aaa59034a629
+          pnpm --filter @frontend-insight/web-tracker exec node scripts/r4b-budget.mjs
 
       - name: Verify actual checkout SHA
         run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
@@ -76,7 +82,7 @@ jobs:
           ./scripts/dev up
           ./scripts/dev smoke
 
-      - name: Verify data-preserving 001-002 to 003 migration
+      - name: Verify data-preserving 001-002 to 003-004 migration
         run: ./scripts/dev verify-r2-upgrade
 
       - name: Verify real MySQL and API metric-library flow
@@ -131,7 +137,7 @@ jobs:
       - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"4b5946c8a38c882871d7f4c4a975a4f6d163f597", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B implementation checkpoint plus R1-A through R4-A regressions", implementation:"in progress; not full R4-B acceptance", dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B implementation checkpoint plus R1-A through R4-A regressions", implementation:"in progress; not full R4-B acceptance", dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
 
       - name: Upload exact-commit verification evidence
         if: always()
@@ -147,5 +153,42 @@ jobs:
         run: ./scripts/dev logs
 
       - name: Stop local services
+        if: always()
+        run: ./scripts/dev down
+
+  r4b-sdk-preflight:
+    name: isolated R4-B SDK diagnostic (full ordered gate still required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      M5_ALLOW_NON_ARM64: "1"
+      FI_PRIVACY_NO_TRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Start a separate empty runner stack
+        run: |
+          ./scripts/dev bootstrap
+          ./scripts/dev up
+          ./scripts/dev smoke
+      - name: Exercise the actual SDK chain early in an isolated project
+        run: pnpm test:r4b:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: r4b-sdk-diagnostic
+          path: |
+            artifacts/r4b-*.json
+            test-results
+      - name: Capture safe service diagnostics
+        if: failure()
+        run: ./scripts/dev logs
+      - name: Stop diagnostic stack
         if: always()
         run: ./scripts/dev down

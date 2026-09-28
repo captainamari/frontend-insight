@@ -239,6 +239,51 @@ const schema = {
       allOf: [
         {
           if: {
+            anyOf: [
+              "workflowKey",
+              "workflowDefinitionVersion",
+              "workflowStepKey",
+              "workflowStepOrder",
+            ].map((key) => ({ required: [key], properties: { [key]: true } })),
+          },
+          then: {
+            required: [
+              "workflowInstanceId",
+              "workflowKey",
+              "workflowDefinitionVersion",
+            ],
+            properties: {
+              workflowInstanceId: true,
+              workflowKey: true,
+              workflowDefinitionVersion: true,
+            },
+          },
+        },
+        {
+          if: {
+            properties: {
+              name: {
+                enum: [
+                  "workflow_started",
+                  "workflow_completed",
+                  "workflow_failed",
+                  "workflow_canceled",
+                ],
+              },
+            },
+            required: ["name"],
+          },
+          then: {
+            properties: {
+              workflowStepKey: false,
+              workflowStepOrder: false,
+              operationInstanceId: false,
+              interactionType: false,
+            },
+          },
+        },
+        {
+          if: {
             properties: { name: { type: "string", pattern: "^workflow_" } },
             required: ["name"],
           },

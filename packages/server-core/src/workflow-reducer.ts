@@ -174,6 +174,11 @@ export function reduceWorkflowInstances(
       )
       .sort((a, b) => a.timestamp - b.timestamp);
     const first = terminals[0];
+    if (
+      first?.name === "workflow_completed" &&
+      steps.some((s) => s.order > 1 && !steps.some((p) => p.order === s.order - 1))
+    )
+      reasons.push("WORKFLOW_STEP_SEQUENCE_UNVERIFIED");
     if (first && terminals.some((e) => e.name !== first.name))
       reasons.push("WORKFLOW_TERMINAL_CONFLICT");
     // Equal-time contradictory terminal events have no evidenced first terminal.
@@ -277,7 +282,8 @@ export function summarizeWorkflowCohort(
     approximate_abandoned: count("approximate_abandoned"),
     inProgress: count("started"),
     unresolved: count("unresolved"),
-    successRate: cohort.length ? count("completed") / cohort.length : null,
+    successRate:
+      cohort.length && !count("unresolved") ? count("completed") / cohort.length : null,
     task_duration: quantiles(durations),
     stages,
     unidentified: cohort.filter((i) => !i.identified).length,

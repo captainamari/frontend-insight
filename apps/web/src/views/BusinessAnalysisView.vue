@@ -452,8 +452,9 @@ onBeforeUnmount(() => {
                 : "尚不能验证SDK安装"
           }}
         </p>
-        <p v-if="!data.workflowAnalysis.definitions.length">
-          没有已激活过的工作流定义。
+        <p v-if="!data.workflowAnalysis.definitions.length">尚无工作流定义。</p>
+        <p v-if="data.workflowAnalysis.configurationStatus === 'no_active_version'">
+          已配置工作流，但当前没有可开始新实例的激活版本；历史观察仍保留。
         </p>
         <div class="scroll">
           <table v-if="data.workflowAnalysis.definitions.length">

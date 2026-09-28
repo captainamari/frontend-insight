@@ -981,6 +981,81 @@
       "allOf": [
         {
           "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "workflowKey"
+                ],
+                "properties": {
+                  "workflowKey": true
+                }
+              },
+              {
+                "required": [
+                  "workflowDefinitionVersion"
+                ],
+                "properties": {
+                  "workflowDefinitionVersion": true
+                }
+              },
+              {
+                "required": [
+                  "workflowStepKey"
+                ],
+                "properties": {
+                  "workflowStepKey": true
+                }
+              },
+              {
+                "required": [
+                  "workflowStepOrder"
+                ],
+                "properties": {
+                  "workflowStepOrder": true
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "workflowInstanceId",
+              "workflowKey",
+              "workflowDefinitionVersion"
+            ],
+            "properties": {
+              "workflowInstanceId": true,
+              "workflowKey": true,
+              "workflowDefinitionVersion": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "enum": [
+                  "workflow_started",
+                  "workflow_completed",
+                  "workflow_failed",
+                  "workflow_canceled"
+                ]
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "then": {
+            "properties": {
+              "workflowStepKey": false,
+              "workflowStepOrder": false,
+              "operationInstanceId": false,
+              "interactionType": false
+            }
+          }
+        },
+        {
+          "if": {
             "properties": {
               "name": {
                 "type": "string",

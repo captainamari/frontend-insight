@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: process.env.CI ? "line" : "list",
   use: {
     baseURL: process.env.M5_WEB_URL ?? "http://127.0.0.1:4173",
-    trace: "retain-on-failure",
+    trace: "off", // Authenticated requests contain tokens; use safe assertions/screenshots.
     screenshot: "only-on-failure",
   },
   projects: [

@@ -622,7 +622,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 工作分支：`agent/v1-8-r4a-business-analysis`
 
-实施进度（不代表最终门禁或手工通过）：以下明确部分已落地；自动化证据见 R4-A results。
+当前阶段门：2026-09-28 Jesse 确认 R4-A 页面手工验收通过，并批准已有推荐方案；以下保留原交付范围，批准方案的代码收尾及验证另见 R4-B results。
 
 ### 13.1 后端
 
@@ -632,7 +632,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 - [x] 排除未归类/停用页面；
 - [x] 指标 display bindings；
 - [ ] `module_penetration`：去重 `userId` / 系统总用户数，返回分母来源与目录版本；
-- [ ] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；
+- [x] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；R4-B 随批实现，缺可信来源时仍不可用，最终真实回归另记；
 - [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回：pv/uv观察已实现，正式完整性及task/质量事实不绕过后置门禁；
 - [x] 功能模块趋势逐桶公式；
 - [x] 功能模块 data status 和 sample。
@@ -648,13 +648,15 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 13.3 阶段门
 
-当前仍为待验收；渗透率近似窗口局部未决，不能勾选全阶段通过。
+历史状态为“待验收；渗透率近似窗口局部未决”。2026-09-28 已确认页面验收通过及选项 A 获批；收尾代码与本批 R4-B 一起验证，不把批准当作计算已验收。
 
 同一功能模块的卡片、趋势和原始页面汇总手算一致；`module_penetration` 的分子、分母和目录版本可解释；切换功能模块和时间范围后 URL 可恢复。
 
 ## 14. R4-B：业务分析——多阶段工作流
 
-建议分支：`agent/v1-8-r4b-workflow-tracking`
+工作分支：`agent/v1-8-r4b-workflow-tracking`
+
+实现与验证分开记录：§14.1–§14.3 已有候选代码和专项单测，§14.4 已有真实 SDK 双浏览器门禁；完整最终 CI 尚待通过，故下列阶段清单暂不作全项验收勾选。逐项位置、证据及 Q08 受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
 
 ### 14.1 SDK/contract
 

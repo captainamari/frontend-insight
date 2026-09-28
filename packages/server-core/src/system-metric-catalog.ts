@@ -51,6 +51,14 @@ type CatalogDetails = Omit<
 };
 
 const DEFAULT_GRANULARITIES = ["5m", "hour", "day", "week", "month"] as const;
+export const WORKFLOW_FACT_DEFINITION_VERSION = "workflow-facts-2026-09-28.1";
+export const WORKFLOW_FACT_METRIC_KEYS = [
+  "task_duration",
+  "path_steps",
+  "key_task_completion_rate",
+  "task_adverse_outcome_rate",
+  "key_task_duration_p50",
+] as const;
 const DEFINITION_VERSION = "system-v1.8.0";
 const OWNER = "product-analytics";
 export const IDENTITY_DEFINITION_VERSION = "system-identity-2026-09-09.1";
@@ -199,7 +207,7 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     entityScopes: ["project", "module", "workflow"],
     reportingTiming: "显式工作流开始和成功终态分别上报。",
     unavailableReason:
-      "已有 operation 成功耗时能力，但尚无 R4-B 规范工作流入口、任务类型及 P90 输出。",
+      "按冻结工作流版本读取开始cohort中的有效成功样本；缺样本或覆盖不足不可用。",
   }),
   form_efficiency: {
     businessDescription:
@@ -251,12 +259,14 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     deduplicationKey: "workflowInstanceId + ordered pageViewId",
     unit: "steps",
     percentiles: ["p50", "p75", "p90", "p99"],
-    reportingTiming: "page_view 与工作流实例显式关联后，在成功终态聚合。",
+    reportingTiming:
+      "按同受控session完成前的页面观察序列聚合，不声明并发任务因果归属。",
     entityScopes: ["module", "workflow"],
     timeGranularities: DEFAULT_GRANULARITIES,
     minimumSample: 5,
-    missingPolicy: "缺少显式实例关联时返回不可用，禁止按时间邻近推断。",
-    unavailableReason: "R4-B 工作流事实与页面序列关联尚未实现。",
+    missingPolicy:
+      "缺少有效成功实例或受控session时不可用；当前回溯最多开始前30分钟，历史revision缺失或覆盖不明标partial。",
+    unavailableReason: "已接入有界session观察路径；完整session起点及持续覆盖尚未证明。",
   },
   lcp: vital(
     "最大内容绘制时间",
@@ -716,11 +726,16 @@ const scoreInputs: SystemMetricDefinition[] = scoreInputSpecs.map(
     missingPolicy:
       "缺少身份、业务范围、曝光完整性、目标或有效样本时不可参与计算；披露有效/排除样本及原因。",
     owner: "Jesse",
-    definitionVersion: "score-input-2026-09-09.1",
-    implementationStatus: "not_collected",
+    definitionVersion:
+      milestone === "R4-B"
+        ? WORKFLOW_FACT_DEFINITION_VERSION
+        : "score-input-2026-09-09.1",
+    implementationStatus: milestone === "R4-B" ? "implemented" : "not_collected",
     availableFrom: null,
     unavailableReason:
-      milestone + " 规范事实查询尚未交付；不能使用独立 operation 或匿名样本近似。",
+      milestone === "R4-B"
+        ? null
+        : milestone + " 规范事实查询尚未交付；不能使用独立 operation 或匿名样本近似。",
   }),
 );
 
@@ -745,13 +760,18 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
       timeGranularities: Object.freeze([...item.timeGranularities]),
       minimumSample: item.minimumSample,
       missingPolicy: item.missingPolicy,
-      owner: OWNER,
-      definitionVersion: identityMetricKeys.has(seed.metricKey)
-        ? IDENTITY_DEFINITION_VERSION
-        : DEFINITION_VERSION,
+      owner: seed.milestone === "R4-B" ? "Jesse" : OWNER,
+      definitionVersion:
+        seed.milestone === "R4-B"
+          ? WORKFLOW_FACT_DEFINITION_VERSION
+          : identityMetricKeys.has(seed.metricKey)
+            ? IDENTITY_DEFINITION_VERSION
+            : DEFINITION_VERSION,
       implementationStatus: seed.implementationStatus,
       availableFrom:
-        seed.implementationStatus === "partial" ? PARTIAL_AVAILABLE_FROM : null,
+        seed.milestone !== "R4-B" && seed.implementationStatus === "partial"
+          ? PARTIAL_AVAILABLE_FROM
+          : null,
       unavailableReason,
       milestone: seed.milestone,
     });

@@ -1,3 +1,5 @@
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
+import { segmentOverviewBuckets } from "./project-overview.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
 import type { WorkflowFactStore } from "./workflow-facts.js";
 import { reduceWorkflowInstances } from "./workflow-reducer.js";
@@ -44,6 +46,8 @@ export interface ScoreBusinessInput {
   durationMinimumSample: number;
 }
 export interface ScoreQuery {
+  /** Internal request snapshot, not caller-supplied evidence. */
+  asOf?: string;
   env: ScoreQueryContext["env"];
   from: string;
   to: string;
@@ -363,9 +367,33 @@ export class ScoreManagementService {
       scopeId: dependencies.scopeId,
       timezone: dependencies.timezone,
     };
-    const workflow = workflowObservation
-      ? workflowScoreFacts(workflowObservation, dependencies, context)
-      : null;
+    const workflow =
+      workflowObservation && snapshot.version.libraryType === "operational"
+        ? {
+            ...workflowScoreFacts(workflowObservation, dependencies, context),
+            trends: segmentOverviewBuckets(
+              resolveProjectCalendar(
+                { range: "custom", env: query.env, from: query.from, to: query.to },
+                dependencies.timezone,
+              ).buckets,
+              periods.map((p) => ({
+                versionId: String(p.versionId),
+                effectiveFrom: new Date(p.effectiveFrom as string).toISOString(),
+                effectiveTo: p.effectiveTo
+                  ? new Date(p.effectiveTo as string).toISOString()
+                  : null,
+              })),
+            ).map((bucket) => ({
+              from: bucket.from,
+              to: bucket.to,
+              ...workflowScoreFacts(workflowObservation, dependencies, {
+                ...context,
+                from: bucket.from,
+                to: bucket.to,
+              }),
+            })),
+          }
+        : null;
     // Workflow observations are real; unknown exposure never becomes an available leaf.
     // Quality/usage remain at their previously approved later-stage boundaries.
     const result = evaluateScore({
@@ -403,7 +431,7 @@ export class ScoreManagementService {
       calculatedAt: new Date().toISOString(),
       trend: null,
       workflowObservation: workflow,
-      samples: workflow?.samples ?? {
+      samples: {
         total: null,
         valid: null,
         excluded: null,
@@ -435,13 +463,17 @@ export class ScoreManagementService {
     const projectIds = [
       ...new Set(
         snapshots
-          .filter((s) => s.score?.dependencies.workflows.length)
+          .filter(
+            (s) =>
+              s.version.libraryType === "operational" &&
+              s.score?.dependencies.workflows.length,
+          )
           .map((s) => s.version.projectId),
       ),
     ];
     if (!this.workflowFacts || !projectIds.length) return result;
     const definitions = await readWorkflowFactDefinitions(connection, projectIds);
-    const asOf = new Date();
+    const asOf = query.asOf ? new Date(query.asOf) : new Date();
     const { events } = await this.workflowFacts.readEvents(
       projectIds,
       query.env,

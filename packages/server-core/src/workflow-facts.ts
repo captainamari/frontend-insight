@@ -66,6 +66,8 @@ export class WorkflowFactStore {
       ...(r.operationKey ? { operationKey: String(r.operationKey) } : {}),
     })) satisfies WorkflowFactEvent[];
     let sdk: { projectId: string; observed: number; compatible: number }[] = [];
+    let rowsRead = Number(body.statistics?.rows_read ?? 0),
+      bytesRead = Number(body.statistics?.bytes_read ?? 0);
     if (includeSdk) {
       const metadata = await this.client.query({
         query: `SELECT project_id AS projectId,count() AS observed,countIf(sdk_version='0.5.0') AS compatible FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) GROUP BY project_id`,
@@ -75,22 +77,28 @@ export class WorkflowFactStore {
           start: Math.max(start, end - 90 * 86400000),
           end,
         },
-        format: "JSONEachRow",
+        format: "JSON",
         clickhouse_settings: { max_execution_time: 5 },
       });
-      sdk = (
-        await metadata.json<{
-          projectId: string;
-          observed: string;
-          compatible: string;
-        }>()
-      ).map((r) => ({
+      const sdkBody = await metadata.json<{
+        projectId: string;
+        observed: string;
+        compatible: string;
+      }>();
+      rowsRead += Number(sdkBody.statistics?.rows_read ?? 0);
+      bytesRead += Number(sdkBody.statistics?.bytes_read ?? 0);
+      sdk = sdkBody.data.map((r) => ({
         projectId: r.projectId,
         observed: Number(r.observed),
         compatible: Number(r.compatible),
       }));
     }
-    return { events, sdk, statistics: body.statistics, queries: includeSdk ? 2 : 1 };
+    return {
+      events,
+      sdk,
+      statistics: { rows_read: rowsRead, bytes_read: bytesRead },
+      queries: includeSdk ? 2 : 1,
+    };
   }
   async read(
     projectId: string,
@@ -110,7 +118,15 @@ export class WorkflowFactStore {
     let queries = 0;
     const body = await this.readEvents([projectId], env, from, asOf, true);
     queries += body.queries;
-    const events = body.events;
+    const definitionKeys = new Set(
+      definitions.map((d) => `${d.workflowKey}:${d.version}`),
+    );
+    const events = body.events.filter((event) =>
+      definitionKeys.has(`${event.workflowKey}:${event.version}`),
+    );
+    let pathRowsRead = 0,
+      pathBytesRead = 0,
+      pathConflicts = 0;
     const reduced = reduceWorkflowInstances(events, definitions, end);
     const instances = reduced.instances.filter(
       (i) => i.startedAt >= start && i.startedAt < Date.parse(to),
@@ -118,22 +134,45 @@ export class WorkflowFactStore {
     const completed = instances.filter((i) => i.state === "completed");
     const sessionIds = [...new Set(completed.map((i) => i.sessionId))];
     if (sessionIds.length > 5000) throw new Error("WORKFLOW_SESSION_LIMIT");
-    let pathRows: { timestamp: number; sessionId: string; pageRoute: string }[] = [];
+    let pathRows: {
+      timestamp: number;
+      sessionId: string;
+      pageRoute: string;
+      pageViewId: string;
+    }[] = [];
     if (sessionIds.length) {
       const response = await this.client.query({
-        query: `SELECT toUnixTimestamp64Milli(timestamp) AS timestamp,session_id AS sessionId,page_route AS pageRoute FROM (SELECT event_id,timestamp,session_id,page_route FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event='page_view' AND session_id IN {sessionIds:Array(String)} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY received_at,event_id LIMIT 1 BY event_id) ORDER BY timestamp,event_id LIMIT 50001`,
+        query: `SELECT toUnixTimestamp64Milli(timestamp) AS timestamp,session_id AS sessionId,page_route AS pageRoute,page_view_id AS pageViewId FROM (SELECT event_id,timestamp,session_id,page_route,page_view_id FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event='page_view' AND session_id IN {sessionIds:Array(String)} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) ORDER BY received_at,event_id LIMIT 1 BY event_id) ORDER BY timestamp,event_id LIMIT 50001`,
         query_params: { projectId, env, sessionIds, start: start - 1800000, end },
-        format: "JSONEachRow",
+        format: "JSON",
         clickhouse_settings: { max_execution_time: 5 },
       });
       queries++;
-      const rows = await response.json<{
+      const pathBody = await response.json<{
         timestamp: string;
         sessionId: string;
         pageRoute: string;
+        pageViewId: string;
       }>();
+      const rows = pathBody.data;
+      pathRowsRead = Number(pathBody.statistics?.rows_read ?? 0);
+      pathBytesRead = Number(pathBody.statistics?.bytes_read ?? 0);
       if (rows.length > 50000) throw new Error("WORKFLOW_PATH_LIMIT");
-      pathRows = rows.map((r) => ({ ...r, timestamp: Number(r.timestamp) }));
+      const uniqueViews = new Map<string, (typeof rows)[number]>(),
+        conflicts = new Set<string>();
+      for (const row of rows) {
+        const key = row.sessionId + ":" + row.pageViewId;
+        const prior = uniqueViews.get(key);
+        if (prior && prior.pageRoute !== row.pageRoute) {
+          conflicts.add(key);
+          continue;
+        }
+        if (!prior) uniqueViews.set(key, row);
+      }
+      pathConflicts = conflicts.size;
+      pathRows = [...uniqueViews]
+        .filter(([key]) => !conflicts.has(key))
+        .map(([, r]) => ({ ...r, timestamp: Number(r.timestamp) }));
     }
     const paths = new Map(
       completed.map((i) => {
@@ -141,7 +180,7 @@ export class WorkflowFactStore {
           (p) =>
             p.sessionId === i.sessionId &&
             p.timestamp >= i.startedAt - 1800000 &&
-            p.timestamp <= i.terminalAt!,
+            p.timestamp < i.terminalAt!,
         );
         const classified = path.map((p) => ({
           p,
@@ -204,10 +243,20 @@ export class WorkflowFactStore {
         : body.sdk.some((s) => s.observed > 0)
           ? "compatible_sdk_not_observed"
           : "sdk_installation_unverified",
+      configurationStatus: !definitions.length
+        ? "no_definitions"
+        : definitions.some(
+              (d) =>
+                d.status === "active" && d.objectStatus === "active" && !d.archived,
+            )
+          ? "active"
+          : "no_active_version",
       status: definitions.length
-        ? instances.length
-          ? "partial"
-          : "no_facts"
+        ? !definitions.some((d) => d.effectiveFrom)
+          ? "no_active_version"
+          : instances.length
+            ? "partial"
+            : "no_facts"
         : "no_definitions",
       reason: instances.length
         ? "WORKFLOW_OBSERVATIONS_COVERAGE_NOT_VERIFIED"
@@ -277,8 +326,9 @@ export class WorkflowFactStore {
       evidenceTruncated: evidenceItems.length > evidencePage * 50,
       diagnostics: {
         clickHouseQueries: queries,
-        rowsRead: body.statistics?.rows_read ?? 0,
-        bytesRead: body.statistics?.bytes_read ?? 0,
+        rowsRead: Number(body.statistics?.rows_read ?? 0) + pathRowsRead,
+        bytesRead: Number(body.statistics?.bytes_read ?? 0) + pathBytesRead,
+        pathPageViewConflicts: pathConflicts,
       },
     };
   }

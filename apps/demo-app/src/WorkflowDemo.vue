@@ -4,13 +4,17 @@ import {
   createTracker,
   type Tracker,
   type WorkflowDefinition,
+  type WorkflowHandle,
 } from "@frontend-insight/web-tracker";
 const appId = ref(new URLSearchParams(location.search).get("workflowAppId") ?? "");
 const state = ref("填写专用示例项目appId并加载已激活定义"),
   rendered = ref<number | null>(null),
   ready = ref(false);
 let tracker: Tracker | null = null;
+const root = ref<HTMLElement | null>(null);
+let selectorWorkflow: WorkflowHandle | null = null;
 const downloads = new Set<AbortController>();
+const propertyTasks = new Map<WorkflowHandle, AbortController>();
 async function install() {
   ready.value = false;
   tracker?.destroy();
@@ -45,20 +49,38 @@ async function install() {
 async function property() {
   const workflow = tracker?.startWorkflow("dashboard_property_view");
   if (!workflow) return;
+  const abort = new AbortController(),
+    lifecycle = new EventTarget();
+  propertyTasks.set(workflow, abort);
+  const stopLifecycle = workflow.bindPageLifecycle(lifecycle);
   try {
     workflow.reachStep("property_selected");
-    const response = await fetch("/workflow-demo-data.json");
-    if (!response.ok) throw new Error();
-    const data = (await response.json()) as { value?: number };
-    if (!Number.isFinite(data.value)) throw new Error();
-    workflow.reachStep("data_loaded");
+    const data = await workflow.observeNetwork(
+      "data_loaded",
+      { method: "GET", pathPattern: "/workflow-demo-data.json" },
+      async () => {
+        const response = await fetch("/workflow-demo-data.json", {
+          signal: abort.signal,
+        });
+        if (!response.ok) throw new Error("TRANSPORT_FAILED");
+        return response.json() as Promise<{ value?: number }>;
+      },
+      (value) => Number.isFinite(value.value),
+    );
+    if (!Number.isFinite(data.value)) throw new Error("BUSINESS_VALUE_INVALID");
     rendered.value = data.value!;
     await nextTick();
-    workflow.reachStep("property_rendered");
+    lifecycle.dispatchEvent(new Event("fi:page-loaded"));
     state.value = "属性数据已校验并渲染";
   } catch {
-    workflow.fail();
-    state.value = "属性加载或渲染失败";
+    if (abort.signal.aborted) workflow.cancel();
+    else workflow.fail();
+    state.value = abort.signal.aborted
+      ? "用户离开，属性任务已取消"
+      : "属性加载或渲染失败";
+  } finally {
+    stopLifecycle();
+    propertyTasks.delete(workflow);
   }
   await tracker?.flush();
 }
@@ -103,16 +125,63 @@ async function download() {
     await tracker?.flush();
   }
 }
+async function isolatedOperation() {
+  const workflow = tracker?.startWorkflow("admin_model_download");
+  workflow?.reachStep("download_requested");
+  tracker?.startOperation("model_download").succeed();
+  await tracker?.flush();
+  state.value =
+    workflow?.getState() === "started" ? "独立操作未达成工作流步骤" : "隔离检查未通过";
+}
+async function outcomes() {
+  for (const stateName of ["failed", "canceled"] as const) {
+    const workflow = tracker?.startWorkflow("admin_model_download");
+    if (!workflow) continue;
+    workflow.reachStep("download_requested");
+    const operation = workflow.startOperation("model_download");
+    if (stateName === "failed") {
+      operation.fail("synthetic_rejection");
+      workflow.fail();
+    } else {
+      operation.cancel();
+      workflow.cancel();
+    }
+  }
+  await tracker?.flush();
+  state.value = "已上报显式失败与主动取消";
+}
+async function pendingTimeout() {
+  tracker?.startWorkflow("dashboard_property_view").reachStep("property_selected");
+  await tracker?.flush();
+  state.value = "任务进行中；10秒后仅推导近似超时";
+}
+function prepareSelector() {
+  selectorWorkflow = tracker?.startWorkflow("dashboard_selector_view") ?? null;
+  if (root.value) selectorWorkflow?.bindInteractions(root.value);
+  state.value = "请触发selector步骤";
+}
+async function selectorComplete() {
+  // Let the explicitly scoped listener process the click before business completion.
+  await nextTick();
+  selectorWorkflow?.reachStep("data_loaded");
+  selectorWorkflow?.reachStep("property_rendered");
+  await tracker?.flush();
+  state.value = "selector受控任务已完成";
+}
 function cancel() {
   for (const abort of downloads) abort.abort();
 }
 onBeforeUnmount(() => {
   cancel();
+  for (const [workflow, abort] of propertyTasks) {
+    workflow.cancel();
+    abort.abort();
+  }
   tracker?.destroy();
 });
 </script>
 <template>
-  <section aria-label="R4-B受控工作流示例">
+  <section ref="root" aria-label="R4-B受控工作流示例">
     <h2>多阶段工作流示例</h2>
     <p>
       管理员先配置 dashboard_property_view 与
@@ -136,5 +205,15 @@ onBeforeUnmount(() => {
     >
       并发三个传输</button
     ><button @click="cancel">主动取消传输</button>
+    <details>
+      <summary>隔离验收场景（专用项目）</summary>
+      <button :disabled="!ready" @click="isolatedOperation">验证独立操作隔离</button>
+      <button :disabled="!ready" @click="outcomes">验证显式失败与主动取消</button>
+      <button :disabled="!ready" @click="pendingTimeout">开始超时观察</button>
+      <button :disabled="!ready" @click="prepareSelector">准备selector任务</button>
+      <button :disabled="!ready" data-fi-action="r4b-select" @click="selectorComplete">
+        触发selector步骤
+      </button>
+    </details>
   </section>
 </template>
