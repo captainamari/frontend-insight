@@ -558,11 +558,7 @@ onBeforeUnmount(() => {
         :model-value="Boolean(selectedWorkflow)"
         title="工作流详情"
         size="min(900px, 95vw)"
-        @update:model-value="
-          (value) => {
-            if (!value) showWorkflow();
-          }
-        "
+        @close="selectedWorkflow && showWorkflow()"
       >
         <template v-if="selectedWorkflow && data.workflowAnalysis">
           <h2>{{ selectedWorkflow.name }} · v{{ selectedWorkflow.version }}</h2>

@@ -72,7 +72,22 @@ export function reduceWorkflowInstances(
     }
     if (!prior || e.receivedAt < prior.receivedAt) dedup.set(e.eventId, e);
   }
+  const operationContexts = new Map<string, Set<string>>();
   for (const e of dedup.values()) {
+    if (e.operationInstanceId) {
+      const contexts =
+        operationContexts.get(e.operationInstanceId) ?? new Set<string>();
+      contexts.add(
+        JSON.stringify([
+          e.workflowInstanceId,
+          e.workflowKey,
+          e.version,
+          e.sessionId,
+          e.identityScope,
+        ]),
+      );
+      operationContexts.set(e.operationInstanceId, contexts);
+    }
     const group = groups.get(e.workflowInstanceId) ?? [];
     group.push(e);
     groups.set(e.workflowInstanceId, group);
@@ -93,6 +108,14 @@ export function reduceWorkflowInstances(
       continue;
     }
     const reasons: string[] = [];
+    if (
+      es.some(
+        (e) =>
+          e.operationInstanceId &&
+          (operationContexts.get(e.operationInstanceId)?.size ?? 0) > 1,
+      )
+    )
+      reasons.push("WORKFLOW_OPERATION_CONTEXT_CONFLICT");
     if (
       d.admissionPeriods &&
       !d.admissionPeriods.some(

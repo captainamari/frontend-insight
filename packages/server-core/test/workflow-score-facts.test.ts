@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { workflowScoreFacts } from "../src/workflow-score-facts.js";
+import {
+  workflowScoreFacts,
+  workflowScoreBuckets,
+} from "../src/workflow-score-facts.js";
 import type { WorkflowInstanceFact } from "../src/workflow-reducer.js";
 import type { ScoreQueryContext } from "../src/score-evaluation.js";
 const context: ScoreQueryContext = {
@@ -43,6 +46,26 @@ function instance(
   };
 }
 describe("R4-B existing score evaluator fact adapter", () => {
+  it("keeps requested long day/week buckets aligned with dashboard and business trends", () => {
+    const query = {
+      ...context,
+      from: "2025-08-28T04:00:00Z",
+      to: "2026-09-28T04:00:00Z",
+      timezone: "America/New_York",
+    };
+    const daily = workflowScoreBuckets({ ...query, granularity: "day" });
+    const weekly = workflowScoreBuckets({ ...query, granularity: "week" });
+    const monthly = workflowScoreBuckets({ ...query, granularity: "month" });
+    expect(daily.length).toBeGreaterThan(390);
+    expect(weekly.length).toBeGreaterThan(50);
+    expect(monthly.length).toBeLessThanOrEqual(14);
+    expect(weekly[0]?.localStart).toBe("2025-08-25");
+    for (const buckets of [daily, weekly, monthly]) {
+      expect(Date.parse(buckets[0]!.from)).toBe(Date.parse(query.from));
+      expect(Date.parse(buckets.at(-1)!.to)).toBe(Date.parse(query.to));
+    }
+    expect(workflowScoreBuckets({ ...query, granularity: "hour" })).toEqual([]);
+  });
   const instances = [
     instance("a1", "av1", "completed", 10),
     instance("a2", "av1", "completed", 100),

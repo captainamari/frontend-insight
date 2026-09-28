@@ -170,6 +170,46 @@ describe("R4-B immutable instance facts", () => {
       "unresolved",
     );
   });
+  it("rejects reuse of one operation instance across workflow parents regardless of replay order", () => {
+    const d = structuredClone(definition);
+    d.steps[1]!.triggerKind = "operation_terminal";
+    d.steps[1]!.triggerConfig = { operationKey: "download", state: "succeeded" };
+    const linked = (id: string, operationInstanceId: string) => {
+      const events = success(1000, 4000, id);
+      events[2]!.operationInstanceId = operationInstanceId;
+      for (const [name, at] of [
+        ["feature_started", 2000],
+        ["feature_succeeded", 5000],
+      ] as const)
+        events.push(
+          event(name, at, {
+            eventId: id + name,
+            workflowInstanceId: id,
+            operationKey: "download",
+            operationInstanceId,
+          }),
+        );
+      return events;
+    };
+    const events = [...linked("a", "shared"), ...linked("b", "shared")];
+    for (const input of [events, [...events].reverse(), [...events, ...events]]) {
+      const result = reduceWorkflowInstances(input, [d], 6000);
+      expect(result.instances).toHaveLength(2);
+      for (const instance of result.instances)
+        expect(instance).toMatchObject({
+          state: "unresolved",
+          durationMs: null,
+          reasons: ["WORKFLOW_OPERATION_CONTEXT_CONFLICT"],
+        });
+    }
+    expect(
+      reduceWorkflowInstances(
+        [...linked("a", "one"), ...linked("b", "two")],
+        [d],
+        6000,
+      ).instances.map((i) => i.state),
+    ).toEqual(["completed", "completed"]);
+  });
   it("computes ordinary P50/P90/P75/P99 by linear interpolation, independent of score weighting", () => {
     const events = [
       ...success(1000, 10000, "a"),

@@ -94,7 +94,7 @@ for (const role of ["admin", "viewer"] as const) {
           page.getByRole("heading", { name: "业务分析", exact: true }),
         ).toBeVisible();
         await expect(
-          page.getByText("工作流事实将在 R4-B 接入", { exact: true }),
+          page.getByRole("heading", { name: "工作流追踪", exact: true }),
         ).toBeVisible();
       } else {
         await expect(

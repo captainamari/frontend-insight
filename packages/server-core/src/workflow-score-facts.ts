@@ -1,3 +1,4 @@
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
 import type { FactWindow } from "./overview-facts.js";
 import type { ScoreFact, ScoreQueryContext } from "./score-evaluation.js";
 import type { WorkflowInstanceFact } from "./workflow-reducer.js";
@@ -8,6 +9,22 @@ export interface WorkflowScoreObservation {
   rejected: Record<string, number>;
   asOf: string;
   coverage: "proven" | "unknown" | "insufficient";
+}
+/** Use the requested R3 calendar granularity, including explicit long day/week ranges. */
+export function workflowScoreBuckets(context: ScoreQueryContext) {
+  const range =
+    context.granularity === "day"
+      ? "7d"
+      : context.granularity === "week"
+        ? "90d"
+        : context.granularity === "month"
+          ? "365d"
+          : null;
+  if (!range) return [];
+  return resolveProjectCalendar(
+    { range, env: context.env, from: context.from, to: context.to },
+    context.timezone,
+  ).buckets;
 }
 /** Frozen dependency versions and weights, never the currently active definition. */
 export function workflowScoreFacts(

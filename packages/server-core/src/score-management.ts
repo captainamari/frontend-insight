@@ -1,10 +1,10 @@
-import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
 import { segmentOverviewBuckets } from "./project-overview.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
 import type { WorkflowFactStore } from "./workflow-facts.js";
 import { reduceWorkflowInstances } from "./workflow-reducer.js";
 import {
   workflowScoreFacts,
+  workflowScoreBuckets,
   type WorkflowScoreObservation,
 } from "./workflow-score-facts.js";
 import { expectedScoreDates, CANONICAL_SCORE_IDENTITY } from "./score-observation.js";
@@ -371,11 +371,11 @@ export class ScoreManagementService {
       workflowObservation && snapshot.version.libraryType === "operational"
         ? {
             ...workflowScoreFacts(workflowObservation, dependencies, context),
+            trendStatus: ["day", "week", "month"].includes(query.granularity)
+              ? "partial"
+              : "unsupported_granularity",
             trends: segmentOverviewBuckets(
-              resolveProjectCalendar(
-                { range: "custom", env: query.env, from: query.from, to: query.to },
-                dependencies.timezone,
-              ).buckets,
+              workflowScoreBuckets(context),
               periods.map((p) => ({
                 versionId: String(p.versionId),
                 effectiveFrom: new Date(p.effectiveFrom as string).toISOString(),
