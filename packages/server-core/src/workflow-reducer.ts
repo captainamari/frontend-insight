@@ -42,6 +42,7 @@ export function reduceWorkflowInstances(
   events: readonly WorkflowFactEvent[],
   definitions: readonly WorkflowFactDefinition[],
   asOf: number,
+  associationScope: readonly WorkflowFactEvent[] = events,
 ) {
   const dedup = new Map<string, WorkflowFactEvent>();
   const conflicted = new Set<string>();
@@ -72,8 +73,17 @@ export function reduceWorkflowInstances(
     }
     if (!prior || e.receivedAt < prior.receivedAt) dedup.set(e.eventId, e);
   }
+  // Keep parent uniqueness across the whole project/env observation, even when
+  // the caller narrows the displayed module. Never expose those other parents.
   const operationContexts = new Map<string, Set<string>>();
-  for (const e of dedup.values()) {
+  for (const e of associationScope) {
+    if (
+      !Number.isFinite(e.timestamp) ||
+      !Number.isFinite(e.receivedAt) ||
+      e.timestamp > asOf ||
+      e.receivedAt > asOf
+    )
+      continue;
     if (e.operationInstanceId) {
       const contexts =
         operationContexts.get(e.operationInstanceId) ?? new Set<string>();
@@ -88,6 +98,8 @@ export function reduceWorkflowInstances(
       );
       operationContexts.set(e.operationInstanceId, contexts);
     }
+  }
+  for (const e of dedup.values()) {
     const group = groups.get(e.workflowInstanceId) ?? [];
     group.push(e);
     groups.set(e.workflowInstanceId, group);

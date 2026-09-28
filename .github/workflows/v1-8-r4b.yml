@@ -137,7 +137,7 @@ jobs:
       - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B implementation checkpoint plus R1-A through R4-A regressions", implementation:"in progress; not full R4-B acceptance", dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B delivery plus R1-A through R4-A regressions", implementation:"implemented within authorized scope; manual acceptance pending", manualAcceptanceReady:true, unresolvedExtensions:["Q07 step partial completion", "Q08 optional/skipped intermediate steps"], dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
 
       - name: Upload exact-commit verification evidence
         if: always()

@@ -192,6 +192,25 @@ describe("R4-B immutable instance facts", () => {
       return events;
     };
     const events = [...linked("a", "shared"), ...linked("b", "shared")];
+    const otherModule = linked("b", "shared").map((e) => ({
+      ...e,
+      workflowKey: "other_module_task",
+    }));
+    expect(
+      reduceWorkflowInstances(linked("a", "shared"), [d], 6000, [
+        ...linked("a", "shared"),
+        ...otherModule,
+      ]).instances[0],
+    ).toMatchObject({
+      state: "unresolved",
+      reasons: ["WORKFLOW_OPERATION_CONTEXT_CONFLICT"],
+    });
+    expect(
+      reduceWorkflowInstances(linked("a", "shared"), [d], 6000, [
+        ...linked("a", "shared"),
+        ...otherModule.map((e) => ({ ...e, receivedAt: 7000 })),
+      ]).instances[0]?.state,
+    ).toBe("completed");
     for (const input of [events, [...events].reverse(), [...events, ...events]]) {
       const result = reduceWorkflowInstances(input, [d], 6000);
       expect(result.instances).toHaveLength(2);

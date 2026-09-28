@@ -663,6 +663,9 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
       Math.ceil(samples.length * 0.95) - 1
     ]!;
     expect(measured!.workflowAnalysis.totalDefinitions).toBe(21);
+    expect(measured!.diagnostics.metadataQueries).toBe(
+      result.diagnostics.metadataQueries,
+    );
     expect(measured!.diagnostics.clickHouseQueries).toBe(
       result.diagnostics.clickHouseQueries,
     );

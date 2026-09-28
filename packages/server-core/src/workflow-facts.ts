@@ -127,7 +127,7 @@ export class WorkflowFactStore {
     let pathRowsRead = 0,
       pathBytesRead = 0,
       pathConflicts = 0;
-    const reduced = reduceWorkflowInstances(events, definitions, end);
+    const reduced = reduceWorkflowInstances(events, definitions, end, body.events);
     const instances = reduced.instances.filter(
       (i) => i.startedAt >= start && i.startedAt < Date.parse(to),
     );

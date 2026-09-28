@@ -555,7 +555,8 @@ onBeforeUnmount(() => {
         </button>
       </section>
       <ElDrawer
-        :model-value="Boolean(selectedWorkflow)"
+        v-if="selectedWorkflow"
+        :model-value="true"
         title="工作流详情"
         size="min(900px, 95vw)"
         @close="selectedWorkflow && showWorkflow()"
