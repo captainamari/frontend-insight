@@ -133,6 +133,16 @@ async function isolatedOperation() {
   state.value =
     workflow?.getState() === "started" ? "独立操作未达成工作流步骤" : "隔离检查未通过";
 }
+async function finishRestored() {
+  const active = tracker?.getActiveWorkflows("admin_model_download") ?? [];
+  for (const workflow of active) {
+    workflow.reachStep("request_accepted");
+    workflow.reachStep("transfer_started");
+    workflow.startOperation("model_download").succeed();
+  }
+  await tracker?.flush();
+  state.value = `已完成${active.length}个在途旧版本任务`;
+}
 async function outcomes() {
   for (const stateName of ["failed", "canceled"] as const) {
     const workflow = tracker?.startWorkflow("admin_model_download");
@@ -208,6 +218,7 @@ onBeforeUnmount(() => {
     <details>
       <summary>隔离验收场景（专用项目）</summary>
       <button :disabled="!ready" @click="isolatedOperation">验证独立操作隔离</button>
+      <button :disabled="!ready" @click="finishRestored">完成在途旧版本任务</button>
       <button :disabled="!ready" @click="outcomes">验证显式失败与主动取消</button>
       <button :disabled="!ready" @click="pendingTimeout">开始超时观察</button>
       <button :disabled="!ready" @click="prepareSelector">准备selector任务</button>

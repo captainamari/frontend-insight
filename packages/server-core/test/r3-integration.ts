@@ -478,8 +478,9 @@ try {
       diagnostics.push(r.diagnostics);
       assert.notEqual(r.data.reason, "FACT_STORE_UNAVAILABLE");
       assert(r.diagnostics.scans.rowsRead > 0);
-      assert.equal(r.diagnostics.metadataQueries, 6);
-      assert.equal(r.diagnostics.clickHouseQueries, 4);
+      // Two bulk definition/admission reads join the frozen operational workflow facts.
+      assert.equal(r.diagnostics.metadataQueries, 8);
+      assert.equal(r.diagnostics.clickHouseQueries, 5);
     }
     const p95Ms = [...durationsMs].sort((a, b) => a - b)[
       Math.ceil(durationsMs.length * 0.95) - 1

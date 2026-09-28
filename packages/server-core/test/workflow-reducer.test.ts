@@ -191,4 +191,76 @@ describe("R4-B immutable instance facts", () => {
     });
     expect(result.stages[1]).toMatchObject({ reached: 3, rate: 1, adjacentDropoff: 0 });
   });
+  it("honors half-open admission periods across disable/reactivate and finishes retired versions", () => {
+    const d = {
+      ...definition,
+      status: "retired",
+      objectStatus: "disabled",
+      archived: true,
+      admissionPeriods: [
+        { from: new Date(1000).toISOString(), to: new Date(2000).toISOString() },
+        { from: new Date(3000).toISOString(), to: new Date(4000).toISOString() },
+      ],
+    };
+    const result = reduceWorkflowInstances(
+      [1000, 1999, 2000, 2999, 3000, 4000].flatMap((t) => success(t, 5000, `w${t}`)),
+      [d],
+      10000,
+    );
+    expect(result.instances.map((i) => i.state)).toEqual([
+      "completed",
+      "completed",
+      "unresolved",
+      "unresolved",
+      "completed",
+      "unresolved",
+    ]);
+    expect(result.instances[0]?.versionId).toBe("v1");
+  });
+  it("excludes contradictory same-ID events independently of replay order", () => {
+    const events = success(1000, 4000);
+    const changed = { ...events[0]!, timestamp: 1500 };
+    const a = reduceWorkflowInstances([...events, changed], [definition], 6000);
+    const b = reduceWorkflowInstances(
+      [changed, ...events].reverse(),
+      [definition],
+      6000,
+    );
+    expect(a).toEqual(b);
+    expect(a.rejected).toMatchObject({
+      EVENT_ID_CONFLICT: 1,
+      WORKFLOW_START_MISSING: 1,
+    });
+  });
+  it("does not count skipped or reversed stages as complete while Q08 is unresolved", () => {
+    const skipped = success(1000, 4000).filter((e) => e.stepOrder !== 1);
+    expect(
+      reduceWorkflowInstances(skipped, [definition], 6000).instances[0],
+    ).toMatchObject({
+      state: "unresolved",
+      reasons: ["WORKFLOW_STEP_SEQUENCE_UNVERIFIED"],
+    });
+    const reversed = success(1000, 4000);
+    reversed[1]!.timestamp = 5500;
+    const result = reduceWorkflowInstances(reversed, [definition], 6000);
+    expect(result.instances[0]?.state).toBe("unresolved");
+    expect(
+      summarizeWorkflowCohort(result.instances, definition, 0, 6000).successRate,
+    ).toBeNull();
+  });
+  it("discloses negative clocks, definition and identity-scope conflicts without exposing identity", () => {
+    for (const conflicting of [
+      event("workflow_failed", 999),
+      event("workflow_failed", 5000, { version: 2 }),
+      event("workflow_failed", 5000, { identityScope: "another-internal-scope" }),
+    ]) {
+      const r = reduceWorkflowInstances(
+        [...success(1000, 4000), conflicting],
+        [definition],
+        6000,
+      );
+      expect(r.instances[0]).toMatchObject({ state: "unresolved", durationMs: null });
+      expect(JSON.stringify(r.instances)).not.toContain("another-internal-scope");
+    }
+  });
 });

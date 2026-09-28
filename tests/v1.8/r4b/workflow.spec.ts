@@ -132,25 +132,6 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     root + "/metrics/versions?type=operational",
     { headers },
   );
-  const initialActive = (await versionsResponse.json()).find(
-    (v: { status: string }) => v.status === "active",
-  );
-  expect(
-    (
-      await request.post(
-        root + `/metrics/versions/${initialActive.id}/workflow-facts`,
-        { headers, data: {} },
-      )
-    ).status(),
-  ).toBe(409);
-  const activeBefore = await (
-    await request.get(root + `/metrics/versions/${initialActive.id}`, { headers })
-  ).json();
-  const draft = await post(root + "/metrics/versions", {
-    type: "operational",
-    sourceVersionId: initialActive.id,
-  });
-  await post(root + `/metrics/versions/${draft.id}/workflow-facts`, {});
   const options = await (
     await request.get(root + "/score-management/business-options", { headers })
   ).json();
@@ -169,6 +150,53 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
           : 1,
     ]),
   );
+  const reviewQuery = {
+    env: "dev",
+    from: new Date(Date.now() - 86400000).toISOString(),
+    to: new Date().toISOString(),
+    granularity: "day",
+  };
+  const initialActive = (await versionsResponse.json()).find(
+    (v: { status: string }) => v.status === "draft",
+  );
+  const initialSaved = await request.put(
+    root + `/score-management/versions/${initialActive.id}`,
+    {
+      headers,
+      data: {
+        configuration: template.configuration,
+        business: {
+          confirmed: true,
+          scopeId: project.id,
+          optionsDigest: options.optionsDigest,
+          workflowWeights: weights,
+          durationMinimumSample: 5,
+        },
+      },
+    },
+  );
+  expect(initialSaved.status()).toBe(200);
+  await post(
+    root + `/score-management/versions/${initialActive.id}/review`,
+    reviewQuery,
+  );
+  await post(root + `/metrics/versions/${initialActive.id}/activate`, undefined);
+  expect(
+    (
+      await request.post(
+        root + `/metrics/versions/${initialActive.id}/workflow-facts`,
+        { headers, data: {} },
+      )
+    ).status(),
+  ).toBe(409);
+  const activeBefore = await (
+    await request.get(root + `/metrics/versions/${initialActive.id}`, { headers })
+  ).json();
+  const draft = await post(root + "/metrics/versions", {
+    type: "operational",
+    sourceVersionId: initialActive.id,
+  });
+  await post(root + `/metrics/versions/${draft.id}/workflow-facts`, {});
   const saved = await request.put(root + `/score-management/versions/${draft.id}`, {
     headers,
     data: {
@@ -187,12 +215,6 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     await request.get(root + `/metrics/versions/${initialActive.id}`, { headers })
   ).json();
   expect(activeAfter.definitions).toEqual(activeBefore.definitions);
-  const reviewQuery = {
-    env: "dev",
-    from: new Date(Date.now() - 86400000).toISOString(),
-    to: new Date().toISOString(),
-    granularity: "day",
-  };
   await post(root + `/score-management/versions/${draft.id}/review`, reviewQuery);
   await post(root + `/metrics/versions/${draft.id}/activate`, undefined);
   const from = new Date().toISOString();
@@ -211,7 +233,7 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
   await expect(
     page.getByText("响应流已全部接收；不代表浏览器保存或操作系统落盘", { exact: true }),
   ).toBeVisible();
-  const to = new Date(Date.now() + 1000).toISOString();
+  const to = new Date().toISOString();
   const query = new URLSearchParams({
     env: "dev",
     range: "custom",
@@ -345,6 +367,91 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     "partial",
   );
   expect(score.samples.total).toBeNull();
+  // Keep the independently started v1 instance alive across v2 activation and
+  // object disable/archive. Its terminal still uses the frozen v1 definition.
+  const oldDefinition = await (
+    await request.get(
+      root + `/workflow-definitions/${transfer.id}/versions/${transfer.versionId}`,
+      { headers },
+    )
+  ).json();
+  const revisionResponse = await request.put(
+    root + `/workflow-definitions/${transfer.id}/draft`,
+    {
+      headers,
+      data: {
+        moduleId: module.id,
+        name: "admin_model_download",
+        startPolicy: oldDefinition.startPolicy,
+        terminalPolicy: oldDefinition.terminalPolicy,
+        timeoutSeconds: 300,
+        steps: oldDefinition.steps,
+      },
+    },
+  );
+  expect(revisionResponse.status()).toBe(200);
+  const revision = await revisionResponse.json();
+  await post(root + `/workflow-definitions/${transfer.id}/activate`, {
+    versionId: revision.latestVersion.id,
+  });
+  const runtime = async () => {
+    const r = await request.post("/v1/events/workflow-config", {
+      headers: { origin: "http://127.0.0.1:4174" },
+      data: { appId: project.appId, env: "dev" },
+    });
+    expect(r.status()).toBe(200);
+    return (await r.json()).definitions.filter(
+      (d: { workflowKey: string }) => d.workflowKey === "admin_model_download",
+    );
+  };
+  expect(
+    (await runtime())
+      .filter((d: { canStart: boolean }) => d.canStart)
+      .map((d: { version: number }) => d.version),
+  ).toEqual([2]);
+  expect(
+    (
+      await request.patch(root + `/workflow-definitions/${transfer.id}`, {
+        headers,
+        data: { status: "disabled" },
+      })
+    ).status(),
+  ).toBe(200);
+  expect((await runtime()).every((d: { canStart: boolean }) => !d.canStart)).toBe(true);
+  expect(
+    (
+      await request.post(root + `/workflow-definitions/${transfer.id}/archive`, {
+        headers,
+      })
+    ).status(),
+  ).toBe(204);
+  await page.getByRole("button", { name: "完成在途旧版本任务", exact: true }).click();
+  await expect(
+    page.getByText("已完成1个在途旧版本任务", { exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(
+      async () =>
+        (await liveAnalysis()).workflowAnalysis.definitions.find(
+          (d: { versionId: string }) => d.versionId === transfer.versionId,
+        ).completed,
+      { timeout: 15000 },
+    )
+    .toBe(4);
+  await post(root + `/workflow-definitions/${transfer.id}/restore`, undefined);
+  expect(
+    (
+      await request.patch(root + `/workflow-definitions/${transfer.id}`, {
+        headers,
+        data: { status: "active" },
+      })
+    ).status(),
+  ).toBe(200);
+  expect(
+    (await runtime())
+      .filter((d: { canStart: boolean }) => d.canStart)
+      .map((d: { version: number }) => d.version),
+  ).toEqual([2]);
   const poison = JSON.parse(payloads.find((p) => p.includes("workflow_started"))!);
   poison.events = [
     poison.events.find(
@@ -436,7 +543,7 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     const p95 = [...samples].sort((a, b) => a - b)[
       Math.ceil(samples.length * 0.95) - 1
     ]!;
-    expect(measured!.workflowAnalysis.totalDefinitions).toBe(20);
+    expect(measured!.workflowAnalysis.totalDefinitions).toBe(21);
     expect(measured!.diagnostics.clickHouseQueries).toBe(
       result.diagnostics.clickHouseQueries,
     );
@@ -451,7 +558,8 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
       httpQueriesPerSample: 1,
       diagnostics: measured!.diagnostics,
       workflowDiagnostics: measured!.workflowAnalysis.diagnostics,
-      definitions: 20,
+      workflows: 20,
+      definitionVersions: 21,
       stepsPerDefinition: [2, 20],
       sdkInstances: 9,
       concurrentSdkInstances: 3,
