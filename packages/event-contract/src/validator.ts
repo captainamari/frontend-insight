@@ -135,6 +135,26 @@ export function validateTransportBatch(
         "invalid counter relationship",
       );
     }
+    if (event.event === "custom" && event.payload.businessAdapter) {
+      const expected: Record<string, string[]> = {
+        feature_started: [],
+        feature_succeeded: ["success"],
+        feature_canceled: ["canceled"],
+        feature_failed: ["rejected", "technical_failure", "unknown"],
+      };
+      const outcomes = expected[String(event.payload.name)];
+      if (
+        !outcomes ||
+        (event.payload.name === "feature_started"
+          ? event.payload.businessResult !== undefined
+          : !outcomes.includes(String(event.payload.businessResult)))
+      )
+        return error(
+          REJECTION_CODES.schemaInvalid,
+          `${path}/payload`,
+          "invalid business outcome relationship",
+        );
+    }
     if (byteLength(event) > CONTRACT_LIMITS.maximumEventBytes) {
       return error(
         REJECTION_CODES.eventTooLarge,

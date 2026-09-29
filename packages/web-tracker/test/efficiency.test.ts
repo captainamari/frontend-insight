@@ -33,6 +33,8 @@ function fixture(enabled = true) {
     release: "r4c",
     endpoint: "https://collector.test/v1/events",
     runtime,
+    deptId: "UNTRUSTED_ORG_TEXT",
+    roleId: "UNTRUSTED_ROLE_TEXT",
     registeredFeatures: ["save"],
     forms: {
       enabled,
@@ -85,7 +87,7 @@ describe("R4-C controlled collection", () => {
       counterOverflow: false,
     });
     expect(JSON.stringify(events)).not.toMatch(
-      /private-value|fieldKey|inputValue|validationMessage/,
+      /UNTRUSTED_ORG_TEXT|UNTRUSTED_ROLE_TEXT|private-value|fieldKey|inputValue|validationMessage/,
     );
     expect(events.filter((e) => e.payload.name === "form_summary")).toHaveLength(1);
     for (const batch of f.sent) expect(validateForIngestion(batch).ok).toBe(true);
@@ -120,6 +122,17 @@ describe("R4-C controlled collection", () => {
         (e) => e.payload.name === "form_summary" || e.payload.businessAdapter,
       ),
     ).toHaveLength(0);
+  });
+  it("executes a synchronously throwing host exactly once when collection is disabled", async () => {
+    const f = fixture(false);
+    const cause = new Error("host-only");
+    const execute = vi.fn((): Promise<never> => {
+      throw cause;
+    });
+    await expect(
+      f.tracker.observeBusiness("save", execute, () => "success"),
+    ).rejects.toBe(cause);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
   it("separates HTTP 200 rejection, technical outcome, cancellation and network uncertainty", async () => {
     const f = fixture(),

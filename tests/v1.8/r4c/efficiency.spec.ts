@@ -113,6 +113,10 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   await page.getByLabel("邮箱").fill("admin@example.invalid");
   await page.getByLabel("密码").fill("LocalAdmin-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "全部项目", exact: true }),
+  ).toBeVisible();
+  const began = performance.now();
   await page.goto(`/projects/${project.id}/business?${query}`);
   await expect(
     page.getByRole("heading", { name: "操作效率", exact: true }),
@@ -120,6 +124,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   await expect(
     page.getByRole("heading", { name: "组织维度", exact: true }),
   ).toBeVisible();
+  const firstUsableMs = performance.now() - began;
   await page.getByRole("link", { name: "查看组织目录配置与版本" }).click();
   await expect(
     page.getByRole("heading", { name: "组织目录", exact: true }),
@@ -145,6 +150,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
           "real SDK form/business observations and directory API; not complete R4-C",
         warmups: 3,
         sampleCount: 20,
+        firstUsableMs,
         p95Algorithm: "nearest-rank",
         p95,
         rawMs: values,

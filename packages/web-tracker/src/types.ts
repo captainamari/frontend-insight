@@ -72,7 +72,11 @@ export type BusinessResult =
 
 export interface TrackerConfig {
   forms?: FormCollectorConfig;
-  businessOperations?: { enabled: boolean; operationKeys: readonly string[] };
+  businessOperations?: {
+    enabled: boolean;
+    operationKeys: readonly string[];
+    sampleRate?: number;
+  };
   appId: string;
   env: FrontendInsightEnvironment;
   release: string;

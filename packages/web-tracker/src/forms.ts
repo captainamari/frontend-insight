@@ -34,7 +34,16 @@ export class FormCollector {
     if (!this.config?.enabled) return noopForm();
     const existing = this.active.get(formId);
     if (existing) return existing;
-    const definition = this.config.definitions.find((d) => d.formId === formId);
+    if (
+      !Array.isArray(this.config.definitions) ||
+      this.config.definitions.length > 50
+    ) {
+      this.warn("FORM_CONFIG_INVALID");
+      return noopForm();
+    }
+    const definition: FormDefinition | undefined = this.config.definitions.find(
+      (d) => d.formId === formId,
+    );
     const key = /^[a-z][a-z0-9_]{0,63}$/;
     if (
       !definition ||

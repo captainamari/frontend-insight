@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.5.0";
+const SDK_VERSION = "0.6.0";
 const deviceStorageKey = "frontend-insight.device-id.v2";
 const canonicalCustomNames = new Set<string>(STANDARD_CUSTOM_EVENT_NAMES);
 
@@ -91,6 +91,7 @@ export class BrowserTracker implements Tracker {
     duplicateOperationTerminals: 0,
     warnings: [],
   };
+  private businessInFlight = 0;
   private readonly forms: FormCollector;
   private readonly workflows: WorkflowRuntime;
   private readonly registeredFeatures: ReadonlySet<string> | null;
@@ -596,42 +597,69 @@ export class BrowserTracker implements Tracker {
     execute: () => Promise<T>,
     classify: (value: T) => BusinessResult,
   ): Promise<T> {
-    const enabled =
-      this.config.businessOperations?.enabled &&
-      this.config.businessOperations.operationKeys.includes(operationKey);
-    if (!enabled || this.destroyed) return execute();
-    let result: BusinessResult = "unknown";
-    const operation = this.associatedOperation(
-      operationKey,
-      {},
-      "programmatic",
-      {},
-      undefined,
-      () => result,
-    );
-    let value: T;
+    let bypass: boolean;
     try {
-      value = await execute();
-    } catch (cause) {
-      result = "unknown";
-      operation.fail("unknown");
-      throw cause;
-    }
-    try {
-      const candidate = classify(value);
-      if (
-        ["success", "rejected", "technical_failure", "canceled", "unknown"].includes(
-          candidate,
-        )
-      )
-        result = candidate;
+      const config = this.config.businessOperations;
+      const rate = config?.sampleRate ?? 1;
+      bypass =
+        !config?.enabled ||
+        this.destroyed ||
+        !Array.isArray(config.operationKeys) ||
+        config.operationKeys.length > 100 ||
+        !config.operationKeys.includes(operationKey) ||
+        this.businessInFlight >= 64 ||
+        !Number.isFinite(rate) ||
+        rate <= 0 ||
+        rate > 1 ||
+        parseInt(this.runtime.crypto.randomUUID().replaceAll("-", "").slice(0, 8), 16) /
+          0x100000000 >=
+          rate;
     } catch {
-      this.warn("BUSINESS_CLASSIFIER_FAILED");
+      bypass = true;
     }
-    if (result === "success") operation.succeed();
-    else if (result === "canceled") operation.cancel();
-    else operation.fail(result);
-    return value;
+    if (bypass) return execute();
+    this.businessInFlight++;
+    try {
+      let result: BusinessResult = "unknown";
+      let operation: OperationHandle;
+      try {
+        operation = this.associatedOperation(
+          operationKey,
+          {},
+          "programmatic",
+          {},
+          undefined,
+          () => result,
+        );
+      } catch {
+        return execute();
+      }
+      let value: T;
+      try {
+        value = await execute();
+      } catch (cause) {
+        result = "unknown";
+        operation.fail("unknown");
+        throw cause;
+      }
+      try {
+        const candidate = classify(value);
+        if (
+          ["success", "rejected", "technical_failure", "canceled", "unknown"].includes(
+            candidate,
+          )
+        )
+          result = candidate;
+      } catch {
+        this.warn("BUSINESS_CLASSIFIER_FAILED");
+      }
+      if (result === "success") operation.succeed();
+      else if (result === "canceled") operation.cancel();
+      else operation.fail(result);
+      return value;
+    } finally {
+      this.businessInFlight--;
+    }
   }
 
   startLongView(featureKey: string): () => void {

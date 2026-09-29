@@ -229,6 +229,30 @@ export class EventConsumerRuntime {
       const directories = organizationProjects.length
         ? await readDirectories(this.mysql.pool, organizationProjects)
         : [];
+      const efficiencyProjects = [
+        ...new Set(
+          parsedMessages
+            .filter(({ envelope }) =>
+              envelope.batch.events.some(
+                (e) => e.payload.name === "form_summary" || e.payload.businessAdapter,
+              ),
+            )
+            .map(({ envelope }) => envelope.projectId),
+        ),
+      ];
+      const [efficiencyRows] = efficiencyProjects.length
+        ? await this.mysql.pool.query(
+            "SELECT f.project_id,f.feature_key,f.feature_type,f.operation_lifecycle_enabled,p.app_id FROM features f JOIN projects p ON p.id=f.project_id WHERE f.project_id IN (?)",
+            [efficiencyProjects],
+          )
+        : [[]];
+      const efficiencyRegistry = efficiencyRows as {
+        project_id: string;
+        feature_key: string;
+        feature_type: string;
+        operation_lifecycle_enabled: boolean;
+        app_id: string;
+      }[];
       for (const { message, envelope } of parsedMessages) {
         try {
           if (envelope.batch.events.some((event) => event.payload.workflowInstanceId)) {
@@ -268,6 +292,27 @@ export class EventConsumerRuntime {
                 throw new Error("DIRECTORY_ATTRIBUTION_INVALID");
             } else if (event.deptId !== null || event.roleId !== null)
               throw new Error("DIRECTORY_ATTRIBUTION_MISSING");
+          }
+          for (const event of envelope.batch.events) {
+            if (event.payload.name !== "form_summary" && !event.payload.businessAdapter)
+              continue;
+            const key =
+              event.payload.name === "form_summary"
+                ? event.payload.formId
+                : event.payload.featureKey;
+            const feature = efficiencyRegistry.find(
+              (f) =>
+                f.project_id === envelope.projectId &&
+                f.app_id === event.appId &&
+                f.feature_key === key,
+            );
+            if (
+              !feature ||
+              (event.payload.name === "form_summary"
+                ? feature.feature_type !== "action"
+                : !feature.operation_lifecycle_enabled)
+            )
+              throw new Error("EFFICIENCY_REGISTRY_INVALID");
           }
           rows.push(...this.rows(envelope));
           envelopes.push(envelope);

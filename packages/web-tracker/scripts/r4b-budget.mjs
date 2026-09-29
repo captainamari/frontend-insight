@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 const root = fileURLToPath(new URL("../../../", import.meta.url));
-const base = "76a96dea8aeb00db9088e2547250aaa59034a629";
+const r4c = process.argv.includes("--r4c");
+const base = r4c
+  ? "982341b2aee7d61b7473ded6b055e021bb095272"
+  : "76a96dea8aeb00db9088e2547250aaa59034a629";
 const temp = await mkdtemp(join(tmpdir(), "fi-r4b-sdk-"));
 try {
   const files = execFileSync(
@@ -58,7 +61,7 @@ try {
   };
   await mkdir(join(root, "artifacts"), { recursive: true });
   await writeFile(
-    join(root, "artifacts/r4b-sdk-bundle.json"),
+    join(root, r4c ? "artifacts/r4c-sdk-bundle.json" : "artifacts/r4b-sdk-bundle.json"),
     JSON.stringify(result, null, 2),
   );
   console.log(JSON.stringify(result));

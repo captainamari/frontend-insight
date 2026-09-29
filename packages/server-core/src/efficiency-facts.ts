@@ -109,6 +109,8 @@ export function reduceEfficiency(
     row.validationFailures += Number(p.validationFailureCount);
     forms.set(formId, row);
   }
+  if (forms.size > 50 || operations.size > 10000)
+    throw new Error("EFFICIENCY_SERIES_LIMIT");
   const counts = {
     started: 0,
     success: 0,

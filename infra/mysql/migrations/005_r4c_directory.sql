@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS organization_directory_versions (
-  id CHAR(36) PRIMARY KEY,
-  project_id CHAR(36) NOT NULL,
+  id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+  project_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   env ENUM('prod','staging','dev') NOT NULL,
   source_key VARCHAR(64) NOT NULL,
   status ENUM('draft','published') NOT NULL DEFAULT 'draft',
@@ -13,4 +13,4 @@ CREATE TABLE IF NOT EXISTS organization_directory_versions (
   UNIQUE KEY directory_publication (project_id, env, published_at),
   INDEX directory_scope (project_id, env, published_at),
   CONSTRAINT directory_project FOREIGN KEY (project_id) REFERENCES projects(id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

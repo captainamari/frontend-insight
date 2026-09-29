@@ -280,7 +280,15 @@ export class BusinessAnalysisService {
               asOf,
               snapshot.pathPages,
             )
-            .catch(() => {
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                ["EFFICIENCY_FACT_LIMIT", "EFFICIENCY_SERIES_LIMIT"].includes(
+                  cause.message,
+                )
+              ) {
+                throw new MetricLibraryError(cause.message, 400);
+              }
               throw new MetricLibraryError("EFFICIENCY_FACT_STORE_UNAVAILABLE", 503);
             })
         : null;
