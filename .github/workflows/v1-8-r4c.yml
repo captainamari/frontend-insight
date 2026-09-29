@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  r4b-product:
+  r4c-product:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -84,7 +84,7 @@ jobs:
           ./scripts/dev up
           ./scripts/dev smoke
 
-      - name: Verify data-preserving 001-002 to 003-004 migration
+      - name: Verify data-preserving 001-002 to 003-005 migration
         run: ./scripts/dev verify-r2-upgrade
 
       - name: Verify real MySQL and API metric-library flow
@@ -155,7 +155,7 @@ jobs:
       - name: Record the exact verified product commit
         run: |
           mkdir -p artifacts
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B delivery plus R1-A through R4-A regressions", implementation:"implemented within authorized scope; manual acceptance pending", manualAcceptanceReady:true, unresolvedExtensions:["Q07 step partial completion", "Q08 optional/skipped intermediate steps"], dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"pending Jesse", milestoneComplete:false}, null, 2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B delivery plus R1-A through R4-A regressions", implementation:"inherited R4-B regression verification during R4-C", manualAcceptanceReady:true, unresolvedExtensions:["Q07 step partial completion", "Q08 optional/skipped intermediate steps"], dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"R4-B user confirmation on 2026-09-29; not R4-C acceptance", milestoneComplete:false}, null, 2))'
 
       - name: Verify every artifact commit and print safe performance evidence
         run: |
@@ -166,7 +166,7 @@ jobs:
           const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           assert.equal(checkout, process.env.GITHUB_SHA);
           const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
-          for (const name of ["r4c-evidence.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          for (const name of ["r4c-evidence.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
           const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
           const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
           const summaries = files.map(name => {
@@ -177,7 +177,7 @@ jobs:
               const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : [row.diagnostics];
               return { ...pick(row), sqlQueries: [...new Set(diagnostics.flatMap(d => Number.isFinite(d?.metadataQueries) ? [d.metadataQueries] : []))], clickHouseQueries: [...new Set(diagnostics.flatMap(d => Number.isFinite(d?.clickHouseQueries) ? [d.clickHouseQueries] : []))] };
             }) };
-            if (name === "r4b-sdk-bundle.json") Object.assign(summary, { baseline: data.baseline, current: data.current, gzipDifference: data.gzipDifference, maximumGzipBytes: data.maximumGzipBytes });
+            if (["r4b-sdk-bundle.json", "r4c-sdk-bundle.json"].includes(name)) Object.assign(summary, { baseline: data.baseline, current: data.current, gzipDifference: data.gzipDifference, maximumGzipBytes: data.maximumGzipBytes });
             return summary;
           });
           console.log(JSON.stringify({ checkout, artifactCount: summaries.length, allTestedCommitsMatch: true, summaries }));

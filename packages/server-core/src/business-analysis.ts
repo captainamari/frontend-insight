@@ -1,4 +1,4 @@
-import { readDirectories } from "./organization-directory.js";
+import { readDirectories, directorySegments } from "./organization-directory.js";
 import type { EfficiencyFactStore } from "./efficiency-facts.js";
 import { storageFailureCode } from "./clickhouse-logger.js";
 import { mergeWorkflowFacts } from "./workflow-score-facts.js";
@@ -359,6 +359,13 @@ export class BusinessAnalysisService {
       modules: snapshot.modules,
       workflows: snapshot.workflows,
     });
+    const directoryVersions = directorySegments(
+      snapshot.directories,
+      query.env,
+      Date.parse(query.from),
+      Date.parse(query.to),
+      asOf.valueOf(),
+    );
     return {
       project: {
         id: projectId,
@@ -497,25 +504,12 @@ export class BusinessAnalysisService {
       })),
       efficiency,
       organization: {
-        status: snapshot.directories.some(
-          (d) => d.env === query.env && d.status === "published",
-        )
-          ? "privacy_suppressed"
-          : "not_collected",
-        reason: snapshot.directories.some(
-          (d) => d.env === query.env && d.status === "published",
-        )
+        status: directoryVersions.length ? "privacy_suppressed" : "not_collected",
+        reason: directoryVersions.length
           ? "ORGANIZATION_PRIVACY_POLICY_REVIEW_REQUIRED"
           : "TRUSTED_DIRECTORY_MISSING",
         values: null,
-        directoryVersions: snapshot.directories
-          .filter((d) => d.env === query.env && d.status === "published")
-          .map((d) => ({
-            id: d.id,
-            from: d.from,
-            until: d.until,
-            coverage: d.coverage,
-          })),
+        directoryVersions,
       },
       workflowAnalysis,
       workflowFacts: workflowAnalysis

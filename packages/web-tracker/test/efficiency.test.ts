@@ -218,3 +218,54 @@ describe("R4-C controlled collection", () => {
     expect((await f.events()).filter((e) => e.payload.businessResult)).toHaveLength(0);
   });
 });
+
+it("records the R4-C collector cost within the inherited 16ms host budget", async () => {
+  const clock = performance.now.bind(performance);
+  const f = fixture();
+  const rawMs: number[] = [];
+  for (let i = 0; i < 110; i++) {
+    const began = clock();
+    for (const formId of ["edit", "other"]) {
+      const form = f.tracker.trackForm(formId);
+      for (let n = 0; n < 50; n++) form.change("status");
+      form.reset();
+      form.submit().validationFailed();
+      form.submit();
+      form.destroy();
+    }
+    await f.tracker.observeBusiness(
+      "save",
+      async () => true,
+      () => "success",
+    );
+    if (i >= 10) rawMs.push(clock() - began);
+    await f.tracker.flush();
+  }
+  const p95 = [...rawMs].sort((a, b) => a - b)[Math.ceil(rawMs.length * 0.95) - 1]!;
+  expect(p95).toBeLessThan(16);
+  const { mkdirSync, writeFileSync } = await import("node:fs");
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    "artifacts/r4c-sdk-synchronous.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA ?? null,
+        environment: {
+          node: process.version,
+          platform: process.platform,
+          arch: process.arch,
+        },
+        measurement:
+          "Node/happy-dom; two forms each with 50 changes, reset, two submits, validation and settlement plus resolved business adapter; includes promise microtasks; fetch stub outside timing; not browser production capacity",
+        warmups: 10,
+        sampleCount: rawMs.length,
+        rawMs,
+        p95,
+        budgetMs: 16,
+        p95Algorithm: "nearest-rank",
+      },
+      null,
+      2,
+    ),
+  );
+});

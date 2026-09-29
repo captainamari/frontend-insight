@@ -659,7 +659,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 工作分支：`agent/v1-8-r4b-workflow-tracking`
 
-实现与验收分开记录：下列勾选表示代码已落地，不表示Jesse手工验收通过。§14.4真实SDK与继承回归的最终门禁必须核对同一提交的Actions及artifact；手工仍待Jesse。逐项位置、证据、门禁状态及Q08受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
+历史交付时以下勾选只表示代码已落地，手工当时待Jesse。当前已于2026-09-29由用户确认R4-B手工验收通过并合入refactor；最终Actions 36381630769成功，继承提交236169a。保留失败检查点与Q07/Q08隔离，不将本确认扩展为未决建议获批。逐项位置、证据、门禁状态及Q08受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
 
 ### 14.1 SDK/contract
 
@@ -718,21 +718,21 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 15. R4-C：业务分析——操作效率与组织维度
 
-建议分支：`agent/v1-8-r4c-operation-organization`
+实际分支：`agent/v1-8-r4c-operation-organization`。实施中，尚不满足阶段门；逐项位置、已运行验证及未完成项见[R4-C results](../progress/v1.8-r4c-results.md)，语义/隐私待决见[decisions](../progress/v1.8-r4c-decisions.md)。下列完成标记仅指所列代码能力，不代表正式指标或整批验收通过。
 
 ### 15.1 操作效率事实
 
-- [ ] `form_efficiency`：`trackForm(formId)` 只汇总字段 key 的 change 次数、重置、提交尝试和校验失败，不采集输入值；
-- [ ] `operation_fail_rate`：显式业务请求适配器上报业务成功/拒绝，不能从 HTTP 状态或 workflow failed 推断；
+- [x] `form_efficiency`：`trackForm(formId)` 只汇总字段 key 的 change 次数、重置、提交尝试和校验失败，不采集输入值；
+- [x] `operation_fail_rate`：显式业务请求适配器上报业务成功/拒绝，不能从 HTTP 状态或 workflow failed 推断；
 - [ ] `repeated_operation_rate`：业务对象引用在客户端/ingest 使用项目级不可逆处理，按 `userId + bizRef + 24h` 聚合；
-- [ ] `task_duration` 和 `path_steps` 复用 R4-B 事实，不建立第二套 operation 链路；
+- [x] `task_duration` 和 `path_steps` 复用 R4-B 事实，不建立第二套 operation 链路；
 - [ ] 每个比率返回 numerator、denominator、sample、coverage、status 和 definition version；
-- [ ] collector 单独 opt-in、可关闭且异常不影响宿主。
+- [x] collector 单独 opt-in、可关闭且异常不影响宿主。
 
 ### 15.2 组织目录与聚合
 
-- [ ] 定义版本化 eligible user/department/role directory snapshot；
-- [ ] `deptId`、`roleId` 优先在服务端根据受治理 `userId` 补充，不允许业务页面上传姓名或组织文本；
+- [x] 定义版本化 eligible user/department/role directory snapshot；
+- [x] `deptId`、`roleId` 优先在服务端根据受治理 `userId` 补充，不允许业务页面上传姓名或组织文本；
 - [ ] 实现 `dept_usage`、`role_usage` 的活跃人数、编制人数、比率和功能分布；
 - [ ] 实现 `role_feature_profile` 的角色 × 功能模块 PV/有效时长 Top N；
 - [ ] 小群体门槛、抑制、目录版本和数据可用时间；
@@ -740,7 +740,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 15.3 UI、测试与阶段门
 
-- [ ] 业务分析增加“操作效率”和“组织维度”页内子区，不新增一级导航；
+- [x] 业务分析增加“操作效率”和“组织维度”页内子区，不新增一级导航；
 - [ ] 无业务适配器、无目录、样本不足和权限不足分别显示；
 - [ ] 表单值、原始工号、业务对象 ID、部门/角色文本不出现在事件、Kafka、ClickHouse、日志或 UI；
 - [ ] 业务拒绝与 `api_error_rate` 的固定 fixture 证明互不混淆；

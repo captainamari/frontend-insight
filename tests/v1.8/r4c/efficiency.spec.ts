@@ -130,6 +130,10 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     page.getByRole("heading", { name: "组织目录", exact: true }),
   ).toBeVisible();
   await expect(page.getByText(directory.id, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "返回原业务分析", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${project.id}/business\\?`));
+  expect(new URL(page.url()).searchParams.get("moduleId")).toBe(module.id);
+  expect(new URL(page.url()).searchParams.get("env")).toBe("dev");
   const values: number[] = [];
   for (let i = 0; i < 23; i++) {
     const t = performance.now();

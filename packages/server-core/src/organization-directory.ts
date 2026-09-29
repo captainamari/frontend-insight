@@ -97,6 +97,42 @@ export async function readDirectories(
         : (r.entries_json as DirectoryEntry[]),
   }));
 }
+/** Metadata for the query interval; no membership counts or current-directory reinterpretation. */
+export function directorySegments(
+  versions: DirectoryVersion[],
+  env: string,
+  from: number,
+  to: number,
+  asOf: number,
+) {
+  const published = versions
+    .filter(
+      (v) =>
+        v.env === env &&
+        v.status === "published" &&
+        v.from !== null &&
+        Date.parse(v.from) <= asOf,
+    )
+    .sort((a, b) => Date.parse(a.from!) - Date.parse(b.from!));
+  return published
+    .map((v, i) => ({
+      id: v.id,
+      from: v.from!,
+      until: new Date(
+        Math.min(
+          Date.parse(v.until),
+          published[i + 1] ? Date.parse(published[i + 1]!.from!) : Infinity,
+        ),
+      ).toISOString(),
+      coverage: v.coverage,
+    }))
+    .filter(
+      (v) =>
+        Date.parse(v.from) < to &&
+        Date.parse(v.until) > from &&
+        Date.parse(v.until) > Date.parse(v.from),
+    );
+}
 export class OrganizationDirectoryService {
   constructor(
     private readonly mysql: MySqlStore,

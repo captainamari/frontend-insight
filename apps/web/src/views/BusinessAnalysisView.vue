@@ -493,6 +493,20 @@ onBeforeUnmount(() => {
           </p>
           <h3>表单效率</h3>
           <p>{{ data.efficiency.form_efficiency.reason }}</p>
+          <details>
+            <summary>表单公式、来源与缺失原因</summary>
+            <p>
+              修改次数/提交 = 修改计数 ÷ 提交尝试；重置率 = 重置计数 ÷
+              提交尝试；校验报错率 = 校验失败计数 ÷
+              提交尝试。三项分别输出，不合成效率分。重置率可能超过100%。
+            </p>
+            <p>
+              来源为显式启用的受控表单适配器，当前仅展示结算观察。正式定义要求至少5次提交；跨窗口归属规则尚待确认，因此即使有计数也不发布正式比率。无观察不能区分未安装、关闭采集或尚无操作。
+            </p>
+            <p>
+              未知身份与不匹配页面版本排除；重复投递不重复计数。没有提交和计数超限分别披露，不按正常0值解释。
+            </p>
+          </details>
           <table>
             <caption>
               已结算生命周期计数（不是完整窗口效率指标）
@@ -525,6 +539,16 @@ onBeforeUnmount(() => {
           </table>
           <h3>业务操作结果</h3>
           <p>{{ data.efficiency.operation_fail_rate.reason }}</p>
+          <details>
+            <summary>业务失败率公式、来源与缺失原因</summary>
+            <p>
+              公式为确认业务拒绝数 ÷
+              同一显式适配器的全部兼容操作数，正式定义要求至少5个操作。HTTP状态和网络异常不能直接判定业务拒绝。
+            </p>
+            <p>
+              来源是同一随机操作实例的开始及受控业务终态；按开始时间选择范围，终态与接收时间截至上述asOf。未知结果处理规则尚待确认，当前不发布正式比率；缺失、冲突和未知均不当作成功。
+            </p>
+          </details>
           <dl>
             <dt>全部受控开始</dt>
             <dd>{{ data.efficiency.operation_fail_rate.observations.started }}</dd>

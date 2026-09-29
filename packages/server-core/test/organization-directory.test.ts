@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   directoryAt,
+  directorySegments,
   validateDirectory,
   type DirectoryVersion,
 } from "../src/organization-directory.js";
@@ -15,6 +16,54 @@ const first: DirectoryVersion = {
   entries: [],
 };
 describe("R4-C temporal directory", () => {
+  it("reports only historical directory intervals intersecting the query and asOf", () => {
+    const second = {
+      ...first,
+      id: "two",
+      from: "2026-09-10T00:00:00Z",
+      until: "2026-09-20T00:00:00Z",
+    };
+    const ts = Date.parse;
+    expect(
+      directorySegments(
+        [first, second],
+        "dev",
+        ts(first.from!),
+        ts("2026-09-15T00:00:00Z"),
+        ts("2026-09-30T00:00:00Z"),
+      ),
+    ).toMatchObject([
+      { id: "one", until: new Date(second.from).toISOString() },
+      { id: "two", until: new Date(second.until).toISOString() },
+    ]);
+    expect(
+      directorySegments(
+        [first, second],
+        "dev",
+        ts(second.until),
+        ts(first.until),
+        ts(first.until),
+      ),
+    ).toEqual([]);
+    expect(
+      directorySegments(
+        [first, second],
+        "dev",
+        ts(first.from!),
+        ts(second.from),
+        ts(first.from!),
+      ),
+    ).toMatchObject([{ id: "one" }]);
+    expect(
+      directorySegments(
+        [first, second],
+        "prod",
+        ts(first.from!),
+        ts(first.until),
+        ts(first.until),
+      ),
+    ).toEqual([]);
+  });
   it("matches event time, not current membership, and never resurrects expired predecessors", () => {
     const second = {
       ...first,

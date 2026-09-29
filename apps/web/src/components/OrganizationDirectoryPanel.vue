@@ -18,6 +18,7 @@ const versions = ref<Version[]>([]),
   feedback = ref(""),
   busy = ref(false);
 let generation = 0;
+let controller: AbortController | undefined;
 const example = JSON.stringify(
   {
     env: "dev",
@@ -37,6 +38,8 @@ const example = JSON.stringify(
   2,
 );
 async function load() {
+  controller?.abort();
+  controller = new AbortController();
   const g = ++generation;
   versions.value = [];
   error.value = "";
@@ -44,14 +47,18 @@ async function load() {
   try {
     const rows = await api.request<Version[]>(
       `/api/projects/${props.projectId}/directory`,
+      { signal: controller.signal },
     );
     if (g === generation) versions.value = rows;
   } catch (cause) {
-    if (g === generation)
+    if (g === generation) {
+      if (cause instanceof ApiError && [401, 403].includes(cause.status))
+        input.value = "";
       error.value =
         cause instanceof ApiError
           ? `${cause.code} (${cause.requestId ?? ""})`
           : "目录读取失败，请重试";
+    }
   }
 }
 async function mutate(id?: string) {
@@ -75,6 +82,7 @@ async function mutate(id?: string) {
     if (g !== generation || project !== props.projectId) return;
     input.value = "";
     await load();
+    if (generation !== g + 1 || project !== props.projectId || !props.canWrite) return;
     feedback.value = id
       ? "版本已发布，从现在起生效；历史归属不变。"
       : "草稿已保存。核对来源、环境、人数及有效期后发布。";
@@ -104,6 +112,7 @@ watch(
 );
 onBeforeUnmount(() => {
   generation++;
+  controller?.abort();
   input.value = "";
   versions.value = [];
 });
