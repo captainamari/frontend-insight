@@ -1,3 +1,4 @@
+import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
 import type {
   FrontendInsightEnvironment,
   FrontendInsightEventBatchV3,
@@ -73,6 +74,7 @@ export interface TrackerConfig {
   deptId?: string | null;
   roleId?: string | null;
   registeredFeatures?: readonly string[];
+  workflowDefinitions?: readonly WorkflowDefinition[];
   staticPayload?: EventPayload;
   normalizePageRoute?: (url: URL) => string;
   beforeSend?: (context: BeforeSendContext) => TrackerEvent | null;
@@ -91,6 +93,7 @@ export interface TrackerRuntime {
   document: Document;
   navigator: Pick<Navigator, "sendBeacon" | "userAgent">;
   storage?: Pick<Storage, "getItem" | "setItem">;
+  sessionStorage?: Pick<Storage, "getItem" | "setItem">;
   fetch: typeof fetch;
   crypto: Pick<Crypto, "randomUUID">;
   now: () => number;
@@ -101,6 +104,8 @@ export interface TrackerRuntime {
 }
 
 export interface Tracker {
+  startWorkflow(workflowKey: string): WorkflowHandle;
+  getActiveWorkflows(workflowKey: string): readonly WorkflowHandle[];
   setUser(userId: string | null): void;
   track(name: string, payload?: EventPayload): void;
   featureExposed(featureKey: string, payload?: EventPayload): void;
@@ -108,7 +113,7 @@ export interface Tracker {
   featureSucceeded(featureKey: string, payload?: EventPayload): void;
   featureFailed(featureKey: string, reasonCode: string, payload?: EventPayload): void;
   startOperation(
-    featureKey: string,
+    operationKey: string,
     payload?: EventPayload,
     interactionType?: InteractionType,
   ): OperationHandle;

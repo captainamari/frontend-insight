@@ -1,3 +1,7 @@
+import {
+  readWorkflowFactDefinitions,
+  workflowEventDefinitionError,
+} from "./workflow-definitions.js";
 import { createHmac, randomUUID } from "node:crypto";
 import {
   SUPPORTED_SCHEMA_VERSIONS,
@@ -256,6 +260,34 @@ export class IngestionManager {
       this.assertProject(project, context);
       const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
       if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
+      if (
+        validation.value.events.some(
+          (e) =>
+            e.event === "custom" &&
+            (String(e.payload.name).startsWith("workflow_") ||
+              e.payload.workflowInstanceId),
+        )
+      ) {
+        const definitions = await readWorkflowFactDefinitions(
+          this.store.pool,
+          project.id,
+        );
+        for (const event of validation.value.events) {
+          const code = workflowEventDefinitionError(event, definitions);
+          if (code) throw new IngestionError(code, 400);
+          if (
+            event.payload.workflowInstanceId &&
+            event.payload.operationInstanceId &&
+            String(event.payload.name).startsWith("feature_")
+          ) {
+            const feature = project.features.find(
+              (f) => f.featureKey === event.payload.featureKey,
+            );
+            if (!feature?.operationLifecycleEnabled)
+              throw new IngestionError("WORKFLOW_OPERATION_NOT_REGISTERED", 400);
+          }
+        }
+      }
       const { batch, enrichments } = this.sanitize(project, validation.value);
       const requestId = randomUUID();
       const envelope: KafkaEventEnvelope = {

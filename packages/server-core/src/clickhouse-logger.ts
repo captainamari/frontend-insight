@@ -28,3 +28,29 @@ export class SafeClickHouseLogger implements Logger {
     );
   }
 }
+
+/** Only transport enums and numeric ClickHouse codes may enter operational logs. */
+export function storageFailureCode(cause: unknown): string {
+  const code =
+    typeof cause === "object" && cause !== null && "code" in cause ? cause.code : null;
+  const normalized =
+    typeof code === "string" || typeof code === "number" ? String(code) : "";
+  if (/^[0-9]{1,5}$/.test(normalized)) return `CLICKHOUSE_${normalized}`;
+  if (
+    [
+      "ECONNRESET",
+      "ECONNREFUSED",
+      "ETIMEDOUT",
+      "EPIPE",
+      "UND_ERR_SOCKET",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "UND_ERR_HEADERS_TIMEOUT",
+      "ABORT_ERR",
+    ].includes(normalized)
+  )
+    return normalized;
+  if (cause instanceof RangeError) return "INVALID_FACT_VALUE";
+  if (cause instanceof SyntaxError) return "INVALID_FACT_RESPONSE";
+  if (cause instanceof TypeError) return "FACT_RESPONSE_TYPE_ERROR";
+  return "FACT_READ_FAILED";
+}

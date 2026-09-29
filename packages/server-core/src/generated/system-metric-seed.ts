@@ -86,7 +86,7 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "task_duration",
     "displayName": "任务耗时",
     "category": "operation",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R4-B"
   },
   {
@@ -114,7 +114,7 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "path_steps",
     "displayName": "操作路径步数",
     "category": "operation",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-B"
   },
   {

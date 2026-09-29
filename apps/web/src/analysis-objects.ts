@@ -83,7 +83,7 @@ export function workflowConditionContext(
       subject: "与当前 workflow handle 关联的 operation",
       timing: "登记的 operation 上报 succeeded、failed 或 canceled 时",
       cannotInfer: "独立 operation、HTTP 结果或同 session 邻近事件不能自动关联。",
-      helper: "需要已登记 operation 与 R4-B 关联 SDK；R1-A 仅保存定义。",
+      helper: "需要已登记且启用lifecycle的operation；由workflow handle显式关联。",
     },
   }[kind];
 }

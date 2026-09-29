@@ -10,6 +10,6 @@ export default defineConfig({
   use: {
     baseURL: process.env.FI_API_URL ?? "http://127.0.0.1:3000",
     extraHTTPHeaders: { origin: "http://localhost:4173" },
-    trace: "retain-on-failure",
+    trace: process.env.FI_PRIVACY_NO_TRACE ? "off" : "retain-on-failure",
   },
 });

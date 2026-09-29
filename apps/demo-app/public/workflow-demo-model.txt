@@ -1,0 +1,1 @@
+Synthetic transfer fixture. No business model or user information.

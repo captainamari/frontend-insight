@@ -1,3 +1,4 @@
+import { WORKFLOW_FACT_METRIC_KEYS } from "./system-metric-catalog.js";
 import {
   copyStoredScore,
   validateStoredScore,
@@ -837,6 +838,58 @@ export class MetricLibraryService {
     } finally {
       connection.release();
     }
+  }
+
+  async refreshWorkflowFacts(projectId: string, versionId: string, actor: Principal) {
+    const connection = await this.mysql.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const version = await this.requireVersion(connection, projectId, versionId, true);
+      if (version.status !== "draft" || version.libraryType !== "operational")
+        throw new MetricLibraryError(
+          "WORKFLOW_FACT_REFRESH_REQUIRES_OPERATIONAL_DRAFT",
+          409,
+        );
+      for (const key of WORKFLOW_FACT_METRIC_KEYS) {
+        const metric = systemMetricDefinition(key)!;
+        await connection.execute(
+          `UPDATE metric_definitions SET definition_version=?,implementation_status=?,business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,percentiles=?,reporting_timing=?,minimum_sample=?,missing_policy=?,owner=?,available_from=NULL,unavailable_reason=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+          [
+            metric.definitionVersion,
+            metric.implementationStatus,
+            metric.businessDescription,
+            metric.formulaDescription,
+            metric.numeratorDescription,
+            metric.denominatorDescription,
+            metric.deduplicationKey,
+            JSON.stringify(metric.percentiles),
+            metric.reportingTiming,
+            metric.minimumSample,
+            metric.missingPolicy,
+            metric.owner,
+            metric.unavailableReason,
+            versionId,
+            key,
+          ],
+        );
+      }
+      await this.insertAudit(
+        connection,
+        projectId,
+        actor.userId,
+        "metric_library.workflow_facts_refreshed",
+        "metric_library_version",
+        versionId,
+        { metricKeys: WORKFLOW_FACT_METRIC_KEYS },
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    return this.getVersion(projectId, versionId);
   }
 
   async saveBusinessMetric(input: {

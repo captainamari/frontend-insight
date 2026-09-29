@@ -19,6 +19,7 @@ Commands:
   doctor                         Check Docker, Apple Silicon and local resources
   bootstrap                      Create .env.m5 and validate the full Compose config
   up                             Build and start API, consumer, management UI and demo
+  up-preserve                    Build/start and migrate without re-running local seed
   seed                           Idempotently create local users, project and features
   smoke                          Verify the data flow and all three HTTP services
   verify-r1a                     Verify R1-A CRUD, isolation, audit and privacy
@@ -136,6 +137,12 @@ up() {
   fi
   info "Management UI: http://localhost:4173"
   info "Scenario demo: http://localhost:4174"
+}
+
+up_preserve() {
+  doctor
+  compose up --detach --build --wait --wait-timeout 360 api consumer web demo
+  info "Services and migrations started; existing configuration and data preserved; seed not run"
 }
 
 smoke() {
@@ -259,6 +266,7 @@ case "$command_name" in
   doctor) doctor "$@" ;;
   bootstrap) bootstrap "$@" ;;
   up) up "$@" ;;
+  up-preserve) up_preserve "$@" ;;
   seed) seed "$@" ;;
   smoke) smoke "$@" ;;
   verify-r1a) verify_r1a "$@" ;;

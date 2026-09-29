@@ -113,7 +113,7 @@
       "label": "任务耗时",
       "category": "operation",
       "milestone": "R4-B",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "form_efficiency",
@@ -141,7 +141,7 @@
       "label": "操作路径步数",
       "category": "operation",
       "milestone": "R4-B",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "lcp",

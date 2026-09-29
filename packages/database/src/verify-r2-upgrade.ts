@@ -28,6 +28,31 @@ try {
     "INSERT INTO metric_library_versions (id,project_id,library_type,version,status,manifest_version,created_by_user_id) VALUES (?,?,'quality',1,'draft','1.8.0',?)",
     [version, project, user],
   );
+  const module = "99999999-9999-4999-8999-999999999994",
+    workflow = "99999999-9999-4999-8999-999999999995",
+    workflowVersion = "99999999-9999-4999-8999-999999999996";
+  await pool.execute(
+    "INSERT INTO modules (id,project_id,module_key,status) VALUES (?,?,'upgrade_workflow','active')",
+    [module, project],
+  );
+  await pool.execute(
+    "INSERT INTO workflow_definitions (id,project_id,module_id,workflow_key,name,status) VALUES (?,?,?,'upgrade_workflow','Preserved workflow','active')",
+    [workflow, project, module],
+  );
+  await pool.execute(
+    "INSERT INTO workflow_definition_versions (id,workflow_definition_id,version,module_id,name,start_policy,terminal_policy,timeout_seconds,status,activated_at) VALUES (?,?,1,?,'Preserved workflow','explicit_sdk',?,30,'active','2026-08-01 00:00:00')",
+    [
+      workflowVersion,
+      workflow,
+      module,
+      JSON.stringify({
+        completedStepKey: "done",
+        failedStepKey: null,
+        canceledStepKey: null,
+        timeoutState: "approximate_abandoned",
+      }),
+    ],
+  );
   const snapshot = async () => {
     const [p] = await pool.query<RowDataPacket[]>("SELECT * FROM projects");
     const [v] = await pool.query<RowDataPacket[]>(
@@ -36,17 +61,28 @@ try {
     const [m] = await pool.query<RowDataPacket[]>(
       "SELECT version,checksum FROM schema_migrations WHERE version<=2 ORDER BY version",
     );
-    return JSON.stringify({ p, v, m });
+    const [w] = await pool.query("SELECT * FROM workflow_definitions");
+    const [wv] = await pool.query("SELECT * FROM workflow_definition_versions");
+    return JSON.stringify({ p, v, m, w, wv });
   };
   const before = await snapshot();
   const upgrade = await runMySqlMigrations({ mysqlUrl });
-  assert.deepEqual(upgrade.applied, [3]);
+  assert.deepEqual(upgrade.applied, [3, 4]);
   assert.equal(await snapshot(), before);
   assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, []);
   const [tables] = await pool.query<RowDataPacket[]>(
     "SHOW TABLES LIKE 'project_creation_requests'",
   );
   assert.equal(tables.length, 1);
+  const [admissions] = await pool.query<RowDataPacket[]>(
+    "SELECT * FROM workflow_admission_periods WHERE workflow_definition_version_id=?",
+    [workflowVersion],
+  );
+  assert.equal(admissions.length, 1);
+  assert(
+    new Date(admissions[0]!.effective_from).valueOf() >
+      Date.parse("2026-08-01T00:00:00Z"),
+  );
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
     engine: "MySQL",

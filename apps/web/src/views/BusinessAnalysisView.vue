@@ -14,7 +14,7 @@ const data = ref<BusinessResponse | null>(null),
   loading = ref(false),
   error = ref(""),
   drill = ref(""),
-  dataRequest = ref("");
+  dataScope = ref("");
 let generation = 0,
   controller: AbortController | null = null;
 const signature = computed(() =>
@@ -28,7 +28,25 @@ const signature = computed(() =>
       "moduleId",
       "businessTrends",
       "businessVersion",
+      "workflowPage",
+      "workflowVersion",
+      "workflowEvidencePage",
     ].map((k) => route.query[k]),
+  ]),
+);
+const scopeSignature = computed(() =>
+  JSON.stringify([
+    route.params.projectId,
+    ...[
+      "env",
+      "range",
+      "from",
+      "to",
+      "moduleId",
+      "businessTrends",
+      "businessVersion",
+      "workflowPage",
+    ].map((key) => route.query[key]),
   ]),
 );
 const selectedMetric = computed(() =>
@@ -60,6 +78,18 @@ function showObserved(event: Event) {
     },
   });
 }
+const penetrationLabels: Record<string, string> = {
+  PENETRATION_SOURCE_MISSING: "缺少可信完整业务活动来源",
+  PENETRATION_RANGE_INCOMPATIBLE: "分子范围未被90日观察窗口包含，或来源窗口不一致",
+  PENETRATION_SCOPE_INCOMPATIBLE: "项目或环境范围不一致",
+  PENETRATION_IDENTITY_SCOPE_INCOMPATIBLE: "身份或业务活动范围不一致",
+  PENETRATION_SOURCE_INCOMPATIBLE: "来源或来源版本不一致",
+  PENETRATION_COVERAGE_UNKNOWN: "覆盖未知",
+  PENETRATION_COVERAGE_INSUFFICIENT: "时间覆盖不足",
+  PENETRATION_SOURCE_INCONSISTENT: "来源人数不一致",
+  PENETRATION_DENOMINATOR_ZERO: "分母为0，比例不可用",
+  PENETRATION_ACTIVE_POPULATION_ESTIMATE: "可用的活跃用户近似（estimated）",
+};
 const labels: Record<string, string> = {
   no_modules: "所选范围无功能模块配置",
   no_active_module: "所选范围没有启用的模块版本",
@@ -76,12 +106,21 @@ async function load() {
   controller = new AbortController();
   loading.value = true;
   error.value = "";
-  if (dataRequest.value !== key) {
+  if (dataScope.value !== scopeSignature.value) {
     data.value = null;
     drill.value = "";
   }
   const params = new URLSearchParams();
-  for (const k of ["env", "range", "from", "to", "moduleId"])
+  for (const k of [
+    "env",
+    "range",
+    "from",
+    "to",
+    "moduleId",
+    "workflowPage",
+    "workflowVersion",
+    "workflowEvidencePage",
+  ])
     if (typeof route.query[k] === "string") params.set(k, String(route.query[k]));
   if (typeof route.query.businessTrends === "string")
     params.set("metrics", route.query.businessTrends);
@@ -95,7 +134,7 @@ async function load() {
     if (id !== generation || key !== signature.value) return;
     if (data.value?.identity !== r.identity) drill.value = "";
     data.value = r;
-    dataRequest.value = key;
+    dataScope.value = scopeSignature.value;
     if (!route.query.moduleId && r.moduleId) {
       await router.replace({ query: { ...route.query, moduleId: r.moduleId } });
       return;
@@ -123,7 +162,12 @@ async function load() {
 }
 function moduleChange(event: Event) {
   void router.push({
-    query: { ...route.query, moduleId: (event.target as HTMLSelectElement).value },
+    query: {
+      ...route.query,
+      moduleId: (event.target as HTMLSelectElement).value,
+      workflowVersion: undefined,
+      workflowPage: undefined,
+    },
   });
 }
 function trend(m: OverviewMetric, checked: boolean) {
@@ -177,6 +221,58 @@ function scroll(event: KeyboardEvent) {
 function followActive() {
   void router.replace({
     query: { ...route.query, businessVersion: undefined, businessTrends: undefined },
+  });
+}
+const selectedWorkflow = computed(() =>
+  data.value?.workflowAnalysis?.definitions.find(
+    (w) => w.versionId === route.query.workflowVersion,
+  ),
+);
+const workflowDialog = ref<HTMLDialogElement | null>(null);
+let workflowReturnFocus: HTMLElement | null = null;
+watch(
+  selectedWorkflow,
+  (selected) => {
+    const dialog = workflowDialog.value;
+    if (selected && dialog && !dialog.open) {
+      workflowReturnFocus =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      dialog.showModal();
+    } else if (!selected && dialog?.open) {
+      dialog.close();
+      if (workflowReturnFocus?.isConnected) workflowReturnFocus.focus();
+      workflowReturnFocus = null;
+    }
+  },
+  { flush: "post" },
+);
+function showWorkflow(versionId?: string) {
+  void router.push({
+    query: {
+      ...route.query,
+      workflowVersion: versionId,
+      workflowEvidencePage: undefined,
+    },
+  });
+}
+function workflowPage(page: number) {
+  void router.push({
+    query: { ...route.query, workflowPage: String(page), workflowVersion: undefined },
+  });
+}
+function workflowDefinition() {
+  if (!selectedWorkflow.value) return;
+  void router.push({
+    name: "project-metrics",
+    params: route.params,
+    query: {
+      ...route.query,
+      tab: "objects",
+      object: "workflows",
+      workflowId: selectedWorkflow.value.id,
+      workflowDefinitionVersion: selectedWorkflow.value.versionId,
+      analysisReturn: route.fullPath,
+    },
   });
 }
 watch(signature, () => void load(), { immediate: true });
@@ -246,7 +342,7 @@ onBeforeUnmount(() => {
       <section class="panel">
         <h2>模块指标</h2>
         <p>
-          正式值遵守定义与完整性要求。下列观察值仅为已识别、有效归属的页面访问；不代表完整业务活动。
+          正式值遵守定义与完整性要求。页面访问与工作流观察分别按其事实范围解释；观察值不代表完整业务活动。
         </p>
         <div
           class="cards"
@@ -261,6 +357,18 @@ onBeforeUnmount(() => {
             <p>{{ m.definition.metricKey }} · {{ m.status }}</p>
             <p>{{ m.reason ?? "可用" }} · 样本 {{ m.sampleSize ?? "未知" }}</p>
             <p>观察值 {{ m.rawValue ?? "—" }}</p>
+            <template v-if="m.workflowBreakdown?.length">
+              <p>按任务类型与定义版本查看（同工作流列表页；覆盖未知）</p>
+              <ul>
+                <li v-for="w in m.workflowBreakdown" :key="w.versionId">
+                  <button @click="showWorkflow(w.versionId)">
+                    {{ w.workflowKey }} v{{ w.version }}
+                  </button>
+                  P50/P90：{{ w.p50 ?? "—" }} / {{ w.p90 ?? "—" }} ms；样本
+                  {{ w.sample }}
+                </li>
+              </ul>
+            </template>
             <button @click="drill = m.definition.metricKey">
               解释 {{ m.definition.displayName }}</button
             ><label
@@ -341,6 +449,28 @@ onBeforeUnmount(() => {
         <h2>模块渗透率的来源</h2>
         <p>{{ data.penetration.explanation }}</p>
         <p>
+          运行状态：{{
+            penetrationLabels[data.penetration.reason] ?? data.penetration.reason
+          }}
+        </p>
+        <p>
+          分母观察窗口（半开区间、项目时区）：{{
+            data.penetration.observationWindow?.from
+          }}
+          至 {{ data.penetration.observationWindow?.to }}
+        </p>
+        <details>
+          <summary>各趋势桶的独立分母窗口与状态</summary>
+          <ul>
+            <li v-for="bucket in data.metrics.trends" :key="bucket.from + bucket.to">
+              {{ bucket.from }} 至 {{ bucket.to }}： 分母窗口
+              {{ bucket.penetration?.observationWindow.from }} 至
+              {{ bucket.penetration?.observationWindow.to }}；
+              {{ penetrationLabels[bucket.penetration?.reason ?? ""] ?? "覆盖未知" }}
+            </li>
+          </ul>
+        </details>
+        <p>
           分子页面访问去重观察 {{ data.penetration.numerator ?? "未知" }}；分母
           {{ data.penetration.denominator ?? "未知" }}；比例
           {{ data.penetration.value ?? "—" }}。
@@ -350,6 +480,222 @@ onBeforeUnmount(() => {
           <pre>{{ JSON.stringify(data.penetration, null, 2) }}</pre>
         </details>
       </section>
+      <section v-if="data.workflowAnalysis" class="panel" aria-label="工作流追踪">
+        <h2>工作流追踪</h2>
+        <p>
+          按开始时间归属所选窗口；终态观察截至
+          {{
+            data.workflowAnalysis.context.asOf
+          }}。迟到事实可能更新结果，覆盖尚未证明完整。
+        </p>
+        <p>
+          采集状态：{{
+            data.workflowAnalysis.collector === "compatible_sdk_observed"
+              ? "已观察到兼容SDK；不代表完整覆盖"
+              : data.workflowAnalysis.collector === "compatible_sdk_not_observed"
+                ? "有访问事实，但未观察到兼容工作流SDK"
+                : "尚不能验证SDK安装"
+          }}
+        </p>
+        <p v-if="!data.workflowAnalysis.definitions.length">尚无工作流定义。</p>
+        <p v-if="data.workflowAnalysis.configurationStatus === 'no_active_version'">
+          已配置工作流，但当前没有可开始新实例的激活版本；历史观察仍保留。
+        </p>
+        <div class="scroll">
+          <table v-if="data.workflowAnalysis.definitions.length">
+            <thead>
+              <tr>
+                <th>工作流 / 定义版本</th>
+                <th>开始 / 进行中</th>
+                <th>成功 / 失败 / 取消 / 近似超时</th>
+                <th>成功率</th>
+                <th>总耗时 P50 / P90（ms）</th>
+                <th>样本 / 未解析 / 状态</th>
+                <th>详情</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="w in data.workflowAnalysis.definitions" :key="w.versionId">
+                <td>{{ w.name }} · v{{ w.version }}</td>
+                <td>{{ w.started }} / {{ w.inProgress }}</td>
+                <td>
+                  {{ w.completed }} / {{ w.failed }} / {{ w.canceled }} /
+                  {{ w.approximate_abandoned }}
+                </td>
+                <td>
+                  {{
+                    w.successRate === null
+                      ? "—"
+                      : (w.successRate * 100).toFixed(1) + "%"
+                  }}
+                </td>
+                <td>
+                  {{ w.task_duration.p50 ?? "—" }} / {{ w.task_duration.p90 ?? "—" }}
+                </td>
+                <td>
+                  {{ w.task_duration.sample }} / {{ w.unresolved }} /
+                  {{
+                    w.sampleState === "no_facts"
+                      ? "无事实"
+                      : w.sampleState === "in_progress"
+                        ? "进行中"
+                        : w.sampleState === "insufficient_sample"
+                          ? "不足5个有效耗时样本"
+                          : "部分可用，覆盖未验证"
+                  }}
+                </td>
+                <td>
+                  <button @click="showWorkflow(w.versionId)">
+                    查看 {{ w.name }} v{{ w.version }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="data.workflowAnalysis.status === 'no_facts'">
+          所选开始窗口无工作流事实；不能据此判断已安装兼容SDK或成功率为0。
+        </p>
+        <button
+          :disabled="data.workflowAnalysis.page <= 1"
+          @click="workflowPage(data.workflowAnalysis.page - 1)"
+        >
+          上一页工作流
+        </button>
+        <button
+          :disabled="
+            data.workflowAnalysis.page * data.workflowAnalysis.pageSize >=
+            data.workflowAnalysis.totalDefinitions
+          "
+          @click="workflowPage(data.workflowAnalysis.page + 1)"
+        >
+          下一页工作流
+        </button>
+      </section>
+      <dialog
+        ref="workflowDialog"
+        class="workflow-dialog"
+        aria-label="工作流详情"
+        @cancel.prevent="showWorkflow()"
+      >
+        <header>
+          <h2>工作流详情</h2>
+          <button autofocus aria-label="关闭工作流详情" @click="showWorkflow()">
+            关闭
+          </button>
+        </header>
+        <template v-if="selectedWorkflow && data.workflowAnalysis">
+          <h2>{{ selectedWorkflow.name }} · v{{ selectedWorkflow.version }}</h2>
+          <p>
+            定义版本 {{ selectedWorkflow.versionId }}；观察截至
+            {{ data.workflowAnalysis.context.asOf }}。可用起点
+            {{ data.workflowAnalysis.availableFrom ?? "未知" }}
+            仅是观察事件起点，不能证明持续覆盖。
+          </p>
+          <p>
+            总耗时 P50 / P90 / P75 / P99（ms）：{{
+              selectedWorkflow.task_duration.p50 ?? "—"
+            }}
+            / {{ selectedWorkflow.task_duration.p90 ?? "—" }} /
+            {{ selectedWorkflow.task_duration.p75 ?? "—" }} /
+            {{ selectedWorkflow.task_duration.p99 ?? "—" }}。有效成功样本
+            {{
+              selectedWorkflow.task_duration.sample
+            }}；普通分位数为线性插值，与评分池化加权nearest-rank不同。
+          </p>
+          <h3>阶段漏斗与相邻阶段耗时</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>步骤</th>
+                <th>到达</th>
+                <th>到达率</th>
+                <th>相邻流失率</th>
+                <th>相邻耗时P50 / P90</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in selectedWorkflow.stages" :key="s.stepKey">
+                <td>{{ s.stepOrder }} · {{ s.name }}</td>
+                <td>{{ s.reached }}</td>
+                <td>{{ s.rate ?? "—" }}</td>
+                <td>{{ s.adjacentDropoff ?? "—" }}</td>
+                <td>
+                  {{ s.adjacentDuration.p50 ?? "—" }} /
+                  {{ s.adjacentDuration.p90 ?? "—" }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>开始cohort趋势（文本等价）</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>窗口</th>
+                <th>开始</th>
+                <th>成功</th>
+                <th>成功率</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in selectedWorkflow.trends" :key="b.from">
+                <td>{{ b.from }} — {{ b.to }}</td>
+                <td>{{ b.started }}</td>
+                <td>{{ b.completed }}</td>
+                <td>{{ b.successRate ?? "—" }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>安全实例证据</h3>
+          <button
+            :disabled="data.workflowAnalysis.evidencePage <= 1"
+            @click="
+              router.push({
+                query: {
+                  ...route.query,
+                  workflowEvidencePage: String(data.workflowAnalysis.evidencePage - 1),
+                },
+              })
+            "
+          >
+            上一页实例
+          </button>
+          <button
+            :disabled="!data.workflowAnalysis.evidenceTruncated"
+            @click="
+              router.push({
+                query: {
+                  ...route.query,
+                  workflowEvidencePage: String(data.workflowAnalysis.evidencePage + 1),
+                },
+              })
+            "
+          >
+            下一页实例
+          </button>
+          <p>
+            实例计数包含未识别身份；未识别
+            {{ selectedWorkflow.unidentified }}
+            个，不能作为规范用户或评分样本。证据最多{{
+              data.workflowAnalysis.evidenceLimit
+            }}条{{ data.workflowAnalysis.evidenceTruncated ? "，当前已截断" : "" }}。
+          </p>
+          <article
+            v-for="e in data.workflowAnalysis.evidence.filter(
+              (e) => e.versionId === selectedWorkflow?.versionId,
+            )"
+            :key="e.workflowInstanceId"
+          >
+            <p>
+              {{ e.workflowInstanceId }} · {{ e.state }} · {{ e.startedAt }} →
+              {{ e.terminalAt ?? "进行中" }}
+            </p>
+            <p>{{ e.reasons.join(" / ") }}</p>
+            <pre v-if="e.path_steps">{{ JSON.stringify(e.path_steps, null, 2) }}</pre>
+          </article>
+          <button @click="workflowDefinition">查看工作流定义与版本</button>
+        </template>
+      </dialog>
       <section class="panel">
         <h2>当前工作流定义</h2>
         <p>{{ data.workflowFacts.reason }}</p>
@@ -404,6 +750,25 @@ onBeforeUnmount(() => {
   </div>
 </template>
 <style scoped>
+.workflow-dialog {
+  box-sizing: border-box;
+  width: min(900px, 95vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 24px;
+  border: 0;
+  overflow: auto;
+}
+.workflow-dialog::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+.workflow-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .business-analysis {
   min-width: 0;
   max-width: 100%;

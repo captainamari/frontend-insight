@@ -64,11 +64,11 @@
 | `avg_usage_duration` | 人均使用时长 | usage | `not_collected` | R6 |
 | `hourly_distribution` | 时段分布 | usage | `not_collected` | R6 |
 | `bounce_rate` | 跳出率（单页会话率） | usage | `not_collected` | R6 |
-| `task_duration` | 任务耗时 | operation | `partial` | R4-B |
+| `task_duration` | 任务耗时 | operation | `implemented` | R4-B |
 | `form_efficiency` | 表单效率 | operation | `not_collected` | R4-C |
 | `operation_fail_rate` | 操作失败率 | operation | `not_collected` | R4-C |
 | `repeated_operation_rate` | 重复操作率 | operation | `not_collected` | R4-C |
-| `path_steps` | 操作路径步数 | operation | `not_collected` | R4-B |
+| `path_steps` | 操作路径步数 | operation | `partial` | R4-B |
 | `lcp` | 最大内容绘制 | performance | `partial` | R5-A |
 | `inp` | 交互到下次绘制 | performance | `partial` | R5-A |
 | `cls` | 累积布局偏移 | performance | `partial` | R5-A |

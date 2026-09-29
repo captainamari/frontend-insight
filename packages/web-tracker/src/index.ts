@@ -57,6 +57,7 @@ export function createTracker(config: TrackerConfig): Tracker {
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,
+      config.workflowDefinitions,
     );
     activeTrackers.set(key, tracker);
     return tracker;
@@ -66,3 +67,5 @@ export function createTracker(config: TrackerConfig): Tracker {
 }
 
 export type * from "./types.js";
+
+export type { WorkflowDefinition, WorkflowHandle, WorkflowState } from "./workflow.js";

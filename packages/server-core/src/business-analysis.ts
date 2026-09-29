@@ -1,3 +1,7 @@
+import { storageFailureCode } from "./clickhouse-logger.js";
+import { mergeWorkflowFacts } from "./workflow-score-facts.js";
+import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
+import type { WorkflowFactStore } from "./workflow-facts.js";
 import type { RowDataPacket } from "mysql2/promise";
 import {
   resolveProjectCalendar,
@@ -18,19 +22,28 @@ import {
   businessFactWindow,
   type BusinessPageWindow,
 } from "./business-facts.js";
-import { IDENTITY_DEFINITION_VERSION } from "./system-metric-catalog.js";
+import {
+  IDENTITY_DEFINITION_VERSION,
+  WORKFLOW_FACT_DEFINITION_VERSION,
+} from "./system-metric-catalog.js";
+import { evaluateModulePenetration } from "./module-penetration.js";
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 export interface BusinessQuery extends OverviewQuery {
   moduleId?: string | undefined;
   versionId?: string | undefined;
+  workflowPage?: number | undefined;
+  workflowEvidencePage?: number | undefined;
+  workflowVersion?: string | undefined;
 }
 export class BusinessAnalysisService {
   constructor(
     private readonly mysql: MySqlStore,
     private readonly scores: ScoreManagementService,
     private readonly facts: BusinessFactStore,
+    private readonly workflowFacts?: WorkflowFactStore,
   ) {}
   async analysis(projectId: string, input: BusinessQuery) {
+    const asOf = new Date();
     const started = performance.now(),
       raw = await this.mysql.pool.getConnection();
     let metadataQueries = 0;
@@ -79,9 +92,12 @@ export class BusinessAnalysisService {
           modules.find((m) => m.status === "active")?.id ??
           modules[0]?.id ??
           null;
-        const active = (await this.scores.readActiveBatch(c, [projectId], query)).find(
-          (a) => a.libraryType === "operational",
-        );
+        const active = (
+          await this.scores.readActiveBatch(c, [projectId], {
+            ...query,
+            asOf: asOf.toISOString(),
+          })
+        ).find((a) => a.libraryType === "operational");
         if (input.versionId && input.versionId !== active?.version.id)
           throw new MetricLibraryError("BUSINESS_ACTIVE_VERSION_CHANGED", 409);
         const [bindings] = await c.query<RowDataPacket[]>(
@@ -91,19 +107,19 @@ export class BusinessAnalysisService {
         const [pageRows] = await c.query<RowDataPacket[]>(
           `SELECT p.id AS page_id,p.page_route,r.id AS page_revision_id,r.name,r.module_id,r.status AS page_status,mr.id AS module_revision_id,mr.status AS module_status,GREATEST(r.effective_from,mr.effective_from) AS effective_from,LEAST(COALESCE(r.effective_to,?),COALESCE(mr.effective_to,?)) AS effective_to FROM page_definitions p JOIN page_definition_revisions r ON r.page_definition_id=p.id JOIN module_revisions mr ON mr.module_id=r.module_id AND mr.effective_from<COALESCE(r.effective_to,?) AND (mr.effective_to IS NULL OR mr.effective_to>r.effective_from) WHERE p.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) AND mr.effective_from<? AND (mr.effective_to IS NULL OR mr.effective_to>?) ORDER BY p.id,r.effective_from,mr.effective_from LIMIT 10001`,
           [
-            new Date(query.to),
-            new Date(query.to),
-            new Date(query.to),
+            new Date(Math.max(Date.parse(query.to), asOf.valueOf())),
+            new Date(Math.max(Date.parse(query.to), asOf.valueOf())),
+            new Date(Math.max(Date.parse(query.to), asOf.valueOf())),
             projectId,
-            new Date(query.to),
-            new Date(query.from),
-            new Date(query.to),
-            new Date(query.from),
+            new Date(Math.max(Date.parse(query.to), asOf.valueOf())),
+            new Date(Date.parse(query.from) - 1800000),
+            new Date(Math.max(Date.parse(query.to), asOf.valueOf())),
+            new Date(Date.parse(query.from) - 1800000),
           ],
         );
         if (pageRows.length > 10000 || modules.length > 10000)
           throw new MetricLibraryError("BUSINESS_REVISION_LIMIT", 400);
-        const pages: BusinessPageWindow[] = pageRows.map((r) => ({
+        const pathPages: BusinessPageWindow[] = pageRows.map((r) => ({
           pageId: String(r.page_id),
           pageRoute: String(r.page_route),
           name: String(r.name),
@@ -120,14 +136,24 @@ export class BusinessAnalysisService {
                 ? "MODULE_DISABLED"
                 : "INCLUDED",
         }));
+        const pages = pathPages.filter(
+          (p) =>
+            Date.parse(p.from) < Date.parse(query.to) &&
+            Date.parse(p.to) > Date.parse(query.from),
+        );
         const [workflows] = await c.query<RowDataPacket[]>(
           `SELECT w.id,w.workflow_key,w.status AS object_status,v.id AS version_id,v.version,v.name,v.status,v.activated_at,v.effective_to,v.timeout_seconds,s.step_key,s.name AS step_name,s.step_order FROM workflow_definitions w JOIN workflow_definition_versions v ON v.workflow_definition_id=w.id LEFT JOIN workflow_steps s ON s.workflow_definition_version_id=v.id WHERE w.project_id=? AND v.module_id=? AND v.status='active' ORDER BY w.id,s.step_order LIMIT 4001`,
           [projectId, selected ?? ""],
         );
         if (workflows.length > 4000)
           throw new MetricLibraryError("BUSINESS_WORKFLOW_LIMIT", 400);
+        const workflowDefinitions = this.workflowFacts
+          ? await readWorkflowFactDefinitions(c, projectId)
+          : [];
         await c.commit();
         return {
+          workflowDefinitions,
+          pathPages,
           p,
           query,
           modules,
@@ -178,7 +204,7 @@ export class BusinessAnalysisService {
     );
     if (segments.length > 800)
       throw new MetricLibraryError("BUSINESS_SEGMENT_LIMIT", 400);
-    let clickHouseQueries = 0;
+    let clickHouseQueries = active?.result?.workflowObservation ? 1 : 0;
     const observation = moduleId
       ? await this.facts
           .read(
@@ -189,13 +215,62 @@ export class BusinessAnalysisService {
             pages,
             () => clickHouseQueries++,
           )
-          .catch(() => {
+          .catch((cause: unknown) => {
+            console.warn(
+              JSON.stringify({
+                source: "business-facts",
+                code: storageFailureCode(cause),
+              }),
+            );
             throw new MetricLibraryError("FACT_STORE_UNAVAILABLE", 503);
           })
       : null;
+    if (
+      input.workflowVersion &&
+      !snapshot.workflowDefinitions.some(
+        (d) => d.versionId === input.workflowVersion && d.moduleId === moduleId,
+      )
+    )
+      throw new MetricLibraryError("WORKFLOW_VERSION_NOT_FOUND", 404);
+    const workflowAnalysis =
+      this.workflowFacts && moduleId
+        ? await this.workflowFacts
+            .read(
+              projectId,
+              query.env,
+              query.from,
+              query.to,
+              snapshot.workflowDefinitions.filter((d) => d.moduleId === moduleId),
+              query.buckets,
+              snapshot.pathPages,
+              asOf,
+              input.workflowPage ?? 1,
+              input.workflowVersion,
+              input.workflowEvidencePage ?? 1,
+            )
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                [
+                  "WORKFLOW_FACT_LIMIT",
+                  "WORKFLOW_SESSION_LIMIT",
+                  "WORKFLOW_PATH_LIMIT",
+                ].includes(cause.message)
+              )
+                throw new MetricLibraryError(cause.message, 400);
+              throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
     const fact = observation
       ? businessFactWindow(observation.window)
       : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
+    const workflowScore = active?.result;
+    if (
+      workflowScore?.workflowObservation &&
+      workflowScore.configurationSnapshot.scope === "module" &&
+      workflowScore.dependencySnapshot.scopeId === moduleId
+    )
+      mergeWorkflowFacts(fact, workflowScore.workflowObservation.facts);
     const activeFrom = active?.version.activatedAt;
     const boundary =
       !activeFrom || query.from < activeFrom ? "VERSION_RANGE_BOUNDARY" : null;
@@ -209,8 +284,20 @@ export class BusinessAnalysisService {
         "module",
       ).map((m) => ({
         ...m,
+        workflowBreakdown:
+          m.definition.metricKey === "task_duration" &&
+          m.definition.definitionVersion === WORKFLOW_FACT_DEFINITION_VERSION
+            ? (workflowAnalysis?.definitions ?? []).map((w) => ({
+                workflowKey: w.workflowKey,
+                versionId: w.versionId,
+                version: w.version,
+                ...w.task_duration,
+              }))
+            : undefined,
         rawScope:
-          "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
+          m.definition.metricKey === "task_duration"
+            ? "按工作流定义版本分别输出普通P50/P90/P75/P99，不把不同任务类型的分位数合并成标量；当前页与工作流列表一致，覆盖未知。"
+            : "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
       }));
     const moduleRows = [
       ...new Map(
@@ -279,18 +366,39 @@ export class BusinessAnalysisService {
             versionId: p.versionId,
           })) ?? [],
         trends: segments.map((b, i) => {
+          const bucketFact = observation
+            ? businessFactWindow(observation.buckets[i]!)
+            : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
+          if (
+            workflowScore?.workflowObservation &&
+            workflowScore.configurationSnapshot.scope === "module" &&
+            workflowScore.dependencySnapshot.scopeId === moduleId
+          ) {
+            const trend = workflowScore.workflowObservation.trends.find(
+              (t) => t.from === b.from && t.to === b.to,
+            );
+            if (trend) mergeWorkflowFacts(bucketFact, trend.facts);
+          }
           const reason =
             b.versionId !== active?.version.id || b.segment !== activeFrom
               ? "HISTORICAL_VERSION_NOT_RECALCULATED"
               : null;
           return {
             ...b,
+            penetration: evaluateModulePenetration({
+              scope: {
+                projectId,
+                env: query.env,
+                identityVersion: IDENTITY_DEFINITION_VERSION,
+                activityScope: "identified_valid_classified_business_activity",
+              },
+              from: b.from,
+              to: b.to,
+              timezone: query.timezone,
+              observedNumerator: observation?.buckets[i]?.uv ?? null,
+            }),
             reason,
-            metrics: evaluate(
-              observation ? businessFactWindow(observation.buckets[i]!) : fact,
-              selected,
-              reason,
-            ).map((m) => ({
+            metrics: evaluate(bucketFact, selected, reason).map((m) => ({
               metricKey: m.definition.metricKey,
               value: m.value,
               rawValue: m.rawValue,
@@ -332,23 +440,18 @@ export class BusinessAnalysisService {
         observationScope: "page_view only",
         complete: false,
       },
-      penetration: {
-        metricKey: "module_penetration",
-        value: null,
-        numerator: observation?.window.uv ?? null,
-        numeratorStatus: "observed_page_view_only",
-        denominator: null,
-        denominatorSource: null,
-        directoryVersion: null,
-        sourceVersion: null,
-        observationWindow: null,
-        coverage: "unknown",
-        estimated: false,
-        availability: "unavailable",
-        reason: "PENETRATION_WINDOW_DECISION_REQUIRED",
-        explanation:
-          "未发现受治理系统用户目录。90日活跃近似的锚点及长范围语义待确认；未启用近似计算，不改变分子窗口。",
-      },
+      penetration: evaluateModulePenetration({
+        scope: {
+          projectId,
+          env: query.env,
+          identityVersion: IDENTITY_DEFINITION_VERSION,
+          activityScope: "identified_valid_classified_business_activity",
+        },
+        from: query.from,
+        to: query.to,
+        timezone: query.timezone,
+        observedNumerator: observation?.window.uv ?? null,
+      }),
       workflows: snapshot.workflows.map((w) => ({
         id: String(w.id),
         workflowKey: String(w.workflow_key),
@@ -361,10 +464,14 @@ export class BusinessAnalysisService {
         stepOrder: Number(w.step_order ?? 0),
         activatedAt: iso(w.activated_at),
       })),
-      workflowFacts: { status: "not_collected", reason: "工作流事实将在 R4-B 接入" },
+      workflowAnalysis,
+      workflowFacts: workflowAnalysis
+        ? { status: workflowAnalysis.status, reason: workflowAnalysis.reason }
+        : { status: "not_collected", reason: "未安装工作流事实查询服务" },
       diagnostics: {
         metadataQueries,
-        clickHouseQueries,
+        clickHouseQueries:
+          clickHouseQueries + (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,
         scans: observation?.statistics ?? null,
         physicalRetentionDays: 90,

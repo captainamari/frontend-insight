@@ -1,3 +1,4 @@
+import { WorkflowRuntime, type WorkflowDefinition } from "./workflow.js";
 import type {
   FrontendInsightEventBatchV3,
   FrontendInsightEventName,
@@ -35,7 +36,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.4.0";
+const SDK_VERSION = "0.5.0";
 const deviceStorageKey = "frontend-insight.device-id.v2";
 const canonicalCustomNames = new Set<string>(STANDARD_CUSTOM_EVENT_NAMES);
 
@@ -88,6 +89,7 @@ export class BrowserTracker implements Tracker {
     duplicateOperationTerminals: 0,
     warnings: [],
   };
+  private readonly workflows: WorkflowRuntime;
   private readonly registeredFeatures: ReadonlySet<string> | null;
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
@@ -130,12 +132,29 @@ export class BrowserTracker implements Tracker {
     },
     private readonly runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
+    workflowDefinitions: readonly WorkflowDefinition[] = [],
   ) {
     this.registeredFeatures = registeredFeatures ? new Set(registeredFeatures) : null;
     this.deviceId = this.loadOrCreateDevice();
     this.sessionId = id(runtime, "ses");
     this.pageViewId = id(runtime, "pv");
     this.lastActivityAt = runtime.now();
+    try {
+      const saved = JSON.parse(
+        runtime.sessionStorage?.getItem(this.sessionStorageKey()) ?? "null",
+      ) as { id?: unknown; at?: unknown } | null;
+      if (
+        saved &&
+        typeof saved.id === "string" &&
+        /^ses_[0-9a-f]{32}$/.test(saved.id) &&
+        typeof saved.at === "number" &&
+        saved.at <= runtime.now() &&
+        runtime.now() - saved.at <= config.sessionTimeoutMs
+      )
+        this.sessionId = saved.id;
+    } catch {
+      this.warn("SESSION_STORAGE_UNAVAILABLE");
+    }
     this.visibleStartedAt = this.isVisible() ? this.lastActivityAt : null;
     this.pageRoute = this.resolvePageRoute();
     this.originalPushState = runtime.window.history.pushState.bind(
@@ -152,6 +171,33 @@ export class BrowserTracker implements Tracker {
           (event, payload) => this.emit(event, payload),
         )
       : null;
+    this.workflows = new WorkflowRuntime(
+      {
+        runtime,
+        persistence: {
+          read: () =>
+            JSON.parse(
+              runtime.sessionStorage?.getItem(
+                this.sessionStorageKey() + ".workflows",
+              ) ?? "null",
+            ),
+          write: (value) =>
+            runtime.sessionStorage?.setItem(
+              this.sessionStorageKey() + ".workflows",
+              JSON.stringify(value),
+            ),
+        },
+        session: () =>
+          this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs
+            ? "expired"
+            : this.sessionId,
+        emit: (name, control) => this.emit("custom", { name, ...control }),
+        operation: (key, payload, interaction, association, onTerminal) =>
+          this.associatedOperation(key, payload, interaction, association, onTerminal),
+        warn: (code) => this.drop(code),
+      },
+      workflowDefinitions,
+    );
     this.emit("page_view", {});
     this.observability?.start();
     this.installLifecycle();
@@ -159,6 +205,10 @@ export class BrowserTracker implements Tracker {
       () => void this.flush("normal"),
       config.flushIntervalMs,
     );
+  }
+
+  private sessionStorageKey() {
+    return `frontend-insight.session.${this.config.appId}.${this.config.env}`;
   }
 
   private loadOrCreateDevice(): string {
@@ -264,6 +314,14 @@ export class BrowserTracker implements Tracker {
       this.sessionId = id(this.runtime, "ses");
     }
     this.lastActivityAt = now;
+    try {
+      this.runtime.sessionStorage?.setItem(
+        this.sessionStorageKey(),
+        JSON.stringify({ id: this.sessionId, at: now }),
+      );
+    } catch {
+      this.warn("SESSION_STORAGE_UNAVAILABLE");
+    }
   }
 
   private emit(
@@ -365,7 +423,11 @@ export class BrowserTracker implements Tracker {
   }
 
   track(name: string, payload: EventPayload = {}): void {
-    this.safe(() => this.custom(name, payload));
+    this.safe(() =>
+      name.startsWith("workflow_")
+        ? this.drop("WORKFLOW_HANDLE_REQUIRED")
+        : this.custom(name, payload),
+    );
   }
 
   featureExposed(featureKey: string, payload: EventPayload = {}): void {
@@ -393,12 +455,38 @@ export class BrowserTracker implements Tracker {
     });
   }
 
+  getActiveWorkflows(workflowKey: string) {
+    return this.workflows.handles(workflowKey);
+  }
+
+  startWorkflow(workflowKey: string) {
+    this.refreshSession();
+    return this.workflows.start(workflowKey);
+  }
+
   startOperation(
-    featureKey: string,
+    operationKey: string,
     payload: EventPayload = {},
     interactionType: InteractionType = "programmatic",
   ): OperationHandle {
-    if (this.destroyed) {
+    return this.associatedOperation(operationKey, payload, interactionType);
+  }
+
+  private associatedOperation(
+    operationKey: string,
+    payload: EventPayload = {},
+    interactionType: InteractionType = "programmatic",
+    association: EventPayload = {},
+    onTerminal?: (state: string, operationInstanceId: string) => void,
+  ): OperationHandle {
+    if (
+      this.destroyed ||
+      !/^[a-z][a-z0-9_]{0,63}$/.test(operationKey) ||
+      (this.registeredFeatures && !this.registeredFeatures.has(operationKey)) ||
+      !normalizePayload(payload) ||
+      (Boolean(association.workflowInstanceId) && Object.keys(payload).length > 0)
+    ) {
+      this.drop("OPERATION_CONFIG_INVALID");
       return {
         succeed() {},
         fail() {},
@@ -409,9 +497,10 @@ export class BrowserTracker implements Tracker {
     const operationInstanceId = id(this.runtime, "op");
     let state: OperationState = "started";
     this.safe(() =>
-      this.feature("feature_started", featureKey, payload, {
+      this.feature("feature_started", operationKey, payload, {
         operationInstanceId,
         interactionType,
+        ...association,
       }),
     );
     const terminal = (
@@ -432,12 +521,21 @@ export class BrowserTracker implements Tracker {
           this.drop("REASON_CODE_INVALID");
           return;
         }
+        if (
+          !normalizePayload(terminalPayload) ||
+          (association.workflowInstanceId && Object.keys(terminalPayload).length)
+        ) {
+          this.drop("OPERATION_PAYLOAD_REJECTED");
+          return;
+        }
         state = next;
-        this.feature(`feature_${next}`, featureKey, terminalPayload, {
+        this.feature(`feature_${next}`, operationKey, terminalPayload, {
           operationInstanceId,
           interactionType,
-          ...(reasonCode ? { reasonCode } : {}),
+          ...association,
+          ...(reasonCode && !association.workflowInstanceId ? { reasonCode } : {}),
         });
+        onTerminal?.(next, operationInstanceId);
       });
     };
     return Object.freeze({
@@ -614,6 +712,7 @@ export class BrowserTracker implements Tracker {
 
   destroy(): void {
     if (this.destroyed) return;
+    this.workflows.destroy();
     this.observability?.stop();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);

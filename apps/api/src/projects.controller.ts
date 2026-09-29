@@ -110,6 +110,9 @@ export const projectOverviewSchema = z
 export const businessAnalysisSchema = projectOverviewSchema
   .extend({
     moduleId: z.string().uuid().optional(),
+    workflowPage: z.coerce.number().int().min(1).max(100).optional(),
+    workflowVersion: z.string().uuid().optional(),
+    workflowEvidencePage: z.coerce.number().int().min(1).max(1000).optional(),
     versionId: z.string().uuid().optional(),
   })
   .strict();

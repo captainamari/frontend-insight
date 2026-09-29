@@ -261,7 +261,7 @@ export interface ScopedWorkflowInstance {
   weight: number;
   durationMs: number | null;
 }
-/** Instances already assigned to one approved query scope by the future R4-B fact service. */
+/** Instances already assigned to one approved query scope by the R4-B fact service. */
 export function workflowScoreSamples(instances: readonly ScopedWorkflowInstance[]) {
   const unique = [...new Map(instances.map((i) => [i.workflowInstanceId, i])).values()];
   if (unique.some((i) => !Number.isFinite(i.weight) || i.weight <= 0))

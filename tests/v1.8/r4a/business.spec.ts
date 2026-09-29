@@ -29,7 +29,7 @@ async function ready(page: Page) {
     page.getByRole("button", { name: "刷新业务分析", exact: true }),
   ).toBeEnabled();
   await expect(
-    page.getByText("工作流事实将在 R4-B 接入", { exact: true }),
+    page.getByRole("heading", { name: "工作流追踪", exact: true }),
   ).toBeVisible();
 }
 async function api(page: Page, path: string, method = "GET", body?: unknown) {

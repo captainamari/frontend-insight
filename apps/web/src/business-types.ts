@@ -23,7 +23,23 @@ export interface BusinessResponse {
   }[];
   moduleId: string | null;
   moduleRevisions: unknown[];
-  metrics: OverviewResponse["metrics"];
+  metrics: Omit<OverviewResponse["metrics"], "trends" | "cards"> & {
+    cards: (OverviewResponse["metrics"]["cards"][number] & {
+      workflowBreakdown?: {
+        workflowKey: string;
+        versionId: string;
+        version: number;
+        p50: number | null;
+        p90: number | null;
+        p75: number | null;
+        p99: number | null;
+        sample: number;
+      }[];
+    })[];
+    trends: (OverviewResponse["metrics"]["trends"][number] & {
+      penetration?: { observationWindow: { from: string; to: string }; reason: string };
+    })[];
+  };
   observation: BusinessObservation | null;
   pages: {
     pageId: string;
@@ -48,6 +64,7 @@ export interface BusinessResponse {
     complete: boolean;
   };
   penetration: {
+    observationWindow?: { from: string; to: string };
     value: number | null;
     numerator: number | null;
     denominator: number | null;
@@ -66,6 +83,77 @@ export interface BusinessResponse {
     stepName: string | null;
     stepOrder: number;
   }[];
+  workflowAnalysis?: WorkflowAnalysis | null;
   workflowFacts: { status: string; reason: string };
   diagnostics: OverviewResponse["diagnostics"];
+}
+
+export interface WorkflowAnalysis {
+  collector: string;
+  configurationStatus: string;
+  context: { asOf: string; cohort: string; terminalWindow: string; completion: string };
+  status: string;
+  reason: string;
+  availableFrom: string | null;
+  coverage: string;
+  page: number;
+  pageSize: number;
+  totalDefinitions: number;
+  definitions: {
+    id: string;
+    versionId: string;
+    workflowKey: string;
+    name: string;
+    version: number;
+    sampleState: string;
+    started: number;
+    completed: number;
+    failed: number;
+    canceled: number;
+    approximate_abandoned: number;
+    inProgress: number;
+    unresolved: number;
+    unidentified: number;
+    successRate: number | null;
+    task_duration: {
+      p50: number | null;
+      p90: number | null;
+      p75: number | null;
+      p99: number | null;
+      sample: number;
+      algorithm: string;
+    };
+    stages: {
+      stepKey: string;
+      name: string;
+      stepOrder: number;
+      reached: number;
+      rate: number | null;
+      adjacentDropoff: number | null;
+      adjacentDuration: { p50: number | null; p90: number | null; sample: number };
+    }[];
+    trends: {
+      from: string;
+      to: string;
+      started: number;
+      completed: number;
+      successRate: number | null;
+    }[];
+  }[];
+  evidence: {
+    workflowInstanceId: string;
+    workflowKey: string;
+    versionId: string;
+    startedAt: string;
+    terminalAt: string | null;
+    state: string;
+    durationMs: number | null;
+    identified: boolean;
+    reasons: string[];
+    path_steps: unknown;
+  }[];
+  evidencePage: number;
+  evidenceTotal: number;
+  evidenceLimit: number;
+  evidenceTruncated: boolean;
 }

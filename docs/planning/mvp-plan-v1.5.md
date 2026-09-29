@@ -1,5 +1,8 @@
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
+> **R4-A 页面验收与 R4-B 授权 · 2026-09-28**：R4-A 页面手工验收通过；用户批准 R4-A 已记录的推荐方案；相关代码收尾随本批落实，随后交付 R4-B。2026-09-28 是确认日期，不补造手工步骤、设备或截图。`refactor` 实际起点为 `76a96dea8aeb00db9088e2547250aaa59034a629`，包含 PR #19 / R4-A `7f1d9c89f2c4b10f14003d65d292fb56f6936c76`。旧阶段门保留为历史，不再阻断 R4-B。批准不等于近似计算已实现或正式事实已有覆盖；实现及验证见 [R4-B results](../progress/v1.8-r4b-results.md)。R3 原记录仍为“R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。”Q07 独立未决，不新增步骤权重评分。不自动合并，不进入 R4-C。
+
+
 > **R4-A 实施状态 · 2026-09-26**：已实现正式业务分析路由、版本化业务展示绑定、模块批量读模型、时态页面构成、同源趋势和专项门禁；最终自动化以本提交完整Actions及实际checkout证据为准。`module_penetration` 的90日近似窗口是局部未决，未启用计算，不阻断其他实现。未宣称R4-A完整验收通过。详见 [R4-A results](../progress/v1.8-r4a-results.md) 与 decisions。
 
 > **R3 授权与 R4-A 继承 · 2026-09-18 用户确认，本次同步**：R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。R3 最终提交 `96db4d9ad6e0a774c014cb6e55003e5887ee0edd`，Actions `35225954810` 为 success。R3 关键体验并入 R4-A 联合手工验收；未执行或虚构 R3 独立手工步骤、日期、截图。周一、含今日第 N 日零点至当前瞬时、显式 from/to 优先、URL 展示偏好及 R3 其他原建议已获确认。Q04/Q05、Jesse owner、D2/D3-A/D4-A 继承；Q07 独立未决。旧“不得进入 R4”保留为历史，由本次授权解除。本次只实施 R4-A，不自动合并或进入 R4-B。
@@ -619,7 +622,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 工作分支：`agent/v1-8-r4a-business-analysis`
 
-实施进度（不代表最终门禁或手工通过）：以下明确部分已落地；自动化证据见 R4-A results。
+当前阶段门：2026-09-28 Jesse 确认 R4-A 页面手工验收通过，并批准已有推荐方案；以下保留原交付范围，批准方案的代码收尾及验证另见 R4-B results。
 
 ### 13.1 后端
 
@@ -629,7 +632,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 - [x] 排除未归类/停用页面；
 - [x] 指标 display bindings；
 - [ ] `module_penetration`：去重 `userId` / 系统总用户数，返回分母来源与目录版本；
-- [ ] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；
+- [x] 90 日活跃用户近似分母只能显式标记 `estimated`，不能静默冒充编制人数；R4-B 随批实现，缺可信来源时仍不可用，最终真实回归另记；
 - [ ] `pv/uv/task_duration/operation_fail_rate` 等可聚合指标按附件 key 返回：pv/uv观察已实现，正式完整性及task/质量事实不绕过后置门禁；
 - [x] 功能模块趋势逐桶公式；
 - [x] 功能模块 data status 和 sample。
@@ -645,53 +648,55 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 13.3 阶段门
 
-当前仍为待验收；渗透率近似窗口局部未决，不能勾选全阶段通过。
+历史状态为“待验收；渗透率近似窗口局部未决”。2026-09-28 已确认页面验收通过及选项 A 获批；收尾代码与本批 R4-B 一起验证，不把批准当作计算已验收。
 
 同一功能模块的卡片、趋势和原始页面汇总手算一致；`module_penetration` 的分子、分母和目录版本可解释；切换功能模块和时间范围后 URL 可恢复。
 
 ## 14. R4-B：业务分析——多阶段工作流
 
-建议分支：`agent/v1-8-r4b-workflow-tracking`
+工作分支：`agent/v1-8-r4b-workflow-tracking`
+
+实现与验收分开记录：下列勾选表示代码已落地，不表示Jesse手工验收通过。§14.4真实SDK与继承回归的最终门禁必须核对同一提交的Actions及artifact；手工仍待Jesse。逐项位置、证据、门禁状态及Q08受影响实例处理见 [R4-B results](../progress/v1.8-r4b-results.md)。
 
 ### 14.1 SDK/contract
 
-- [ ] contract v3 schema/types/golden fixtures；
-- [ ] `startWorkflow(workflowKey)` handle；
-- [ ] `reachStep(stepKey)`；
-- [ ] workflow handle 增加 `startOperation(operationKey, payload?, interactionType?)`（或 ADR 确认的等价嵌套 API），同时生成随机 operation/workflow instance 关联；业务方不能传 instance ID；
-- [ ] 保留独立 `tracker.startOperation(featureKey)` 的单次 operation 能力，但未显式绑定 workflow handle 时不得驱动 workflow step；
-- [ ] 已登记且 `operationLifecycleEnabled=true` 的 `featureKey` 收敛为工作流配置中的 `operationKey` 来源，不建立双 key；参数/DTO 的最终规范名由 breaking Pre-1.0 ADR 冻结；
-- [ ] operation 终态使用 `succeeded/failed/canceled`，`completed` 只表示 workflow 成功；关联 operation 终态按激活定义中的 `operationKey + state` 达成对应步骤；
-- [ ] complete/fail/cancel；
-- [ ] instance ID 由 SDK 生成；
-- [ ] terminal 只生效一次；
-- [ ] 跨页面实例只在受控 session 范围内保存，TTL 到期清除；
-- [ ] data-fi-action/ID adapter；
-- [ ] 网络/lifecycle adapter 显式 opt-in；
-- [ ] 宿主异常隔离和 bundle diff。
+- [x] contract v3 schema/types/golden fixtures；
+- [x] `startWorkflow(workflowKey)` handle；
+- [x] `reachStep(stepKey)`；
+- [x] workflow handle 增加 `startOperation(operationKey, payload?, interactionType?)`（或 ADR 确认的等价嵌套 API），同时生成随机 operation/workflow instance 关联；业务方不能传 instance ID；
+- [x] 保留独立 `tracker.startOperation(operationKey)` 的单次 operation 能力，但未显式绑定 workflow handle 时不得驱动 workflow step；
+- [x] 已登记且 `operationLifecycleEnabled=true` 的 `featureKey` 收敛为工作流配置中的 `operationKey` 来源，不建立双 key；参数/DTO 的最终规范名由 breaking Pre-1.0 ADR 冻结；
+- [x] operation 终态使用 `succeeded/failed/canceled`，`completed` 只表示 workflow 成功；关联 operation 终态按激活定义中的 `operationKey + state` 达成对应步骤；
+- [x] complete/fail/cancel；
+- [x] instance ID 由 SDK 生成；
+- [x] terminal 只生效一次；
+- [x] 跨页面实例只在受控 session 范围内保存，TTL 到期清除；
+- [x] data-fi-action/ID adapter；
+- [x] 网络/lifecycle adapter 显式 opt-in；
+- [x] 宿主异常隔离和 bundle diff。
 
 ### 14.2 ingestion/consumer
 
-- [ ] v3 权威校验；
-- [ ] step key/version/order；
-- [ ] operation/workflow 显式关联校验；拒绝无关联实例、错误 `operationKey/state` 和跨项目/跨版本匹配；
-- [ ] 禁止按同一 session、最近事件或时间邻近关系推断 operation 属于哪个 workflow instance；
-- [ ] ClickHouse 新字段；
-- [ ] 重复、乱序、冲突终态诊断；
-- [ ] 日志/死信无 payload；
-- [ ] 完成 v3 后删除 v1/v2 接收测试。
+- [x] v3 权威校验；
+- [x] step key/version/order；
+- [x] operation/workflow 显式关联校验；拒绝无关联实例、错误 `operationKey/state` 和跨项目/跨版本匹配；
+- [x] 禁止按同一 session、最近事件或时间邻近关系推断 operation 属于哪个 workflow instance；
+- [x] ClickHouse字段运行链路：复用R1-A已迁移字段，补齐v3写入/读取，不重复建列；
+- [x] 重复、乱序、冲突终态诊断；
+- [x] 日志/死信无 payload；
+- [x] 完成v3后删除/改造v1/v2正向接收路径，保留旧协议及alias拒绝回归。
 
 ### 14.3 查询
 
-- [ ] started、每阶段到达、终态；
-- [ ] 阶段到达率和流失；
-- [ ] `task_duration` 总耗时按任务类型输出 P50/P90，并同时提供 P75/P99；
-- [ ] 工作流阶段耗时作为独立扩展指标，不占用 `task_duration` key；
-- [ ] 并发实例；
-- [ ] 超时后 approximate abandonment；
-- [ ] availableFrom 和 definition version；
-- [ ] `path_steps`：任务完成前去重页面数、总步数和回退步数；
-- [ ] 任务前功能模块跨度作为扩展诊断字段。
+- [x] started、每阶段到达、终态；
+- [x] 阶段到达率和流失；
+- [x] `task_duration` 总耗时按任务类型输出 P50/P90，并同时提供 P75/P99；
+- [x] 工作流阶段耗时作为独立扩展指标，不占用 `task_duration` key；
+- [x] 并发实例；
+- [x] 超时后 approximate abandonment；
+- [x] availableFrom 和 definition version；
+- [x] `path_steps`：任务完成前去重页面数、总步数和回退步数；
+- [x] 任务前功能模块跨度作为扩展诊断字段。
 
 ### 14.4 E2E 与阶段门
 

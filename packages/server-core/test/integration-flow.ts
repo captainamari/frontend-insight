@@ -158,10 +158,85 @@ async function verifyDocumentedLogins() {
 const seedSnapshot = await verifySeedSnapshot();
 const documentedLogins = await verifyDocumentedLogins();
 
+// Workflow contract fixtures now need an authorized active definition. Keep the
+// baseline seed untouched: this project is isolated from subsequent R1–R4 gates.
+async function prepareWorkflowFixture() {
+  const login = await jsonRequest("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      email: m5Fixture.admin.email,
+      password: m5Fixture.admin.password,
+    }),
+  });
+  const headers = {
+    "content-type": "application/json",
+    authorization: `Bearer ${String(login.body.accessToken)}`,
+  };
+  const post = async (path: string, data: unknown) => {
+    const r = await jsonRequest(path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(data),
+    });
+    assert(
+      r.response.status === 201,
+      `workflow fixture setup failed: ${r.response.status}`,
+    );
+    return r.body;
+  };
+  const project = await post("/api/projects", {
+    name: "R0 isolated workflow contract",
+    timezone: "UTC",
+    origins: [origin],
+  });
+  const root = `/api/projects/${String(project.id)}`;
+  const module = await post(root + "/modules", {
+    moduleKey: "contract_workflow",
+    name: "Contract workflow",
+  });
+  const workflow = await post(root + "/workflow-definitions", {
+    moduleId: module.id,
+    workflowKey: "admin_model_download",
+    name: "Contract download",
+    startPolicy: "explicit_sdk",
+    timeoutSeconds: 600,
+    terminalPolicy: {
+      completedStepKey: "transfer_completed",
+      failedStepKey: null,
+      canceledStepKey: null,
+      timeoutState: "approximate_abandoned",
+    },
+    steps: ["download_requested", "transfer_started", "transfer_completed"].map(
+      (stepKey, i) => ({
+        stepKey,
+        name: stepKey,
+        stepOrder: i + 1,
+        triggerKind: "explicit_sdk",
+        triggerConfig: {},
+      }),
+    ),
+  });
+  await post(root + `/workflow-definitions/${String(workflow.id)}/activate`, {
+    versionId: (workflow.latestVersion as { id: string }).id,
+  });
+  return String(project.appId);
+}
+const workflowFixtureAppId = await prepareWorkflowFixture();
 const startedAt = Date.now();
 const batches = contractScenarios.map((scenario, index) =>
   shiftedBatch(scenario.valid, startedAt - (index + 1) * 1_000, index + 1),
 );
+for (const batch of batches) {
+  if (batch.events.some((e) => e.payload.workflowInstanceId)) {
+    const delta = startedAt - batch.events[0]!.timestamp;
+    for (const event of batch.events) {
+      event.appId = workflowFixtureAppId;
+      event.timestamp += delta;
+    }
+    batch.sentAt = startedAt;
+  }
+}
 const eventIds = batches.flatMap((batch) => batch.events.map((event) => event.eventId));
 
 for (const batch of batches) {
@@ -218,13 +293,13 @@ try {
     query: `
       SELECT
         countIf(schema_version != 3) AS non_v3,
-        countIf(app_id != {appId:String}) AS wrong_app,
+        countIf(app_id NOT IN {appIds:Array(String)}) AS wrong_app,
         countIf(user_id IS NOT NULL AND length(user_id) != 64) AS invalid_user_hash,
         countIf(position(page_url, '?') > 0 OR position(page_url, '#') > 0) AS unsafe_urls
       FROM raw_events
       WHERE event_id IN {eventIds:Array(String)}
     `,
-    query_params: { appId: m5Fixture.appId, eventIds },
+    query_params: { appIds: [m5Fixture.appId, workflowFixtureAppId], eventIds },
     format: "JSONEachRow",
   });
   const row = (

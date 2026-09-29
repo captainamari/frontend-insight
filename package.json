@@ -39,7 +39,9 @@
     "test:r3": "vitest run packages/event-contract/test/project-range.test.ts packages/server-core/test/project-overview.test.ts apps/api/test/project-overview.controller.test.ts packages/server-core/test/overview-facts.test.ts",
     "test:r3:e2e": "playwright test --config playwright.r3.config.ts",
     "test:r4a": "vitest run packages/server-core/test/business-analysis.test.ts packages/server-core/test/business-facts.test.ts apps/api/test/business-analysis.controller.test.ts",
-    "test:r4a:e2e": "playwright test --config playwright.r4a.config.ts"
+    "test:r4a:e2e": "playwright test --config playwright.r4a.config.ts",
+    "test:r4b": "vitest run packages/server-core/test/module-penetration.test.ts packages/server-core/test/workflow-reducer.test.ts packages/server-core/test/workflow-facts.test.ts packages/server-core/test/workflow-score-facts.test.ts packages/web-tracker/test/workflow.test.ts packages/test-fixtures/test/contract.test.ts apps/consumer/test/workflow-privacy.test.ts",
+    "test:r4b:e2e": "playwright test --config playwright.r4b.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

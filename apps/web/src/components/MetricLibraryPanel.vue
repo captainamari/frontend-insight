@@ -551,6 +551,26 @@ async function createDraft(sourceVersionId?: string): Promise<void> {
   }
 }
 
+async function refreshWorkflowFacts() {
+  if (!selectedVersion.value || selectedVersion.value.status !== "draft") return;
+  try {
+    await api.request(
+      `/api/projects/${props.projectId}/metrics/versions/${selectedVersion.value.id}/workflow-facts`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+    await loadVersion();
+    showMessage({
+      type: "success",
+      message: "工作流事实定义已更新到草稿；请检查差异并重新review，激活版本保持原快照",
+    });
+  } catch (cause) {
+    showMessage({
+      type: "error",
+      message: cause instanceof Error ? cause.message : "定义更新失败",
+    });
+  }
+}
+
 async function validateSelected(): Promise<void> {
   if (!selectedVersion.value) return;
   saving.value = true;
@@ -1161,6 +1181,15 @@ onBeforeUnmount(() => {
             v-if="canWrite && selectedVersion.status === 'draft'"
             @click="validateSelected"
             >服务端校验</el-button
+          >
+          <el-button
+            v-if="
+              props.canWrite &&
+              selectedVersion.libraryType === 'operational' &&
+              selectedVersion.status === 'draft'
+            "
+            @click="refreshWorkflowFacts"
+            >同步工作流事实定义到草稿</el-button
           >
           <el-button
             v-if="canWrite && ['draft', 'superseded'].includes(selectedVersion.status)"

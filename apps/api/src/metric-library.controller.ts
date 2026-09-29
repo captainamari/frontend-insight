@@ -105,6 +105,22 @@ export class MetricLibraryController {
     });
   }
 
+  @Post("versions/:versionId/workflow-facts")
+  async refreshWorkflowFacts(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    parseInput(z.object({}).strict(), body);
+    return this.core.metricLibrary.refreshWorkflowFacts(
+      projectId,
+      versionId,
+      principal,
+    );
+  }
+
   @Get("versions/:versionId")
   async version(
     @Param("projectId") projectId: string,

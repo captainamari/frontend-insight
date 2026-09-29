@@ -136,7 +136,7 @@ describe("R4-A module aggregation and shared evaluator", () => {
     )[0]!;
     expect(result.value).toBeNull();
     expect(result.rawValue).toBeNull();
-    expect(result.reason).toContain("R4-B");
+    expect(result.reason).toContain("缺样本或覆盖不足不可用");
     expect(f.inputs.task_duration).toBeUndefined();
   });
   it("never relabels prior identity definitions or crosses activation boundaries", () => {

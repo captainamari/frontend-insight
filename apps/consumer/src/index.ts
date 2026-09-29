@@ -5,6 +5,8 @@ import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { validateForConsumer } from "@frontend-insight/event-contract";
 import {
   MySqlStore,
+  readWorkflowFactDefinitions,
+  workflowEventDefinitionError,
   type EventEnrichment,
   type KafkaEventEnvelope,
 } from "@frontend-insight/server-core";
@@ -26,6 +28,7 @@ interface ConsumerMetrics {
   insertedBatches: number;
   retries: number;
   deadLetters: number;
+  lastDeadLetterCode: string | null;
   lag: number;
   lastErrorCode: string | null;
 }
@@ -101,6 +104,7 @@ export class EventConsumerRuntime {
     insertedBatches: 0,
     retries: 0,
     deadLetters: 0,
+    lastDeadLetterCode: null,
     lag: 0,
     lastErrorCode: null,
   };
@@ -173,9 +177,61 @@ export class EventConsumerRuntime {
       const envelopes: KafkaEventEnvelope[] = [];
       const rows: unknown[] = [];
       const acceptedMessages: typeof messages = [];
+      const parsedMessages: {
+        message: (typeof messages)[number];
+        envelope: KafkaEventEnvelope;
+      }[] = [];
       for (const message of messages) {
         try {
           const envelope = this.parseEnvelope(message.value);
+          parsedMessages.push({ message, envelope });
+        } catch (cause) {
+          await this.deadLetter(message.value, {
+            topic: batch.topic,
+            partition: batch.partition,
+            offset: message.offset,
+            code: errorCode(cause),
+          });
+          resolveOffset(message.offset);
+        }
+      }
+      const workflowProjectIds = [
+        ...new Set(
+          parsedMessages
+            .filter(({ envelope }) =>
+              envelope.batch.events.some((event) => event.payload.workflowInstanceId),
+            )
+            .map(({ envelope }) => envelope.projectId),
+        ),
+      ];
+      // Metadata failures retry the batch; they are not poison-event evidence.
+      const definitions = workflowProjectIds.length
+        ? await readWorkflowFactDefinitions(this.mysql.pool, workflowProjectIds)
+        : [];
+      const [projectRows] = workflowProjectIds.length
+        ? await this.mysql.pool.query(
+            "SELECT id,app_id FROM projects WHERE id IN (?)",
+            [workflowProjectIds],
+          )
+        : [[]];
+      const projects = projectRows as { id: string; app_id: string }[];
+      for (const { message, envelope } of parsedMessages) {
+        try {
+          if (envelope.batch.events.some((event) => event.payload.workflowInstanceId)) {
+            const project = projects.find((p) => p.id === envelope.projectId);
+            if (
+              !project ||
+              envelope.batch.events.some((event) => event.appId !== project.app_id)
+            )
+              throw new Error("WORKFLOW_PROJECT_CONTEXT_INVALID");
+            for (const event of envelope.batch.events) {
+              const error = workflowEventDefinitionError(
+                event,
+                definitions.filter((d) => d.projectId === envelope.projectId),
+              );
+              if (error) throw new Error(error);
+            }
+          }
           rows.push(...this.rows(envelope));
           envelopes.push(envelope);
           acceptedMessages.push(message);
@@ -236,7 +292,13 @@ export class EventConsumerRuntime {
     } catch {
       throw new Error("KAFKA_ENVELOPE_INVALID");
     }
-    if (parsed.envelopeVersion !== 1 || !parsed.projectId || !parsed.requestId) {
+    if (
+      parsed.envelopeVersion !== 1 ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        parsed.projectId,
+      ) ||
+      !parsed.requestId
+    ) {
       throw new Error("KAFKA_ENVELOPE_INVALID");
     }
     const validation = validateForConsumer(parsed.batch);
@@ -355,6 +417,13 @@ export class EventConsumerRuntime {
       projectId =
         (JSON.parse(value?.toString("utf8") ?? "{}") as { projectId?: string })
           .projectId ?? null;
+      if (
+        typeof projectId !== "string" ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          projectId,
+        )
+      )
+        projectId = null;
     } catch {
       // Do not include the raw poison payload in dead letter data.
     }
@@ -374,6 +443,7 @@ export class EventConsumerRuntime {
     });
     if (projectId) await this.mysql.markDeadLetter(projectId).catch(() => {});
     this.metrics.deadLetters += 1;
+    this.metrics.lastDeadLetterCode = metadata.code;
   }
 
   private startHealthServer(): void {
