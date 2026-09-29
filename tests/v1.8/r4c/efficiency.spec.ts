@@ -113,6 +113,28 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   expect(JSON.stringify(result)).not.toMatch(
     /u_isolated_opaque|dept_fixture|role_fixture|payload_json/,
   );
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole("button", { name: "执行表单与业务结果" }).click();
+    await expect
+      .poll(
+        async () => {
+          const response = await request.get(root + "/business?" + query, { headers });
+          expect(response.status()).toBe(200);
+          result = await response.json();
+          return result.efficiency.form_efficiency.observations[0]?.submits;
+        },
+        { timeout: 30000 },
+      )
+      .toBe(4 + i * 2);
+  }
+  expect(result.efficiency.form_efficiency.results[0]).toMatchObject({
+    changesPerSubmit: 1.5,
+    resetRate: 0.5,
+    validationErrorRate: 0.5,
+    sampleSize: 6,
+  });
+  expect(result.efficiency.operation_fail_rate.observedValue).toBeNull();
+  expect(result.efficiency.definitionVersion).toBe("r4c-facts-2026-09-29.1");
   await page.goto("/login");
   await page.getByLabel("邮箱").fill("admin@example.invalid");
   await page.getByLabel("密码").fill("LocalAdmin-1234");

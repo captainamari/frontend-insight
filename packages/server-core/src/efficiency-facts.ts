@@ -1,3 +1,4 @@
+import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 import type { CalendarBucket } from "@frontend-insight/event-contract/project-range";
 import {
   organizationWindowReason,
@@ -189,7 +190,7 @@ export function reduceEfficiency(
     unidentified,
     coverage: "unknown",
     asOf: new Date(asOf).toISOString(),
-    definitionVersion: "r4c-efficiency-2026-09-29.1",
+    definitionVersion: R4C_FACT_DEFINITION_VERSION,
   };
 }
 export class EfficiencyFactStore {
@@ -210,25 +211,31 @@ export class EfficiencyFactStore {
   }
   async readOrganization(context: OrganizationContext) {
     const reason = organizationWindowReason(context);
-    if (reason) return { ...reduceOrganization([], context), queries: 0 };
+    if (reason)
+      return { ...reduceOrganization([], context), queries: 0, statistics: null };
     const result = await this.client.query({
-      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,event,user_id AS user,session_id AS session,page_route AS page,page_view_id AS pageView,directory_version_id AS directory,dept_id AS dept,role_id AS role,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<=fromUnixTimestamp64Milli({asOf:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (event IN ('page_view','page_leave') OR (event='custom' AND JSONExtractBool(payload_json,'businessAdapter'))) LIMIT 50001`,
+      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,event,user_id AS user,session_id AS session,page_route AS page,page_view_id AS pageView,directory_version_id AS directory,dept_id AS dept,role_id AS role,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (event IN ('page_view','page_leave') OR (event='custom' AND JSONExtractBool(payload_json,'businessAdapter'))) LIMIT 50001`,
       query_params: {
         project: context.projectId,
         env: context.env,
         from: Date.parse(context.buckets[0]!.from),
         asOf: context.asOf,
+        end: Math.min(
+          context.asOf + 1,
+          Date.parse(context.buckets.at(-1)!.to) + 86400000,
+        ),
       },
-      format: "JSONEachRow",
+      format: "JSON",
       clickhouse_settings: {
         max_execution_time: 2,
         max_rows_to_read: "1000000",
         read_overflow_mode: "throw",
       },
     });
-    const rows = await result.json<
+    const body = await result.json<
       Omit<OrganizationEvent, "payload"> & { payload_json: string }
     >();
+    const rows = body.data;
     if (rows.length > 50000) throw new Error("ORGANIZATION_FACT_LIMIT");
     return {
       ...reduceOrganization(
@@ -241,6 +248,13 @@ export class EfficiencyFactStore {
         context,
       ),
       queries: 1,
+      statistics: body.statistics
+        ? {
+            rowsRead: body.statistics.rows_read,
+            bytesRead: body.statistics.bytes_read,
+            elapsedSeconds: body.statistics.elapsed,
+          }
+        : null,
     };
   }
 
@@ -262,16 +276,17 @@ export class EfficiencyFactStore {
         from: Date.parse(from),
         asOf: asOf.valueOf(),
       },
-      format: "JSONEachRow",
+      format: "JSON",
       clickhouse_settings: {
         max_execution_time: 2,
         max_rows_to_read: "1000000",
         read_overflow_mode: "throw",
       },
     });
-    const rows = await result.json<
+    const body = await result.json<
       Omit<EfficiencyEvent, "payload"> & { payload_json: string }
     >();
+    const rows = body.data;
     if (rows.length > 50000) throw new Error("EFFICIENCY_FACT_LIMIT");
     const events = rows.map((r) => ({
       ...r,
@@ -304,6 +319,13 @@ export class EfficiencyFactStore {
         moduleId,
       ),
       trends,
+      statistics: body.statistics
+        ? {
+            rowsRead: body.statistics.rows_read,
+            bytesRead: body.statistics.bytes_read,
+            elapsedSeconds: body.statistics.elapsed,
+          }
+        : null,
     };
   }
 }

@@ -93,14 +93,14 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "form_efficiency",
     "displayName": "表单效率",
     "category": "operation",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {
     "metricKey": "operation_fail_rate",
     "displayName": "操作失败率",
     "category": "operation",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {
@@ -233,21 +233,21 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "dept_usage",
     "displayName": "部门使用率",
     "category": "organization",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {
     "metricKey": "role_usage",
     "displayName": "角色使用率",
     "category": "organization",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {
     "metricKey": "role_feature_profile",
     "displayName": "角色功能画像",
     "category": "organization",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {

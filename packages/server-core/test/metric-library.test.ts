@@ -174,3 +174,29 @@ describe("metric library snapshot validation", () => {
     );
   });
 });
+
+describe("R4-C immutable prior definitions", () => {
+  it("accepts historical system snapshots without relabeling or changing their status", () => {
+    const old = operationalSystems.map((d) =>
+      d.milestone === "R4-C"
+        ? {
+            ...d,
+            definitionVersion: "system-v1.8.0",
+            implementationStatus: "not_collected" as const,
+          }
+        : d,
+    );
+    const before = JSON.stringify(old);
+    expect(
+      validateMetricVersionSnapshot({
+        version: { ...version, status: "active" },
+        definitions: old,
+      }).errors,
+    ).toEqual([]);
+    expect(JSON.stringify(old)).toBe(before);
+    expect(
+      operationalSystems.find((d) => d.metricKey === "form_efficiency")
+        ?.implementationStatus,
+    ).toBe("partial");
+  });
+});

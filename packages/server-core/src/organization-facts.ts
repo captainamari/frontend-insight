@@ -1,3 +1,4 @@
+import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 import type { CalendarBucket } from "@frontend-insight/event-contract/project-range";
 import type { BusinessPageWindow } from "./business-facts.js";
 import { directoryAt, type DirectoryVersion } from "./organization-directory.js";
@@ -33,6 +34,8 @@ export function organizationWindowReason(c: OrganizationContext): string | null 
     return "TRUSTED_DIRECTORY_MISSING";
   if (!c.buckets.length || c.buckets.some((b) => b.partial))
     return "ORGANIZATION_FIXED_BUCKET_REQUIRED";
+  if (c.buckets.some((b) => Date.parse(b.from) < c.asOf - 90 * DAY))
+    return "FACT_RETENTION_RANGE_NOT_COVERED";
   if (c.buckets.some((b) => Date.parse(b.to) + DAY > c.asOf))
     return "ORGANIZATION_LATENESS_WINDOW_OPEN";
   for (const b of c.buckets) {
@@ -49,10 +52,15 @@ export function organizationWindowReason(c: OrganizationContext): string | null 
 }
 const blocked = (reason: string) => ({
   status:
-    reason === "ORGANIZATION_SMALL_GROUP" ? "privacy_suppressed" : "not_collected",
+    reason === "ORGANIZATION_SMALL_GROUP"
+      ? "privacy_suppressed"
+      : reason === "TRUSTED_DIRECTORY_MISSING"
+        ? "not_collected"
+        : "partial",
   reason,
   values: null,
-  definitionVersion: ORGANIZATION_POLICY_VERSION,
+  definitionVersion: R4C_FACT_DEFINITION_VERSION,
+  policyVersion: ORGANIZATION_POLICY_VERSION,
   coverage: "unknown",
 });
 export function reduceOrganization(
@@ -245,7 +253,8 @@ export function reduceOrganization(
   return {
     status: "partial",
     reason: "ORGANIZATION_ACTIVITY_COVERAGE_NOT_VERIFIED",
-    definitionVersion: ORGANIZATION_POLICY_VERSION,
+    definitionVersion: R4C_FACT_DEFINITION_VERSION,
+    policyVersion: ORGANIZATION_POLICY_VERSION,
     coverage: "observed_page_views_and_controlled_operation_starts",
     values: values.map((v) => ({
       from: v.b.from,

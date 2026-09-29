@@ -108,7 +108,13 @@ describe("R4-A module aggregation and shared evaluator", () => {
     expect(evaluateOverviewMetrics([pv], ["pv"], f, "day", null)[0]?.value).toBe(2);
     expect(
       evaluateOverviewMetrics(
-        [definition("operation_fail_rate")],
+        [
+          {
+            ...definition("operation_fail_rate"),
+            definitionVersion: "system-v1.8.0",
+            implementationStatus: "not_collected",
+          },
+        ],
         ["operation_fail_rate"],
         f,
         "day",

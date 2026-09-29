@@ -242,7 +242,7 @@ try {
     leave.pageViewId = view.pageViewId;
     leave.payload = { visibleDurationMs: 1000 };
     assert(validateForConsumer(batch).ok, "R4C_ORGANIZATION_FIXTURE_CONTRACT");
-    await publisher.publish({
+    const historicalEnvelope: KafkaEventEnvelope = {
       envelopeVersion: 1,
       projectId: historical.id,
       receivedAt: new Date(start + 3000).toISOString(),
@@ -255,7 +255,27 @@ try {
         featureId: null,
         directoryVersionId: historicalDirectory.id,
       })),
-    });
+    };
+    await publisher.publish(historicalEnvelope);
+    if (i < 4) {
+      const small = structuredClone(historicalEnvelope);
+      small.receivedAt = new Date(start + day + 3000).toISOString();
+      small.batch.sentAt += day;
+      small.requestId = randomUUID();
+      const smallPageViewId = `pv_${randomUUID().replaceAll("-", "")}`;
+      for (const event of small.batch.events) {
+        event.pageViewId = smallPageViewId;
+        event.eventId = `evt_${randomUUID().replaceAll("-", "")}`;
+        event.timestamp += day;
+      }
+      small.enrichments = small.batch.events.map((e) => ({
+        eventId: e.eventId,
+        userId: e.userId,
+        featureId: null,
+        directoryVersionId: historicalDirectory.id,
+      }));
+      await publisher.publish(small);
+    }
   }
   stage = "ORGANIZATION_REAL_AGGREGATE";
   const hquery = new URLSearchParams({
@@ -306,6 +326,63 @@ try {
     assert.equal(row.pv, 6, "R4C_ORGANIZATION_PV");
     assert.equal(row.visibleDurationMs, 6000, "R4C_ORGANIZATION_DURATION");
   }
+  stage = "ORGANIZATION_SUPPRESSION_AND_PERFORMANCE";
+  const smallQuery = new URLSearchParams(hquery);
+  smallQuery.set("from", new Date(start + day).toISOString());
+  smallQuery.set("to", new Date(start + 2 * day).toISOString());
+  const smallResponse = await fetch(api + hroot + "/business?" + smallQuery, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(smallResponse.status, 200, "R4C_SMALL_GROUP_API_STATUS");
+  const smallResult = (await smallResponse.json()) as {
+    organization: { status: string; values: unknown };
+  };
+  assert.equal(
+    smallResult.organization.status,
+    "privacy_suppressed",
+    "R4C_SMALL_GROUP_SUPPRESSION",
+  );
+  assert.equal(smallResult.organization.values, null, "R4C_SMALL_GROUP_FAMILY_NULL");
+  const unionQuery = new URLSearchParams(hquery);
+  unionQuery.set("to", new Date(start + 2 * day).toISOString());
+  const unionResponse = await fetch(api + hroot + "/business?" + unionQuery, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(unionResponse.status, 200, "R4C_UNION_API_STATUS");
+  assert.equal(
+    ((await unionResponse.json()) as { organization: { values: unknown } }).organization
+      .values,
+    null,
+    "R4C_UNION_FAMILY_NULL",
+  );
+  const rawMs: number[] = [],
+    diagnostics: unknown[] = [];
+  for (let i = 0; i < 23; i++) {
+    const begin = performance.now();
+    const response = await fetch(api + hroot + "/business?" + hquery, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    assert.equal(response.status, 200, "R4C_ORGANIZATION_PERFORMANCE_STATUS");
+    const body = (await response.json()) as { diagnostics: unknown };
+    if (i >= 3) {
+      rawMs.push(performance.now() - begin);
+      diagnostics.push(body.diagnostics);
+    }
+  }
+  const p95 = [...rawMs].sort((a, b) => a - b)[Math.ceil(rawMs.length * 0.95) - 1]!;
+  assert(p95 <= 2000, "R4C_ORGANIZATION_P95_BUDGET");
+  evidence.performanceSamples = [
+    {
+      warmups: 3,
+      sampleCount: 20,
+      p95Algorithm: "nearest-rank",
+      p95,
+      rawMs,
+      diagnostics,
+      scope: "isolated 6-person fixture; not production capacity",
+    },
+  ];
   evidence.organization = {
     observedActive: 6,
     eligible: 6,
@@ -314,6 +391,92 @@ try {
     visibleDurationMs: 6000,
     source: "isolated historical MySQL snapshot; Kafka/consumer/ClickHouse/API facts",
     completeBusinessActivityCoverage: false,
+  };
+  stage = "R4C_VERSION_UPGRADE";
+  const oldVersion = await post<{ id: string }>(hroot + "/metrics/versions", {
+    type: "operational",
+  });
+  // Test-owned draft representing the inherited system-v1.8.0 snapshot; never modify an active snapshot.
+  await mysql.pool.execute(
+    "UPDATE metric_definitions SET definition_version='system-v1.8.0',implementation_status='not_collected',unit=CASE WHEN metric_key IN ('dept_usage','role_usage') THEN 'ratio' ELSE unit END WHERE library_version_id=? AND milestone='R4-C'",
+    [oldVersion.id],
+  );
+  await post(hroot + `/metrics/versions/${oldVersion.id}/activate`, {});
+  async function definitions(versionId: string) {
+    const response = await fetch(api + hroot + `/metrics/versions/${versionId}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 200, "R4C_VERSION_READ_STATUS");
+    return response.json() as Promise<{
+      definitions: {
+        metricKey: string;
+        definitionVersion: string;
+        implementationStatus: string;
+      }[];
+    }>;
+  }
+  const beforeRefresh = await definitions(oldVersion.id);
+  await post(hroot + `/metrics/versions/${oldVersion.id}/r4c-facts`, {}, 409);
+  const updated = await post<{ id: string }>(hroot + "/metrics/versions", {
+    type: "operational",
+    sourceVersionId: oldVersion.id,
+  });
+  await post(hroot + `/metrics/versions/${updated.id}/r4c-facts`, {});
+  const newSnapshot = await definitions(updated.id);
+  assert.equal(
+    newSnapshot.definitions.find((d) => d.metricKey === "form_efficiency")
+      ?.definitionVersion,
+    "r4c-facts-2026-09-29.1",
+    "R4C_NEW_DEFINITION_VERSION",
+  );
+  assert.equal(
+    newSnapshot.definitions.find((d) => d.metricKey === "form_efficiency")
+      ?.implementationStatus,
+    "partial",
+    "R4C_STATUS_HONEST",
+  );
+  assert.equal(
+    JSON.stringify((await definitions(oldVersion.id)).definitions),
+    JSON.stringify(beforeRefresh.definitions),
+    "R4C_OLD_ACTIVE_IMMUTABLE",
+  );
+  const binding = await fetch(
+    api + hroot + `/metrics/versions/${updated.id}/business-bindings`,
+    {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        metricKeys: [
+          "form_efficiency",
+          "operation_fail_rate",
+          "dept_usage",
+          "role_usage",
+          "role_feature_profile",
+        ],
+      }),
+    },
+  );
+  assert.equal(binding.status, 200, "R4C_BINDING_STATUS");
+  const reviewed = await post<{ valid: boolean }>(
+    hroot + `/metrics/versions/${updated.id}/validate`,
+    {},
+    200,
+  );
+  assert(reviewed.valid, "R4C_DRAFT_VALIDATION");
+  await post(hroot + `/metrics/versions/${updated.id}/activate`, {});
+  assert.equal(
+    JSON.stringify((await definitions(oldVersion.id)).definitions),
+    JSON.stringify(beforeRefresh.definitions),
+    "R4C_OLD_HISTORY_IMMUTABLE",
+  );
+  evidence.metricVersions = {
+    draftRefreshed: true,
+    activeRefreshRejected: true,
+    oldDefinitionsUnchanged: true,
+    bindingsVerified: true,
+    validationPassed: true,
+    newDraftActivated: true,
+    scope: "isolated test project only",
   };
   Object.assign(evidence, {
     passed: true,

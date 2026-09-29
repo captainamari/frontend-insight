@@ -51,6 +51,21 @@ type CatalogDetails = Omit<
 };
 
 const DEFAULT_GRANULARITIES = ["5m", "hour", "day", "week", "month"] as const;
+export const R4C_FACT_DEFINITION_VERSION = "r4c-facts-2026-09-29.1";
+export const R4C_FACT_METRIC_KEYS = [
+  "form_efficiency",
+  "operation_fail_rate",
+  "repeated_operation_rate",
+  "dept_usage",
+  "role_usage",
+  "role_feature_profile",
+] as const;
+export function isHistoricalR4CDefinition(metricKey: string, version: string) {
+  return (
+    (R4C_FACT_METRIC_KEYS as readonly string[]).includes(metricKey) &&
+    version === "system-v1.8.0"
+  );
+}
 export const WORKFLOW_FACT_DEFINITION_VERSION = "workflow-facts-2026-09-28.1";
 export const WORKFLOW_FACT_METRIC_KEYS = [
   "task_duration",
@@ -215,15 +230,17 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     formulaDescription: "controlled form counters per submit attempt",
     numeratorDescription: "字段修改、重置及校验失败次数（分别输出）",
     denominatorDescription: "表单提交尝试次数",
-    deduplicationKey: "formInstanceId + submitAttemptId",
+    deduplicationKey: "eventId then unique formInstanceId settlement",
     unit: "compound_form_metrics",
     percentiles: [],
-    reportingTiming: "显式 trackForm 适配器在修改、重置、校验和提交时上报安全计数。",
+    reportingTiming:
+      "trackForm生命周期结算时上报受控计数；结算时间归桶；无提交生命周期排除于比率。",
     entityScopes: ["module", "page", "workflow"],
     timeGranularities: DEFAULT_GRANULARITIES,
     minimumSample: 5,
     missingPolicy: "未启用表单适配器或无提交分母时返回不可用，不根据 DOM 推断。",
-    unavailableReason: "R4-C 的脱敏表单汇总 collector 尚未实现。",
+    unavailableReason:
+      "受控结算事实与三子指标观察可用；完整覆盖未验证，不能当作标量评分输入。",
   },
   operation_fail_rate: ratio({
     businessDescription:
@@ -235,7 +252,7 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     entityScopes: ["project", "module", "workflow"],
     reportingTiming: "业务适配器在每次操作终态上报受控成功/拒绝结果。",
     unavailableReason:
-      "R4-C 显式业务适配器尚未实现；不能由 HTTP 状态或 workflow failed 推断。",
+      "显式适配器观察可用；未知结果阻断比率，完整覆盖尚未验证；不从HTTP状态推断。",
   }),
   repeated_operation_rate: ratio({
     businessDescription:
@@ -248,7 +265,8 @@ const details: Readonly<Record<string, CatalogDetails>> = {
       "project-HMAC(userId) + project-HMAC(bizRef) + operationInstanceId",
     entityScopes: ["project", "module", "workflow"],
     reportingTiming: "显式业务操作适配器上报短期不可逆对象引用。",
-    unavailableReason: "R4-C collector 与单独隐私评审尚未完成。",
+    unavailableReason:
+      "滚动24h相关会话规则与短期引用已批准；专用引用采集/存储/轮换链路尚未交付。",
   }),
   path_steps: {
     businessDescription:
@@ -433,12 +451,12 @@ const details: Readonly<Record<string, CatalogDetails>> = {
   dept_usage: organizationRatio(
     "部门",
     "departmentId",
-    "R4-C 受治理部门目录、编制分母与小群体保护尚未实现。",
+    "历史目录与k=5受保护观察可用；完整规范活动来源仍未验证。",
   ),
   role_usage: organizationRatio(
     "角色",
     "roleId",
-    "R4-C 受治理角色目录、编制分母与小群体保护尚未实现。",
+    "历史目录与k=5受保护观察可用；完整规范活动来源仍未验证。",
   ),
   role_feature_profile: {
     businessDescription: "展示角色与功能模块的 PV、有效时长 Top N，并执行小群体保护。",
@@ -453,7 +471,8 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     timeGranularities: ["day", "week", "month"],
     minimumSample: 5,
     missingPolicy: "缺少正式目录或低于小群体门槛时抑制结果，不以事件中的组织文本替代。",
-    unavailableReason: "R4-C 组织目录、安全聚合与小群体保护尚未实现。",
+    unavailableReason:
+      "PV与有效可见时长分开Top20观察可用；缺有效leave不补0，完整业务来源覆盖未验证。",
   },
   abnormal_access: {
     businessDescription:
@@ -572,16 +591,19 @@ function organizationRatio(
   key: string,
   unavailableReason: string,
 ): CatalogDetails {
-  return ratio({
-    businessDescription: `衡量${label}活跃人数相对正式编制人数的比例及功能分布。`,
-    formulaDescription: `unique active governed users by ${key} / eligible directory users by ${key}`,
-    numeratorDescription: `${label}内去重活跃用户数`,
-    denominatorDescription: `${label}目录编制人数、目录版本与分母来源`,
-    deduplicationKey: `directoryVersion + ${key} + project-HMAC(userId)`,
-    entityScopes: ["project", "module"],
-    reportingTiming: "由服务端受治理目录补充组织维度后聚合。",
-    unavailableReason,
-  });
+  return {
+    ...ratio({
+      businessDescription: `衡量${label}活跃人数相对正式编制人数的比例及功能分布。`,
+      formulaDescription: `unique active governed users by ${key} / eligible directory users by ${key}`,
+      numeratorDescription: `${label}内去重活跃用户数`,
+      denominatorDescription: `${label}目录编制人数、目录版本与分母来源`,
+      deduplicationKey: `directoryVersion + ${key} + project-HMAC(userId)`,
+      entityScopes: ["project", "module"],
+      reportingTiming: "由服务端受治理目录补充组织维度后聚合。",
+      unavailableReason,
+    }),
+    unit: "organization_usage_groups",
+  };
 }
 
 const attachmentSeeds = SYSTEM_METRIC_SEED.filter(
@@ -762,14 +784,18 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
       missingPolicy: item.missingPolicy,
       owner: seed.milestone === "R4-B" ? "Jesse" : OWNER,
       definitionVersion:
-        seed.milestone === "R4-B"
-          ? WORKFLOW_FACT_DEFINITION_VERSION
-          : identityMetricKeys.has(seed.metricKey)
-            ? IDENTITY_DEFINITION_VERSION
-            : DEFINITION_VERSION,
+        seed.milestone === "R4-C"
+          ? R4C_FACT_DEFINITION_VERSION
+          : seed.milestone === "R4-B"
+            ? WORKFLOW_FACT_DEFINITION_VERSION
+            : identityMetricKeys.has(seed.metricKey)
+              ? IDENTITY_DEFINITION_VERSION
+              : DEFINITION_VERSION,
       implementationStatus: seed.implementationStatus,
       availableFrom:
-        seed.milestone !== "R4-B" && seed.implementationStatus === "partial"
+        seed.milestone !== "R4-B" &&
+        seed.milestone !== "R4-C" &&
+        seed.implementationStatus === "partial"
           ? PARTIAL_AVAILABLE_FROM
           : null,
       unavailableReason,

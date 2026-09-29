@@ -1,3 +1,4 @@
+import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 /** C01/C02 approved 2026-09-29. Structured observations never become scalar score inputs. */
 export interface FormCounters {
   formId: string;
@@ -45,7 +46,7 @@ export function approvedEfficiencyResults(
         resets: f.submittedResets,
         validationFailures: f.submittedValidationFailures,
       },
-      definitionVersion: "r4c-efficiency-2026-09-29.1",
+      definitionVersion: R4C_FACT_DEFINITION_VERSION,
       coverage: "unknown",
       excludedNoSubmitLifecycles: f.noSubmit,
       status: reason ? "unavailable" : "observed",
@@ -88,7 +89,7 @@ export function approvedEfficiencyResults(
       sampleSize: operations.started,
       unit: "ratio",
       coverage: "unknown",
-      definitionVersion: "r4c-efficiency-2026-09-29.1",
+      definitionVersion: R4C_FACT_DEFINITION_VERSION,
       minimumSample: 5,
       cohort: "operation_start_time; terminal_received_by_asOf",
     },

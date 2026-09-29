@@ -169,14 +169,14 @@
       "label": "表单效率",
       "category": "operation",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "operation_fail_rate",
       "label": "操作失败率",
       "category": "operation",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "repeated_operation_rate",
@@ -309,21 +309,21 @@
       "label": "部门使用率",
       "category": "organization",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "role_usage",
       "label": "角色使用率",
       "category": "organization",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "role_feature_profile",
       "label": "角色功能画像",
       "category": "organization",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "abnormal_access",

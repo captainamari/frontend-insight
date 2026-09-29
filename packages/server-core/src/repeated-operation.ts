@@ -1,3 +1,4 @@
+import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 /** C03: rolling inclusive 24h windows, never project calendar days. Internal refs only. */
 export interface RepeatedOperationFact {
   projectId: string;
@@ -103,7 +104,7 @@ export function repeatedOperationRate(
     denominator: denominator.size,
     status: reason ? "partial" : "available",
     reason,
-    definitionVersion: "r4c-repeated-2026-09-29.1",
+    definitionVersion: R4C_FACT_DEFINITION_VERSION,
     asOf: new Date(context.asOf).toISOString(),
     // No reference, object type, user, session or instance escapes this reducer.
   };
