@@ -87,6 +87,9 @@ jobs:
       - name: Verify data-preserving 001-002 to 003-005 migration
         run: ./scripts/dev verify-r2-upgrade
 
+      - name: Verify R4-C real directory and queued Kafka replay
+        run: ./scripts/dev verify-r4c
+
       - name: Verify real MySQL and API metric-library flow
         run: ./scripts/dev verify-r1b
 
@@ -166,7 +169,7 @@ jobs:
           const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           assert.equal(checkout, process.env.GITHUB_SHA);
           const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
-          for (const name of ["r4c-evidence.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          for (const name of ["r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
           const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
           const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
           const summaries = files.map(name => {

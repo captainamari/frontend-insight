@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   directoryAt,
   directorySegments,
+  governConsumerOrganization,
   validateDirectory,
   type DirectoryVersion,
 } from "../src/organization-directory.js";
@@ -16,6 +17,48 @@ const first: DirectoryVersion = {
   entries: [],
 };
 describe("R4-C temporal directory", () => {
+  it("preserves queued legacy facts without trusting claims and rejects versioned forgery", () => {
+    const payload = { name: "feature_started", operationInstanceId: "op_fixture" };
+    const legacy = {
+      eventId: "event_fixture",
+      userId: "user-hash",
+      deptId: "OLD_BROWSER_CLAIM" as string | null,
+      roleId: "OLD_ROLE_CLAIM" as string | null,
+      payload,
+    };
+    governConsumerOrganization(legacy, undefined, null);
+    expect(legacy).toEqual({
+      eventId: "event_fixture",
+      userId: "user-hash",
+      deptId: null,
+      roleId: null,
+      payload,
+    });
+    expect(legacy.payload).toBe(payload);
+    const directory = {
+      ...first,
+      entries: [
+        {
+          userId: "user-hash",
+          deptId: "dept_fixture",
+          roleId: "role_fixture",
+          eligible: true,
+        },
+      ],
+    };
+    const governed = { ...legacy, deptId: "dept_fixture", roleId: "role_fixture" };
+    expect(() => governConsumerOrganization(governed, "one", directory)).not.toThrow();
+    expect(() =>
+      governConsumerOrganization(governed, "wrong-version", directory),
+    ).toThrow("DIRECTORY_ATTRIBUTION_INVALID");
+    expect(() =>
+      governConsumerOrganization(
+        { ...governed, roleId: "role_forged" },
+        "one",
+        directory,
+      ),
+    ).toThrow("DIRECTORY_ATTRIBUTION_INVALID");
+  });
   it("reports only historical directory intervals intersecting the query and asOf", () => {
     const second = {
       ...first,

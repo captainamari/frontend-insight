@@ -73,6 +73,27 @@ export function directoryAt(
     .sort((a, b) => Date.parse(b.from!) - Date.parse(a.from!))[0];
   return version && timestamp < Date.parse(version.until) ? version : null;
 }
+export function governConsumerOrganization(
+  event: { userId: string | null; deptId: string | null; roleId: string | null },
+  directoryVersionId: string | null | undefined,
+  directory: DirectoryVersion | null,
+): void {
+  if (!directoryVersionId) {
+    // Pre-R4-C envelopes may already be queued during an upgrade. Preserve the
+    // valid business fact, but never promote their browser claims to trusted membership.
+    event.deptId = null;
+    event.roleId = null;
+    return;
+  }
+  const entry = directory?.entries.find((e) => e.userId === event.userId && e.eligible);
+  if (
+    directory?.id !== directoryVersionId ||
+    event.deptId !== (entry?.deptId ?? null) ||
+    event.roleId !== (entry?.roleId ?? null)
+  ) {
+    throw new Error("DIRECTORY_ATTRIBUTION_INVALID");
+  }
+}
 export async function readDirectories(
   executor: Pick<Pool | PoolConnection, "query">,
   projectId: string | string[],

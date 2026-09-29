@@ -7,6 +7,7 @@ import {
   MySqlStore,
   readDirectories,
   directoryAt,
+  governConsumerOrganization,
   readWorkflowFactDefinitions,
   workflowEventDefinitionError,
   type EventEnrichment,
@@ -274,24 +275,19 @@ export class EventConsumerRuntime {
             const enrichment = envelope.enrichments.find(
               (e) => e.eventId === event.eventId,
             );
-            if (enrichment?.directoryVersionId) {
-              const directory = directoryAt(
-                directories.filter((d) => d.projectId === envelope.projectId),
-                event.env,
-                event.timestamp,
-                Date.parse(envelope.receivedAt),
-              );
-              const entry = directory?.entries.find(
-                (e) => e.userId === event.userId && e.eligible,
-              );
-              if (
-                directory?.id !== enrichment.directoryVersionId ||
-                event.deptId !== (entry?.deptId ?? null) ||
-                event.roleId !== (entry?.roleId ?? null)
-              )
-                throw new Error("DIRECTORY_ATTRIBUTION_INVALID");
-            } else if (event.deptId !== null || event.roleId !== null)
-              throw new Error("DIRECTORY_ATTRIBUTION_MISSING");
+            const directory = enrichment?.directoryVersionId
+              ? directoryAt(
+                  directories.filter((d) => d.projectId === envelope.projectId),
+                  event.env,
+                  event.timestamp,
+                  Date.parse(envelope.receivedAt),
+                )
+              : null;
+            governConsumerOrganization(
+              event,
+              enrichment?.directoryVersionId,
+              directory,
+            );
           }
           for (const event of envelope.batch.events) {
             if (event.payload.name !== "form_summary" && !event.payload.businessAdapter)
