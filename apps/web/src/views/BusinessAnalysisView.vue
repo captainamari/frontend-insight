@@ -484,7 +484,7 @@ onBeforeUnmount(() => {
         <h2>操作效率</h2>
         <p>
           表单与业务适配器独立
-          opt-in。以下为真实受控事实观察；窗口与未知结果规则待确认，正式比率暂不可用，不生成效率分。
+          opt-in。按已批准的结算与未知结果规则计算观察比率；完整覆盖尚未验证，不生成效率分。
         </p>
         <template v-if="data.efficiency">
           <p>
@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
               提交尝试。三项分别输出，不合成效率分。重置率可能超过100%。
             </p>
             <p>
-              来源为显式启用的受控表单适配器，当前仅展示结算观察。正式定义要求至少5次提交；跨窗口归属规则尚待确认，因此即使有计数也不发布正式比率。无观察不能区分未安装、关闭采集或尚无操作。
+              来源为显式启用的受控表单适配器，按生命周期结算时间归桶。至少5次提交才计算观察比率；未提交生命周期的修改、重置不参与比率。无观察不能区分未安装、关闭采集或尚无操作。
             </p>
             <p>
               未知身份与不匹配页面版本排除；重复投递不重复计数。没有提交和计数超限分别披露，不按正常0值解释。
@@ -537,7 +537,35 @@ onBeforeUnmount(() => {
               </tr>
             </tbody>
           </table>
+          <table v-if="data.efficiency.form_efficiency.results.length">
+            <caption>
+              表单观察比率（不代表完整覆盖）
+            </caption>
+            <thead>
+              <tr>
+                <th>formId</th>
+                <th>修改/提交</th>
+                <th>重置/提交</th>
+                <th>校验失败/提交</th>
+                <th>缺失原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in data.efficiency.form_efficiency.results" :key="f.formId">
+                <td>{{ f.formId }}</td>
+                <td>{{ f.changesPerSubmit ?? "—" }}</td>
+                <td>{{ f.resetRate ?? "—" }}</td>
+                <td>{{ f.validationErrorRate ?? "—" }}</td>
+                <td>{{ f.reason ?? "完整覆盖尚未验证" }}</td>
+              </tr>
+            </tbody>
+          </table>
           <h3>业务操作结果</h3>
+          <p>
+            业务拒绝观察比率：{{
+              data.efficiency.operation_fail_rate.observedValue ?? "—"
+            }}
+          </p>
           <p>{{ data.efficiency.operation_fail_rate.reason }}</p>
           <details>
             <summary>业务失败率公式、来源与缺失原因</summary>
@@ -546,7 +574,7 @@ onBeforeUnmount(() => {
               同一显式适配器的全部兼容操作数，正式定义要求至少5个操作。HTTP状态和网络异常不能直接判定业务拒绝。
             </p>
             <p>
-              来源是同一随机操作实例的开始及受控业务终态；按开始时间选择范围，终态与接收时间截至上述asOf。未知结果处理规则尚待确认，当前不发布正式比率；缺失、冲突和未知均不当作成功。
+              来源是同一随机操作实例的开始及受控业务终态；按开始时间选择范围，终态与接收时间截至上述asOf。存在未知结果时比率不可用；技术失败、取消仍保留在全部操作分母中。缺失、冲突和未知均不当作成功。
             </p>
           </details>
           <dl>
@@ -565,9 +593,68 @@ onBeforeUnmount(() => {
               {{ data.efficiency.operation_fail_rate.observations.unresolved }}
             </dd>
           </dl>
+          <details>
+            <summary>操作效率趋势（同一 asOf 与定义版本）</summary>
+            <table>
+              <caption>
+                业务拒绝观察比率；空值保留具体原因
+              </caption>
+              <thead>
+                <tr>
+                  <th>时间桶</th>
+                  <th>部分桶</th>
+                  <th>观察比率</th>
+                  <th>原因</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="bucket in data.efficiency.trends" :key="bucket.from">
+                  <td>{{ bucket.from }} — {{ bucket.to }}</td>
+                  <td>{{ bucket.partialBucket ? "是" : "否" }}</td>
+                  <td>{{ bucket.operation_fail_rate.observedValue ?? "—" }}</td>
+                  <td>{{ bucket.operation_fail_rate.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <template
+              v-for="bucket in data.efficiency.trends"
+              :key="'form-' + bucket.from"
+            >
+              <table v-if="bucket.form_efficiency.results.length">
+                <caption>
+                  表单结算桶
+                  {{
+                    bucket.from
+                  }}
+                  —
+                  {{
+                    bucket.to
+                  }}
+                </caption>
+                <thead>
+                  <tr>
+                    <th>formId</th>
+                    <th>修改/提交</th>
+                    <th>重置/提交</th>
+                    <th>校验失败/提交</th>
+                    <th>缺失原因</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="f in bucket.form_efficiency.results" :key="f.formId">
+                    <td>{{ f.formId }}</td>
+                    <td>{{ f.changesPerSubmit ?? "—" }}</td>
+                    <td>{{ f.resetRate ?? "—" }}</td>
+                    <td>{{ f.validationErrorRate ?? "—" }}</td>
+                    <td>{{ f.reason ?? "完整覆盖尚未验证" }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </template>
+          </details>
           <h3>重复操作率</h3>
           <p>
-            不可用：对象引用隐私设计与24小时会话规则待确认，当前未采集业务对象引用。
+            24小时滚动相关会话规则与短期引用方案已批准；对象引用接入尚未完成，当前不可用。
           </p>
         </template>
         <p v-else>所选范围暂无可读取的操作效率事实。</p>
@@ -581,8 +668,89 @@ onBeforeUnmount(() => {
           {{ data.organization.status }} · {{ data.organization.reason }}
         </p>
         <p>
-          部门使用率、角色使用率、角色功能画像暂不可用：正式使用事实聚合及小群体发布策略尚未完成。组织数值、比率和排名均不发布。
+          仅对已闭合且迟到期结束的项目日历桶展示组织观察聚合；按历史目录归属，缺完整使用来源时保持
+          partial。任一部门、角色或模块分组不足5人时，同一结果族整体隐藏，不提供人员明细。
         </p>
+        <template v-for="bucket in data.organization?.values ?? []" :key="bucket.from">
+          <p>
+            {{ bucket.from }} — {{ bucket.to }} · 目录版本
+            {{ bucket.directoryVersionId }}
+          </p>
+          <table>
+            <caption>
+              部门与角色使用观察（页面访问及受控操作，非完整业务UV）
+            </caption>
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>受控标识</th>
+                <th>观察活跃人数</th>
+                <th>编制人数</th>
+                <th>观察比率</th>
+                <th>PV</th>
+                <th>有效可见时长(ms)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="group in bucket.groups" :key="group.dimension + group.key">
+                <td>{{ group.dimension }}</td>
+                <td>{{ group.key }}</td>
+                <td>{{ group.active }}</td>
+                <td>{{ group.eligible }}</td>
+                <td>{{ group.observedRatio }}</td>
+                <td>{{ group.pv }}</td>
+                <td>{{ group.visibleDurationMs ?? group.durationReason }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table>
+            <caption>
+              角色 × 模块 PV Top 20（同值按受控标识排序）
+            </caption>
+            <thead>
+              <tr>
+                <th>角色</th>
+                <th>模块ID</th>
+                <th>PV</th>
+                <th>有效可见时长(ms)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in bucket.roleFeatureProfile"
+                :key="item.roleId + item.moduleId"
+              >
+                <td>{{ item.roleId }}</td>
+                <td>{{ item.moduleId }}</td>
+                <td>{{ item.pv }}</td>
+                <td>{{ item.visibleDurationMs ?? "缺有效page_leave" }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table v-if="bucket.roleDurationProfile">
+            <caption>
+              角色 × 模块有效可见时长 Top 20
+            </caption>
+            <thead>
+              <tr>
+                <th>角色</th>
+                <th>模块ID</th>
+                <th>有效可见时长(ms)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in bucket.roleDurationProfile"
+                :key="item.roleId + item.moduleId"
+              >
+                <td>{{ item.roleId }}</td>
+                <td>{{ item.moduleId }}</td>
+                <td>{{ item.visibleDurationMs }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else>有效时长排名不可用：存在缺失或无效的 page_leave。</p>
+        </template>
         <p>
           目录可以由项目管理员在指标管理中导入、核对并发布。没有可信目录的项目保持
           not_collected；目录存在不证明业务活动采集完整。

@@ -1,5 +1,13 @@
+import type { CalendarBucket } from "@frontend-insight/event-contract/project-range";
+import {
+  organizationWindowReason,
+  reduceOrganization,
+  type OrganizationContext,
+  type OrganizationEvent,
+} from "./organization-facts.js";
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { SafeClickHouseLogger } from "./clickhouse-logger.js";
+import { approvedEfficiencyResults } from "./efficiency-policy.js";
 import type { BusinessPageWindow } from "./business-facts.js";
 export interface EfficiencyEvent {
   id: string;
@@ -33,6 +41,12 @@ export function reduceEfficiency(
       conflicts.add(e.id);
     else ids.set(e.id, e);
   }
+  const pagesByRoute = new Map<string, BusinessPageWindow[]>();
+  for (const page of pages) {
+    const windows = pagesByRoute.get(page.pageRoute) ?? [];
+    windows.push(page);
+    pagesByRoute.set(page.pageRoute, windows);
+  }
   const selected = [...ids.values()].filter((e) => {
     if (conflicts.has(e.id)) {
       excluded++;
@@ -42,7 +56,7 @@ export function reduceEfficiency(
       unidentified++;
       return false;
     }
-    const matches = pages.filter(
+    const matches = (pagesByRoute.get(e.page) ?? []).filter(
       (p) =>
         p.included &&
         p.moduleId === moduleId &&
@@ -79,6 +93,9 @@ export function reduceEfficiency(
       lifecycles: number;
       noSubmit: number;
       overflow: number;
+      submittedChanges: number;
+      submittedResets: number;
+      submittedValidationFailures: number;
     }
   >();
   for (const group of summaries.values()) {
@@ -99,10 +116,18 @@ export function reduceEfficiency(
         lifecycles: 0,
         noSubmit: 0,
         overflow: 0,
+        submittedChanges: 0,
+        submittedResets: 0,
+        submittedValidationFailures: 0,
       };
     row.lifecycles++;
     if (p.counterOverflow) row.overflow++;
     if (!Number(p.submitCount)) row.noSubmit++;
+    if (Number(p.submitCount) > 0) {
+      row.submittedChanges += Number(p.changeCount);
+      row.submittedResets += Number(p.resetCount);
+      row.submittedValidationFailures += Number(p.validationFailureCount);
+    }
     row.changes += Number(p.changeCount);
     row.resets += Number(p.resetCount);
     row.submits += Number(p.submitCount);
@@ -152,33 +177,19 @@ export function reduceEfficiency(
       counts[result as "success" | "rejected" | "technical_failure" | "canceled"]++;
     else counts.unknown++;
   }
+  const approved = approvedEfficiencyResults([...forms.values()], counts, excluded);
   return {
-    form_efficiency: {
-      value: null,
-      status: "partial",
-      reason: forms.size
-        ? "FORM_WINDOW_DECISION_REQUIRED"
-        : "FORM_COLLECTOR_NOT_OBSERVED",
-      observations: [...forms.values()],
-    },
-    operation_fail_rate: {
-      value: null,
-      status: "partial",
-      reason: counts.started
-        ? "BUSINESS_RESULT_COMPLETENESS_DECISION_REQUIRED"
-        : "BUSINESS_ADAPTER_NOT_OBSERVED",
-      observations: counts,
-    },
+    ...approved,
     repeated_operation_rate: {
       value: null,
       status: "not_collected",
-      reason: "OBJECT_REFERENCE_PRIVACY_REVIEW_REQUIRED",
+      reason: "OBJECT_REFERENCE_COLLECTOR_NOT_INSTALLED",
     },
     excluded,
     unidentified,
     coverage: "unknown",
     asOf: new Date(asOf).toISOString(),
-    definitionVersion: "r4c-observation-1",
+    definitionVersion: "r4c-efficiency-2026-09-29.1",
   };
 }
 export class EfficiencyFactStore {
@@ -197,6 +208,42 @@ export class EfficiencyFactStore {
   close() {
     return this.client.close();
   }
+  async readOrganization(context: OrganizationContext) {
+    const reason = organizationWindowReason(context);
+    if (reason) return { ...reduceOrganization([], context), queries: 0 };
+    const result = await this.client.query({
+      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,event,user_id AS user,session_id AS session,page_route AS page,page_view_id AS pageView,directory_version_id AS directory,dept_id AS dept,role_id AS role,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<=fromUnixTimestamp64Milli({asOf:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (event IN ('page_view','page_leave') OR (event='custom' AND JSONExtractBool(payload_json,'businessAdapter'))) LIMIT 50001`,
+      query_params: {
+        project: context.projectId,
+        env: context.env,
+        from: Date.parse(context.buckets[0]!.from),
+        asOf: context.asOf,
+      },
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        max_execution_time: 2,
+        max_rows_to_read: "1000000",
+        read_overflow_mode: "throw",
+      },
+    });
+    const rows = await result.json<
+      Omit<OrganizationEvent, "payload"> & { payload_json: string }
+    >();
+    if (rows.length > 50000) throw new Error("ORGANIZATION_FACT_LIMIT");
+    return {
+      ...reduceOrganization(
+        rows.map((r) => ({
+          ...r,
+          at: Number(r.at),
+          received: Number(r.received),
+          payload: JSON.parse(r.payload_json) as Record<string, unknown>,
+        })),
+        context,
+      ),
+      queries: 1,
+    };
+  }
+
   async read(
     projectId: string,
     moduleId: string,
@@ -205,6 +252,7 @@ export class EfficiencyFactStore {
     to: string,
     asOf: Date,
     pages: BusinessPageWindow[],
+    buckets: CalendarBucket[] = [],
   ) {
     const result = await this.client.query({
       query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,user_id AS user,session_id AS session,page_route AS page,payload_json FROM raw_events WHERE project_id={project:String} AND env={env:String} AND event='custom' AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<=fromUnixTimestamp64Milli({asOf:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (JSONExtractString(payload_json,'name')='form_summary' OR JSONExtractBool(payload_json,'businessAdapter')) LIMIT 50001`,
@@ -225,18 +273,37 @@ export class EfficiencyFactStore {
       Omit<EfficiencyEvent, "payload"> & { payload_json: string }
     >();
     if (rows.length > 50000) throw new Error("EFFICIENCY_FACT_LIMIT");
-    return reduceEfficiency(
-      rows.map((r) => ({
-        ...r,
-        at: Number(r.at),
-        received: Number(r.received),
-        payload: JSON.parse(r.payload_json) as Record<string, unknown>,
-      })),
-      Date.parse(from),
-      Date.parse(to),
-      asOf.valueOf(),
-      pages,
-      moduleId,
-    );
+    const events = rows.map((r) => ({
+      ...r,
+      at: Number(r.at),
+      received: Number(r.received),
+      payload: JSON.parse(r.payload_json) as Record<string, unknown>,
+    }));
+    const trends = buckets.map((b) => ({
+      from: b.from,
+      to: b.to,
+      partialBucket: b.partial,
+      ...reduceEfficiency(
+        events,
+        Date.parse(b.from),
+        Date.parse(b.to),
+        asOf.valueOf(),
+        pages,
+        moduleId,
+      ),
+    }));
+    if (trends.reduce((n, b) => n + b.form_efficiency.results.length + 1, 0) > 1000)
+      throw new Error("EFFICIENCY_SERIES_LIMIT");
+    return {
+      ...reduceEfficiency(
+        events,
+        Date.parse(from),
+        Date.parse(to),
+        asOf.valueOf(),
+        pages,
+        moduleId,
+      ),
+      trends,
+    };
   }
 }

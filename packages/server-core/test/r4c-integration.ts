@@ -167,6 +167,154 @@ try {
       assert.equal(row.directory_version_id, first);
     }
   }
+  stage = "ORGANIZATION_HISTORICAL_FIXTURE";
+  // Isolated historical snapshot fixture: publication UI is verified above; only this
+  // test-owned project receives a historical fixture timestamp through direct MySQL.
+  // Event facts still pass through real Kafka -> consumer -> ClickHouse, never direct CH inserts.
+  const historical = await post<{ id: string; appId: string }>("/api/projects", {
+    name: `R4-C historical organization fixture ${randomUUID()}`,
+    timezone: "UTC",
+    origins: ["https://isolated.example.invalid"],
+  });
+  const hroot = `/api/projects/${historical.id}`;
+  const day = 86400000;
+  const start = Math.floor(Date.now() / day) * day - 3 * day;
+  const module = await post<{ id: string }>(hroot + "/modules", {
+    moduleKey: "organization_fixture",
+    name: "Isolated organization",
+    effectiveFrom: new Date(start).toISOString(),
+  });
+  await post(hroot + "/page-definitions", {
+    moduleId: module.id,
+    name: "Isolated page",
+    pageRoute: "/",
+    templateKey: "task_operation",
+    isCore: true,
+    criticalityWeight: 1,
+    expectedFrequency: "daily",
+    effectiveFrom: new Date(start).toISOString(),
+  });
+  const historicalDirectory = await post<{ id: string }>(hroot + "/directory", {
+    env: "dev",
+    sourceKey: "isolated_historical_fixture",
+    coverage: "complete",
+    validUntil: new Date(Date.now() + day).toISOString(),
+    entries: Array.from({ length: 6 }, (_, i) => ({
+      userId: `u_isolated_history_000${i}`,
+      deptId: "dept_fixture",
+      roleId: "role_fixture",
+      eligible: true,
+    })),
+  });
+  await post(hroot + `/directory/${historicalDirectory.id}/publish`, {});
+  await mysql.pool.execute(
+    "UPDATE organization_directory_versions SET published_at=? WHERE id=? AND project_id=? AND source_key='isolated_historical_fixture'",
+    [new Date(start), historicalDirectory.id, historical.id],
+  );
+  const [historyRows] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT entries_json FROM organization_directory_versions WHERE id=? AND project_id=?",
+    [historicalDirectory.id, historical.id],
+  );
+  const historyEntries =
+    typeof historyRows[0]!.entries_json === "string"
+      ? JSON.parse(historyRows[0]!.entries_json)
+      : historyRows[0]!.entries_json;
+  for (let i = 0; i < 6; i++) {
+    const batch = structuredClone(original);
+    batch.sdk.version = "0.6.0";
+    batch.sentAt = start + 3000;
+    const view = batch.events.find((e) => e.event === "page_view")!;
+    const leave = batch.events.find((e) => e.event === "page_leave")!;
+    assert(leave, "R4C_LEAVE_FIXTURE_REQUIRED");
+    batch.events = [view, leave];
+    for (const [j, event] of batch.events.entries())
+      Object.assign(event, {
+        eventId: `evt_${randomUUID().replaceAll("-", "")}`,
+        appId: historical.appId,
+        timestamp: start + 1000 * (j + 1),
+        env: "dev",
+        userId: historyEntries[i].userId,
+        deptId: "dept_fixture",
+        roleId: "role_fixture",
+        pageRoute: "/",
+        pageViewId: `pv_${randomUUID().replaceAll("-", "")}`,
+      });
+    leave.pageViewId = view.pageViewId;
+    leave.payload = { visibleDurationMs: 1000 };
+    assert(validateForConsumer(batch).ok, "R4C_ORGANIZATION_FIXTURE_CONTRACT");
+    await publisher.publish({
+      envelopeVersion: 1,
+      projectId: historical.id,
+      receivedAt: new Date(start + 3000).toISOString(),
+      requestId: randomUUID(),
+      origin: "https://isolated.example.invalid",
+      batch,
+      enrichments: batch.events.map((e) => ({
+        eventId: e.eventId,
+        userId: e.userId,
+        featureId: null,
+        directoryVersionId: historicalDirectory.id,
+      })),
+    });
+  }
+  stage = "ORGANIZATION_REAL_AGGREGATE";
+  const hquery = new URLSearchParams({
+    env: "dev",
+    range: "7d",
+    moduleId: module.id,
+    from: new Date(start).toISOString(),
+    to: new Date(start + day).toISOString(),
+  });
+  let organization:
+    | {
+        values:
+          | {
+              groups: {
+                active: number;
+                eligible: number;
+                observedRatio: number;
+                pv: number;
+                visibleDurationMs: number | null;
+              }[];
+            }[]
+          | null;
+        reason: string;
+      }
+    | undefined;
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const response = await fetch(api + hroot + "/business?" + hquery, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    assert.equal(response.status, 200, "R4C_ORGANIZATION_API_STATUS");
+    organization = (
+      (await response.json()) as { organization: NonNullable<typeof organization> }
+    ).organization;
+    if (organization.values?.[0]?.groups[0]?.pv === 6) break;
+    await delay(500);
+  }
+  assert.equal(
+    organization?.reason,
+    "ORGANIZATION_ACTIVITY_COVERAGE_NOT_VERIFIED",
+    "R4C_ORGANIZATION_COVERAGE",
+  );
+  assert.equal(organization?.values?.[0]?.groups.length, 2, "R4C_ORGANIZATION_GROUPS");
+  for (const row of organization!.values![0]!.groups) {
+    assert.equal(row.active, 6, "R4C_ORGANIZATION_ACTIVE");
+    assert.equal(row.eligible, 6, "R4C_ORGANIZATION_ELIGIBLE");
+    assert.equal(row.observedRatio, 1, "R4C_ORGANIZATION_RATIO");
+    assert.equal(row.pv, 6, "R4C_ORGANIZATION_PV");
+    assert.equal(row.visibleDurationMs, 6000, "R4C_ORGANIZATION_DURATION");
+  }
+  evidence.organization = {
+    observedActive: 6,
+    eligible: 6,
+    observedRatio: 1,
+    pv: 6,
+    visibleDurationMs: 6000,
+    source: "isolated historical MySQL snapshot; Kafka/consumer/ClickHouse/API facts",
+    completeBusinessActivityCoverage: false,
+  };
   Object.assign(evidence, {
     passed: true,
     uniqueEvents: 2,

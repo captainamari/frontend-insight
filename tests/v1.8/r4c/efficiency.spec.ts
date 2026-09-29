@@ -103,6 +103,10 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   });
   expect(result.efficiency.operation_fail_rate.value).toBeNull();
   expect(result.efficiency.form_efficiency.value).toBeNull();
+  expect(result.efficiency.form_efficiency.results[0]?.reason).toBe(
+    "INSUFFICIENT_SAMPLE",
+  );
+  expect(result.efficiency.operation_fail_rate.reason).toBe("BUSINESS_RESULT_UNKNOWN");
   expect(sent.join("")).not.toMatch(
     /isolated_network|inputValue|validationMessage|bizRef/,
   );
@@ -159,7 +163,8 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
         p95,
         rawMs: values,
         diagnostics: result.diagnostics,
-        privacyPolicy: "pending; no organization numbers published",
+        privacyPolicy:
+          "approved k=5; fixed closed calendar buckets; whole-family suppression",
         manualAcceptanceReady: false,
       },
       null,

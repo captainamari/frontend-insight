@@ -30,3 +30,4 @@ export * from "./workflow-definitions.js";
 export * from "./organization-directory.js";
 
 export * from "./efficiency-facts.js";
+export type { FormCounters, BusinessResultCounters } from "./efficiency-policy.js";

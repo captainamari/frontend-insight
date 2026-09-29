@@ -720,6 +720,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 实际分支：`agent/v1-8-r4c-operation-organization`。实施中，尚不满足阶段门；逐项位置、已运行验证及未完成项见[R4-C results](../progress/v1.8-r4c-results.md)，语义/隐私待决见[decisions](../progress/v1.8-r4c-decisions.md)。下列完成标记仅指所列代码能力，不代表正式指标或整批验收通过。
 
+2026-09-29 增量：用户批准 C01–C05 推荐，已继续实现结算/未知结果观察比率与同asOf趋势、重复会话计算器、真实组织观察聚合与k=5固定桶全族抑制。正式版本链、完整覆盖、对象引用通道/轮换仍未完成；以下整项勾选不因部分实现而提升。详见R4-C results当前增量表。
+
 ### 15.1 操作效率事实
 
 - [x] `form_efficiency`：`trackForm(formId)` 只汇总字段 key 的 change 次数、重置、提交尝试和校验失败，不采集输入值；

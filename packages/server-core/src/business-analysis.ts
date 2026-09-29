@@ -279,6 +279,7 @@ export class BusinessAnalysisService {
               query.to,
               asOf,
               snapshot.pathPages,
+              query.buckets,
             )
             .catch((cause: unknown) => {
               if (
@@ -290,6 +291,29 @@ export class BusinessAnalysisService {
                 throw new MetricLibraryError(cause.message, 400);
               }
               throw new MetricLibraryError("EFFICIENCY_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
+    const organization =
+      this.efficiencyFacts && moduleId
+        ? await this.efficiencyFacts
+            .readOrganization({
+              projectId,
+              moduleId,
+              env: query.env,
+              asOf: asOf.valueOf(),
+              buckets: query.buckets,
+              directories: snapshot.directories,
+              pages: snapshot.pathPages,
+            })
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                ["ORGANIZATION_FACT_LIMIT", "ORGANIZATION_SERIES_LIMIT"].includes(
+                  cause.message,
+                )
+              )
+                throw new MetricLibraryError(cause.message, 400);
+              throw new MetricLibraryError("ORGANIZATION_FACT_STORE_UNAVAILABLE", 503);
             })
         : null;
     const fact = observation
@@ -504,12 +528,13 @@ export class BusinessAnalysisService {
       })),
       efficiency,
       organization: {
-        status: directoryVersions.length ? "privacy_suppressed" : "not_collected",
-        reason: directoryVersions.length
-          ? "ORGANIZATION_PRIVACY_POLICY_REVIEW_REQUIRED"
-          : "TRUSTED_DIRECTORY_MISSING",
-        values: null,
+        ...(organization ?? {
+          status: "not_collected",
+          reason: "TRUSTED_DIRECTORY_MISSING",
+          values: null,
+        }),
         directoryVersions,
+        asOf: asOf.toISOString(),
       },
       workflowAnalysis,
       workflowFacts: workflowAnalysis
@@ -520,6 +545,7 @@ export class BusinessAnalysisService {
         clickHouseQueries:
           clickHouseQueries +
           (efficiency ? 1 : 0) +
+          (organization?.queries ?? 0) +
           (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,
         scans: observation?.statistics ?? null,

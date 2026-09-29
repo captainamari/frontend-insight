@@ -13,7 +13,34 @@ export interface BusinessResponse {
   organization?: {
     status: string;
     reason: string;
-    values: null;
+    definitionVersion?: string;
+    coverage?: string;
+    values:
+      | {
+          from: string;
+          to: string;
+          directoryVersionId: string;
+          groups: {
+            dimension: string;
+            key: string;
+            moduleId: string;
+            active: number;
+            eligible: number;
+            observedRatio: number;
+            pv: number;
+            visibleDurationMs: number | null;
+            durationReason: string | null;
+          }[];
+          roleDurationProfile:
+            { roleId: string; moduleId: string; visibleDurationMs: number }[] | null;
+          roleFeatureProfile: {
+            roleId: string;
+            moduleId: string;
+            pv: number;
+            visibleDurationMs: number | null;
+          }[];
+        }[]
+      | null;
     directoryVersions: {
       id: string;
       from: string | null;
@@ -27,6 +54,14 @@ export interface BusinessResponse {
     definitionVersion: string;
     form_efficiency: {
       reason: string;
+      results: {
+        formId: string;
+        sampleSize: number;
+        reason: string | null;
+        changesPerSubmit: number | null;
+        resetRate: number | null;
+        validationErrorRate: number | null;
+      }[];
       observations: {
         formId: string;
         changes: number;
@@ -40,6 +75,7 @@ export interface BusinessResponse {
     };
     operation_fail_rate: {
       reason: string;
+      observedValue: number | null;
       observations: {
         started: number;
         success: number;
@@ -51,6 +87,21 @@ export interface BusinessResponse {
       };
     };
     repeated_operation_rate: { reason: string };
+    trends: {
+      from: string;
+      to: string;
+      partialBucket: boolean;
+      form_efficiency: {
+        results: {
+          formId: string;
+          changesPerSubmit: number | null;
+          resetRate: number | null;
+          validationErrorRate: number | null;
+          reason: string | null;
+        }[];
+      };
+      operation_fail_rate: { observedValue: number | null; reason: string };
+    }[];
   } | null;
   project: OverviewResponse["project"];
   query: OverviewResponse["query"];
