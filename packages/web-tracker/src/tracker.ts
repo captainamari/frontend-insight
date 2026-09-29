@@ -1,3 +1,5 @@
+import { FormCollector, noopForm } from "./forms.js";
+import type { BusinessResult } from "./types.js";
 import { WorkflowRuntime, type WorkflowDefinition } from "./workflow.js";
 import type {
   FrontendInsightEventBatchV3,
@@ -89,6 +91,7 @@ export class BrowserTracker implements Tracker {
     duplicateOperationTerminals: 0,
     warnings: [],
   };
+  private readonly forms: FormCollector;
   private readonly workflows: WorkflowRuntime;
   private readonly registeredFeatures: ReadonlySet<string> | null;
   private readonly queue: TrackerEvent[] = [];
@@ -129,6 +132,8 @@ export class BrowserTracker implements Tracker {
       normalizePageRoute: TrackerConfig["normalizePageRoute"] | undefined;
       beforeSend: TrackerConfig["beforeSend"] | undefined;
       observability: NormalizedObservabilityConfig | null;
+      forms: TrackerConfig["forms"];
+      businessOperations: TrackerConfig["businessOperations"];
     },
     private readonly runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
@@ -198,6 +203,12 @@ export class BrowserTracker implements Tracker {
       },
       workflowDefinitions,
     );
+    this.forms = new FormCollector(
+      config.forms,
+      (payload) => this.emit("custom", payload),
+      () => runtime.crypto.randomUUID(),
+      (code) => this.drop(code),
+    );
     this.emit("page_view", {});
     this.observability?.start();
     this.installLifecycle();
@@ -260,6 +271,7 @@ export class BrowserTracker implements Tracker {
       const nextPageRoute = this.resolvePageRoute();
       const now = this.runtime.now();
       if (nextPageRoute === this.pageRoute) return;
+      this.forms.settle();
       this.stopLongViews();
       this.settleVisiblePage();
       this.pageRoute = nextPageRoute;
@@ -282,6 +294,7 @@ export class BrowserTracker implements Tracker {
 
   private readonly handlePageHide = (): void => {
     this.safe(() => {
+      this.forms.settle();
       this.stopLongViews();
       this.settleVisiblePage();
       void this.flush("lifecycle");
@@ -311,6 +324,8 @@ export class BrowserTracker implements Tracker {
   private refreshSession(): void {
     const now = this.runtime.now();
     if (now - this.lastActivityAt > this.config.sessionTimeoutMs) {
+      this.lastActivityAt = now;
+      this.forms?.settle();
       this.sessionId = id(this.runtime, "ses");
     }
     this.lastActivityAt = now;
@@ -409,6 +424,7 @@ export class BrowserTracker implements Tracker {
   }
 
   setUser(userId: string | null): void {
+    if (userId !== this.userId) this.forms.settle();
     this.safe(() => {
       if (userId === null) {
         this.userId = null;
@@ -424,7 +440,7 @@ export class BrowserTracker implements Tracker {
 
   track(name: string, payload: EventPayload = {}): void {
     this.safe(() =>
-      name.startsWith("workflow_")
+      name.startsWith("workflow_") || name === "form_summary"
         ? this.drop("WORKFLOW_HANDLE_REQUIRED")
         : this.custom(name, payload),
     );
@@ -478,6 +494,7 @@ export class BrowserTracker implements Tracker {
     interactionType: InteractionType = "programmatic",
     association: EventPayload = {},
     onTerminal?: (state: string, operationInstanceId: string) => void,
+    businessResult?: () => BusinessResult,
   ): OperationHandle {
     if (
       this.destroyed ||
@@ -495,10 +512,13 @@ export class BrowserTracker implements Tracker {
       };
     }
     const operationInstanceId = id(this.runtime, "op");
+    const operationUser = this.userId,
+      operationSession = this.sessionId;
     let state: OperationState = "started";
     this.safe(() =>
       this.feature("feature_started", operationKey, payload, {
         operationInstanceId,
+        ...(businessResult ? { businessAdapter: true } : {}),
         interactionType,
         ...association,
       }),
@@ -509,6 +529,15 @@ export class BrowserTracker implements Tracker {
       reasonCode?: string,
     ): void => {
       this.safe(() => {
+        if (
+          businessResult &&
+          (this.userId !== operationUser ||
+            this.sessionId !== operationSession ||
+            this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs)
+        ) {
+          this.warn("BUSINESS_OPERATION_CONTEXT_CHANGED");
+          return;
+        }
         if (state !== "started") {
           this.diagnostics.duplicateOperationTerminals += 1;
           this.warn("OPERATION_ALREADY_TERMINAL");
@@ -531,6 +560,9 @@ export class BrowserTracker implements Tracker {
         state = next;
         this.feature(`feature_${next}`, operationKey, terminalPayload, {
           operationInstanceId,
+          ...(businessResult
+            ? { businessAdapter: true, businessResult: businessResult() }
+            : {}),
           interactionType,
           ...association,
           ...(reasonCode && !association.workflowInstanceId ? { reasonCode } : {}),
@@ -547,6 +579,59 @@ export class BrowserTracker implements Tracker {
         terminal("canceled", terminalPayload),
       getState: () => state,
     });
+  }
+
+  trackForm(formId: string) {
+    if (this.destroyed) return noopForm();
+    try {
+      return this.forms.track(formId);
+    } catch {
+      this.warn("FORM_CONFIG_INVALID");
+      return noopForm();
+    }
+  }
+
+  async observeBusiness<T>(
+    operationKey: string,
+    execute: () => Promise<T>,
+    classify: (value: T) => BusinessResult,
+  ): Promise<T> {
+    const enabled =
+      this.config.businessOperations?.enabled &&
+      this.config.businessOperations.operationKeys.includes(operationKey);
+    if (!enabled || this.destroyed) return execute();
+    let result: BusinessResult = "unknown";
+    const operation = this.associatedOperation(
+      operationKey,
+      {},
+      "programmatic",
+      {},
+      undefined,
+      () => result,
+    );
+    let value: T;
+    try {
+      value = await execute();
+    } catch (cause) {
+      result = "unknown";
+      operation.fail("unknown");
+      throw cause;
+    }
+    try {
+      const candidate = classify(value);
+      if (
+        ["success", "rejected", "technical_failure", "canceled", "unknown"].includes(
+          candidate,
+        )
+      )
+        result = candidate;
+    } catch {
+      this.warn("BUSINESS_CLASSIFIER_FAILED");
+    }
+    if (result === "success") operation.succeed();
+    else if (result === "canceled") operation.cancel();
+    else operation.fail(result);
+    return value;
   }
 
   startLongView(featureKey: string): () => void {
@@ -714,6 +799,7 @@ export class BrowserTracker implements Tracker {
     if (this.destroyed) return;
     this.workflows.destroy();
     this.observability?.stop();
+    this.forms.settle();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
     this.settleVisiblePage();

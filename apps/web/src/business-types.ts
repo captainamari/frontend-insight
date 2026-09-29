@@ -10,6 +10,48 @@ export interface BusinessObservation {
   firstDataAt: string | null;
 }
 export interface BusinessResponse {
+  organization?: {
+    status: string;
+    reason: string;
+    values: null;
+    directoryVersions: {
+      id: string;
+      from: string | null;
+      until: string;
+      coverage: string;
+    }[];
+  };
+  efficiency?: {
+    asOf: string;
+    coverage: string;
+    definitionVersion: string;
+    form_efficiency: {
+      reason: string;
+      observations: {
+        formId: string;
+        changes: number;
+        resets: number;
+        submits: number;
+        validationFailures: number;
+        lifecycles: number;
+        noSubmit: number;
+        overflow: number;
+      }[];
+    };
+    operation_fail_rate: {
+      reason: string;
+      observations: {
+        started: number;
+        success: number;
+        rejected: number;
+        technical_failure: number;
+        canceled: number;
+        unknown: number;
+        unresolved: number;
+      };
+    };
+    repeated_operation_rate: { reason: string };
+  } | null;
   project: OverviewResponse["project"];
   query: OverviewResponse["query"];
   identity: string;

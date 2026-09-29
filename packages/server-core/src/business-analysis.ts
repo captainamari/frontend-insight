@@ -1,3 +1,5 @@
+import { readDirectories } from "./organization-directory.js";
+import type { EfficiencyFactStore } from "./efficiency-facts.js";
 import { storageFailureCode } from "./clickhouse-logger.js";
 import { mergeWorkflowFacts } from "./workflow-score-facts.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
@@ -41,6 +43,7 @@ export class BusinessAnalysisService {
     private readonly scores: ScoreManagementService,
     private readonly facts: BusinessFactStore,
     private readonly workflowFacts?: WorkflowFactStore,
+    private readonly efficiencyFacts?: EfficiencyFactStore,
   ) {}
   async analysis(projectId: string, input: BusinessQuery) {
     const asOf = new Date();
@@ -150,8 +153,12 @@ export class BusinessAnalysisService {
         const workflowDefinitions = this.workflowFacts
           ? await readWorkflowFactDefinitions(c, projectId)
           : [];
+        const directories = this.efficiencyFacts
+          ? await readDirectories(c, projectId)
+          : [];
         await c.commit();
         return {
+          directories,
           workflowDefinitions,
           pathPages,
           p,
@@ -259,6 +266,22 @@ export class BusinessAnalysisService {
               )
                 throw new MetricLibraryError(cause.message, 400);
               throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
+    const efficiency =
+      this.efficiencyFacts && moduleId
+        ? await this.efficiencyFacts
+            .read(
+              projectId,
+              moduleId,
+              query.env,
+              query.from,
+              query.to,
+              asOf,
+              snapshot.pathPages,
+            )
+            .catch(() => {
+              throw new MetricLibraryError("EFFICIENCY_FACT_STORE_UNAVAILABLE", 503);
             })
         : null;
     const fact = observation
@@ -464,6 +487,28 @@ export class BusinessAnalysisService {
         stepOrder: Number(w.step_order ?? 0),
         activatedAt: iso(w.activated_at),
       })),
+      efficiency,
+      organization: {
+        status: snapshot.directories.some(
+          (d) => d.env === query.env && d.status === "published",
+        )
+          ? "privacy_suppressed"
+          : "not_collected",
+        reason: snapshot.directories.some(
+          (d) => d.env === query.env && d.status === "published",
+        )
+          ? "ORGANIZATION_PRIVACY_POLICY_REVIEW_REQUIRED"
+          : "TRUSTED_DIRECTORY_MISSING",
+        values: null,
+        directoryVersions: snapshot.directories
+          .filter((d) => d.env === query.env && d.status === "published")
+          .map((d) => ({
+            id: d.id,
+            from: d.from,
+            until: d.until,
+            coverage: d.coverage,
+          })),
+      },
       workflowAnalysis,
       workflowFacts: workflowAnalysis
         ? { status: workflowAnalysis.status, reason: workflowAnalysis.reason }
@@ -471,7 +516,9 @@ export class BusinessAnalysisService {
       diagnostics: {
         metadataQueries,
         clickHouseQueries:
-          clickHouseQueries + (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
+          clickHouseQueries +
+          (efficiency ? 1 : 0) +
+          (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,
         scans: observation?.statistics ?? null,
         physicalRetentionDays: 90,

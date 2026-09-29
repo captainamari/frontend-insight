@@ -1,0 +1,159 @@
+import type { EfficiencyFactStore } from "../../../../packages/server-core/src/efficiency-facts.js";
+import { test, expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+test("R4-C directory publication and real SDK counters through Kafka and ClickHouse", async ({
+  page,
+  request,
+}, info) => {
+  test.setTimeout(120000);
+  const login = await request.post("/api/auth/login", {
+    data: { email: "admin@example.invalid", password: "LocalAdmin-1234" },
+  });
+  expect(login.status()).toBe(200);
+  const headers = { authorization: `Bearer ${(await login.json()).accessToken}` };
+  async function post(path: string, data: unknown) {
+    const r = await request.post(path, { headers, data });
+    expect(r.status(), path).toBe(201);
+    return r.json();
+  }
+  const project = await post("/api/projects", {
+    name: `R4-C isolated ${info.project.name} ${randomUUID()}`,
+    timezone: "UTC",
+    origins: ["http://127.0.0.1:4174", "http://localhost:4174"],
+  });
+  const root = `/api/projects/${project.id}`;
+  const module = await post(root + "/modules", {
+    moduleKey: "efficiency_demo",
+    name: "Efficiency fixture",
+  });
+  await post(root + "/page-definitions", {
+    moduleId: module.id,
+    name: "Demo",
+    pageRoute: "/",
+    templateKey: "task_operation",
+    isCore: true,
+    criticalityWeight: 1,
+    expectedFrequency: "daily",
+  });
+  for (const featureKey of ["edit", "save"])
+    await post(root + "/features", {
+      featureKey,
+      name: featureKey,
+      featureType: "action",
+      operationLifecycleEnabled: featureKey === "save",
+    });
+  const directory = await post(root + "/directory", {
+    env: "dev",
+    sourceKey: "isolated_fixture",
+    coverage: "complete",
+    validUntil: new Date(Date.now() + 86400000).toISOString(),
+    entries: [
+      {
+        userId: "u_isolated_opaque_0001",
+        deptId: "dept_fixture",
+        roleId: "role_fixture",
+        eligible: true,
+      },
+    ],
+  });
+  await post(root + `/directory/${directory.id}/publish`, {});
+  const immutable = await request.post(root + `/directory/${directory.id}/publish`, {
+    headers,
+    data: {},
+  });
+  expect(immutable.status()).toBe(409);
+  const metadata = await (await request.get(root + "/directory", { headers })).json();
+  expect(metadata[0].status).toBe("published");
+  expect(JSON.stringify(metadata)).not.toContain("u_isolated_opaque");
+  expect(metadata[0].entries).toBeUndefined();
+  const sent: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith("/v1/events")) sent.push(r.postData() ?? "");
+  });
+  await page.goto(`http://127.0.0.1:4174/?efficiencyAppId=${project.appId}`);
+  await page.getByRole("button", { name: "安装效率SDK" }).click();
+  await expect(page.getByText("R4-C SDK已就绪", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "执行表单与业务结果" }).click();
+  await expect(page.getByText("R4-C受控场景已发送", { exact: true })).toBeVisible();
+  const query = new URLSearchParams({ env: "dev", range: "7d", moduleId: module.id });
+  let result!: {
+    efficiency: Awaited<ReturnType<EfficiencyFactStore["read"]>>;
+    diagnostics: unknown;
+  };
+  await expect
+    .poll(
+      async () => {
+        const r = await request.get(root + "/business?" + query, { headers });
+        expect(r.status()).toBe(200);
+        result = await r.json();
+        return result.efficiency?.operation_fail_rate.observations.started;
+      },
+      { timeout: 30000 },
+    )
+    .toBe(3);
+  expect(result.efficiency.form_efficiency.observations).toMatchObject([
+    { changes: 3, resets: 1, submits: 2, validationFailures: 1 },
+  ]);
+  expect(result.efficiency.operation_fail_rate.observations).toMatchObject({
+    started: 3,
+    success: 1,
+    rejected: 1,
+    unknown: 1,
+  });
+  expect(result.efficiency.operation_fail_rate.value).toBeNull();
+  expect(result.efficiency.form_efficiency.value).toBeNull();
+  expect(sent.join("")).not.toMatch(
+    /isolated_network|inputValue|validationMessage|bizRef/,
+  );
+  expect(JSON.stringify(result)).not.toMatch(
+    /u_isolated_opaque|dept_fixture|role_fixture|payload_json/,
+  );
+  await page.goto("/login");
+  await page.getByLabel("邮箱").fill("admin@example.invalid");
+  await page.getByLabel("密码").fill("LocalAdmin-1234");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.goto(`/projects/${project.id}/business?${query}`);
+  await expect(
+    page.getByRole("heading", { name: "操作效率", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "组织维度", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "查看组织目录配置与版本" }).click();
+  await expect(
+    page.getByRole("heading", { name: "组织目录", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(directory.id, { exact: true })).toBeVisible();
+  const values: number[] = [];
+  for (let i = 0; i < 23; i++) {
+    const t = performance.now();
+    const r = await request.get(root + "/business?" + query, { headers });
+    expect(r.status()).toBe(200);
+    await r.json();
+    if (i >= 3) values.push(performance.now() - t);
+  }
+  const p95 = [...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.95) - 1]!;
+  expect(p95).toBeLessThanOrEqual(2000);
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    `artifacts/r4c-${info.project.name}.json`,
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA ?? "local",
+        scope:
+          "real SDK form/business observations and directory API; not complete R4-C",
+        warmups: 3,
+        sampleCount: 20,
+        p95Algorithm: "nearest-rank",
+        p95,
+        rawMs: values,
+        diagnostics: result.diagnostics,
+        privacyPolicy: "pending; no organization numbers published",
+        manualAcceptanceReady: false,
+      },
+      null,
+      2,
+    ),
+  );
+});

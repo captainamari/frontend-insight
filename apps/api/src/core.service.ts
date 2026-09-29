@@ -1,4 +1,7 @@
 import {
+  OrganizationDirectoryService,
+  EfficiencyFactStore,
+  readDirectories,
   AnalyticsStore,
   AuthManager,
   IngestionManager,
@@ -25,6 +28,10 @@ import type { OnModuleDestroy } from "@nestjs/common";
 export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
+  readonly directory = new OrganizationDirectoryService(
+    this.mysql,
+    this.environment.ACCOUNT_HMAC_KEY,
+  );
   readonly metricLibrary = new MetricLibraryService(this.mysql);
   readonly workflowFacts = new WorkflowFactStore({
     url: this.environment.CLICKHOUSE_URL,
@@ -47,6 +54,7 @@ export class CoreService implements OnModuleDestroy {
     this.environment.ACCOUNT_HMAC_KEY,
     {
       projectCacheTtlMs: this.environment.PROJECT_CACHE_TTL_MS,
+      directories: (projectId) => readDirectories(this.mysql.pool, projectId),
       maximumRequestsPerMinute: this.environment.INGESTION_RATE_LIMIT_PER_MINUTE,
     },
   );
@@ -96,11 +104,18 @@ export class CoreService implements OnModuleDestroy {
     password: this.environment.CLICKHOUSE_PASSWORD,
     database: this.environment.CLICKHOUSE_DATABASE,
   });
+  readonly efficiencyFacts = new EfficiencyFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
   readonly businessAnalysis = new BusinessAnalysisService(
     this.mysql,
     this.scores,
     this.businessFacts,
     this.workflowFacts,
+    this.efficiencyFacts,
   );
 
   async onModuleDestroy(): Promise<void> {
@@ -109,6 +124,7 @@ export class CoreService implements OnModuleDestroy {
       this.analytics.close(),
       this.overviewFacts.close(),
       this.businessFacts.close(),
+      this.efficiencyFacts.close(),
       this.workflowFacts.close(),
       this.observability.close(),
       this.mysql.close(),

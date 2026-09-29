@@ -326,7 +326,7 @@ try {
   assert.equal(observed.penetration.reason, "PENETRATION_SOURCE_MISSING");
   assert(!JSON.stringify(observed).includes("isolated-hmac-"));
   // Page aggregate + frozen score workflow facts + workflow facts/SDK metadata.
-  assert.equal(observed.diagnostics.clickHouseQueries, 4);
+  assert.equal(observed.diagnostics.clickHouseQueries, 5);
   for (const bad of [
     "env=all",
     "range=24h",
@@ -617,7 +617,7 @@ try {
         queries,
         scans,
       });
-      assert(queries.every((n) => n === 4));
+      assert(queries.every((n) => n === 5));
       assert(p95 <= 2000, `${range}: ${p95}`);
     }
   }

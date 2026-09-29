@@ -39,7 +39,8 @@ export const CANONICAL_CUSTOM_EVENT_NAMES = [
   "workflow_step_reached",
   "workflow_completed",
   "workflow_failed",
-  "workflow_canceled"
+  "workflow_canceled",
+  "form_summary"
 ] as const;
 export const CANONICAL_ENVIRONMENTS = [
   "prod",

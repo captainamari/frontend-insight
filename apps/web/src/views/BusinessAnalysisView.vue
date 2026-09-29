@@ -480,6 +480,97 @@ onBeforeUnmount(() => {
           <pre>{{ JSON.stringify(data.penetration, null, 2) }}</pre>
         </details>
       </section>
+      <section class="panel" aria-label="操作效率">
+        <h2>操作效率</h2>
+        <p>
+          表单与业务适配器独立
+          opt-in。以下为真实受控事实观察；窗口与未知结果规则待确认，正式比率暂不可用，不生成效率分。
+        </p>
+        <template v-if="data.efficiency">
+          <p>
+            asOf：{{ data.efficiency.asOf }} · {{ data.efficiency.definitionVersion }} ·
+            覆盖：{{ data.efficiency.coverage }}
+          </p>
+          <h3>表单效率</h3>
+          <p>{{ data.efficiency.form_efficiency.reason }}</p>
+          <table>
+            <caption>
+              已结算生命周期计数（不是完整窗口效率指标）
+            </caption>
+            <thead>
+              <tr>
+                <th>formId</th>
+                <th>修改</th>
+                <th>重置</th>
+                <th>提交尝试</th>
+                <th>校验失败</th>
+                <th>无提交生命周期</th>
+                <th>计数超限</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="f in data.efficiency.form_efficiency.observations"
+                :key="f.formId"
+              >
+                <td>{{ f.formId }}</td>
+                <td>{{ f.changes }}</td>
+                <td>{{ f.resets }}</td>
+                <td>{{ f.submits }}</td>
+                <td>{{ f.validationFailures }}</td>
+                <td>{{ f.noSubmit }}</td>
+                <td>{{ f.overflow }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <h3>业务操作结果</h3>
+          <p>{{ data.efficiency.operation_fail_rate.reason }}</p>
+          <dl>
+            <dt>全部受控开始</dt>
+            <dd>{{ data.efficiency.operation_fail_rate.observations.started }}</dd>
+            <dt>业务成功 / 拒绝</dt>
+            <dd>
+              {{ data.efficiency.operation_fail_rate.observations.success }} /
+              {{ data.efficiency.operation_fail_rate.observations.rejected }}
+            </dd>
+            <dt>技术失败 / 取消 / 未知 / 冲突</dt>
+            <dd>
+              {{ data.efficiency.operation_fail_rate.observations.technical_failure }} /
+              {{ data.efficiency.operation_fail_rate.observations.canceled }} /
+              {{ data.efficiency.operation_fail_rate.observations.unknown }} /
+              {{ data.efficiency.operation_fail_rate.observations.unresolved }}
+            </dd>
+          </dl>
+          <h3>重复操作率</h3>
+          <p>
+            不可用：对象引用隐私设计与24小时会话规则待确认，当前未采集业务对象引用。
+          </p>
+        </template>
+        <p v-else>所选范围暂无可读取的操作效率事实。</p>
+        <p>
+          任务耗时与操作路径继续使用下方工作流追踪；路径仍为有界会话观察（partial）。
+        </p>
+      </section>
+      <section class="panel" aria-label="组织维度">
+        <h2>组织维度</h2>
+        <p v-if="data.organization">
+          {{ data.organization.status }} · {{ data.organization.reason }}
+        </p>
+        <p>
+          部门使用率、角色使用率、角色功能画像暂不可用：正式使用事实聚合及小群体发布策略尚未完成。组织数值、比率和排名均不发布。
+        </p>
+        <p>
+          目录可以由项目管理员在指标管理中导入、核对并发布。没有可信目录的项目保持
+          not_collected；目录存在不证明业务活动采集完整。
+        </p>
+        <RouterLink
+          :to="{
+            path: `/projects/${route.params.projectId}/metrics`,
+            query: { ...route.query, directory: '1', analysisReturn: route.fullPath },
+          }"
+          >查看组织目录配置与版本</RouterLink
+        >
+      </section>
       <section v-if="data.workflowAnalysis" class="panel" aria-label="工作流追踪">
         <h2>工作流追踪</h2>
         <p>

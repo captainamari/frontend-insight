@@ -1,3 +1,4 @@
+import { directoryAt, type DirectoryVersion } from "./organization-directory.js";
 import {
   readWorkflowFactDefinitions,
   workflowEventDefinitionError,
@@ -203,6 +204,7 @@ export class IngestionManager {
       projectCacheTtlMs?: number;
       maximumRequestsPerMinute?: number;
       now?: () => number;
+      directories?: (projectId: string) => Promise<DirectoryVersion[]>;
     } = {},
   ) {
     if (userHmacKey.length < 32) throw new Error("USER_HMAC_KEY_TOO_SHORT");
@@ -288,7 +290,13 @@ export class IngestionManager {
           }
         }
       }
-      const { batch, enrichments } = this.sanitize(project, validation.value);
+      const directories = (await this.options.directories?.(project.id)) ?? [];
+      const { batch, enrichments } = this.sanitize(
+        project,
+        validation.value,
+        directories,
+        nowMs,
+      );
       const requestId = randomUUID();
       const envelope: KafkaEventEnvelope = {
         envelopeVersion: 1,
@@ -376,6 +384,8 @@ export class IngestionManager {
   private sanitize(
     project: ProjectIngestionConfig,
     source: FrontendInsightEventBatch,
+    directories: DirectoryVersion[],
+    nowMs: number,
   ): { batch: FrontendInsightEventBatch; enrichments: EventEnrichment[] } {
     const features = new Map(
       project.features.map((feature) => [feature.featureKey, feature]),
@@ -404,8 +414,20 @@ export class IngestionManager {
             .digest("hex")
         : null;
       event.userId = userId;
+      const directory = directoryAt(directories, event.env, event.timestamp, nowMs);
+      const entry = directory?.entries.find((e) => e.userId === userId && e.eligible);
+      event.deptId = entry?.deptId ?? null;
+      event.roleId = entry?.roleId ?? null;
+      if (customName === "form_summary") {
+        const form = features.get(String(payload.formId));
+        if (!form || form.status !== "active" || form.featureType !== "action")
+          throw new IngestionError("FORM_NOT_REGISTERED", 400);
+      }
+      if (payload.businessAdapter && !feature?.operationLifecycleEnabled)
+        throw new IngestionError("BUSINESS_OPERATION_NOT_REGISTERED", 400);
       enrichments.push({
         eventId: event.eventId,
+        directoryVersionId: directory?.id ?? null,
         userId,
         featureId: feature?.id ?? null,
       });

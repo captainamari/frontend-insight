@@ -124,6 +124,17 @@ export function validateTransportBatch(
 
   for (const [index, event] of batch.events.entries()) {
     const path = `/events/${index}`;
+    if (
+      event.event === "custom" &&
+      event.payload.name === "form_summary" &&
+      Number(event.payload.validationFailureCount) > Number(event.payload.submitCount)
+    ) {
+      return error(
+        REJECTION_CODES.schemaInvalid,
+        `${path}/payload`,
+        "invalid counter relationship",
+      );
+    }
     if (byteLength(event) > CONTRACT_LIMITS.maximumEventBytes) {
       return error(
         REJECTION_CODES.eventTooLarge,

@@ -1126,6 +1126,108 @@
               "visibleDurationMs": false
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "name": {
+                "const": "form_summary"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "then": {
+            "required": [
+              "formId",
+              "formInstanceId",
+              "changeCount",
+              "resetCount",
+              "submitCount",
+              "validationFailureCount",
+              "counterOverflow",
+              "sampleRate"
+            ],
+            "properties": {
+              "formId": true,
+              "formInstanceId": true,
+              "changeCount": true,
+              "resetCount": true,
+              "submitCount": true,
+              "validationFailureCount": true,
+              "counterOverflow": true,
+              "sampleRate": true
+            },
+            "propertyNames": {
+              "enum": [
+                "name",
+                "formId",
+                "formInstanceId",
+                "changeCount",
+                "resetCount",
+                "submitCount",
+                "validationFailureCount",
+                "counterOverflow",
+                "sampleRate"
+              ]
+            }
+          },
+          "else": {
+            "properties": {
+              "formId": false,
+              "formInstanceId": false,
+              "changeCount": false,
+              "resetCount": false,
+              "submitCount": false,
+              "validationFailureCount": false,
+              "counterOverflow": false,
+              "sampleRate": false
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "businessAdapter"
+                ],
+                "properties": {
+                  "businessAdapter": true
+                }
+              },
+              {
+                "required": [
+                  "businessResult"
+                ],
+                "properties": {
+                  "businessResult": true
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "businessAdapter",
+              "featureKey",
+              "operationInstanceId"
+            ],
+            "properties": {
+              "businessAdapter": true,
+              "featureKey": true,
+              "operationInstanceId": true,
+              "name": {
+                "enum": [
+                  "feature_started",
+                  "feature_succeeded",
+                  "feature_failed",
+                  "feature_canceled"
+                ]
+              },
+              "labels": false
+            }
+          }
         }
       ],
       "properties": {
@@ -1143,7 +1245,8 @@
             "workflow_step_reached",
             "workflow_completed",
             "workflow_failed",
-            "workflow_canceled"
+            "workflow_canceled",
+            "form_summary"
           ]
         },
         "featureKey": {
@@ -1216,6 +1319,54 @@
               }
             ]
           }
+        },
+        "formId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$"
+        },
+        "formInstanceId": {
+          "type": "string",
+          "pattern": "^frm_[0-9a-f]{32}$"
+        },
+        "changeCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "resetCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "submitCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "validationFailureCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "counterOverflow": {
+          "type": "boolean"
+        },
+        "sampleRate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "businessAdapter": {
+          "const": true
+        },
+        "businessResult": {
+          "enum": [
+            "success",
+            "rejected",
+            "technical_failure",
+            "canceled",
+            "unknown"
+          ]
         }
       }
     }

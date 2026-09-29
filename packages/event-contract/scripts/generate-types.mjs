@@ -371,6 +371,62 @@ const schema = {
   },
 };
 
+// R4-C summaries use exact fields. No labels, DOM values or arbitrary objects.
+const formFields = {
+  formId: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$" },
+  formInstanceId: { type: "string", pattern: "^frm_[0-9a-f]{32}$" },
+  changeCount: { type: "integer", minimum: 0, maximum: 10000 },
+  resetCount: { type: "integer", minimum: 0, maximum: 10000 },
+  submitCount: { type: "integer", minimum: 0, maximum: 10000 },
+  validationFailureCount: { type: "integer", minimum: 0, maximum: 10000 },
+  counterOverflow: { type: "boolean" },
+  sampleRate: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+};
+Object.assign(schema.$defs.customPayload.properties, formFields, {
+  businessAdapter: { const: true },
+  businessResult: {
+    enum: ["success", "rejected", "technical_failure", "canceled", "unknown"],
+  },
+});
+schema.$defs.customPayload.allOf.push(
+  {
+    if: { properties: { name: { const: "form_summary" } }, required: ["name"] },
+    then: {
+      required: Object.keys(formFields),
+      properties: Object.fromEntries(Object.keys(formFields).map((k) => [k, true])),
+      propertyNames: { enum: ["name", ...Object.keys(formFields)] },
+    },
+    else: {
+      properties: Object.fromEntries(Object.keys(formFields).map((k) => [k, false])),
+    },
+  },
+  {
+    if: {
+      anyOf: ["businessAdapter", "businessResult"].map((k) => ({
+        required: [k],
+        properties: { [k]: true },
+      })),
+    },
+    then: {
+      required: ["businessAdapter", "featureKey", "operationInstanceId"],
+      properties: {
+        businessAdapter: true,
+        featureKey: true,
+        operationInstanceId: true,
+        name: {
+          enum: [
+            "feature_started",
+            "feature_succeeded",
+            "feature_failed",
+            "feature_canceled",
+          ],
+        },
+        labels: false,
+      },
+    },
+  },
+);
+
 const canonicalTypes = `/* AUTO-GENERATED from canonical-names.json. Do not edit directly. */
 
 export const CANONICAL_PUBLIC_FIELDS = ${asConst(manifest.publicFields.map(({ key }) => key))};

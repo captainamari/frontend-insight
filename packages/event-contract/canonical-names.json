@@ -2,22 +2,70 @@
   "version": "1.8.0",
   "contractVersion": 3,
   "publicFields": [
-    { "key": "appId", "label": "应用 ID" },
-    { "key": "env", "label": "环境" },
-    { "key": "release", "label": "发布版本" },
-    { "key": "event", "label": "事件类型" },
-    { "key": "timestamp", "label": "事件时间" },
-    { "key": "pageUrl", "label": "页面 URL" },
-    { "key": "pageRoute", "label": "页面路由" },
-    { "key": "userId", "label": "用户 ID" },
-    { "key": "deptId", "label": "部门 ID" },
-    { "key": "roleId", "label": "角色 ID" },
-    { "key": "sessionId", "label": "会话 ID" },
-    { "key": "deviceId", "label": "设备 ID" },
-    { "key": "ua", "label": "受控 User-Agent" },
-    { "key": "os", "label": "操作系统" },
-    { "key": "browser", "label": "浏览器" },
-    { "key": "payload", "label": "受控业务载荷" }
+    {
+      "key": "appId",
+      "label": "应用 ID"
+    },
+    {
+      "key": "env",
+      "label": "环境"
+    },
+    {
+      "key": "release",
+      "label": "发布版本"
+    },
+    {
+      "key": "event",
+      "label": "事件类型"
+    },
+    {
+      "key": "timestamp",
+      "label": "事件时间"
+    },
+    {
+      "key": "pageUrl",
+      "label": "页面 URL"
+    },
+    {
+      "key": "pageRoute",
+      "label": "页面路由"
+    },
+    {
+      "key": "userId",
+      "label": "用户 ID"
+    },
+    {
+      "key": "deptId",
+      "label": "部门 ID"
+    },
+    {
+      "key": "roleId",
+      "label": "角色 ID"
+    },
+    {
+      "key": "sessionId",
+      "label": "会话 ID"
+    },
+    {
+      "key": "deviceId",
+      "label": "设备 ID"
+    },
+    {
+      "key": "ua",
+      "label": "受控 User-Agent"
+    },
+    {
+      "key": "os",
+      "label": "操作系统"
+    },
+    {
+      "key": "browser",
+      "label": "浏览器"
+    },
+    {
+      "key": "payload",
+      "label": "受控业务载荷"
+    }
   ],
   "eventNames": ["page_view", "page_leave", "performance", "api", "error", "custom"],
   "customEventNames": [
@@ -33,7 +81,8 @@
     "workflow_step_reached",
     "workflow_completed",
     "workflow_failed",
-    "workflow_canceled"
+    "workflow_canceled",
+    "form_summary"
   ],
   "environments": ["prod", "staging", "dev"],
   "performanceMetrics": ["lcp", "inp", "cls", "fcp", "ttfb"],
@@ -335,12 +384,36 @@
     "exportInterfaces": "/api/projects/:projectId/settings/export-interfaces"
   },
   "ranges": [
-    { "key": "7d", "granularity": "day", "days": 7 },
-    { "key": "30d", "granularity": "day", "days": 30 },
-    { "key": "90d", "granularity": "week", "days": 90 },
-    { "key": "180d", "granularity": "month", "days": 180 },
-    { "key": "365d", "granularity": "month", "days": 365 },
-    { "key": "custom", "granularity": "adaptive", "maximumMonths": 13 }
+    {
+      "key": "7d",
+      "granularity": "day",
+      "days": 7
+    },
+    {
+      "key": "30d",
+      "granularity": "day",
+      "days": 30
+    },
+    {
+      "key": "90d",
+      "granularity": "week",
+      "days": 90
+    },
+    {
+      "key": "180d",
+      "granularity": "month",
+      "days": 180
+    },
+    {
+      "key": "365d",
+      "granularity": "month",
+      "days": 365
+    },
+    {
+      "key": "custom",
+      "granularity": "adaptive",
+      "maximumMonths": 13
+    }
   ],
   "forbiddenAliases": {
     "publicFields": [

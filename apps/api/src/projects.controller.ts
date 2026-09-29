@@ -117,6 +117,30 @@ export const businessAnalysisSchema = projectOverviewSchema
   })
   .strict();
 
+export const directorySchema = z
+  .object({
+    env: z.enum(CANONICAL_ENVIRONMENTS),
+    sourceKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    coverage: z.enum(["complete", "unknown"]),
+    validUntil: z.string().datetime({ offset: true }),
+    entries: z
+      .array(
+        z
+          .object({
+            userId: z.string().regex(/^u_[a-zA-Z0-9_-]{16,100}$/),
+            deptId: z.string().regex(/^dept_[a-z0-9_]{1,48}$/),
+            roleId: z
+              .string()
+              .regex(/^role_[a-z0-9_]{1,48}$/)
+              .nullable(),
+            eligible: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(500),
+  })
+  .strict();
+
 const updateProjectSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
@@ -378,6 +402,39 @@ export class ProjectsController {
   ) {
     await this.requireProject(principal, projectId, false);
     return evaluateDataStatus(await this.core.mysql.getDataStatus(projectId));
+  }
+
+  @Get(":projectId/directory")
+  async directory(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.directory.list(projectId);
+  }
+  @Post(":projectId/directory")
+  async createDirectory(
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    const parsed = directorySchema.safeParse(input);
+    if (!parsed.success) throw new HttpException("DIRECTORY_INVALID", 400);
+    return this.core.directory.create(projectId, principal.userId, parsed.data);
+  }
+  @Post(":projectId/directory/:versionId/publish")
+  async publishDirectory(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.directory.publish(
+      projectId,
+      principal.userId,
+      parseInput(z.string().uuid(), versionId),
+    );
   }
 
   private async requireProject(

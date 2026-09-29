@@ -54,6 +54,8 @@ export function createTracker(config: TrackerConfig): Tracker {
         normalizePageRoute: config.normalizePageRoute,
         beforeSend: config.beforeSend,
         observability: normalizeObservabilityConfig(config.observability),
+        forms: config.forms,
+        businessOperations: config.businessOperations,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,
@@ -69,3 +71,5 @@ export function createTracker(config: TrackerConfig): Tracker {
 export type * from "./types.js";
 
 export type { WorkflowDefinition, WorkflowHandle, WorkflowState } from "./workflow.js";
+
+export type { FormHandle, FormDefinition, FormCollectorConfig } from "./forms.js";

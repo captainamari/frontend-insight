@@ -5,6 +5,8 @@ import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { validateForConsumer } from "@frontend-insight/event-contract";
 import {
   MySqlStore,
+  readDirectories,
+  directoryAt,
   readWorkflowFactDefinitions,
   workflowEventDefinitionError,
   type EventEnrichment,
@@ -215,6 +217,18 @@ export class EventConsumerRuntime {
           )
         : [[]];
       const projects = projectRows as { id: string; app_id: string }[];
+      const organizationProjects = [
+        ...new Set(
+          parsedMessages
+            .filter(({ envelope }) =>
+              envelope.enrichments.some((e) => e.directoryVersionId),
+            )
+            .map(({ envelope }) => envelope.projectId),
+        ),
+      ];
+      const directories = organizationProjects.length
+        ? await readDirectories(this.mysql.pool, organizationProjects)
+        : [];
       for (const { message, envelope } of parsedMessages) {
         try {
           if (envelope.batch.events.some((event) => event.payload.workflowInstanceId)) {
@@ -231,6 +245,29 @@ export class EventConsumerRuntime {
               );
               if (error) throw new Error(error);
             }
+          }
+          for (const event of envelope.batch.events) {
+            const enrichment = envelope.enrichments.find(
+              (e) => e.eventId === event.eventId,
+            );
+            if (enrichment?.directoryVersionId) {
+              const directory = directoryAt(
+                directories.filter((d) => d.projectId === envelope.projectId),
+                event.env,
+                event.timestamp,
+                Date.parse(envelope.receivedAt),
+              );
+              const entry = directory?.entries.find(
+                (e) => e.userId === event.userId && e.eligible,
+              );
+              if (
+                directory?.id !== enrichment.directoryVersionId ||
+                event.deptId !== (entry?.deptId ?? null) ||
+                event.roleId !== (entry?.roleId ?? null)
+              )
+                throw new Error("DIRECTORY_ATTRIBUTION_INVALID");
+            } else if (event.deptId !== null || event.roleId !== null)
+              throw new Error("DIRECTORY_ATTRIBUTION_MISSING");
           }
           rows.push(...this.rows(envelope));
           envelopes.push(envelope);
@@ -341,6 +378,7 @@ export class EventConsumerRuntime {
         page_url: event.pageUrl,
         page_route: event.pageRoute,
         user_id: event.userId,
+        directory_version_id: enrichment.directoryVersionId ?? null,
         dept_id: event.deptId,
         role_id: event.roleId,
         device_id: event.deviceId,

@@ -1,3 +1,4 @@
+import type { FormCollectorConfig, FormHandle } from "./forms.js";
 import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
 import type {
   FrontendInsightEnvironment,
@@ -66,7 +67,12 @@ export interface BeforeSendContext {
   event: Readonly<TrackerEvent>;
 }
 
+export type BusinessResult =
+  "success" | "rejected" | "technical_failure" | "canceled" | "unknown";
+
 export interface TrackerConfig {
+  forms?: FormCollectorConfig;
+  businessOperations?: { enabled: boolean; operationKeys: readonly string[] };
   appId: string;
   env: FrontendInsightEnvironment;
   release: string;
@@ -104,6 +110,12 @@ export interface TrackerRuntime {
 }
 
 export interface Tracker {
+  trackForm(formId: string): FormHandle;
+  observeBusiness<T>(
+    operationKey: string,
+    execute: () => Promise<T>,
+    classify: (value: T) => BusinessResult,
+  ): Promise<T>;
   startWorkflow(workflowKey: string): WorkflowHandle;
   getActiveWorkflows(workflowKey: string): readonly WorkflowHandle[];
   setUser(userId: string | null): void;
