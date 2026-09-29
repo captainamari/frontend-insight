@@ -10,6 +10,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { MySqlStore } from "../src/mysql-store.js";
 import { KafkaEnvelopePublisher } from "../src/pipeline.js";
 import type { KafkaEventEnvelope } from "../src/model.js";
+import { SafeClickHouseLogger } from "../src/clickhouse-logger.js";
 if (!process.env.MYSQL_URL) throw new Error("MYSQL_URL_REQUIRED");
 const mysql = new MySqlStore(process.env.MYSQL_URL);
 const ch = createClient({
@@ -17,6 +18,7 @@ const ch = createClient({
   username: process.env.CLICKHOUSE_USERNAME ?? "frontend_insight",
   password: process.env.CLICKHOUSE_PASSWORD ?? "",
   database: "frontend_insight",
+  log: { LoggerClass: SafeClickHouseLogger },
 });
 const publisher = new KafkaEnvelopePublisher(
   ["kafka:9092"],
@@ -43,6 +45,7 @@ const evidence: Record<string, unknown> = {
     "isolated real MySQL/Kafka/consumer/ClickHouse upgrade and directory replay; not production membership",
   passed: false,
 };
+let stage = "API_SETUP";
 try {
   token = (
     await post<{ accessToken: string }>(
@@ -116,13 +119,16 @@ try {
     governed = envelope(true);
   assert(validateForConsumer(legacy.batch).ok, "R4C_LEGACY_FIXTURE_CONTRACT");
   assert(validateForConsumer(governed.batch).ok, "R4C_GOVERNED_FIXTURE_CONTRACT");
+  stage = "KAFKA_PUBLISH";
   await publisher.connect();
   await publisher.publish(legacy);
   await publisher.publish(governed);
+  stage = "DIRECTORY_CHANGE";
   await publishDirectory("dept_second", "role_second");
   // Replay the original envelopes after membership changes, retaining their event/receive time.
   await publisher.publish(legacy);
   await publisher.publish(governed);
+  stage = "CLICKHOUSE_REPLAY";
   type Stored = {
     event_id: string;
     user_id: string;
@@ -170,6 +176,18 @@ try {
     historicalVersionPreserved: true,
     replayUsesOriginalEventAndReceivedTime: true,
   });
+} catch (cause) {
+  const code =
+    cause &&
+    typeof cause === "object" &&
+    "code" in cause &&
+    typeof cause.code === "string" &&
+    /^[A-Z0-9_]{1,64}$/.test(cause.code)
+      ? cause.code
+      : "UNEXPECTED";
+  Object.assign(evidence, { failureStage: stage, errorCode: code });
+  console.error(JSON.stringify({ code: "R4C_REPLAY_FAILED", stage, errorCode: code }));
+  process.exitCode = 1;
 } finally {
   const dir = process.env.FI_EVIDENCE_DIR ?? "artifacts";
   mkdirSync(dir, { recursive: true });
