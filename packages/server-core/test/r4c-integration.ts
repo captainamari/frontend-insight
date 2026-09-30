@@ -36,7 +36,23 @@ async function post<T>(path: string, body: unknown, status = 201): Promise<T> {
     },
     body: JSON.stringify(body),
   });
-  assert.equal(r.status, status, "R4C_FIXTURE_API_STATUS"); // Never print request/response bodies.
+  if (r.status !== status) {
+    const body: unknown = await r.json().catch(() => null);
+    const serverCode =
+      body &&
+      typeof body === "object" &&
+      "code" in body &&
+      typeof body.code === "string" &&
+      /^[A-Z0-9_]{1,80}$/.test(body.code)
+        ? body.code
+        : "UNCLASSIFIED";
+    evidence.lastHttpFailure = {
+      expectedStatus: status,
+      actualStatus: r.status,
+      serverCode,
+    };
+    throw new Error("R4C_FIXTURE_API_STATUS");
+  } // Never print request/response bodies.
   return r.json() as Promise<T>;
 }
 const evidence: Record<string, unknown> = {
@@ -401,6 +417,7 @@ try {
     "UPDATE metric_definitions SET definition_version='system-v1.8.0',implementation_status='not_collected',unit=CASE WHEN metric_key IN ('dept_usage','role_usage') THEN 'ratio' ELSE unit END WHERE library_version_id=? AND milestone='R4-C'",
     [oldVersion.id],
   );
+  stage = "R4C_OLD_VERSION_ACTIVATE";
   await post(hroot + `/metrics/versions/${oldVersion.id}/activate`, {});
   async function definitions(versionId: string) {
     const response = await fetch(api + hroot + `/metrics/versions/${versionId}`, {
@@ -415,13 +432,18 @@ try {
       }[];
     }>;
   }
+  stage = "R4C_OLD_VERSION_READ";
   const beforeRefresh = await definitions(oldVersion.id);
+  stage = "R4C_ACTIVE_REFRESH_REJECT";
   await post(hroot + `/metrics/versions/${oldVersion.id}/r4c-facts`, {}, 409);
+  stage = "R4C_NEW_DRAFT_CREATE";
   const updated = await post<{ id: string }>(hroot + "/metrics/versions", {
     type: "operational",
     sourceVersionId: oldVersion.id,
   });
+  stage = "R4C_DRAFT_REFRESH";
   await post(hroot + `/metrics/versions/${updated.id}/r4c-facts`, {});
+  stage = "R4C_DRAFT_SNAPSHOT_CHECK";
   const newSnapshot = await definitions(updated.id);
   assert.equal(
     newSnapshot.definitions.find((d) => d.metricKey === "form_efficiency")
@@ -440,6 +462,7 @@ try {
     JSON.stringify(beforeRefresh.definitions),
     "R4C_OLD_ACTIVE_IMMUTABLE",
   );
+  stage = "R4C_BINDING_WRITE";
   const binding = await fetch(
     api + hroot + `/metrics/versions/${updated.id}/business-bindings`,
     {
@@ -457,13 +480,16 @@ try {
     },
   );
   assert.equal(binding.status, 200, "R4C_BINDING_STATUS");
+  stage = "R4C_DRAFT_VALIDATE";
   const reviewed = await post<{ valid: boolean }>(
     hroot + `/metrics/versions/${updated.id}/validate`,
     {},
     200,
   );
   assert(reviewed.valid, "R4C_DRAFT_VALIDATION");
+  stage = "R4C_DRAFT_ACTIVATE";
   await post(hroot + `/metrics/versions/${updated.id}/activate`, {});
+  stage = "R4C_HISTORY_CHECK";
   assert.equal(
     JSON.stringify((await definitions(oldVersion.id)).definitions),
     JSON.stringify(beforeRefresh.definitions),
@@ -496,8 +522,20 @@ try {
     /^[A-Z0-9_]{1,64}$/.test(cause.code)
       ? cause.code
       : "UNEXPECTED";
-  Object.assign(evidence, { failureStage: stage, errorCode: code });
-  console.error(JSON.stringify({ code: "R4C_REPLAY_FAILED", stage, errorCode: code }));
+  const assertion =
+    cause instanceof Error
+      ? (cause.message.match(/^R4C_[A-Z0-9_]+/)?.[0] ?? null)
+      : null;
+  Object.assign(evidence, { failureStage: stage, errorCode: code, assertion });
+  console.error(
+    JSON.stringify({
+      code: "R4C_REPLAY_FAILED",
+      stage,
+      errorCode: code,
+      assertion,
+      http: evidence.lastHttpFailure,
+    }),
+  );
   process.exitCode = 1;
 } finally {
   const dir = process.env.FI_EVIDENCE_DIR ?? "artifacts";
