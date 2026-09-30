@@ -1,8 +1,20 @@
+import { spawn, type ChildProcess } from "node:child_process";
 import { mintBusinessObjectReference } from "../../../../packages/server-core/src/object-reference.js";
 import type { EfficiencyFactStore } from "../../../../packages/server-core/src/efficiency-facts.js";
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+let referenceHost: ChildProcess | undefined;
+test.afterEach(async () => {
+  if (referenceHost && referenceHost.exitCode === null) {
+    const exited = new Promise<void>((resolve) =>
+      referenceHost!.once("exit", () => resolve()),
+    );
+    referenceHost.kill();
+    await exited;
+  }
+  referenceHost = undefined;
+});
 test("R4-C directory publication and real SDK counters through Kafka and ClickHouse", async ({
   page,
   request,
@@ -70,23 +82,42 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   expect(metadata[0].entries).toBeUndefined();
   // Trusted Node test host obtains signing material; only the signed reference enters the browser.
   const keyResponse = await post(root + "/object-reference-keys", { env: "dev" });
-  const reference = mintBusinessObjectReference({
-    projectId: project.id,
-    env: "dev",
-    objectType: "order",
-    rawObjectId: "R4C_RAW_OBJECT_SENTINEL",
-    issuedAt: Date.now(),
-    keys: keyResponse.keys.map((k: { epoch: number; secret: string }) => ({
-      epoch: k.epoch,
-      secret: Buffer.from(k.secret, "hex"),
-    })),
+  referenceHost = spawn(process.execPath, ["examples/r4c-reference-host.mjs"], {
+    env: {
+      ...process.env,
+      FI_PROJECT_ID: project.id,
+      FI_ADMIN_TOKEN: headers.authorization.slice(7),
+      FI_API_URL: "http://127.0.0.1:3000",
+    },
+    stdio: "ignore",
   });
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (
+            await request.get("http://127.0.0.1:4180/reference", {
+              headers: { Origin: "http://127.0.0.1:4174" },
+            })
+          ).status();
+        } catch {
+          return 0;
+        }
+      },
+      { timeout: 15000 },
+    )
+    .toBe(200);
   const sent: string[] = [];
   page.on("request", (r) => {
     if (r.url().endsWith("/v1/events")) sent.push(r.postData() ?? "");
   });
   await page.goto(`http://127.0.0.1:4174/?efficiencyAppId=${project.appId}`);
-  await page.getByLabel("可信后端短期对象引用（可选）").fill(reference);
+  await page.getByRole("button", { name: "从隔离后端获取引用" }).click();
+  await expect(
+    page.getByText("短期引用已加载；秘密只在隔离后端", { exact: true }),
+  ).toBeVisible();
+  const reference = await page.getByLabel("可信后端短期对象引用（可选）").inputValue();
+  expect(reference).toMatch(/^or1_/);
   await page.getByRole("button", { name: "安装效率SDK" }).click();
   await expect(page.getByText("R4-C SDK已就绪", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "执行表单与业务结果" }).click();
@@ -124,7 +155,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     value: null,
     reason: "REPEATED_LATENESS_WINDOW_OPEN",
   });
-  expect(sent.join("")).not.toContain("R4C_RAW_OBJECT_SENTINEL");
+  expect(sent.join("")).not.toContain("isolated-order-fixture");
   expect(JSON.stringify(result)).not.toContain(reference);
   expect(result.efficiency.form_efficiency.observations).toMatchObject([
     { changes: 3, resets: 1, submits: 2, validationFailures: 1 },

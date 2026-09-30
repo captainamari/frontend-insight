@@ -14,7 +14,10 @@ RUN pnpm install --frozen-lockfile \
 
 FROM nginx:1.29-alpine
 
+ARG APP_DIR
 COPY infra/nginx/m5.conf /etc/nginx/conf.d/default.conf
+# The isolated demo may reach its localhost-only reference fixture; production web CSP stays unchanged.
+RUN if [ "$APP_DIR" = "demo-app" ]; then sed -i "s/connect-src 'self';/connect-src 'self' http:\/\/127.0.0.1:4180 http:\/\/localhost:4180;/" /etc/nginx/conf.d/default.conf; fi
 COPY --from=build /out/ /usr/share/nginx/html/
 
 EXPOSE 8080
