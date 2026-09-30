@@ -343,6 +343,11 @@ try {
     assert.equal(row.pv, 6, "R4C_ORGANIZATION_PV");
     assert.equal(row.visibleDurationMs, 6000, "R4C_ORGANIZATION_DURATION");
   }
+  evidence.manualUrls = {
+    normal: `/projects/${historical.id}/business?${hquery}`,
+    suppressed: `/projects/${historical.id}/business?${new URLSearchParams({ ...Object.fromEntries(hquery), from: new Date(start + day).toISOString(), to: new Date(start + 2 * day).toISOString() })}`,
+    directory: `/projects/${historical.id}/metrics`,
+  };
   stage = "ORGANIZATION_SUPPRESSION_AND_PERFORMANCE";
   const smallQuery = new URLSearchParams(hquery);
   smallQuery.set("from", new Date(start + day).toISOString());

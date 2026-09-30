@@ -29,7 +29,10 @@ import {
   R4C_FACT_DEFINITION_VERSION,
   WORKFLOW_FACT_DEFINITION_VERSION,
 } from "./system-metric-catalog.js";
-import { evaluateModulePenetration } from "./module-penetration.js";
+import {
+  evaluateModulePenetration,
+  directoryPopulationEvidence,
+} from "./module-penetration.js";
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 export interface BusinessQuery extends OverviewQuery {
   moduleId?: string | undefined;
@@ -429,6 +432,22 @@ export class BusinessAnalysisService {
         until: d.until,
       })),
     });
+    const populationScope = {
+      projectId,
+      env: query.env,
+      identityVersion: IDENTITY_DEFINITION_VERSION,
+      activityScope: "identified_valid_classified_business_activity",
+    };
+    const directoryDenominator = (from: string, to: string) =>
+      organization?.values
+        ? directoryPopulationEvidence(
+            snapshot.directories,
+            populationScope,
+            from,
+            to,
+            asOf.valueOf(),
+          )
+        : undefined;
     const directoryVersions = directorySegments(
       snapshot.directories,
       query.env,
@@ -509,6 +528,7 @@ export class BusinessAnalysisService {
               to: b.to,
               timezone: query.timezone,
               observedNumerator: observation?.buckets[i]?.uv ?? null,
+              denominatorEvidence: directoryDenominator(b.from, b.to),
             }),
             reason,
             metrics: evaluate(bucketFact, selected, reason).map((m) => ({
@@ -564,6 +584,7 @@ export class BusinessAnalysisService {
         to: query.to,
         timezone: query.timezone,
         observedNumerator: observation?.window.uv ?? null,
+        denominatorEvidence: directoryDenominator(query.from, query.to),
       }),
       workflows: snapshot.workflows.map((w) => ({
         id: String(w.id),

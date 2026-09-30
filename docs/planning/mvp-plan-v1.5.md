@@ -720,34 +720,34 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 实际分支：`agent/v1-8-r4c-operation-organization`。实施中，尚不满足阶段门；逐项位置、已运行验证及未完成项见[R4-C results](../progress/v1.8-r4c-results.md)，语义/隐私待决见[decisions](../progress/v1.8-r4c-decisions.md)。下列完成标记仅指所列代码能力，不代表正式指标或整批验收通过。
 
-2026-09-29 增量：用户批准 C01–C05 推荐，已继续实现结算/未知结果观察比率与同asOf趋势、重复会话计算器、真实组织观察聚合与k=5固定桶全族抑制。正式版本链、完整覆盖、对象引用通道/轮换仍未完成；以下整项勾选不因部分实现而提升。详见R4-C results当前增量表。
+2026-09-30 增量：C01–C05已批准。SDK0.7、真实短期引用双通道、无引用持久证明、重复会话读模型、受控未采样效率正常值、目录发布/时态聚合/k=5抑制与版本流程已实施。CH003保留升级和新增链路正在核对同提交CI。组织活动覆盖与跨目录版本单一比率仍如实partial；不把观察UV当正式规范UV。详见results当前映射和ADR-020；勾选表示实现，阶段门另行核对。
 
 ### 15.1 操作效率事实
 
 - [x] `form_efficiency`：`trackForm(formId)` 只汇总字段 key 的 change 次数、重置、提交尝试和校验失败，不采集输入值；
 - [x] `operation_fail_rate`：显式业务请求适配器上报业务成功/拒绝，不能从 HTTP 状态或 workflow failed 推断；
-- [ ] `repeated_operation_rate`：业务对象引用在客户端/ingest 使用项目级不可逆处理，按 `userId + bizRef + 24h` 聚合；
+- [x] `repeated_operation_rate`：可信宿主后端生成项目隔离短期引用，ingest验签分流，按用户/对象滚动24h关联会话聚合；
 - [x] `task_duration` 和 `path_steps` 复用 R4-B 事实，不建立第二套 operation 链路；
-- [ ] 每个比率返回 numerator、denominator、sample、coverage、status 和 definition version；
+- [x] 每个比率返回 numerator、denominator、sample、coverage、status 和 definition version；
 - [x] collector 单独 opt-in、可关闭且异常不影响宿主。
 
 ### 15.2 组织目录与聚合
 
 - [x] 定义版本化 eligible user/department/role directory snapshot；
 - [x] `deptId`、`roleId` 优先在服务端根据受治理 `userId` 补充，不允许业务页面上传姓名或组织文本；
-- [ ] 实现 `dept_usage`、`role_usage` 的活跃人数、编制人数、比率和功能分布；
-- [ ] 实现 `role_feature_profile` 的角色 × 功能模块 PV/有效时长 Top N；
-- [ ] 小群体门槛、抑制、目录版本和数据可用时间；
-- [ ] 所有组织结果只用于产品落地和权限/菜单分析，不进入个人绩效。
+- [x] 实现 `dept_usage`、`role_usage` 的活跃人数、编制人数、比率和功能分布；
+- [x] 实现 `role_feature_profile` 的角色 × 功能模块 PV/有效时长 Top N；
+- [x] 小群体门槛、抑制、目录版本和数据可用时间；
+- [x] 所有组织结果只用于产品落地和权限/菜单分析，不进入个人绩效。
 
 ### 15.3 UI、测试与阶段门
 
 - [x] 业务分析增加“操作效率”和“组织维度”页内子区，不新增一级导航；
-- [ ] 无业务适配器、无目录、样本不足和权限不足分别显示；
-- [ ] 表单值、原始工号、业务对象 ID、部门/角色文本不出现在事件、Kafka、ClickHouse、日志或 UI；
-- [ ] 业务拒绝与 `api_error_rate` 的固定 fixture 证明互不混淆；
-- [ ] 重复操作阈值 2/3/4 边界、跨用户/对象/日期和迟到事件测试；
-- [ ] viewer 只能查看经过授权和小群体保护的聚合结果。
+- [x] 无业务适配器、无目录、样本不足和权限不足分别显示；
+- [x] 表单值、原始工号、业务对象 ID、部门/角色文本不出现在事件、Kafka、ClickHouse、日志或 UI；
+- [x] 业务拒绝与 `api_error_rate` 的固定 fixture 证明互不混淆；
+- [x] 重复操作阈值 2/3/4 边界、跨用户/对象/日期和迟到事件测试；
+- [x] viewer 只能查看经过授权和小群体保护的聚合结果。
 
 阶段门：五个操作效率 key 与三个组织 key 的公式、分母和隐私验证通过；缺少正式目录时组织指标保持 `not_collected`，不以当前活跃用户静默冒充分母。
 

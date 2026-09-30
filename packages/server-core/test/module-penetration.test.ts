@@ -148,3 +148,30 @@ describe("approved R4-A population estimate", () => {
     );
   });
 });
+
+describe("R4-C trusted directory denominator", () => {
+  it("requires compatible full numerator and preserves source version without the 90-day approximation", () => {
+    const input = valid();
+    input.denominatorEvidence = {
+      ...evidence({ from, to }, 10),
+      source: "trusted_eligible_directory",
+      sourceVersion: "directory-v1",
+      directoryVersion: "directory-v1",
+    };
+    expect(evaluateModulePenetration(input)).toMatchObject({
+      value: 0.8,
+      estimated: false,
+      availability: "available",
+      directoryVersion: "directory-v1",
+    });
+    expect(
+      evaluateModulePenetration({ ...input, numeratorEvidence: undefined }),
+    ).toMatchObject({ value: null, reason: "PENETRATION_SOURCE_MISSING" });
+    expect(
+      evaluateModulePenetration({
+        ...input,
+        numeratorEvidence: { ...input.numeratorEvidence, coverage: "unknown" },
+      }),
+    ).toMatchObject({ value: null, reason: "PENETRATION_COVERAGE_UNKNOWN" });
+  });
+});

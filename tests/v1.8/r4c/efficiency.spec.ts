@@ -196,6 +196,19 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     await page.getByRole("button", { name: "安装效率SDK" }).click();
     await page.getByRole("button", { name: "执行一次受控操作", exact: true }).click();
     await expect(page.getByText("单次受控操作已发送", { exact: true })).toBeVisible();
+    if (index === 0)
+      await page.getByRole("button", { name: "执行一次受控操作", exact: true }).click();
+    await expect
+      .poll(
+        async () => {
+          const r = await (
+            await request.get(root + "/business?" + query, { headers })
+          ).json();
+          return r.efficiency.operation_fail_rate.observations.started;
+        },
+        { timeout: 30000 },
+      )
+      .toBe(11 + index);
   }
   await expect
     .poll(

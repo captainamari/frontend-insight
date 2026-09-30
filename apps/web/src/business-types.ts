@@ -119,7 +119,12 @@ export interface BusinessResponse {
           reason: string | null;
         }[];
       };
-      operation_fail_rate: { observedValue: number | null; reason: string };
+      operation_fail_rate: { observedValue: number | null; reason: string | null };
+      repeated_operation_rate: {
+        value: number | null;
+        observedValue: number | null;
+        reason: string | null;
+      };
     }[];
   } | null;
   project: OverviewResponse["project"];

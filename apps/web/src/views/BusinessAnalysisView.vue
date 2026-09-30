@@ -511,7 +511,9 @@ onBeforeUnmount(() => {
             {{ data.efficiency.repeated_operation_rate.reason ?? "已闭合且样本满足" }}
           </p>
           <h3>表单效率</h3>
-          <p>{{ data.efficiency.form_efficiency.reason }}</p>
+          <p>
+            {{ data.efficiency.form_efficiency.reason ?? "受控未采样表单结果可用" }}
+          </p>
           <details>
             <summary>表单公式、来源与缺失原因</summary>
             <p>
@@ -520,7 +522,7 @@ onBeforeUnmount(() => {
               提交尝试。三项分别输出，不合成效率分。重置率可能超过100%。
             </p>
             <p>
-              来源为显式启用的受控表单适配器，按生命周期结算时间归桶。至少5次提交才计算观察比率；未提交生命周期的修改、重置不参与比率。无观察不能区分未安装、关闭采集或尚无操作。
+              来源为显式启用的受控表单适配器，按生命周期结算时间归桶。至少5次提交才计算比率；未采样且计数完整时正式结果可用。未提交生命周期的修改、重置不参与比率。无观察不能区分未安装、关闭采集或尚无操作。
             </p>
             <p>
               未知身份与不匹配页面版本排除；重复投递不重复计数。没有提交和计数超限分别披露，不按正常0值解释。
@@ -558,7 +560,7 @@ onBeforeUnmount(() => {
           </table>
           <table v-if="data.efficiency.form_efficiency.results.length">
             <caption>
-              表单观察比率（不代表完整覆盖）
+              表单三子指标（仅登记的受控来源）
             </caption>
             <thead>
               <tr>
@@ -575,17 +577,23 @@ onBeforeUnmount(() => {
                 <td>{{ f.changesPerSubmit ?? "—" }}</td>
                 <td>{{ f.resetRate ?? "—" }}</td>
                 <td>{{ f.validationErrorRate ?? "—" }}</td>
-                <td>{{ f.reason ?? "完整覆盖尚未验证" }}</td>
+                <td>
+                  {{
+                    f.reason ??
+                    (data.efficiency.form_efficiency.value ? "可用" : "来源覆盖未验证")
+                  }}
+                </td>
               </tr>
             </tbody>
           </table>
           <h3>业务操作结果</h3>
           <p>
-            业务拒绝观察比率：{{
-              data.efficiency.operation_fail_rate.observedValue ?? "—"
-            }}
+            正式业务失败率：{{ data.efficiency.operation_fail_rate.value ?? "—" }} ·
+            观察比率：{{ data.efficiency.operation_fail_rate.observedValue ?? "—" }}
           </p>
-          <p>{{ data.efficiency.operation_fail_rate.reason }}</p>
+          <p>
+            {{ data.efficiency.operation_fail_rate.reason ?? "受控未采样业务结果可用" }}
+          </p>
           <details>
             <summary>业务失败率公式、来源与缺失原因</summary>
             <p>
@@ -622,7 +630,8 @@ onBeforeUnmount(() => {
                 <tr>
                   <th>时间桶</th>
                   <th>部分桶</th>
-                  <th>观察比率</th>
+                  <th>业务拒绝观察比率</th>
+                  <th>重复操作正式 / 观察比率</th>
                   <th>原因</th>
                 </tr>
               </thead>
@@ -631,7 +640,14 @@ onBeforeUnmount(() => {
                   <td>{{ bucket.from }} — {{ bucket.to }}</td>
                   <td>{{ bucket.partialBucket ? "是" : "否" }}</td>
                   <td>{{ bucket.operation_fail_rate.observedValue ?? "—" }}</td>
-                  <td>{{ bucket.operation_fail_rate.reason }}</td>
+                  <td>
+                    {{ bucket.repeated_operation_rate.value ?? "—" }} /
+                    {{ bucket.repeated_operation_rate.observedValue ?? "—" }}
+                  </td>
+                  <td>
+                    {{ bucket.operation_fail_rate.reason }}
+                    {{ bucket.repeated_operation_rate.reason }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -665,7 +681,14 @@ onBeforeUnmount(() => {
                     <td>{{ f.changesPerSubmit ?? "—" }}</td>
                     <td>{{ f.resetRate ?? "—" }}</td>
                     <td>{{ f.validationErrorRate ?? "—" }}</td>
-                    <td>{{ f.reason ?? "完整覆盖尚未验证" }}</td>
+                    <td>
+                      {{
+                        f.reason ??
+                        (data.efficiency.form_efficiency.value
+                          ? "可用"
+                          : "来源覆盖未验证")
+                      }}
+                    </td>
                   </tr>
                 </tbody>
               </table>

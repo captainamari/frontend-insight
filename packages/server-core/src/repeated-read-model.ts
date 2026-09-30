@@ -1,3 +1,4 @@
+import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 import type { RepeatedProof } from "./repeated-projection.js";
 import type { BusinessPageWindow } from "./business-facts.js";
 interface Event {
@@ -116,7 +117,10 @@ export function readRepeatedRate(
     denominator: relatedSessionKeys.size,
     status: reason ? (starts.size ? "partial" : "not_collected") : "available",
     reason,
-    definitionVersion: "r4c-repeated-2026-09-30.1",
+    definitionVersion: R4C_FACT_DEFINITION_VERSION,
+    sampleSize: relatedSessionKeys.size,
+    unit: "ratio",
+    coverage: reason ? "incomplete_or_open" : "controlled_unsampled_object_operations",
     source: "controlled_unsampled_object_operations",
     minimumSample: 5,
     boundary:
