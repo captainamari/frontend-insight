@@ -5,6 +5,7 @@ import {
   verifyBusinessObjectReference,
   type ObjectReferenceKey,
 } from "../src/object-reference.js";
+import { repeatedOperationRate } from "../src/repeated-operation.js";
 const day = 86400000,
   projectId = "11111111-1111-4111-8111-111111111111";
 const allKeys = Array.from({ length: 9 }, (_, i) => generateObjectReferenceKey(97 + i));
@@ -69,6 +70,56 @@ describe("C04 trusted-backend rotating object reference", () => {
     expect(a.aliases.some((x) => b.aliases.some((y) => x.digest === y.digest))).toBe(
       false,
     );
+  });
+  it("feeds verified rotation aliases into the rolling reducer without splitting midnight or counting replay", () => {
+    const times = [101 * day - 1, 101 * day, 101 * day + 1];
+    const facts = times.map((at, i) => ({
+      projectId,
+      env: "dev",
+      user: "u",
+      session: `s${i}`,
+      objectType: "order",
+      reference: "",
+      operationKey: "save",
+      instanceId: `i${i}`,
+      at,
+      received: at,
+      aliases: verifyBusinessObjectReference(issue(at), context(at)).aliases,
+    }));
+    const query = {
+      projectId,
+      env: "dev",
+      from: 100 * day,
+      to: 102 * day,
+      asOf: 105 * day,
+      scannedFrom: 99 * day,
+      scannedTo: 103 * day,
+      coverage: "proven" as const,
+    };
+    const result = repeatedOperationRate([...facts].reverse().concat(facts[0]!), query);
+    expect(result).toMatchObject({
+      numerator: 3,
+      denominator: 3,
+      observedValue: 1,
+      reason: "INSUFFICIENT_SAMPLE",
+    });
+    expect(JSON.stringify(result)).not.toContain(facts[0]!.aliases[0]!.digest);
+    expect(
+      repeatedOperationRate(
+        facts.map((f, i) =>
+          i === 2
+            ? {
+                ...f,
+                aliases: verifyBusinessObjectReference(
+                  issue(f.at, { rawObjectId: "OTHER" }),
+                  context(f.at),
+                ).aliases,
+              }
+            : f,
+        ),
+        query,
+      ).numerator,
+    ).toBe(0);
   });
   it("separates object types and objects even with the same project key", () => {
     const a = verifyBusinessObjectReference(issue(), context());

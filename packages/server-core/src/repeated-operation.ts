@@ -7,6 +7,8 @@ export interface RepeatedOperationFact {
   session: string;
   objectType: string;
   reference: string;
+  /** Verified short-lived aliases only; never accept unverified browser claims. */
+  aliases?: readonly { epoch: number; digest: string }[];
   operationKey: string;
   instanceId: string;
   at: number;
@@ -48,13 +50,54 @@ export function repeatedOperationRate(
       conflicts.add(f.instanceId);
     else instances.set(f.instanceId, f);
   }
+  // Match verified rotation aliases within the complete identity/operation scope.
+  // The disjoint-set exists only for this bounded reduction; no stable object ID
+  // is persisted or returned. Processing all aliases first makes replay order irrelevant.
+  const parents = new Map<string, string>();
+  const root = (key: string): string => {
+    let head = key;
+    while (parents.has(head) && parents.get(head) !== head) head = parents.get(head)!;
+    while (parents.has(key) && parents.get(key) !== head) {
+      const next = parents.get(key)!;
+      parents.set(key, head);
+      key = next;
+    }
+    return head;
+  };
+  const referenceKeys = (f: RepeatedOperationFact): string[] => {
+    const scope = [f.user, f.objectType, f.operationKey];
+    if (!f.aliases) return [JSON.stringify([...scope, "single", f.reference])];
+    if (
+      f.aliases.length !== 4 ||
+      f.aliases.some(
+        (a, i) =>
+          !Number.isSafeInteger(a.epoch) ||
+          a.epoch < 0 ||
+          !/^[a-f0-9]{64}$/.test(a.digest) ||
+          (i > 0 && a.epoch !== f.aliases![i - 1]!.epoch - 1),
+      )
+    )
+      throw new Error("REPEATED_REFERENCE_ALIASES_INVALID");
+    return f.aliases.map((a) =>
+      JSON.stringify([...scope, "rotating", a.epoch, a.digest]),
+    );
+  };
+  for (const f of instances.values()) {
+    if (conflicts.has(f.instanceId) || !f.user || (!f.reference && !f.aliases))
+      continue;
+    const keys = referenceKeys(f);
+    for (const key of keys) if (!parents.has(key)) parents.set(key, key);
+    const head = root(keys[0]!);
+    for (const key of keys) parents.set(root(key), head);
+  }
   const groups = new Map<string, RepeatedOperationFact[]>();
   const denominator = new Set<string>();
   const sessionKey = (f: RepeatedOperationFact) => JSON.stringify([f.user, f.session]);
   for (const f of instances.values()) {
-    if (conflicts.has(f.instanceId) || !f.user || !f.reference) continue;
+    if (conflicts.has(f.instanceId) || !f.user || (!f.reference && !f.aliases))
+      continue;
     if (f.at >= context.from && f.at < context.to) denominator.add(sessionKey(f));
-    const key = JSON.stringify([f.user, f.objectType, f.reference, f.operationKey]);
+    const key = root(referenceKeys(f)[0]!);
     const group = groups.get(key) ?? [];
     group.push(f);
     groups.set(key, group);
