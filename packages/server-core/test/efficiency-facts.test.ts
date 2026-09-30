@@ -67,6 +67,19 @@ describe("R4-C bounded observation reducer", () => {
         validationErrorRate: 0.2,
       },
     ]);
+    const expiredRange = reduceEfficiency(
+      [form, ...operations],
+      0,
+      1000,
+      91 * 86400000,
+      [page],
+      "m",
+    );
+    expect(expiredRange.form_efficiency.value).toBeNull();
+    expect(expiredRange.operation_fail_rate).toMatchObject({
+      value: null,
+      reason: "FACT_RETENTION_RANGE_NOT_COVERED",
+    });
     expect(r.operation_fail_rate).toMatchObject({
       value: 0.2,
       denominator: 5,

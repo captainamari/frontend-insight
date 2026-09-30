@@ -191,15 +191,21 @@ export function reduceEfficiency(
       counts[result as "success" | "rejected" | "technical_failure" | "canceled"]++;
     else counts.unknown++;
   }
+  // Reserve the existing 24h admission skew inside the 90-day received-time TTL.
+  const retainedRange = from >= asOf - 89 * 86400000;
   const approved = approvedEfficiencyResults(
     [...forms.values()],
     counts,
     excluded + unidentified,
     {
-      forms: formsCovered,
-      operations: operationsCovered,
+      forms: formsCovered && retainedRange,
+      operations: operationsCovered && retainedRange,
     },
   );
+  if (!retainedRange) {
+    approved.form_efficiency.reason = "FACT_RETENTION_RANGE_NOT_COVERED";
+    approved.operation_fail_rate.reason = "FACT_RETENTION_RANGE_NOT_COVERED";
+  }
   return {
     ...approved,
     repeated_operation_rate: {
