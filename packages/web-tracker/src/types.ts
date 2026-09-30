@@ -72,6 +72,7 @@ export type BusinessResult =
 
 export interface TrackerConfig {
   forms?: FormCollectorConfig;
+  repeatedOperations?: { enabled: boolean };
   businessOperations?: {
     enabled: boolean;
     operationKeys: readonly string[];
@@ -119,6 +120,7 @@ export interface Tracker {
     operationKey: string,
     execute: () => Promise<T>,
     classify: (value: T) => BusinessResult,
+    objectReference?: string,
   ): Promise<T>;
   startWorkflow(workflowKey: string): WorkflowHandle;
   getActiveWorkflows(workflowKey: string): readonly WorkflowHandle[];

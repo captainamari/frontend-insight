@@ -107,7 +107,7 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "repeated_operation_rate",
     "displayName": "重复操作率",
     "category": "operation",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "partial",
     "milestone": "R4-C"
   },
   {

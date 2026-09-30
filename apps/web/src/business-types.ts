@@ -53,7 +53,16 @@ export interface BusinessResponse {
     coverage: string;
     definitionVersion: string;
     form_efficiency: {
-      reason: string;
+      value:
+        | {
+            formId: string;
+            changesPerSubmit: number;
+            resetRate: number;
+            validationErrorRate: number;
+          }[]
+        | null;
+      status: string;
+      reason: string | null;
       results: {
         formId: string;
         sampleSize: number;
@@ -74,7 +83,9 @@ export interface BusinessResponse {
       }[];
     };
     operation_fail_rate: {
-      reason: string;
+      value: number | null;
+      status: string;
+      reason: string | null;
       observedValue: number | null;
       observations: {
         started: number;
@@ -86,7 +97,15 @@ export interface BusinessResponse {
         unresolved: number;
       };
     };
-    repeated_operation_rate: { reason: string };
+    collectorStates: Record<string, string>;
+    repeated_operation_rate: {
+      reason: string | null;
+      value: number | null;
+      observedValue: number | null;
+      numerator: number;
+      denominator: number;
+      status: string;
+    };
     trends: {
       from: string;
       to: string;

@@ -51,7 +51,7 @@ type CatalogDetails = Omit<
 };
 
 const DEFAULT_GRANULARITIES = ["5m", "hour", "day", "week", "month"] as const;
-export const R4C_FACT_DEFINITION_VERSION = "r4c-facts-2026-09-29.1";
+export const R4C_FACT_DEFINITION_VERSION = "r4c-facts-2026-09-30.2";
 export const R4C_FACT_METRIC_KEYS = [
   "form_efficiency",
   "operation_fail_rate",
@@ -262,11 +262,11 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     numeratorDescription: "命中重复操作规则的相关会话数",
     denominatorDescription: "具有受控业务对象引用的相关会话总数",
     deduplicationKey:
-      "project-HMAC(userId) + project-HMAC(bizRef) + operationInstanceId",
+      "project/env + governed user + rolling object aliases + operationInstanceId",
     entityScopes: ["project", "module", "workflow"],
     reportingTiming: "显式业务操作适配器上报短期不可逆对象引用。",
     unavailableReason:
-      "滚动24h相关会话规则与短期引用已批准；专用引用采集/存储/轮换链路尚未交付。",
+      "短期引用与会话命中事实已接通；缺兼容SDK、未启用、投影缺失、窗口未闭合、样本不足或超出保留范围时不可用。",
   }),
   path_steps: {
     businessDescription:

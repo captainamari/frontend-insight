@@ -1,3 +1,8 @@
+import {
+  REPEATED_TOPIC,
+  verifyObjectOperation,
+  type ObjectOperation,
+} from "./repeated-projection.js";
 import { directoryAt, type DirectoryVersion } from "./organization-directory.js";
 import {
   readWorkflowFactDefinitions,
@@ -44,6 +49,10 @@ export interface IngestionAcceptance {
 
 export interface EnvelopePublisher {
   publish(envelope: KafkaEventEnvelope): Promise<void>;
+  publishWithObjects?(
+    envelope: KafkaEventEnvelope,
+    facts: ObjectOperation[],
+  ): Promise<void>;
 }
 
 export interface IngestionMetricsSnapshot {
@@ -58,6 +67,9 @@ export interface IngestionMetricsSnapshot {
 export class KafkaEnvelopePublisher implements EnvelopePublisher {
   private readonly producer: Producer;
   private readonly admin: Admin;
+  private readonly objectProducer: Producer;
+  private objectQueue: Promise<void> = Promise.resolve();
+  private objectQueued = 0;
   private connected = false;
   private adminConnected = false;
 
@@ -77,6 +89,12 @@ export class KafkaEnvelopePublisher implements EnvelopePublisher {
       idempotent: true,
       retry,
     });
+    this.objectProducer = kafka.producer({
+      allowAutoTopicCreation: false,
+      idempotent: true,
+      transactionalId: "r4c-" + randomUUID(),
+      retry,
+    });
     this.admin = kafka.admin();
   }
 
@@ -90,6 +108,7 @@ export class KafkaEnvelopePublisher implements EnvelopePublisher {
   async disconnect(): Promise<void> {
     if (this.connected) await this.producer.disconnect();
     if (this.adminConnected) await this.admin.disconnect();
+    await this.objectProducer.disconnect().catch(() => {});
     this.connected = false;
     this.adminConnected = false;
   }
@@ -100,6 +119,38 @@ export class KafkaEnvelopePublisher implements EnvelopePublisher {
       this.adminConnected = true;
     }
     await this.admin.fetchTopicMetadata({ topics: [this.topic] });
+  }
+
+  async publishWithObjects(
+    envelope: KafkaEventEnvelope,
+    facts: ObjectOperation[],
+  ): Promise<void> {
+    if (this.objectQueued >= 100) throw new Error("OBJECT_PUBLISH_QUEUE_LIMIT");
+    this.objectQueued++;
+    const pending = this.objectQueue.then(async () => {
+      await this.objectProducer.connect();
+      const transaction = await this.objectProducer.transaction();
+      try {
+        await transaction.send({
+          topic: REPEATED_TOPIC,
+          messages: [{ key: envelope.projectId, value: JSON.stringify(facts) }],
+        });
+        await transaction.send({
+          topic: this.topic,
+          messages: [{ key: envelope.projectId, value: JSON.stringify(envelope) }],
+        });
+        await transaction.commit();
+      } catch (cause) {
+        await transaction.abort().catch(() => {});
+        throw cause;
+      }
+    });
+    this.objectQueue = pending.catch(() => {});
+    try {
+      await pending;
+    } finally {
+      this.objectQueued--;
+    }
   }
 
   async publish(envelope: KafkaEventEnvelope): Promise<void> {
@@ -291,7 +342,7 @@ export class IngestionManager {
         }
       }
       const directories = (await this.options.directories?.(project.id)) ?? [];
-      const { batch, enrichments } = this.sanitize(
+      const { batch, enrichments, objects } = this.sanitize(
         project,
         validation.value,
         directories,
@@ -308,7 +359,11 @@ export class IngestionManager {
         enrichments,
       };
       try {
-        await this.publisher.publish(envelope);
+        if (objects.length) {
+          if (!this.publisher.publishWithObjects)
+            throw new Error("OBJECT_CHANNEL_UNAVAILABLE");
+          await this.publisher.publishWithObjects(envelope, objects);
+        } else await this.publisher.publish(envelope);
       } catch {
         this.metrics.kafkaFailures += 1;
         throw new IngestionError("KAFKA_UNAVAILABLE", 503);
@@ -386,7 +441,12 @@ export class IngestionManager {
     source: FrontendInsightEventBatch,
     directories: DirectoryVersion[],
     nowMs: number,
-  ): { batch: FrontendInsightEventBatch; enrichments: EventEnrichment[] } {
+  ): {
+    batch: FrontendInsightEventBatch;
+    enrichments: EventEnrichment[];
+    objects: ObjectOperation[];
+  } {
+    const objects: ObjectOperation[] = [];
     const features = new Map(
       project.features.map((feature) => [feature.featureKey, feature]),
     );
@@ -425,6 +485,40 @@ export class IngestionManager {
       }
       if (payload.businessAdapter && !feature?.operationLifecycleEnabled)
         throw new IngestionError("BUSINESS_OPERATION_NOT_REGISTERED", 400);
+      delete payload.repeatedEligible;
+      if (payload.objectReference !== undefined) {
+        if (
+          !userId ||
+          !operationInstanceId ||
+          !featureKey ||
+          customName !== "feature_started" ||
+          !payload.businessAdapter ||
+          payload.businessSampleRate !== 1
+        )
+          throw new IngestionError("OBJECT_REFERENCE_CONTEXT_INVALID", 400);
+        try {
+          objects.push(
+            verifyObjectOperation(
+              String(payload.objectReference),
+              {
+                project: project.id,
+                env: event.env,
+                user: userId,
+                session: event.sessionId,
+                instance: operationInstanceId,
+                operation: featureKey,
+                at: event.timestamp,
+                received: nowMs,
+              },
+              this.userHmacKey,
+            ),
+          );
+        } catch {
+          throw new IngestionError("OBJECT_REFERENCE_INVALID", 400);
+        }
+        delete payload.objectReference;
+        payload.repeatedEligible = true;
+      }
       enrichments.push({
         eventId: event.eventId,
         directoryVersionId: directory?.id ?? null,
@@ -436,9 +530,16 @@ export class IngestionManager {
     return {
       batch: {
         ...source,
+        sdk: {
+          ...source.sdk,
+          ...(source.sdk.collectors
+            ? { collectors: [...source.sdk.collectors].sort() }
+            : {}),
+        },
         events,
       } as FrontendInsightEventBatch,
       enrichments,
+      objects,
     };
   }
 

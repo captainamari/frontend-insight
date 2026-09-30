@@ -56,6 +56,7 @@ export function createTracker(config: TrackerConfig): Tracker {
         observability: normalizeObservabilityConfig(config.observability),
         forms: config.forms,
         businessOperations: config.businessOperations,
+        repeatedOperations: config.repeatedOperations,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,

@@ -524,7 +524,7 @@ try {
   assert.equal(
     newSnapshot.definitions.find((d) => d.metricKey === "form_efficiency")
       ?.definitionVersion,
-    "r4c-facts-2026-09-29.1",
+    "r4c-facts-2026-09-30.2",
     "R4C_NEW_DEFINITION_VERSION",
   );
   assert.equal(

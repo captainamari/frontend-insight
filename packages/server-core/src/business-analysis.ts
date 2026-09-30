@@ -324,6 +324,24 @@ export class BusinessAnalysisService {
       const definition = definitions.find((d) => d.metricKey === "operation_fail_rate");
       if (!observed || definition?.definitionVersion !== R4C_FACT_DEFINITION_VERSION)
         return;
+      if (
+        definitions.find((d) => d.metricKey === "repeated_operation_rate")
+          ?.definitionVersion === R4C_FACT_DEFINITION_VERSION
+      ) {
+        const repeated = observed.repeated_operation_rate;
+        window.raw.repeated_operation_rate = {
+          value: repeated.observedValue,
+          sampleSize: repeated.denominator,
+          status: repeated.observedValue === null ? "missing" : "available",
+          reason: repeated.reason,
+        };
+        window.inputs.repeated_operation_rate = {
+          value: repeated.value,
+          sampleSize: repeated.denominator,
+          status: repeated.value === null ? "metric_not_available" : "available",
+          reason: repeated.reason,
+        };
+      }
       const operation = observed.operation_fail_rate;
       window.raw.operation_fail_rate = {
         value: operation.observedValue,
@@ -332,9 +350,9 @@ export class BusinessAnalysisService {
         reason: operation.reason,
       };
       window.inputs.operation_fail_rate = {
-        value: null,
+        value: operation.value,
         sampleSize: operation.sampleSize,
-        status: "metric_not_available",
+        status: operation.value === null ? "metric_not_available" : "available",
         reason: operation.reason,
       };
     };
@@ -577,7 +595,7 @@ export class BusinessAnalysisService {
         metadataQueries,
         clickHouseQueries:
           clickHouseQueries +
-          (efficiency ? 1 : 0) +
+          (efficiency ? 1 + efficiency.repeatedQueries : 0) +
           (organization?.queries ?? 0) +
           (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,

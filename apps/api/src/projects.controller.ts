@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { objectReferenceKeys } from "@frontend-insight/server-core";
 import {
   CANONICAL_ENVIRONMENTS,
   CANONICAL_RANGES,
@@ -18,6 +20,8 @@ import {
   Delete,
   Get,
   HttpCode,
+  Header,
+  Headers,
   HttpException,
   Inject,
   Param,
@@ -402,6 +406,51 @@ export class ProjectsController {
   ) {
     await this.requireProject(principal, projectId, false);
     return evaluateDataStatus(await this.core.mysql.getDataStatus(projectId));
+  }
+
+  @Post(":projectId/object-reference-keys")
+  @Header("Cache-Control", "no-store")
+  async objectKeys(
+    @CurrentPrincipal() principal: Principal,
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @Headers("origin") origin?: string,
+    @Headers("sec-fetch-mode") fetchMode?: string,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    if (origin || fetchMode)
+      throw new HttpException({ code: "OBJECT_KEYS_BACKEND_ONLY" }, 403);
+    const parsed = z
+      .object({ env: z.enum(["prod", "staging", "dev"]) })
+      .strict()
+      .safeParse(input);
+    if (!parsed.success)
+      throw new HttpException({ code: "OBJECT_KEY_REQUEST_INVALID" }, 400);
+    await this.core.mysql.pool.execute(
+      "INSERT INTO audit_logs (project_id,actor_user_id,action,entity_type,entity_id,metadata,request_id) VALUES (?,?,?,?,?,?,?)",
+      [
+        projectId,
+        principal.userId,
+        "object_reference.keys_issued",
+        "project",
+        projectId,
+        JSON.stringify({ env: parsed.data.env }),
+        randomUUID(),
+      ],
+    );
+    return {
+      projectId,
+      env: parsed.data.env,
+      expiresAt: new Date(
+        (Math.floor(Date.now() / 86400000) + 1) * 86400000,
+      ).toISOString(),
+      keys: objectReferenceKeys(
+        this.core.environment.ACCOUNT_HMAC_KEY,
+        projectId,
+        parsed.data.env,
+        Date.now(),
+      ).map((k) => ({ epoch: k.epoch, secret: Buffer.from(k.secret).toString("hex") })),
+    };
   }
 
   @Get(":projectId/directory")

@@ -183,7 +183,7 @@
       "label": "重复操作率",
       "category": "operation",
       "milestone": "R4-C",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "partial"
     },
     {
       "key": "path_steps",

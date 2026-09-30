@@ -5,6 +5,10 @@ import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { validateForConsumer } from "@frontend-insight/event-contract";
 import {
   MySqlStore,
+  SafeClickHouseLogger,
+  REPEATED_TOPIC,
+  parseObjectOperations,
+  projectRepeatedOperations,
   readDirectories,
   directoryAt,
   governConsumerOrganization,
@@ -120,6 +124,7 @@ export class EventConsumerRuntime {
     });
     this.consumer = this.kafka.consumer({
       groupId: environment.CONSUMER_GROUP_ID,
+      readUncommitted: false,
       allowAutoTopicCreation: false,
       maxWaitTimeInMs: environment.CONSUMER_FLUSH_TIMEOUT_MS,
       retry: { retries: environment.CONSUMER_MAX_RETRIES },
@@ -130,6 +135,7 @@ export class EventConsumerRuntime {
       username: environment.CLICKHOUSE_USERNAME,
       password: environment.CLICKHOUSE_PASSWORD,
       database: environment.CLICKHOUSE_DATABASE,
+      log: { LoggerClass: SafeClickHouseLogger },
       clickhouse_settings: { date_time_input_format: "best_effort" },
     });
     this.mysql = new MySqlStore(environment.MYSQL_URL);
@@ -142,6 +148,7 @@ export class EventConsumerRuntime {
       topic: this.environment.KAFKA_EVENTS_TOPIC,
       fromBeginning: true,
     });
+    await this.consumer.subscribe({ topic: REPEATED_TOPIC, fromBeginning: true });
     this.metrics.ready = true;
     await this.consumer.run({
       autoCommit: false,
@@ -174,9 +181,40 @@ export class EventConsumerRuntime {
       isRunning,
       pause,
     } = payload;
-    const messages = batch.messages.slice(0, this.environment.CONSUMER_BATCH_SIZE);
+    const messages = batch.messages.slice(
+      0,
+      batch.topic === REPEATED_TOPIC ? 1 : this.environment.CONSUMER_BATCH_SIZE,
+    );
     const attemptKey = `${batch.topic}:${batch.partition}:${messages[0]?.offset ?? "empty"}`;
     try {
+      if (batch.topic === REPEATED_TOPIC) {
+        const objects = [];
+        for (const message of messages) {
+          try {
+            objects.push(
+              ...parseObjectOperations(
+                JSON.parse(message.value?.toString() ?? "null"),
+                Date.now(),
+              ),
+            );
+          } catch {
+            await this.deadLetter(message.value, {
+              topic: batch.topic,
+              partition: batch.partition,
+              offset: message.offset,
+              code: "OBJECT_ENVELOPE_INVALID_OR_EXPIRED",
+            });
+            resolveOffset(message.offset);
+          }
+        }
+        // Bounded batch writes/read; no per-object or per-user queries.
+        if (objects.length > 50) throw new Error("OBJECT_BATCH_LIMIT");
+        await projectRepeatedOperations(this.clickhouse, objects);
+        for (const message of messages) resolveOffset(message.offset);
+        await commitOffsetsIfNecessary();
+        await heartbeat();
+        return;
+      }
       const envelopes: KafkaEventEnvelope[] = [];
       const rows: unknown[] = [];
       const acceptedMessages: typeof messages = [];
@@ -310,6 +348,8 @@ export class EventConsumerRuntime {
             )
               throw new Error("EFFICIENCY_REGISTRY_INVALID");
           }
+          if (envelope.batch.events.some((e) => e.payload.objectReference))
+            throw new Error("OBJECT_REFERENCE_IN_LONG_CHANNEL");
           rows.push(...this.rows(envelope));
           envelopes.push(envelope);
           acceptedMessages.push(message);
@@ -409,6 +449,9 @@ export class EventConsumerRuntime {
         schema_version: envelope.batch.schemaVersion,
         sdk_name: envelope.batch.sdk.name,
         sdk_version: envelope.batch.sdk.version,
+        sdk_collectors: envelope.batch.sdk.collectors
+          ? JSON.stringify(envelope.batch.sdk.collectors)
+          : null,
         project_id: envelope.projectId,
         app_id: event.appId,
         env: event.env,

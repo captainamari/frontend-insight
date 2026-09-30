@@ -1,3 +1,5 @@
+import { readRepeatedRate } from "./repeated-read-model.js";
+import type { RepeatedProof } from "./repeated-projection.js";
 import { R4C_FACT_DEFINITION_VERSION } from "./system-metric-catalog.js";
 import type { CalendarBucket } from "@frontend-insight/event-contract/project-range";
 import {
@@ -29,6 +31,8 @@ export function reduceEfficiency(
 ) {
   const ids = new Map<string, EfficiencyEvent>(),
     conflicts = new Set<string>();
+  let formsCovered = true,
+    operationsCovered = true;
   let unidentified = 0,
     excluded = 0;
   for (const e of events) {
@@ -107,6 +111,7 @@ export function reduceEfficiency(
     const e = group[0]!,
       p = e.payload;
     if (e.at < from || e.at >= to) continue;
+    if (p.sampleRate !== 1) formsCovered = false;
     const formId = String(p.formId),
       row = forms.get(formId) ?? {
         formId,
@@ -158,6 +163,8 @@ export function reduceEfficiency(
     const start = starts[0]!;
     if (start.at < from || start.at >= to) continue;
     counts.started++;
+    if (group.some((e) => e.payload.businessSampleRate !== 1))
+      operationsCovered = false;
     const consistent = group.every(
       (e) =>
         e.user === start.user &&
@@ -178,7 +185,10 @@ export function reduceEfficiency(
       counts[result as "success" | "rejected" | "technical_failure" | "canceled"]++;
     else counts.unknown++;
   }
-  const approved = approvedEfficiencyResults([...forms.values()], counts, excluded);
+  const approved = approvedEfficiencyResults([...forms.values()], counts, excluded, {
+    forms: formsCovered,
+    operations: operationsCovered,
+  });
   return {
     ...approved,
     repeated_operation_rate: {
@@ -273,7 +283,7 @@ export class EfficiencyFactStore {
       query_params: {
         project: projectId,
         env,
-        from: Date.parse(from),
+        from: Date.parse(from) - 86400000,
         asOf: asOf.valueOf(),
       },
       format: "JSON",
@@ -294,36 +304,126 @@ export class EfficiencyFactStore {
       received: Number(r.received),
       payload: JSON.parse(r.payload_json) as Record<string, unknown>,
     }));
+    const proofResult = await this.client.query({
+      query: `SELECT project,env,user,session,instance,operation,at,received,proof_from,proof_to,proof_received,hit,processed FROM repeated_operation_proofs WHERE project={project:UUID} AND env={env:String} AND at>={start:Int64} AND at<{end:Int64} AND processed<={asOf:Int64} LIMIT 200001`,
+      query_params: {
+        project: projectId,
+        env,
+        start: Date.parse(from) - 86400000,
+        end: Date.parse(to) + 86400000,
+        asOf: asOf.valueOf(),
+      },
+      format: "JSON",
+      clickhouse_settings: {
+        max_execution_time: 2,
+        max_rows_to_read: "1000000",
+        read_overflow_mode: "throw",
+      },
+    });
+    const proofBody = await proofResult.json<RepeatedProof>();
+    const proofRows = proofBody.data;
+    if (proofRows.length > 200000) throw new Error("EFFICIENCY_FACT_LIMIT");
+    const proofs = proofRows.map((p) => ({
+      ...p,
+      at: Number(p.at),
+      received: Number(p.received),
+      proof_from: Number(p.proof_from),
+      proof_to: Number(p.proof_to),
+      proof_received: Number(p.proof_received),
+      processed: Number(p.processed),
+    }));
+    const repeated = (start: string, end: string) =>
+      readRepeatedRate(events, proofs, {
+        from: Date.parse(start),
+        to: Date.parse(end),
+        asOf: asOf.valueOf(),
+        moduleId,
+        pages,
+      });
+    const installationResult = await this.client.query({
+      query: `SELECT groupUniqArray(10)(ifNull(sdk_collectors,'legacy')) AS declarations,count() AS events FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND received_at>=fromUnixTimestamp64Milli({from:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64})`,
+      query_params: {
+        project: projectId,
+        env,
+        from: Date.parse(from),
+        asOf: asOf.valueOf(),
+      },
+      format: "JSON",
+      clickhouse_settings: {
+        max_execution_time: 2,
+        max_rows_to_read: "1000000",
+        read_overflow_mode: "throw",
+      },
+    });
+    const installationBody = await installationResult.json<{
+      declarations: string[];
+      events: string;
+    }>();
+    const installation = installationBody.data[0];
+    const collectorStates = Object.fromEntries(
+      ["forms", "business_results", "repeated_operations"].map((key) => {
+        const declarations = installation?.declarations ?? [];
+        const enabled = declarations.filter(
+          (d) => d !== "legacy" && (JSON.parse(d) as string[]).includes(key),
+        ).length;
+        const state = !Number(installation?.events)
+          ? "SDK_NOT_OBSERVED"
+          : declarations.every((d) => d === "legacy")
+            ? "COMPATIBLE_SDK_NOT_OBSERVED"
+            : declarations.includes("legacy")
+              ? "MIXED_INSTALLATIONS"
+              : enabled === declarations.length
+                ? "ENABLED"
+                : enabled
+                  ? "MIXED_INSTALLATIONS"
+                  : "COLLECTOR_DISABLED";
+        return [key, state];
+      }),
+    );
+    const efficiencyEvents = events.filter((e) => e.at >= Date.parse(from));
     const trends = buckets.map((b) => ({
       from: b.from,
       to: b.to,
       partialBucket: b.partial,
       ...reduceEfficiency(
-        events,
+        efficiencyEvents,
         Date.parse(b.from),
         Date.parse(b.to),
         asOf.valueOf(),
         pages,
         moduleId,
       ),
+      repeated_operation_rate: repeated(b.from, b.to),
     }));
     if (trends.reduce((n, b) => n + b.form_efficiency.results.length + 1, 0) > 1000)
       throw new Error("EFFICIENCY_SERIES_LIMIT");
     return {
       ...reduceEfficiency(
-        events,
+        efficiencyEvents,
         Date.parse(from),
         Date.parse(to),
         asOf.valueOf(),
         pages,
         moduleId,
       ),
+      repeated_operation_rate: repeated(from, to),
+      repeatedQueries: 2,
+      collectorStates,
       trends,
       statistics: body.statistics
         ? {
-            rowsRead: body.statistics.rows_read,
-            bytesRead: body.statistics.bytes_read,
-            elapsedSeconds: body.statistics.elapsed,
+            rowsRead:
+              body.statistics.rows_read +
+              (proofBody.statistics?.rows_read ?? 0) +
+              (installationBody.statistics?.rows_read ?? 0),
+            bytesRead:
+              body.statistics.bytes_read +
+              (proofBody.statistics?.bytes_read ?? 0) +
+              (installationBody.statistics?.bytes_read ?? 0),
+            elapsedSeconds:
+              body.statistics.elapsed +
+              (proofBody.statistics?.elapsed ?? 0) +
+              (installationBody.statistics?.elapsed ?? 0),
           }
         : null,
     };

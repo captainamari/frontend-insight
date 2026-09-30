@@ -44,6 +44,7 @@ function fixture(enabled = true) {
       ],
     },
     businessOperations: { enabled, operationKeys: ["save"] },
+    repeatedOperations: { enabled },
   });
   trackers.push(tracker);
   tracker.setUser("u_opaque_fixture_reference");
@@ -61,6 +62,32 @@ function fixture(enabled = true) {
   };
 }
 describe("R4-C controlled collection", () => {
+  it("only sends signed-shaped object references on the existing operation start", async () => {
+    const f = fixture(),
+      reference = "or1_" + "a".repeat(50) + "." + "b".repeat(43);
+    const value = { ok: true };
+    expect(
+      await f.tracker.observeBusiness(
+        "save",
+        async () => value,
+        () => "success",
+        reference,
+      ),
+    ).toBe(value);
+    await f.tracker.observeBusiness(
+      "save",
+      async () => value,
+      () => "success",
+      "RAW_OBJECT_ID",
+    );
+    const events = await f.events();
+    expect(events.filter((e) => e.payload.objectReference)).toHaveLength(1);
+    expect(events.find((e) => e.payload.objectReference)?.payload.name).toBe(
+      "feature_started",
+    );
+    expect(JSON.stringify(events)).not.toContain("RAW_OBJECT_ID");
+  });
+
   it("counts only registered keys; duplicate validation callback and settlement are idempotent", async () => {
     const f = fixture(),
       form = f.tracker.trackForm("edit");

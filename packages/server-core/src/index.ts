@@ -31,3 +31,10 @@ export * from "./organization-directory.js";
 
 export * from "./efficiency-facts.js";
 export type { FormCounters, BusinessResultCounters } from "./efficiency-policy.js";
+
+export * from "./object-reference.js";
+export * from "./repeated-projection.js";
+
+export { SafeClickHouseLogger } from "./clickhouse-logger.js";
+
+export { createObjectReferenceProvider } from "./object-reference-client.js";

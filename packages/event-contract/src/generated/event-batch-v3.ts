@@ -9,6 +9,7 @@ export type PayloadValue = string | number | boolean | null;
 export interface FrontendInsightSdk {
   name: string;
   version: string;
+  collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
 export interface FrontendInsightEventV3 {

@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.6.0";
+const SDK_VERSION = "0.7.0";
 const deviceStorageKey = "frontend-insight.device-id.v2";
 const canonicalCustomNames = new Set<string>(STANDARD_CUSTOM_EVENT_NAMES);
 
@@ -135,6 +135,7 @@ export class BrowserTracker implements Tracker {
       observability: NormalizedObservabilityConfig | null;
       forms: TrackerConfig["forms"];
       businessOperations: TrackerConfig["businessOperations"];
+      repeatedOperations: TrackerConfig["repeatedOperations"];
     },
     private readonly runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
@@ -496,6 +497,7 @@ export class BrowserTracker implements Tracker {
     association: EventPayload = {},
     onTerminal?: (state: string, operationInstanceId: string) => void,
     businessResult?: () => BusinessResult,
+    objectReference?: string,
   ): OperationHandle {
     if (
       this.destroyed ||
@@ -513,13 +515,15 @@ export class BrowserTracker implements Tracker {
       };
     }
     const operationInstanceId = id(this.runtime, "op");
+    const businessSampleRate = this.config.businessOperations?.sampleRate ?? 1;
     const operationUser = this.userId,
       operationSession = this.sessionId;
     let state: OperationState = "started";
     this.safe(() =>
       this.feature("feature_started", operationKey, payload, {
         operationInstanceId,
-        ...(businessResult ? { businessAdapter: true } : {}),
+        ...(businessResult ? { businessAdapter: true, businessSampleRate } : {}),
+        ...(objectReference ? { objectReference } : {}),
         interactionType,
         ...association,
       }),
@@ -562,7 +566,11 @@ export class BrowserTracker implements Tracker {
         this.feature(`feature_${next}`, operationKey, terminalPayload, {
           operationInstanceId,
           ...(businessResult
-            ? { businessAdapter: true, businessResult: businessResult() }
+            ? {
+                businessAdapter: true,
+                businessResult: businessResult(),
+                businessSampleRate,
+              }
             : {}),
           interactionType,
           ...association,
@@ -596,6 +604,7 @@ export class BrowserTracker implements Tracker {
     operationKey: string,
     execute: () => Promise<T>,
     classify: (value: T) => BusinessResult,
+    objectReference?: string,
   ): Promise<T> {
     let bypass: boolean;
     try {
@@ -630,6 +639,13 @@ export class BrowserTracker implements Tracker {
           {},
           undefined,
           () => result,
+          this.config.repeatedOperations?.enabled &&
+            (this.config.businessOperations?.sampleRate ?? 1) === 1 &&
+            typeof objectReference === "string" &&
+            objectReference.length <= 2048 &&
+            /^or1_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(objectReference)
+            ? objectReference
+            : undefined,
         );
       } catch {
         return execute();
@@ -764,7 +780,21 @@ export class BrowserTracker implements Tracker {
     return {
       schemaVersion: CURRENT_SCHEMA_VERSION,
       sentAt: this.runtime.now(),
-      sdk: { name: SDK_NAME, version: SDK_VERSION },
+      sdk: {
+        name: SDK_NAME,
+        version: SDK_VERSION,
+        collectors: [
+          ...(this.config.forms?.enabled ? ["forms" as const] : []),
+          ...(this.config.businessOperations?.enabled
+            ? ["business_results" as const]
+            : []),
+          ...(this.config.repeatedOperations?.enabled &&
+          this.config.businessOperations?.enabled &&
+          (this.config.businessOperations.sampleRate ?? 1) === 1
+            ? ["repeated_operations" as const]
+            : []),
+        ],
+      },
       events,
     };
   }

@@ -44,6 +44,18 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,31}$"
         },
+        "collectors": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 3,
+          "items": {
+            "enum": [
+              "forms",
+              "business_results",
+              "repeated_operations"
+            ]
+          }
+        },
         "version": {
           "type": "string",
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$"
@@ -1129,6 +1141,35 @@
         },
         {
           "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "objectReference"
+                ],
+                "properties": {
+                  "objectReference": true
+                }
+              },
+              {
+                "required": [
+                  "repeatedEligible"
+                ],
+                "properties": {
+                  "repeatedEligible": true
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "name": {
+                "const": "feature_started"
+              }
+            }
+          }
+        },
+        {
+          "if": {
             "properties": {
               "name": {
                 "const": "form_summary"
@@ -1203,6 +1244,30 @@
                 ],
                 "properties": {
                   "businessResult": true
+                }
+              },
+              {
+                "required": [
+                  "businessSampleRate"
+                ],
+                "properties": {
+                  "businessSampleRate": true
+                }
+              },
+              {
+                "required": [
+                  "objectReference"
+                ],
+                "properties": {
+                  "objectReference": true
+                }
+              },
+              {
+                "required": [
+                  "repeatedEligible"
+                ],
+                "properties": {
+                  "repeatedEligible": true
                 }
               }
             ]
@@ -1352,6 +1417,19 @@
           "type": "boolean"
         },
         "sampleRate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "objectReference": {
+          "type": "string",
+          "maxLength": 2048,
+          "pattern": "^or1_[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{43}$"
+        },
+        "repeatedEligible": {
+          "const": true
+        },
+        "businessSampleRate": {
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1

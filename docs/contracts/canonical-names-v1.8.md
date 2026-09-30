@@ -67,7 +67,7 @@
 | `task_duration` | 任务耗时 | operation | `implemented` | R4-B |
 | `form_efficiency` | 表单效率 | operation | `partial` | R4-C |
 | `operation_fail_rate` | 操作失败率 | operation | `partial` | R4-C |
-| `repeated_operation_rate` | 重复操作率 | operation | `not_collected` | R4-C |
+| `repeated_operation_rate` | 重复操作率 | operation | `partial` | R4-C |
 | `path_steps` | 操作路径步数 | operation | `partial` | R4-B |
 | `lcp` | 最大内容绘制 | performance | `partial` | R5-A |
 | `inp` | 交互到下次绘制 | performance | `partial` | R5-A |

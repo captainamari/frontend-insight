@@ -129,6 +129,12 @@ const schema = {
       required: ["name", "version"],
       properties: {
         name: { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" },
+        collectors: {
+          type: "array",
+          uniqueItems: true,
+          maxItems: 3,
+          items: { enum: ["forms", "business_results", "repeated_operations"] },
+        },
         version: {
           type: "string",
           pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$",
@@ -383,12 +389,28 @@ const formFields = {
   sampleRate: { type: "number", exclusiveMinimum: 0, maximum: 1 },
 };
 Object.assign(schema.$defs.customPayload.properties, formFields, {
+  objectReference: {
+    type: "string",
+    maxLength: 2048,
+    pattern: "^or1_[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{43}$",
+  },
+  repeatedEligible: { const: true },
+  businessSampleRate: { type: "number", exclusiveMinimum: 0, maximum: 1 },
   businessAdapter: { const: true },
   businessResult: {
     enum: ["success", "rejected", "technical_failure", "canceled", "unknown"],
   },
 });
 schema.$defs.customPayload.allOf.push(
+  {
+    if: {
+      anyOf: [
+        { required: ["objectReference"], properties: { objectReference: true } },
+        { required: ["repeatedEligible"], properties: { repeatedEligible: true } },
+      ],
+    },
+    then: { properties: { name: { const: "feature_started" } } },
+  },
   {
     if: { properties: { name: { const: "form_summary" } }, required: ["name"] },
     then: {
@@ -402,7 +424,13 @@ schema.$defs.customPayload.allOf.push(
   },
   {
     if: {
-      anyOf: ["businessAdapter", "businessResult"].map((k) => ({
+      anyOf: [
+        "businessAdapter",
+        "businessResult",
+        "businessSampleRate",
+        "objectReference",
+        "repeatedEligible",
+      ].map((k) => ({
         required: [k],
         properties: { [k]: true },
       })),
@@ -459,6 +487,7 @@ export type PayloadValue = string | number | boolean | null;
 export interface FrontendInsightSdk {
   name: string;
   version: string;
+  collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
 export interface FrontendInsightEventV3 {

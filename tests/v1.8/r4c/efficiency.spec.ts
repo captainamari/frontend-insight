@@ -1,3 +1,4 @@
+import { mintBusinessObjectReference } from "../../../../packages/server-core/src/object-reference.js";
 import type { EfficiencyFactStore } from "../../../../packages/server-core/src/efficiency-facts.js";
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
@@ -67,11 +68,25 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
   expect(metadata[0].status).toBe("published");
   expect(JSON.stringify(metadata)).not.toContain("u_isolated_opaque");
   expect(metadata[0].entries).toBeUndefined();
+  // Trusted Node test host obtains signing material; only the signed reference enters the browser.
+  const keyResponse = await post(root + "/object-reference-keys", { env: "dev" });
+  const reference = mintBusinessObjectReference({
+    projectId: project.id,
+    env: "dev",
+    objectType: "order",
+    rawObjectId: "R4C_RAW_OBJECT_SENTINEL",
+    issuedAt: Date.now(),
+    keys: keyResponse.keys.map((k: { epoch: number; secret: string }) => ({
+      epoch: k.epoch,
+      secret: Buffer.from(k.secret, "hex"),
+    })),
+  });
   const sent: string[] = [];
   page.on("request", (r) => {
     if (r.url().endsWith("/v1/events")) sent.push(r.postData() ?? "");
   });
   await page.goto(`http://127.0.0.1:4174/?efficiencyAppId=${project.appId}`);
+  await page.getByLabel("可信后端短期对象引用（可选）").fill(reference);
   await page.getByRole("button", { name: "安装效率SDK" }).click();
   await expect(page.getByText("R4-C SDK已就绪", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "执行表单与业务结果" }).click();
@@ -92,6 +107,25 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
       { timeout: 30000 },
     )
     .toBe(3);
+  await expect
+    .poll(
+      async () => {
+        result = await (
+          await request.get(root + "/business?" + query, { headers })
+        ).json();
+        return result.efficiency.repeated_operation_rate.observedValue;
+      },
+      { timeout: 30000 },
+    )
+    .toBe(1);
+  expect(result.efficiency.repeated_operation_rate).toMatchObject({
+    numerator: 1,
+    denominator: 1,
+    value: null,
+    reason: "REPEATED_LATENESS_WINDOW_OPEN",
+  });
+  expect(sent.join("")).not.toContain("R4C_RAW_OBJECT_SENTINEL");
+  expect(JSON.stringify(result)).not.toContain(reference);
   expect(result.efficiency.form_efficiency.observations).toMatchObject([
     { changes: 3, resets: 1, submits: 2, validationFailures: 1 },
   ]);
@@ -134,7 +168,67 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     sampleSize: 6,
   });
   expect(result.efficiency.operation_fail_rate.observedValue).toBeNull();
-  expect(result.efficiency.definitionVersion).toBe("r4c-facts-2026-09-29.1");
+  expect(result.efficiency.definitionVersion).toBe("r4c-facts-2026-09-30.2");
+  expect(result.efficiency.form_efficiency.value).toMatchObject([
+    { formId: "edit", changesPerSubmit: 1.5, resetRate: 0.5, validationErrorRate: 0.5 },
+  ]);
+  const knownScopeFrom = new Date().toISOString();
+  // Four additional actual SDK installations in distinct browser session cohorts.
+  // First two share the original object; last two each have one distinct object operation.
+  for (let index = 0; index < 4; index++) {
+    await page.goto(`http://127.0.0.1:4174/?efficiencyAppId=${project.appId}`);
+    await page.evaluate(() => sessionStorage.clear());
+    const currentReference =
+      index < 2
+        ? reference
+        : mintBusinessObjectReference({
+            projectId: project.id,
+            env: "dev",
+            objectType: "order",
+            rawObjectId: `isolated-distinct-${index}`,
+            issuedAt: Date.now(),
+            keys: keyResponse.keys.map((k: { epoch: number; secret: string }) => ({
+              epoch: k.epoch,
+              secret: Buffer.from(k.secret, "hex"),
+            })),
+          });
+    await page.getByLabel("可信后端短期对象引用（可选）").fill(currentReference);
+    await page.getByRole("button", { name: "安装效率SDK" }).click();
+    await page.getByRole("button", { name: "执行一次受控操作", exact: true }).click();
+    await expect(page.getByText("单次受控操作已发送", { exact: true })).toBeVisible();
+  }
+  await expect
+    .poll(
+      async () => {
+        result = await (
+          await request.get(root + "/business?" + query, { headers })
+        ).json();
+        return result.efficiency.repeated_operation_rate.observedValue;
+      },
+      { timeout: 30000 },
+    )
+    .toBe(0.6);
+  expect(result.efficiency.repeated_operation_rate).toMatchObject({
+    numerator: 3,
+    denominator: 5,
+    value: null,
+  });
+  const knownQuery = new URLSearchParams({
+    env: "dev",
+    moduleId: module.id,
+    range: "custom",
+    from: knownScopeFrom,
+    to: new Date().toISOString(),
+  });
+  const known = await (
+    await request.get(root + "/business?" + knownQuery, { headers })
+  ).json();
+  expect(known.efficiency.operation_fail_rate).toMatchObject({
+    value: 0,
+    numerator: 0,
+    denominator: 5,
+    status: "available",
+  });
   await page.goto("/login");
   await page.getByLabel("邮箱").fill("admin@example.invalid");
   await page.getByLabel("密码").fill("LocalAdmin-1234");
@@ -185,6 +279,12 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
         p95,
         rawMs: values,
         diagnostics: result.diagnostics,
+        repeatedOperation: {
+          numerator: 3,
+          denominator: 5,
+          observedValue: 0.6,
+          source: "actual SDK across five browser session cohorts; window remains open",
+        },
         privacyPolicy:
           "approved k=5; fixed closed calendar buckets; whole-family suppression",
         manualAcceptanceReady: false,

@@ -484,12 +484,31 @@ onBeforeUnmount(() => {
         <h2>操作效率</h2>
         <p>
           表单与业务适配器独立
-          opt-in。按已批准的结算与未知结果规则计算观察比率；完整覆盖尚未验证，不生成效率分。
+          opt-in。按已批准的结算与未知结果规则计算观察比率；按受控来源披露覆盖，不生成效率分。
         </p>
         <template v-if="data.efficiency">
           <p>
             asOf：{{ data.efficiency.asOf }} · {{ data.efficiency.definitionVersion }} ·
             覆盖：{{ data.efficiency.coverage }}
+          </p>
+          <p>
+            本范围SDK声明（不是覆盖证明）：表单
+            {{ data.efficiency.collectorStates?.forms }} · 业务适配器
+            {{ data.efficiency.collectorStates?.business_results }} · 重复操作
+            {{ data.efficiency.collectorStates?.repeated_operations }}
+          </p>
+          <h3>重复操作相关会话占比</h3>
+          <p>
+            同一治理用户、受控操作、对象类型和对象在滚动24小时内至少3次操作；命中窗口涉及的会话去重计数，分母是本范围有纳入操作的会话。
+          </p>
+          <p>
+            正式值：{{ data.efficiency.repeated_operation_rate.value ?? "—" }} ·
+            观察值：{{ data.efficiency.repeated_operation_rate.observedValue ?? "—" }} ·
+            {{ data.efficiency.repeated_operation_rate.numerator }} /
+            {{ data.efficiency.repeated_operation_rate.denominator }} 相关会话
+          </p>
+          <p>
+            {{ data.efficiency.repeated_operation_rate.reason ?? "已闭合且样本满足" }}
           </p>
           <h3>表单效率</h3>
           <p>{{ data.efficiency.form_efficiency.reason }}</p>

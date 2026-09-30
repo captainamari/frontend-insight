@@ -24,12 +24,32 @@ const input = {
 };
 function setup(role: string | null) {
   const core = {
-    mysql: { getProjectRole: vi.fn().mockResolvedValue(role) },
+    mysql: {
+      getProjectRole: vi.fn().mockResolvedValue(role),
+      pool: { execute: vi.fn().mockResolvedValue([]) },
+    },
+    environment: { ACCOUNT_HMAC_KEY: "k".repeat(32) },
     directory: { create: vi.fn(), list: vi.fn(), publish: vi.fn() },
   };
   return { core, controller: new ProjectsController(core as unknown as CoreService) };
 }
 describe("R4-C directory HTTP authorization and privacy", () => {
+  it("issues scoped keys to authorized backend calls only and audits no key material", async () => {
+    const { controller, core } = setup("admin");
+    const project = "11111111-1111-4111-8111-111111111111";
+    await expect(
+      controller.objectKeys(admin, project, { env: "dev" }, "https://browser.test"),
+    ).rejects.toMatchObject({ status: 403 });
+    const keys = await controller.objectKeys(admin, project, { env: "dev" });
+    expect(keys.keys).toHaveLength(4);
+    expect(JSON.stringify(core.mysql.pool.execute.mock.calls)).not.toContain(
+      keys.keys[0]!.secret,
+    );
+    await expect(
+      setup("viewer").controller.objectKeys(viewer, project, { env: "dev" }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
   it("denies viewer writes and personal directory reads before parsing", async () => {
     const { controller, core } = setup("viewer");
     await expect(controller.createDirectory("p", input, viewer)).rejects.toMatchObject({

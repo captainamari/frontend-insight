@@ -36,6 +36,58 @@ const summary = event("one", 100, {
   counterOverflow: false,
 });
 describe("R4-C bounded observation reducer", () => {
+  it("publishes only compatible unsampled complete controlled cohorts and preserves unknown legacy coverage", () => {
+    const form = {
+      ...summary,
+      payload: { ...summary.payload, submitCount: 5, sampleRate: 1 },
+    };
+    const operations = Array.from({ length: 5 }, (_, i) => [
+      event(`s${i}`, 200 + i, {
+        name: "feature_started",
+        featureKey: "save",
+        operationInstanceId: `op_${i}`,
+        businessAdapter: true,
+        businessSampleRate: 1,
+      }),
+      event(`t${i}`, 300 + i, {
+        name: "feature_succeeded",
+        featureKey: "save",
+        operationInstanceId: `op_${i}`,
+        businessAdapter: true,
+        businessSampleRate: 1,
+        businessResult: i === 0 ? "rejected" : "success",
+      }),
+    ]).flat();
+    const r = reduceEfficiency([form, ...operations], 0, 1000, 1000, [page], "m");
+    expect(r.form_efficiency.value).toMatchObject([
+      {
+        formId: "edit",
+        changesPerSubmit: 1.2,
+        resetRate: 0.4,
+        validationErrorRate: 0.2,
+      },
+    ]);
+    expect(r.operation_fail_rate).toMatchObject({
+      value: 0.2,
+      denominator: 5,
+      status: "available",
+      coverage: "controlled_unsampled_operations",
+    });
+    expect(
+      reduceEfficiency(
+        operations.map((e) => ({
+          ...e,
+          payload: { ...e.payload, businessSampleRate: 0.5 },
+        })),
+        0,
+        1000,
+        1000,
+        [page],
+        "m",
+      ).operation_fail_rate.value,
+    ).toBeNull();
+  });
+
   it("deduplicates transport retries and never promotes observations to formal ratios", () => {
     const r = reduceEfficiency([summary, summary], 0, 1000, 1000, [page], "m");
     expect(r.form_efficiency.observations).toMatchObject([

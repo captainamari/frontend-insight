@@ -1479,14 +1479,21 @@ export class MetricLibraryService {
                       "operationInstanceId",
                       "efficiency-policy.unknown_blocks_rate",
                     ]
-                  : ["dept_usage", "role_usage", "role_feature_profile"].includes(key)
+                  : key === "repeated_operation_rate"
                     ? [
-                        "immutable eligible directory version",
-                        "identified page_view and controlled operation start observations",
-                        "matched visibleDurationMs page_leave segments",
-                        "organization-facts fixed closed buckets; k=5 whole-family suppression",
+                        "contract_v3.custom.feature_started + verified object reference",
+                        "48h object_operation_refs; project/env/user/type/key isolation",
+                        "reference-free repeated_operation_proofs; rolling inclusive 24h witnesses",
+                        "related session cohort; +/-24h lookaround; 24h lateness",
                       ]
-                    : [],
+                    : ["dept_usage", "role_usage", "role_feature_profile"].includes(key)
+                      ? [
+                          "immutable eligible directory version",
+                          "identified page_view and controlled operation start observations",
+                          "matched visibleDurationMs page_leave segments",
+                          "organization-facts fixed closed buckets; k=5 whole-family suppression",
+                        ]
+                      : [],
         };
       }),
       edges,

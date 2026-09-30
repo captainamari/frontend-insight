@@ -26,6 +26,7 @@ export function approvedEfficiencyResults(
   forms: FormCounters[],
   operations: BusinessResultCounters,
   excluded: number,
+  sourceCoverage = { forms: false, operations: false },
 ) {
   const results = forms.map((f) => {
     const reason = f.overflow
@@ -47,7 +48,7 @@ export function approvedEfficiencyResults(
         validationFailures: f.submittedValidationFailures,
       },
       definitionVersion: R4C_FACT_DEFINITION_VERSION,
-      coverage: "unknown",
+      coverage: sourceCoverage.forms ? "controlled_unsampled_settlements" : "unknown",
       excludedNoSubmitLifecycles: f.noSubmit,
       status: reason ? "unavailable" : "observed",
       reason,
@@ -68,27 +69,57 @@ export function approvedEfficiencyResults(
           : null;
   return {
     form_efficiency: {
-      value: null,
-      status: forms.length ? "partial" : "not_collected",
-      reason: forms.length
-        ? "FORM_COVERAGE_NOT_VERIFIED"
-        : "FORM_COLLECTOR_NOT_OBSERVED",
+      value:
+        sourceCoverage.forms && results.length && results.every((r) => !r.reason)
+          ? results.map((r) => ({
+              formId: r.formId,
+              changesPerSubmit: r.changesPerSubmit,
+              resetRate: r.resetRate,
+              validationErrorRate: r.validationErrorRate,
+            }))
+          : null,
+      status:
+        sourceCoverage.forms && results.length && results.every((r) => !r.reason)
+          ? "available"
+          : forms.length
+            ? "partial"
+            : "not_collected",
+      reason:
+        sourceCoverage.forms && results.length && results.every((r) => !r.reason)
+          ? null
+          : forms.length
+            ? !sourceCoverage.forms
+              ? "FORM_COVERAGE_NOT_VERIFIED"
+              : (results.find((r) => r.reason)?.reason ?? "FORM_COVERAGE_NOT_VERIFIED")
+            : "FORM_COLLECTOR_NOT_OBSERVED",
       observations: forms,
       results,
       cohort: "lifecycle_settlement_time",
       minimumSample: 5,
     },
     operation_fail_rate: {
-      value: null,
+      value:
+        !operationReason && sourceCoverage.operations
+          ? operations.rejected / operations.started
+          : null,
       observedValue: operationReason ? null : operations.rejected / operations.started,
-      status: operations.started ? "partial" : "not_collected",
-      reason: operationReason ?? "BUSINESS_ADAPTER_COVERAGE_NOT_VERIFIED",
+      status:
+        !operationReason && sourceCoverage.operations
+          ? "available"
+          : operations.started
+            ? "partial"
+            : "not_collected",
+      reason:
+        operationReason ??
+        (sourceCoverage.operations ? null : "BUSINESS_ADAPTER_COVERAGE_NOT_VERIFIED"),
       observations: operations,
       numerator: operations.rejected,
       denominator: operations.started,
       sampleSize: operations.started,
       unit: "ratio",
-      coverage: "unknown",
+      coverage: sourceCoverage.operations
+        ? "controlled_unsampled_operations"
+        : "unknown",
       definitionVersion: R4C_FACT_DEFINITION_VERSION,
       minimumSample: 5,
       cohort: "operation_start_time; terminal_received_by_asOf",
