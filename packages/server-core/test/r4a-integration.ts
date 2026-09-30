@@ -187,6 +187,15 @@ try {
       ),
       version = list.find((v) => v.status === "draft")!;
     versions[type] = version.id;
+    if (type === "operational") {
+      // Freeze the inherited R4-A unavailable-definition fixture before activation.
+      // R4-C separately verifies that the new partial definition can be bound.
+      await mysql.pool.execute(
+        "UPDATE metric_definitions SET implementation_status='not_collected',definition_version='system-v1.8.0' WHERE library_version_id=? AND metric_key='operation_fail_rate'",
+        [version.id],
+      );
+    }
+
     const base = root + "/score-management";
     const options = await call<
       Awaited<ReturnType<ScoreManagementService["businessOptions"]>>
