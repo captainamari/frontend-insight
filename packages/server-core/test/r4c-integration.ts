@@ -318,15 +318,25 @@ try {
         reason: string;
       }
     | undefined;
+  let directoryPopulation:
+    | {
+        denominator: number | null;
+        directoryVersion: string | null;
+        value: number | null;
+      }
+    | undefined;
   for (let attempt = 0; attempt < 60; attempt++) {
     const response = await fetch(api + hroot + "/business?" + hquery, {
       headers: { authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(15000),
     });
     assert.equal(response.status, 200, "R4C_ORGANIZATION_API_STATUS");
-    organization = (
-      (await response.json()) as { organization: NonNullable<typeof organization> }
-    ).organization;
+    const body = (await response.json()) as {
+      organization: NonNullable<typeof organization>;
+      penetration: NonNullable<typeof directoryPopulation>;
+    };
+    organization = body.organization;
+    directoryPopulation = body.penetration;
     if (organization.values?.[0]?.groups[0]?.pv === 6) break;
     await delay(500);
   }
@@ -348,6 +358,17 @@ try {
     suppressed: `/projects/${historical.id}/business?${new URLSearchParams({ ...Object.fromEntries(hquery), from: new Date(start + day).toISOString(), to: new Date(start + 2 * day).toISOString() })}`,
     directory: `/projects/${historical.id}/metrics`,
   };
+  assert.equal(directoryPopulation?.denominator, 6, "R4C_DIRECTORY_DENOMINATOR");
+  assert.equal(
+    directoryPopulation?.directoryVersion,
+    historicalDirectory.id,
+    "R4C_DIRECTORY_SOURCE_VERSION",
+  );
+  assert.equal(
+    directoryPopulation?.value,
+    null,
+    "R4C_DIRECTORY_DOES_NOT_PROVE_ACTIVITY_COVERAGE",
+  );
   stage = "ORGANIZATION_SUPPRESSION_AND_PERFORMANCE";
   const smallQuery = new URLSearchParams(hquery);
   smallQuery.set("from", new Date(start + day).toISOString());
@@ -358,6 +379,7 @@ try {
   assert.equal(smallResponse.status, 200, "R4C_SMALL_GROUP_API_STATUS");
   const smallResult = (await smallResponse.json()) as {
     organization: { status: string; values: unknown };
+    penetration: { denominator: number | null };
   };
   assert.equal(
     smallResult.organization.status,
@@ -365,6 +387,11 @@ try {
     "R4C_SMALL_GROUP_SUPPRESSION",
   );
   assert.equal(smallResult.organization.values, null, "R4C_SMALL_GROUP_FAMILY_NULL");
+  assert.equal(
+    smallResult.penetration.denominator,
+    null,
+    "R4C_SUPPRESSED_DIRECTORY_DENOMINATOR",
+  );
   const unionQuery = new URLSearchParams(hquery);
   unionQuery.set("to", new Date(start + 2 * day).toISOString());
   const unionResponse = await fetch(api + hroot + "/business?" + unionQuery, {

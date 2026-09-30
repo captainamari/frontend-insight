@@ -455,17 +455,33 @@ onBeforeUnmount(() => {
         </p>
         <p>
           分母观察窗口（半开区间、项目时区）：{{
-            data.penetration.observationWindow?.from
+            (data.penetration.denominatorWindow ?? data.penetration.observationWindow)
+              ?.from
           }}
-          至 {{ data.penetration.observationWindow?.to }}
+          至
+          {{
+            (data.penetration.denominatorWindow ?? data.penetration.observationWindow)
+              ?.to
+          }}
         </p>
         <details>
           <summary>各趋势桶的独立分母窗口与状态</summary>
           <ul>
             <li v-for="bucket in data.metrics.trends" :key="bucket.from + bucket.to">
               {{ bucket.from }} 至 {{ bucket.to }}： 分母窗口
-              {{ bucket.penetration?.observationWindow.from }} 至
-              {{ bucket.penetration?.observationWindow.to }}；
+              {{
+                (
+                  bucket.penetration?.denominatorWindow ??
+                  bucket.penetration?.observationWindow
+                )?.from
+              }}
+              至
+              {{
+                (
+                  bucket.penetration?.denominatorWindow ??
+                  bucket.penetration?.observationWindow
+                )?.to
+              }}；
               {{ penetrationLabels[bucket.penetration?.reason ?? ""] ?? "覆盖未知" }}
             </li>
           </ul>

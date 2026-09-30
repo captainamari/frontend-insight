@@ -53,6 +53,12 @@ export function reduceEfficiency(
     pagesByRoute.set(page.pageRoute, windows);
   }
   const selected = [...ids.values()].filter((e) => {
+    const classified = (pagesByRoute.get(e.page) ?? []).filter(
+      (p) => p.included && Date.parse(p.from) <= e.at && e.at < Date.parse(p.to),
+    );
+    // Other classified modules are outside this cohort, not missing target facts.
+    if (classified.length === 1 && classified[0]!.moduleId !== moduleId) return false;
+    if (e.payload.name === "form_summary" && (e.at < from || e.at >= to)) return false;
     if (conflicts.has(e.id)) {
       excluded++;
       return false;
@@ -185,10 +191,15 @@ export function reduceEfficiency(
       counts[result as "success" | "rejected" | "technical_failure" | "canceled"]++;
     else counts.unknown++;
   }
-  const approved = approvedEfficiencyResults([...forms.values()], counts, excluded, {
-    forms: formsCovered,
-    operations: operationsCovered,
-  });
+  const approved = approvedEfficiencyResults(
+    [...forms.values()],
+    counts,
+    excluded + unidentified,
+    {
+      forms: formsCovered,
+      operations: operationsCovered,
+    },
+  );
   return {
     ...approved,
     repeated_operation_rate: {

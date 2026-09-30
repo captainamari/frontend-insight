@@ -40,6 +40,9 @@ describe("R4-C directory HTTP authorization and privacy", () => {
     await expect(
       controller.objectKeys(admin, project, { env: "dev" }, "https://browser.test"),
     ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      controller.objectKeys(admin, project, { env: "dev" }, undefined, "same-origin"),
+    ).rejects.toMatchObject({ status: 403 });
     const keys = await controller.objectKeys(admin, project, { env: "dev" });
     expect(keys.keys).toHaveLength(4);
     expect(JSON.stringify(core.mysql.pool.execute.mock.calls)).not.toContain(

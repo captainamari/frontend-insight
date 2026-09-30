@@ -154,7 +154,11 @@ export interface BusinessResponse {
       }[];
     })[];
     trends: (OverviewResponse["metrics"]["trends"][number] & {
-      penetration?: { observationWindow: { from: string; to: string }; reason: string };
+      penetration?: {
+        observationWindow: { from: string; to: string };
+        denominatorWindow?: { from: string; to: string };
+        reason: string;
+      };
     })[];
   };
   observation: BusinessObservation | null;
@@ -182,6 +186,7 @@ export interface BusinessResponse {
   };
   penetration: {
     observationWindow?: { from: string; to: string };
+    denominatorWindow?: { from: string; to: string };
     value: number | null;
     numerator: number | null;
     denominator: number | null;

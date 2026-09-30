@@ -88,6 +88,33 @@ describe("R4-C bounded observation reducer", () => {
     ).toBeNull();
   });
 
+  it("isolates other modules and blocks formal values for unidentified target facts", () => {
+    const form = {
+      ...summary,
+      payload: { ...summary.payload, submitCount: 5, sampleRate: 1 },
+    };
+    const other = {
+      ...form,
+      id: "other",
+      page: "/other",
+      payload: { ...form.payload, formInstanceId: "frm_other" },
+    };
+    const pages = [page, { ...page, pageRoute: "/other", moduleId: "other" }];
+    expect(
+      reduceEfficiency([form, other], 0, 1000, 1000, pages, "m").form_efficiency.value,
+    ).not.toBeNull();
+    expect(
+      reduceEfficiency(
+        [form, { ...other, page: "/", user: null }],
+        0,
+        1000,
+        1000,
+        pages,
+        "m",
+      ).form_efficiency.value,
+    ).toBeNull();
+  });
+
   it("deduplicates transport retries and never promotes observations to formal ratios", () => {
     const r = reduceEfficiency([summary, summary], 0, 1000, 1000, [page], "m");
     expect(r.form_efficiency.observations).toMatchObject([

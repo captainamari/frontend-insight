@@ -415,10 +415,10 @@ export class ProjectsController {
     @Param("projectId") projectId: string,
     @Body() input: unknown,
     @Headers("origin") origin?: string,
-    @Headers("sec-fetch-mode") fetchMode?: string,
+    @Headers("sec-fetch-site") fetchSite?: string,
   ) {
     await this.requireProject(principal, projectId, true);
-    if (origin || fetchMode)
+    if (origin || fetchSite)
       throw new HttpException({ code: "OBJECT_KEYS_BACKEND_ONLY" }, 403);
     const parsed = z
       .object({ env: z.enum(["prod", "staging", "dev"]) })

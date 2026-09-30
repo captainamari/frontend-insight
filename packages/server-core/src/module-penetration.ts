@@ -72,12 +72,14 @@ export function evaluateModulePenetration(input: {
     sourceVersion: d?.sourceVersion ?? null,
     directoryVersion: d?.directoryVersion ?? null,
     observationWindow,
+    denominatorWindow: d?.window ?? observationWindow,
     coverage: "unknown",
     estimated: false,
     availability: "unavailable",
     reason: "PENETRATION_SOURCE_MISSING",
-    explanation:
-      "已批准90个项目日历日活跃用户近似。当前缺少可信完整业务活动来源或覆盖证据；页面访问观察不是完整业务UV，分母不代表编制人数或真实系统总人数。",
+    explanation: d?.directoryVersion
+      ? "分母来自该窗口内单一可信完整eligible目录版本。目录不证明活动覆盖；只有兼容且完整的规范业务分子才能形成正式渗透率。"
+      : "已批准90个项目日历日活跃用户近似。当前缺少可信完整业务活动来源或覆盖证据；页面访问观察不是完整业务UV，分母不代表编制人数或真实系统总人数。",
   };
   const unavailable = (reason: string, coverage = "unknown") => ({
     ...base,
