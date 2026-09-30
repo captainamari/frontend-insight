@@ -446,9 +446,16 @@ export function validateMetricVersionSnapshot(input: {
     } else throw cause;
   }
 
-  const statusByKey = new Map(
-    METRIC_CATALOG.map((item) => [item.metricKey, item.implementationStatus]),
-  );
+  // Persisted system definitions are authoritative for this version. A newer
+  // collector/catalog must not promote dependencies in an inherited snapshot.
+  const statusByKey = new Map([
+    ...METRIC_CATALOG.map(
+      (item) => [item.metricKey, item.implementationStatus] as const,
+    ),
+    ...input.definitions
+      .filter((item) => item.origin === "system")
+      .map((item) => [item.metricKey, item.implementationStatus] as const),
+  ]);
   const definitions = input.definitions
     .filter((item) => item.origin === "business")
     .sort(

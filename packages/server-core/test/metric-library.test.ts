@@ -186,6 +186,14 @@ describe("R4-C immutable prior definitions", () => {
           }
         : d,
     );
+    old.push({
+      ...business(
+        "inherited_failure_ratio",
+        { type: "metric", metricKey: "operation_fail_rate" },
+        "ratio",
+      ),
+      minimumSample: 5,
+    });
     const before = JSON.stringify(old);
     expect(
       validateMetricVersionSnapshot({
@@ -193,6 +201,11 @@ describe("R4-C immutable prior definitions", () => {
         definitions: old,
       }).errors,
     ).toEqual([]);
+    expect(
+      validateMetricVersionSnapshot({ version, definitions: old }).definitions.find(
+        (d) => d.metricKey === "inherited_failure_ratio",
+      )?.implementationStatus,
+    ).toBe("not_collected");
     expect(JSON.stringify(old)).toBe(before);
     expect(
       operationalSystems.find((d) => d.metricKey === "form_efficiency")

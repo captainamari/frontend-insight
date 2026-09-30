@@ -42,7 +42,7 @@
     "test:r4a:e2e": "playwright test --config playwright.r4a.config.ts",
     "test:r4b": "vitest run packages/server-core/test/module-penetration.test.ts packages/server-core/test/workflow-reducer.test.ts packages/server-core/test/workflow-facts.test.ts packages/server-core/test/workflow-score-facts.test.ts packages/web-tracker/test/workflow.test.ts packages/test-fixtures/test/contract.test.ts apps/consumer/test/workflow-privacy.test.ts",
     "test:r4b:e2e": "playwright test --config playwright.r4b.config.ts",
-    "test:r4c": "vitest run packages/web-tracker/test/efficiency.test.ts packages/server-core/test/organization-directory.test.ts packages/server-core/test/efficiency-facts.test.ts apps/api/test/directory.controller.test.ts packages/server-core/test/directory-ingestion.test.ts packages/server-core/test/repeated-operation.test.ts packages/server-core/test/organization-facts.test.ts",
+    "test:r4c": "vitest run packages/web-tracker/test/efficiency.test.ts packages/server-core/test/organization-directory.test.ts packages/server-core/test/efficiency-facts.test.ts apps/api/test/directory.controller.test.ts packages/server-core/test/directory-ingestion.test.ts packages/server-core/test/repeated-operation.test.ts packages/server-core/test/object-reference.test.ts packages/server-core/test/organization-facts.test.ts",
     "test:r4c:e2e": "playwright test --config playwright.r4c.config.ts"
   },
   "devDependencies": {

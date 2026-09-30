@@ -10,6 +10,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { MySqlStore } from "../src/mysql-store.js";
 import { KafkaEnvelopePublisher } from "../src/pipeline.js";
 import type { KafkaEventEnvelope } from "../src/model.js";
+import { defaultScoreTemplate } from "../src/score-templates.js";
 import { SafeClickHouseLogger } from "../src/clickhouse-logger.js";
 if (!process.env.MYSQL_URL) throw new Error("MYSQL_URL_REQUIRED");
 const mysql = new MySqlStore(process.env.MYSQL_URL);
@@ -408,6 +409,79 @@ try {
     source: "isolated historical MySQL snapshot; Kafka/consumer/ClickHouse/API facts",
     completeBusinessActivityCoverage: false,
   };
+  // Use the inherited production configuration/review gate for both versions.
+  await post(hroot + "/operational-settings/versions", {
+    targetUsers: 6,
+    expectedActiveWeekdays: [1, 2, 3, 4, 5],
+    effectiveFrom: new Date(start).toISOString(),
+  });
+  const workflow = await post<{ id: string; latestVersion: { id: string } }>(
+    hroot + "/workflow-definitions",
+    {
+      moduleId: module.id,
+      workflowKey: "r4c_version_fixture",
+      name: "R4-C isolated version fixture",
+      startPolicy: "first_step",
+      timeoutSeconds: 600,
+      terminalPolicy: {
+        completedStepKey: "done",
+        failedStepKey: null,
+        canceledStepKey: null,
+        timeoutState: "approximate_abandoned",
+      },
+      steps: [
+        {
+          stepKey: "start",
+          name: "Start",
+          stepOrder: 1,
+          triggerKind: "selector",
+          triggerConfig: { event: "click", selector: "#start" },
+        },
+        {
+          stepKey: "done",
+          name: "Done",
+          stepOrder: 2,
+          triggerKind: "selector",
+          triggerConfig: { event: "click", selector: "#done" },
+        },
+      ],
+    },
+  );
+  await post(hroot + `/workflow-definitions/${workflow.id}/activate`, {
+    versionId: workflow.latestVersion.id,
+  });
+  async function configureAndReview(versionId: string) {
+    const base = hroot + "/score-management";
+    const response = await fetch(api + base + "/business-options", {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 200, "R4C_SCORE_OPTIONS_STATUS");
+    const options = (await response.json()) as {
+      optionsDigest: string;
+      workflows: { id: string }[];
+    };
+    const configured = await fetch(api + base + `/versions/${versionId}`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        configuration: defaultScoreTemplate("operational").configuration,
+        business: {
+          confirmed: true,
+          scopeId: historical.id,
+          optionsDigest: options.optionsDigest,
+          workflowWeights: Object.fromEntries(options.workflows.map((w) => [w.id, 1])),
+          durationMinimumSample: 5,
+        },
+      }),
+    });
+    assert.equal(configured.status, 200, "R4C_SCORE_CONFIGURATION_STATUS");
+    await post(base + `/versions/${versionId}/review`, {
+      env: "prod",
+      from: new Date(start).toISOString(),
+      to: new Date(start + day).toISOString(),
+      granularity: "day",
+    });
+  }
   stage = "R4C_VERSION_UPGRADE";
   const oldVersion = await post<{ id: string }>(hroot + "/metrics/versions", {
     type: "operational",
@@ -417,6 +491,8 @@ try {
     "UPDATE metric_definitions SET definition_version='system-v1.8.0',implementation_status='not_collected',unit=CASE WHEN metric_key IN ('dept_usage','role_usage') THEN 'ratio' ELSE unit END WHERE library_version_id=? AND milestone='R4-C'",
     [oldVersion.id],
   );
+  stage = "R4C_OLD_SCORE_REVIEW";
+  await configureAndReview(oldVersion.id);
   stage = "R4C_OLD_VERSION_ACTIVATE";
   await post(hroot + `/metrics/versions/${oldVersion.id}/activate`, {});
   async function definitions(versionId: string) {
@@ -487,6 +563,8 @@ try {
     200,
   );
   assert(reviewed.valid, "R4C_DRAFT_VALIDATION");
+  stage = "R4C_NEW_SCORE_REVIEW";
+  await configureAndReview(updated.id);
   stage = "R4C_DRAFT_ACTIVATE";
   await post(hroot + `/metrics/versions/${updated.id}/activate`, {});
   stage = "R4C_HISTORY_CHECK";
