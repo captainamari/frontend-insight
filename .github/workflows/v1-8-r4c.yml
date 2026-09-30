@@ -40,6 +40,9 @@ jobs:
       - name: Run complete static, unit and build gate
         run: pnpm check
 
+      - name: Validate R4-C browser test entrypoints
+        run: pnpm exec playwright test -c playwright.r4c.config.ts --list
+
       - name: Record SDK bundle delta against the inherited base
         run: |
           git fetch --depth=1 origin 76a96dea8aeb00db9088e2547250aaa59034a629
@@ -89,6 +92,12 @@ jobs:
 
       - name: Verify R4-C real directory and queued Kafka replay
         run: ./scripts/dev verify-r4c
+
+      - name: Run R4-C controlled collection and directory tests
+        run: pnpm test:r4c
+
+      - name: Verify R4-C actual SDK and directory in both browsers
+        run: pnpm test:r4c:e2e
 
       - name: Verify real MySQL and API metric-library flow
         run: ./scripts/dev verify-r1b
@@ -144,12 +153,6 @@ jobs:
             exit 1
           fi
           grep -q '"requestId"' /tmp/r2-web-access.log
-
-      - name: Run R4-C controlled collection and directory tests
-        run: pnpm test:r4c
-
-      - name: Verify R4-C actual SDK and directory in both browsers
-        run: pnpm test:r4c:e2e
 
       - name: Record R4-C checkpoint without claiming milestone completion
         run: |

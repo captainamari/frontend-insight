@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mintBusinessObjectReference } from "../../../../packages/server-core/src/object-reference.js";
-import type { EfficiencyFactStore } from "../../../../packages/server-core/src/efficiency-facts.js";
+import { mintBusinessObjectReference } from "../../../packages/server-core/src/object-reference.js";
+import type { EfficiencyFactStore } from "../../../packages/server-core/src/efficiency-facts.js";
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
