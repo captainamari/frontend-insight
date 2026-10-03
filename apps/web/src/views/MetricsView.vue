@@ -14,6 +14,7 @@ import {
 } from "../analysis-objects";
 import { auth } from "../auth";
 import PageHeader from "../components/PageHeader.vue";
+import UsageSourcePanel from "../components/UsageSourcePanel.vue";
 import OrganizationDirectoryPanel from "../components/OrganizationDirectoryPanel.vue";
 import ScoreManagementPanel from "../components/ScoreManagementPanel.vue";
 import MetricLibraryPanel from "../components/MetricLibraryPanel.vue";
@@ -917,6 +918,10 @@ watch(
     >
       <summary>组织目录：导入、发布与版本</summary>
       <OrganizationDirectoryPanel
+        :project-id="context.projectId.value ?? ''"
+        :can-write="canWrite"
+      />
+      <UsageSourcePanel
         :project-id="context.projectId.value ?? ''"
         :can-write="canWrite"
       />

@@ -38,7 +38,7 @@ import type {
 } from "./types.js";
 
 const SDK_NAME = "web-tracker";
-const SDK_VERSION = "0.7.0";
+const SDK_VERSION = "0.8.0";
 const deviceStorageKey = "frontend-insight.device-id.v2";
 const canonicalCustomNames = new Set<string>(STANDARD_CUSTOM_EVENT_NAMES);
 
@@ -133,6 +133,8 @@ export class BrowserTracker implements Tracker {
       normalizePageRoute: TrackerConfig["normalizePageRoute"] | undefined;
       beforeSend: TrackerConfig["beforeSend"] | undefined;
       observability: NormalizedObservabilityConfig | null;
+      initialUserId: TrackerConfig["initialUserId"];
+      usageCoverage: TrackerConfig["usageCoverage"];
       forms: TrackerConfig["forms"];
       businessOperations: TrackerConfig["businessOperations"];
       repeatedOperations: TrackerConfig["repeatedOperations"];
@@ -211,6 +213,7 @@ export class BrowserTracker implements Tracker {
       () => runtime.crypto.randomUUID(),
       (code) => this.drop(code),
     );
+    if (config.initialUserId !== undefined) this.setUser(config.initialUserId);
     this.emit("page_view", {});
     this.observability?.start();
     this.installLifecycle();
@@ -783,6 +786,23 @@ export class BrowserTracker implements Tracker {
       sdk: {
         name: SDK_NAME,
         version: SDK_VERSION,
+        ...(this.config.usageCoverage?.enabled
+          ? {
+              usageCoverage: {
+                businessSampleRate: this.config.businessOperations?.enabled
+                  ? Math.max(
+                      0,
+                      Math.min(
+                        1,
+                        Number(this.config.businessOperations.sampleRate ?? 1),
+                      ),
+                    ) || 0
+                  : 1,
+                droppedEvents: Math.min(1000000, this.diagnostics.droppedEvents),
+                failedBatches: Math.min(1000000, this.diagnostics.failedBatches),
+              },
+            }
+          : {}),
         collectors: [
           ...(this.config.forms?.enabled ? ["forms" as const] : []),
           ...(this.config.businessOperations?.enabled

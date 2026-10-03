@@ -1,4 +1,4 @@
-name: v1.8 R4-C implementation checkpoint and inherited regressions
+name: v1.8 R4-C delivery and inherited regressions
 
 on:
   push:
@@ -154,9 +154,9 @@ jobs:
           fi
           grep -q '"requestId"' /tmp/r2-web-access.log
 
-      - name: Record R4-C checkpoint without claiming milestone completion
+      - name: Record R4-C implementation for user manual acceptance
         run: |
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4c-evidence.json", JSON.stringify({testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, baseline:"982341b2aee7d61b7473ded6b055e021bb095272", manualAcceptanceReady:false, milestoneComplete:false, approvedDecisions:["C01","C02","C03","C04","C05"], pendingDecisions:["C06"], scope:"SDK counters/business observations and directory publication checkpoint"},null,2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4c-evidence.json", JSON.stringify({testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, baseline:"982341b2aee7d61b7473ded6b055e021bb095272", manualAcceptanceReady:true, milestoneComplete:false, implementationComplete:true, approvedDecisions:["C01","C02","C03","C04","C05","C07-A"], isolatedExtensions:["C06 cross-directory single ratio"], scope:"R4-C SDK, real facts, temporal directory, C07 formal organization, product and inherited regressions", manualAcceptance:"pending Jesse"},null,2))'
 
       - name: Record the exact verified product commit
         run: |

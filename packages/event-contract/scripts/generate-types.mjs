@@ -129,6 +129,16 @@ const schema = {
       required: ["name", "version"],
       properties: {
         name: { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" },
+        usageCoverage: {
+          type: "object",
+          additionalProperties: false,
+          required: ["droppedEvents", "failedBatches", "businessSampleRate"],
+          properties: {
+            businessSampleRate: { type: "number", minimum: 0, maximum: 1 },
+            droppedEvents: { type: "integer", minimum: 0, maximum: 1000000 },
+            failedBatches: { type: "integer", minimum: 0, maximum: 1000000 },
+          },
+        },
         collectors: {
           type: "array",
           uniqueItems: true,
@@ -487,6 +497,7 @@ export type PayloadValue = string | number | boolean | null;
 export interface FrontendInsightSdk {
   name: string;
   version: string;
+  usageCoverage?: { droppedEvents: number; failedBatches: number; businessSampleRate: number };
   collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 

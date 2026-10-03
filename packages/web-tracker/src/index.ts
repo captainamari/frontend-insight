@@ -54,6 +54,8 @@ export function createTracker(config: TrackerConfig): Tracker {
         normalizePageRoute: config.normalizePageRoute,
         beforeSend: config.beforeSend,
         observability: normalizeObservabilityConfig(config.observability),
+        initialUserId: config.initialUserId,
+        usageCoverage: config.usageCoverage,
         forms: config.forms,
         businessOperations: config.businessOperations,
         repeatedOperations: config.repeatedOperations,

@@ -1,4 +1,5 @@
 import {
+  UsageSourceService,
   OrganizationDirectoryService,
   EfficiencyFactStore,
   readDirectories,
@@ -28,6 +29,7 @@ import type { OnModuleDestroy } from "@nestjs/common";
 export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
+  readonly usageSource = new UsageSourceService(this.mysql);
   readonly directory = new OrganizationDirectoryService(
     this.mysql,
     this.environment.ACCOUNT_HMAC_KEY,

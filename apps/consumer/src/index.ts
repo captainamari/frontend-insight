@@ -449,6 +449,9 @@ export class EventConsumerRuntime {
         schema_version: envelope.batch.schemaVersion,
         sdk_name: envelope.batch.sdk.name,
         sdk_version: envelope.batch.sdk.version,
+        sdk_usage: envelope.batch.sdk.usageCoverage
+          ? JSON.stringify(envelope.batch.sdk.usageCoverage)
+          : null,
         sdk_collectors: envelope.batch.sdk.collectors
           ? JSON.stringify(envelope.batch.sdk.collectors)
           : null,

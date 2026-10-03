@@ -238,7 +238,12 @@ try {
       : historyRows[0]!.entries_json;
   for (let i = 0; i < 6; i++) {
     const batch = structuredClone(original);
-    batch.sdk.version = "0.6.0";
+    batch.sdk.version = "0.8.0";
+    batch.sdk.usageCoverage = {
+      droppedEvents: 0,
+      failedBatches: 0,
+      businessSampleRate: 1,
+    };
     batch.sentAt = start + 3000;
     const view = batch.events.find((e) => e.event === "page_view")!;
     const leave = batch.events.find((e) => e.event === "page_leave")!;
@@ -556,7 +561,7 @@ try {
   assert.equal(
     newSnapshot.definitions.find((d) => d.metricKey === "form_efficiency")
       ?.definitionVersion,
-    "r4c-facts-2026-09-30.2",
+    "r4c-facts-2026-10-03.3",
     "R4C_NEW_DEFINITION_VERSION",
   );
   assert.equal(
@@ -613,6 +618,67 @@ try {
     validationPassed: true,
     newDraftActivated: true,
     scope: "isolated test project only",
+  };
+  stage = "C07_FORMAL_USAGE_SOURCE";
+  const sourceInput = {
+    env: "dev",
+    sourceKey: "isolated_c07_fixture",
+    coverage: "complete",
+    sdkVersion: "0.8.0",
+    releases: [original.events[0]!.release],
+    validUntil: new Date(Date.now() + day * 10).toISOString(),
+    attested: true,
+  };
+  const source = await post<{ id: string }>(hroot + "/usage-sources", sourceInput);
+  await post(hroot + `/usage-sources/${source.id}/publish`, {});
+  await post(hroot + `/usage-sources/${source.id}/publish`, {}, 409);
+  // Historical isolated fixture only. Production API never accepts a backdated publication.
+  await mysql.pool.execute(
+    "UPDATE usage_source_versions SET published_at=? WHERE project_id=? AND id=? AND source_key='isolated_c07_fixture'",
+    [new Date(start), historical.id, source.id],
+  );
+  const formalResponse = await fetch(api + hroot + "/business?" + hquery, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(formalResponse.status, 200, "C07_FORMAL_STATUS");
+  const formal = (await formalResponse.json()) as {
+    organization: {
+      status: string;
+      coverage: string;
+      values: {
+        usageSourceVersionId: string;
+        groups: { value: number; formalActive: number }[];
+      }[];
+    };
+    penetration: { value: number; estimated: boolean };
+  };
+  assert.equal(formal.organization.coverage, "admin_attested_complete", "C07_COVERAGE");
+  assert.equal(
+    formal.organization.values[0]!.usageSourceVersionId,
+    source.id,
+    "C07_VERSION",
+  );
+  assert.equal(formal.organization.values[0]!.groups[0]!.value, 1, "C07_RATIO");
+  assert.equal(formal.organization.values[0]!.groups[0]!.formalActive, 6, "C07_USERS");
+  assert.equal(formal.penetration.value, 1, "C07_PENETRATION");
+  assert.equal(formal.penetration.estimated, false, "C07_DIRECTORY_FORMAL");
+  const hidden = await fetch(api + hroot + "/business?" + smallQuery, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(
+    ((await hidden.json()) as { organization: { values: unknown } }).organization
+      .values,
+    null,
+    "C07_SUPPRESSION_NOT_BYPASSED",
+  );
+  evidence.c07 = {
+    adminAttested: true,
+    formalUsers: 6,
+    eligible: 6,
+    ratio: 1,
+    sourceVersion: source.id,
+    definitionVersion: "r4c-facts-2026-10-03.3",
+    productionBackdatingAllowed: false,
   };
   Object.assign(evidence, {
     passed: true,

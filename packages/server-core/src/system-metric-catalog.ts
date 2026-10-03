@@ -51,7 +51,7 @@ type CatalogDetails = Omit<
 };
 
 const DEFAULT_GRANULARITIES = ["5m", "hour", "day", "week", "month"] as const;
-export const R4C_FACT_DEFINITION_VERSION = "r4c-facts-2026-09-30.2";
+export const R4C_FACT_DEFINITION_VERSION = "r4c-facts-2026-10-03.3";
 export const R4C_FACT_METRIC_KEYS = [
   "form_efficiency",
   "operation_fail_rate",
@@ -451,12 +451,12 @@ const details: Readonly<Record<string, CatalogDetails>> = {
   dept_usage: organizationRatio(
     "部门",
     "departmentId",
-    "历史目录与k=5受保护观察可用；完整规范活动来源仍未验证。",
+    "正式值要求C07管理员版本化全量接入声明、SDK覆盖诊断、兼容revision与目录；缺失时仅观察，k=5保护不变。",
   ),
   role_usage: organizationRatio(
     "角色",
     "roleId",
-    "历史目录与k=5受保护观察可用；完整规范活动来源仍未验证。",
+    "正式值要求C07管理员版本化全量接入声明、SDK覆盖诊断、兼容revision与目录；缺失时仅观察，k=5保护不变。",
   ),
   role_feature_profile: {
     businessDescription: "展示角色与功能模块的 PV、有效时长 Top N，并执行小群体保护。",
@@ -472,7 +472,7 @@ const details: Readonly<Record<string, CatalogDetails>> = {
     minimumSample: 5,
     missingPolicy: "缺少正式目录或低于小群体门槛时抑制结果，不以事件中的组织文本替代。",
     unavailableReason:
-      "PV与有效可见时长分开Top20观察可用；缺有效leave不补0，完整业务来源覆盖未验证。",
+      "PV与有效可见时长分开Top20；C07声明与SDK覆盖校验决定正式来源，缺有效leave不补0。",
   },
   abnormal_access: {
     businessDescription:
@@ -599,7 +599,8 @@ function organizationRatio(
       denominatorDescription: `${label}目录编制人数、目录版本与分母来源`,
       deduplicationKey: `directoryVersion + ${key} + project-HMAC(userId)`,
       entityScopes: ["project", "module"],
-      reportingTiming: "由服务端受治理目录补充组织维度后聚合。",
+      reportingTiming:
+        "按C07接入声明与目录有效区间聚合；识别且归类的页面访问或登记功能成功去重，业务适配器未知/采样/缺生命周期阻断正式值。",
       unavailableReason,
     }),
     unit: "organization_usage_groups",

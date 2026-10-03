@@ -156,6 +156,10 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     reason: "REPEATED_LATENESS_WINDOW_OPEN",
   });
   expect(sent.join("")).not.toContain("isolated-order-fixture");
+  expect(JSON.parse(sent[0]!).sdk).toMatchObject({
+    version: "0.8.0",
+    usageCoverage: { droppedEvents: 0, failedBatches: 0 },
+  });
   expect(JSON.stringify(result)).not.toContain(reference);
   expect(result.efficiency.form_efficiency.observations).toMatchObject([
     { changes: 3, resets: 1, submits: 2, validationFailures: 1 },
@@ -199,7 +203,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     sampleSize: 6,
   });
   expect(result.efficiency.operation_fail_rate.observedValue).toBeNull();
-  expect(result.efficiency.definitionVersion).toBe("r4c-facts-2026-09-30.2");
+  expect(result.efficiency.definitionVersion).toBe("r4c-facts-2026-10-03.3");
   expect(result.efficiency.form_efficiency.value).toMatchObject([
     { formId: "edit", changesPerSubmit: 1.5, resetRate: 0.5, validationErrorRate: 0.5 },
   ]);
@@ -294,6 +298,22 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
     page.getByRole("heading", { name: "组织目录", exact: true }),
   ).toBeVisible();
   await expect(page.getByText(directory.id, { exact: true })).toBeVisible();
+  const sourcePanel = page.locator('section[aria-labelledby="usage-sources-title"]');
+  await expect(
+    sourcePanel.getByRole("heading", { name: "全量接入声明", exact: true }),
+  ).toBeVisible();
+  await sourcePanel.getByLabel("已部署 release（逗号分隔）").fill("r4c-demo");
+  await sourcePanel.getByLabel("我已核实上述范围及覆盖状态").check();
+  await sourcePanel.getByRole("button", { name: "校验并保存声明草稿" }).click();
+  await sourcePanel.getByRole("button", { name: "发布此接入声明" }).click();
+  await expect(
+    sourcePanel.getByRole("cell", { name: "published", exact: true }),
+  ).toBeVisible();
+  const sourceRows = await (
+    await request.get(root + "/usage-sources", { headers })
+  ).json();
+  expect(sourceRows[0].scope.pageCount).toBe(1);
+  expect(sourceRows[0].sdkVersion).toBe("0.8.0");
   await page.getByRole("button", { name: "返回原业务分析", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/projects/${project.id}/business\\?`));
   expect(new URL(page.url()).searchParams.get("moduleId")).toBe(module.id);
@@ -315,7 +335,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
       {
         testedCommit: process.env.GITHUB_SHA ?? "local",
         scope:
-          "real SDK form/business observations and directory API; not complete R4-C",
+          "real SDK0.8 form/business/coverage diagnostics, directory and source publication UI",
         warmups: 3,
         sampleCount: 20,
         firstUsableMs,
@@ -331,7 +351,7 @@ test("R4-C directory publication and real SDK counters through Kafka and ClickHo
         },
         privacyPolicy:
           "approved k=5; fixed closed calendar buckets; whole-family suppression",
-        manualAcceptanceReady: false,
+        coverageDeclarationPublished: true,
       },
       null,
       2,

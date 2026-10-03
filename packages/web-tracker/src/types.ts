@@ -71,6 +71,8 @@ export type BusinessResult =
   "success" | "rejected" | "technical_failure" | "canceled" | "unknown";
 
 export interface TrackerConfig {
+  initialUserId?: string;
+  usageCoverage?: { enabled: boolean };
   forms?: FormCollectorConfig;
   repeatedOperations?: { enabled: boolean };
   businessOperations?: {

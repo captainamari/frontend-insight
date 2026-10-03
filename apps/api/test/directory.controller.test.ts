@@ -29,11 +29,44 @@ function setup(role: string | null) {
       pool: { execute: vi.fn().mockResolvedValue([]) },
     },
     environment: { ACCOUNT_HMAC_KEY: "k".repeat(32) },
+    usageSource: { create: vi.fn(), list: vi.fn(), publish: vi.fn() },
     directory: { create: vi.fn(), list: vi.fn(), publish: vi.fn() },
   };
   return { core, controller: new ProjectsController(core as unknown as CoreService) };
 }
 describe("R4-C directory HTTP authorization and privacy", () => {
+  it("protects C07 declarations and rejects backdating, false attestations and arbitrary source payloads", async () => {
+    const valid = {
+      env: "dev",
+      sourceKey: "internal",
+      coverage: "complete",
+      sdkVersion: "0.8.0",
+      releases: ["r1"],
+      validUntil: "2027-01-01T00:00:00Z",
+      attested: true,
+    };
+    const { controller, core } = setup("admin");
+    await controller.createUsageSource("p", valid, admin);
+    expect(core.usageSource.create).toHaveBeenCalledWith("p", "a", valid);
+    for (const body of [
+      { ...valid, from: "2026-01-01T00:00:00Z" },
+      { ...valid, attested: false },
+      { ...valid, token: "private" },
+      { ...valid, sdkVersion: "0.7.0" },
+    ])
+      await expect(
+        controller.createUsageSource("p", body, admin),
+      ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      setup("viewer").controller.usageSources("p", viewer),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      setup("viewer").controller.createUsageSource("p", valid, viewer),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      setup(null).controller.publishUsageSource("foreign", "invalid", admin),
+    ).rejects.toMatchObject({ status: 403 });
+  });
   it("issues scoped keys to authorized backend calls only and audits no key material", async () => {
     const { controller, core } = setup("admin");
     const project = "11111111-1111-4111-8111-111111111111";

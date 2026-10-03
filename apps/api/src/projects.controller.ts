@@ -121,6 +121,21 @@ export const businessAnalysisSchema = projectOverviewSchema
   })
   .strict();
 
+export const usageSourceSchema = z
+  .object({
+    env: z.enum(CANONICAL_ENVIRONMENTS),
+    sourceKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    coverage: z.enum(["complete", "interrupted"]),
+    sdkVersion: z.literal("0.8.0"),
+    releases: z
+      .array(z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/))
+      .min(1)
+      .max(20),
+    validUntil: z.string().datetime({ offset: true }),
+    attested: z.literal(true),
+  })
+  .strict();
+
 export const directorySchema = z
   .object({
     env: z.enum(CANONICAL_ENVIRONMENTS),
@@ -451,6 +466,39 @@ export class ProjectsController {
         Date.now(),
       ).map((k) => ({ epoch: k.epoch, secret: Buffer.from(k.secret).toString("hex") })),
     };
+  }
+
+  @Get(":projectId/usage-sources")
+  async usageSources(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.usageSource.list(projectId);
+  }
+  @Post(":projectId/usage-sources")
+  async createUsageSource(
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    const parsed = usageSourceSchema.safeParse(input);
+    if (!parsed.success) throw new HttpException("USAGE_SOURCE_INVALID", 400);
+    return this.core.usageSource.create(projectId, principal.userId, parsed.data);
+  }
+  @Post(":projectId/usage-sources/:versionId/publish")
+  async publishUsageSource(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.usageSource.publish(
+      projectId,
+      principal.userId,
+      parseInput(z.string().uuid(), versionId),
+    );
   }
 
   @Get(":projectId/directory")

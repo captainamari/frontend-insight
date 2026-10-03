@@ -1,3 +1,4 @@
+import { readUsageSources } from "./usage-source.js";
 import { readDirectories, directorySegments } from "./organization-directory.js";
 import type { EfficiencyFactStore } from "./efficiency-facts.js";
 import { storageFailureCode } from "./clickhouse-logger.js";
@@ -160,8 +161,12 @@ export class BusinessAnalysisService {
         const directories = this.efficiencyFacts
           ? await readDirectories(c, projectId)
           : [];
+        const sources = this.efficiencyFacts
+          ? await readUsageSources(c, projectId)
+          : [];
         await c.commit();
         return {
+          sources,
           directories,
           workflowDefinitions,
           pathPages,
@@ -307,6 +312,18 @@ export class BusinessAnalysisService {
               asOf: asOf.valueOf(),
               buckets: query.buckets,
               directories: snapshot.directories,
+              sources: snapshot.sources,
+              formalDefinitionActive: [
+                "dept_usage",
+                "role_usage",
+                "role_feature_profile",
+              ].every((key) =>
+                definitions.some(
+                  (d) =>
+                    d.metricKey === key &&
+                    d.definitionVersion === R4C_FACT_DEFINITION_VERSION,
+                ),
+              ),
               pages: snapshot.pathPages,
             })
             .catch((cause: unknown) => {
@@ -426,6 +443,7 @@ export class BusinessAnalysisService {
       modules: snapshot.modules,
       workflows: snapshot.workflows,
       efficiencyDefinition: R4C_FACT_DEFINITION_VERSION,
+      usageSourceVersions: snapshot.sources,
       directoryVersions: snapshot.directories.map((d) => ({
         id: d.id,
         from: d.from,
@@ -437,6 +455,31 @@ export class BusinessAnalysisService {
       env: query.env,
       identityVersion: IDENTITY_DEFINITION_VERSION,
       activityScope: "identified_valid_classified_business_activity",
+    };
+    const usageNumerator = (from: string, to: string) => {
+      const whole = organization?.population;
+      if (whole && whole.from === from && whole.to === to)
+        return {
+          ...populationScope,
+          source: "admin_attested_usage",
+          sourceVersion: whole.sourceVersion,
+          window: { from, to },
+          count: whole.count,
+          coverage: "complete" as const,
+          coverageWindows: [{ from, to }],
+        };
+      const row = organization?.values?.find((v) => v.from === from && v.to === to);
+      if (!row || row.normativeUsers === null || !row.usageSourceVersionId)
+        return undefined;
+      return {
+        ...populationScope,
+        source: "admin_attested_usage",
+        sourceVersion: row.usageSourceVersionId,
+        window: { from, to },
+        count: row.normativeUsers,
+        coverage: "complete" as const,
+        coverageWindows: [{ from, to }],
+      };
     };
     const directoryDenominator = (from: string, to: string) =>
       organization?.values
@@ -528,6 +571,7 @@ export class BusinessAnalysisService {
               to: b.to,
               timezone: query.timezone,
               observedNumerator: observation?.buckets[i]?.uv ?? null,
+              numeratorEvidence: usageNumerator(b.from, b.to),
               denominatorEvidence: directoryDenominator(b.from, b.to),
             }),
             reason,
@@ -584,6 +628,7 @@ export class BusinessAnalysisService {
         to: query.to,
         timezone: query.timezone,
         observedNumerator: observation?.window.uv ?? null,
+        numeratorEvidence: usageNumerator(query.from, query.to),
         denominatorEvidence: directoryDenominator(query.from, query.to),
       }),
       workflows: snapshot.workflows.map((w) => ({

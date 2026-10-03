@@ -724,6 +724,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 2026-10-03复核：e983d0e同提交完整Actions成功，28个证据文件一致；不等于阶段完成。正式组织活动覆盖仍缺，C07提出管理员版本化接入声明（推荐）或后端对账作为信任依据，尚未批准。下列组织勾选按完整交付重新拆明；已实现观察聚合不丢弃，也不移交给R6冒充后置依赖。
 
+2026-10-03 C07-A已获用户确认并实施：独立声明发布、SDK0.8覆盖诊断、实际来源校验、正式组织与目录渗透率；此前C07待决和正式来源缺口条目保留为历史。当前实现待同提交完整CI复核后进入Jesse手工验收，未自动合并。C06仍为隔离扩展，不发布跨目录版本单值。
+
 ### 15.1 操作效率事实
 
 - [x] `form_efficiency`：`trackForm(formId)` 只汇总字段 key 的 change 次数、重置、提交尝试和校验失败，不采集输入值；
@@ -737,8 +739,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 - [x] 定义版本化 eligible user/department/role directory snapshot；
 - [x] `deptId`、`roleId` 优先在服务端根据受治理 `userId` 补充，不允许业务页面上传姓名或组织文本；
-- [ ] 完成 `dept_usage`、`role_usage` 的正式活跃人数、编制人数、比率和功能分布；当前已有观察聚合，缺规范活动来源与覆盖信任依据；
-- [ ] 完成 `role_feature_profile` 的正式角色 × 功能模块 PV/有效时长 Top N；当前真实观察和缺失处理已实现，正式来源覆盖未闭环；
+- [x] `dept_usage`、`role_usage`：C07-A版本化声明及SDK诊断校验后的正式活跃人数、编制人数、比率和功能分布；缺失保持观察；
+- [x] `role_feature_profile`：同声明/目录/revision下真实PV和有效时长Top N；缺leave不补0；
 - [x] 小群体门槛、抑制、目录版本和数据可用时间；
 - [x] 所有组织结果只用于产品落地和权限/菜单分析，不进入个人绩效。
 

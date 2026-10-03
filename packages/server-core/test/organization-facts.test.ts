@@ -220,3 +220,157 @@ describe("C05 server-side whole-family organization policy", () => {
     expect(organizationWindowReason(c)).toBeNull();
   });
 });
+
+const sourceContext = (): OrganizationContext => ({
+  ...structuredClone(context),
+  sources: [
+    {
+      id: "source",
+      projectId: "project",
+      env: "dev",
+      sourceKey: "fixture",
+      coverage: "complete",
+      status: "published",
+      sdkVersion: "0.8.0",
+      releases: ["r1"],
+      from: new Date(from).toISOString(),
+      until: new Date(from + 5 * day).toISOString(),
+      scope: {
+        pages: [{ pageRevisionId: "page1", moduleRevisionId: "module1" }],
+        features: ["save"],
+      },
+    },
+  ],
+});
+const sourceEvents = () =>
+  events(6).map((e) => ({
+    ...e,
+    sdkVersion: "0.8.0",
+    release: "r1",
+    usageCoverage: { droppedEvents: 0, failedBatches: 0, businessSampleRate: 1 },
+  }));
+describe("C07 trusted declaration plus observed coverage", () => {
+  it("releases formal 6/6 only with matching source, directory and real facts", () => {
+    const r = reduceOrganization(sourceEvents(), sourceContext());
+    expect(r.coverage).toBe("admin_attested_complete");
+    expect(r.values?.[0]?.groups[0]).toMatchObject({ value: 1, formalActive: 6 });
+    expect(r.population).toMatchObject({ count: 6, sourceVersion: "source" });
+  });
+  it.each([
+    "sdk",
+    "release",
+    "loss",
+    "disabled",
+    "revision",
+    "expired",
+    "scope",
+    "interrupted",
+    "definition",
+    "silentSampling",
+    "featureChange",
+  ])("blocks %s without promoting observed data", (kind) => {
+    const c = sourceContext(),
+      rows = sourceEvents();
+    if (kind === "sdk") rows[0]!.sdkVersion = "0.7.0";
+    if (kind === "release") rows[0]!.release = "other";
+    if (kind === "loss") rows[0]!.usageCoverage.droppedEvents = 1;
+    if (kind === "disabled") delete (rows[0] as OrganizationEvent).usageCoverage;
+    if (kind === "revision") c.sources![0]!.scope.pages = [];
+    if (kind === "expired") c.sources![0]!.until = new Date(from).toISOString();
+    if (kind === "scope") c.sources![0]!.projectId = "foreign";
+    if (kind === "interrupted") c.sources![0]!.coverage = "interrupted";
+    if (kind === "definition") c.formalDefinitionActive = false;
+    if (kind === "silentSampling") rows[0]!.usageCoverage.businessSampleRate = 0.5;
+    if (kind === "featureChange")
+      c.sources![0]!.scopeChangedAt = new Date(from + 1).toISOString();
+    expect(reduceOrganization(rows, c).values?.[0]?.groups[0]?.value).toBeNull();
+  });
+  it("includes controlled successful feature activity and blocks sampled or incomplete adapters", () => {
+    const c = sourceContext();
+    const featureRows = sourceEvents()
+      .filter((e) => e.event === "page_view")
+      .flatMap((e) => [
+        {
+          ...e,
+          id: e.id + "start",
+          event: "custom",
+          payload: {
+            name: "feature_started",
+            featureKey: "save",
+            businessAdapter: true,
+            businessSampleRate: 1,
+            operationInstanceId: e.id,
+          },
+        },
+        {
+          ...e,
+          id: e.id + "end",
+          at: e.at + 1,
+          event: "custom",
+          payload: {
+            name: "feature_succeeded",
+            featureKey: "save",
+            businessAdapter: true,
+            businessSampleRate: 1,
+            businessResult: "success",
+            operationInstanceId: e.id,
+          },
+        },
+      ]);
+    expect(reduceOrganization(featureRows, c).values?.[0]?.groups[0]).toMatchObject({
+      formalActive: 6,
+      value: 1,
+      pv: 0,
+      visibleDurationMs: null,
+    });
+    const sampled = [
+      ...sourceEvents(),
+      ...featureRows.map((e) => ({
+        ...e,
+        payload: { ...e.payload, businessSampleRate: 0.5 },
+      })),
+    ];
+    expect(reduceOrganization(sampled, c).values?.[0]?.groups[0]?.value).toBeNull();
+    const incomplete = [...sourceEvents(), featureRows[0]!];
+    expect(reduceOrganization(incomplete, c).values?.[0]?.groups[0]?.value).toBeNull();
+  });
+  it("does not let a declaration bypass whole-family k5 suppression", () => {
+    expect(
+      reduceOrganization(sourceEvents().slice(0, 8), sourceContext()).values,
+    ).toBeNull();
+  });
+  it("does not resurrect an old complete declaration after interruption expiry", () => {
+    const c = sourceContext();
+    c.sources!.push({
+      ...c.sources![0]!,
+      id: "interruption",
+      from: new Date(from - 1).toISOString(),
+      until: new Date(from).toISOString(),
+      coverage: "interrupted",
+    });
+    c.sources![0]!.from = new Date(from - 2).toISOString();
+    expect(
+      reduceOrganization(sourceEvents(), c).values?.[0]?.groups[0]?.value,
+    ).toBeNull();
+  });
+  it("deduplicates whole-window population instead of summing bucket UV", () => {
+    const c = sourceContext();
+    const bucket = c.buckets[0]!;
+    c.buckets.push({
+      ...bucket,
+      from: new Date(from + day).toISOString(),
+      to: new Date(from + 2 * day).toISOString(),
+    });
+    const rows = sourceEvents();
+    rows.push(
+      ...sourceEvents().map((e) => ({
+        ...e,
+        id: e.id + "next",
+        pageView: e.pageView + "next",
+        at: e.at + day,
+        received: e.received + day,
+      })),
+    );
+    expect(reduceOrganization(rows, c).population?.count).toBe(6);
+  });
+});

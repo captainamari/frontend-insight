@@ -20,6 +20,8 @@ export interface BusinessResponse {
           from: string;
           to: string;
           directoryVersionId: string;
+          usageSourceVersionId?: string | null;
+          coverageReason?: string | null;
           groups: {
             dimension: string;
             key: string;
@@ -27,6 +29,8 @@ export interface BusinessResponse {
             active: number;
             eligible: number;
             observedRatio: number;
+            value?: number | null;
+            formalActive?: number | null;
             pv: number;
             visibleDurationMs: number | null;
             durationReason: string | null;

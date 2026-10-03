@@ -241,11 +241,11 @@ export class EfficiencyFactStore {
     if (reason)
       return { ...reduceOrganization([], context), queries: 0, statistics: null };
     const result = await this.client.query({
-      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,event,user_id AS user,session_id AS session,page_route AS page,page_view_id AS pageView,directory_version_id AS directory,dept_id AS dept,role_id AS role,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (event IN ('page_view','page_leave') OR (event='custom' AND JSONExtractBool(payload_json,'businessAdapter'))) LIMIT 50001`,
+      query: `SELECT event_id AS id,sdk_version AS sdkVersion,release,sdk_usage,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,event,user_id AS user,session_id AS session,page_route AS page,page_view_id AS pageView,directory_version_id AS directory,dept_id AS dept,role_id AS role,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND (event IN ('page_view','page_leave') OR (event='custom' AND JSONExtractString(payload_json,'name') IN ('feature_started','feature_succeeded','feature_failed','feature_canceled'))) LIMIT 50001`,
       query_params: {
         project: context.projectId,
         env: context.env,
-        from: Date.parse(context.buckets[0]!.from),
+        from: Date.parse(context.buckets[0]!.from) - 86400000,
         asOf: context.asOf,
         end: Math.min(
           context.asOf + 1,
@@ -260,7 +260,10 @@ export class EfficiencyFactStore {
       },
     });
     const body = await result.json<
-      Omit<OrganizationEvent, "payload"> & { payload_json: string }
+      Omit<OrganizationEvent, "payload"> & {
+        payload_json: string;
+        sdk_usage: string | null;
+      }
     >();
     const rows = body.data;
     if (rows.length > 50000) throw new Error("ORGANIZATION_FACT_LIMIT");
@@ -270,6 +273,7 @@ export class EfficiencyFactStore {
           ...r,
           at: Number(r.at),
           received: Number(r.received),
+          usageCoverage: r.sdk_usage ? JSON.parse(r.sdk_usage) : null,
           payload: JSON.parse(r.payload_json) as Record<string, unknown>,
         })),
         context,

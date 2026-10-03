@@ -14,6 +14,8 @@ function install() {
     endpoint: location.origin + "/v1/events",
     registeredFeatures: ["save"],
     forms: { enabled: true, definitions: [{ formId: "edit", fieldKeys: ["status"] }] },
+    initialUserId: "u_isolated_opaque_0001",
+    usageCoverage: { enabled: true },
     businessOperations: { enabled: true, operationKeys: ["save"] },
     repeatedOperations: { enabled: true },
     flushIntervalMs: 1000,

@@ -38,3 +38,5 @@ export * from "./repeated-projection.js";
 export { SafeClickHouseLogger } from "./clickhouse-logger.js";
 
 export { createObjectReferenceProvider } from "./object-reference-client.js";
+
+export * from "./usage-source.js";

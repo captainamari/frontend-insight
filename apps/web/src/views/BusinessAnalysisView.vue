@@ -712,7 +712,7 @@ onBeforeUnmount(() => {
           </details>
           <h3>重复操作率</h3>
           <p>
-            24小时滚动相关会话规则与短期引用方案已批准；对象引用接入尚未完成，当前不可用。
+            24小时滚动相关会话：可信后端引用与受控操作均需接入；未闭合、缺证明或样本不足时保持partial。
           </p>
         </template>
         <p v-else>所选范围暂无可读取的操作效率事实。</p>
@@ -732,19 +732,21 @@ onBeforeUnmount(() => {
         <template v-for="bucket in data.organization?.values ?? []" :key="bucket.from">
           <p>
             {{ bucket.from }} — {{ bucket.to }} · 目录版本
-            {{ bucket.directoryVersionId }}
+            {{ bucket.directoryVersionId }} · 接入声明
+            {{ bucket.usageSourceVersionId ?? "未发布" }} ·
+            {{ bucket.coverageReason ?? data.organization?.coverage }}
           </p>
           <table>
             <caption>
-              部门与角色使用观察（页面访问及受控操作，非完整业务UV）
+              部门与角色使用（正式值需版本化全量接入声明；否则展示观察值）
             </caption>
             <thead>
               <tr>
                 <th>维度</th>
                 <th>受控标识</th>
-                <th>观察活跃人数</th>
+                <th>活跃人数（正式/观察）</th>
                 <th>编制人数</th>
-                <th>观察比率</th>
+                <th>使用率（正式/观察）</th>
                 <th>PV</th>
                 <th>有效可见时长(ms)</th>
               </tr>
@@ -753,9 +755,12 @@ onBeforeUnmount(() => {
               <tr v-for="group in bucket.groups" :key="group.dimension + group.key">
                 <td>{{ group.dimension }}</td>
                 <td>{{ group.key }}</td>
-                <td>{{ group.active }}</td>
+                <td>{{ group.formalActive ?? group.active }}</td>
                 <td>{{ group.eligible }}</td>
-                <td>{{ group.observedRatio }}</td>
+                <td>
+                  {{ group.value ?? group.observedRatio }} ·
+                  {{ group.value == null ? "观察" : "正式" }}
+                </td>
                 <td>{{ group.pv }}</td>
                 <td>{{ group.visibleDurationMs ?? group.durationReason }}</td>
               </tr>

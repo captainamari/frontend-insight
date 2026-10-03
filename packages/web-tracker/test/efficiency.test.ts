@@ -36,6 +36,8 @@ function fixture(enabled = true) {
     deptId: "UNTRUSTED_ORG_TEXT",
     roleId: "UNTRUSTED_ROLE_TEXT",
     registeredFeatures: ["save"],
+    usageCoverage: { enabled },
+    initialUserId: "u_opaque_fixture_reference",
     forms: {
       enabled,
       definitions: [
@@ -295,4 +297,38 @@ it("records the R4-C collector cost within the inherited 16ms host budget", asyn
       2,
     ),
   );
+});
+
+it("C07 diagnostics are opt-in, report known drops and identify the first page view", async () => {
+  const f = fixture();
+  await f.events();
+  expect(validateForIngestion(f.sent[0]).ok).toBe(true);
+  const unsafe = structuredClone(f.sent[0]) as {
+    sdk: { usageCoverage: Record<string, unknown> };
+  };
+  unsafe.sdk.usageCoverage.rawPayload = "forbidden";
+  expect(validateForIngestion(unsafe).ok).toBe(false);
+  expect((f.sent[0] as { sdk: unknown }).sdk).toMatchObject({
+    version: "0.8.0",
+    usageCoverage: { droppedEvents: 0, failedBatches: 0 },
+  });
+  expect((f.sent[0] as { events: { userId: string }[] }).events[0]!.userId).toBe(
+    "u_opaque_fixture_reference",
+  );
+  f.tracker.trackForm("unregistered").change("invalid");
+  await f.tracker.observeBusiness(
+    "save",
+    async () => true,
+    () => "success",
+  );
+  await f.events();
+  expect(
+    (f.sent.at(-1) as { sdk: { usageCoverage: { droppedEvents: number } } }).sdk
+      .usageCoverage.droppedEvents,
+  ).toBeGreaterThan(0);
+  const off = fixture(false);
+  await off.events();
+  expect(
+    (off.sent[0] as { sdk: { usageCoverage?: unknown } }).sdk.usageCoverage,
+  ).toBeUndefined();
 });
