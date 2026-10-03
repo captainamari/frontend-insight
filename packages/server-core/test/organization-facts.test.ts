@@ -186,6 +186,20 @@ describe("C05 server-side whole-family organization policy", () => {
     c.directories = [{ ...c.directories[0]!, entries: [] }];
     expect(organizationWindowReason(c)).toBe("ZERO_DENOMINATOR");
   });
+  it("reserves the admitted 24h clock skew inside received-time retention", () => {
+    // A future-dated event can be received a day before its event timestamp.
+    // At 89 days its receipt can already be at the 90-day physical TTL boundary.
+    expect(organizationWindowReason({ ...context, asOf: from + 89 * day })).toBeNull();
+    expect(organizationWindowReason({ ...context, asOf: from + 89 * day + 1 })).toBe(
+      "FACT_RETENTION_RANGE_NOT_COVERED",
+    );
+    expect(
+      reduceOrganization(events(), { ...context, asOf: from + 90 * day }),
+    ).toMatchObject({
+      reason: "FACT_RETENTION_RANGE_NOT_COVERED",
+      values: null,
+    });
+  });
   it("uses actual DST calendar bucket boundaries rather than fixed 24h day lengths", () => {
     const c = structuredClone(context);
     c.buckets = resolveProjectCalendar(

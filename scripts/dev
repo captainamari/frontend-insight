@@ -65,7 +65,7 @@ host_memory_bytes() {
     return
   fi
   if [[ -r /proc/meminfo ]]; then
-    awk '/MemTotal/ { print $2 * 1024 }' /proc/meminfo
+    awk '/MemTotal/ { printf "%.0f\n", $2 * 1024 }' /proc/meminfo
     return
   fi
   printf '0\n'

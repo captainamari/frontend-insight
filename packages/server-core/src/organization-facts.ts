@@ -3,7 +3,7 @@ import type { CalendarBucket } from "@frontend-insight/event-contract/project-ra
 import type { BusinessPageWindow } from "./business-facts.js";
 import { directoryAt, type DirectoryVersion } from "./organization-directory.js";
 
-export const ORGANIZATION_POLICY_VERSION = "r4c-organization-k5-2026-09-29.1";
+export const ORGANIZATION_POLICY_VERSION = "r4c-organization-k5-2026-10-03.1";
 const DAY = 86400000;
 export interface OrganizationEvent {
   id: string;
@@ -34,7 +34,7 @@ export function organizationWindowReason(c: OrganizationContext): string | null 
     return "TRUSTED_DIRECTORY_MISSING";
   if (!c.buckets.length || c.buckets.some((b) => b.partial))
     return "ORGANIZATION_FIXED_BUCKET_REQUIRED";
-  if (c.buckets.some((b) => Date.parse(b.from) < c.asOf - 90 * DAY))
+  if (c.buckets.some((b) => Date.parse(b.from) < c.asOf - 89 * DAY))
     return "FACT_RETENTION_RANGE_NOT_COVERED";
   if (c.buckets.some((b) => Date.parse(b.to) + DAY > c.asOf))
     return "ORGANIZATION_LATENESS_WINDOW_OPEN";
