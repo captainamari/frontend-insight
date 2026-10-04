@@ -1,4 +1,5 @@
 import {
+  QualityFactStore,
   UsageSourceService,
   OrganizationDirectoryService,
   EfficiencyFactStore,
@@ -70,6 +71,12 @@ export class CoreService implements OnModuleDestroy {
     },
     this.mysql,
   );
+  readonly qualityFacts = new QualityFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
   readonly observability = new ObservabilityStore(
     {
       url: this.environment.CLICKHOUSE_URL,
@@ -128,6 +135,7 @@ export class CoreService implements OnModuleDestroy {
       this.businessFacts.close(),
       this.efficiencyFacts.close(),
       this.workflowFacts.close(),
+      this.qualityFacts.close(),
       this.observability.close(),
       this.mysql.close(),
     ]);

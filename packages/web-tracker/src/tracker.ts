@@ -1,3 +1,4 @@
+import type { QualityHooks } from "./quality-port.js";
 import { FormCollector, noopForm } from "./forms.js";
 import type { BusinessResult } from "./types.js";
 import { WorkflowRuntime, type WorkflowDefinition } from "./workflow.js";
@@ -97,6 +98,7 @@ export class BrowserTracker implements Tracker {
   private readonly registeredFeatures: ReadonlySet<string> | null;
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
+  private quality: QualityHooks | undefined;
   private readonly observability: BrowserObservability | null;
   private readonly originalPushState: History["pushState"];
   private readonly originalReplaceState: History["replaceState"];
@@ -132,6 +134,7 @@ export class BrowserTracker implements Tracker {
     > & {
       normalizePageRoute: TrackerConfig["normalizePageRoute"] | undefined;
       beforeSend: TrackerConfig["beforeSend"] | undefined;
+      quality: TrackerConfig["quality"];
       observability: NormalizedObservabilityConfig | null;
       initialUserId: TrackerConfig["initialUserId"];
       usageCoverage: TrackerConfig["usageCoverage"];
@@ -214,7 +217,24 @@ export class BrowserTracker implements Tracker {
       (code) => this.drop(code),
     );
     if (config.initialUserId !== undefined) this.setUser(config.initialUserId);
-    this.emit("page_view", {});
+    this.safe(() => {
+      this.quality = config.quality?.({
+        runtime,
+        diagnostics: () => this.getDiagnostics(),
+        capture: () => {
+          const context = {
+            pageViewId: this.pageViewId,
+            pageRoute: this.pageRoute,
+            pageUrl: pageUrl(runtime),
+            userId: this.userId,
+            sessionId: this.sessionId,
+          };
+          return (event, payload) =>
+            this.safe(() => this.emit(event, payload, context));
+        },
+      });
+    });
+    this.emit("page_view", this.qualityPayload("enter"));
     this.observability?.start();
     this.installLifecycle();
     this.flushTimer = runtime.setInterval(
@@ -278,11 +298,11 @@ export class BrowserTracker implements Tracker {
       if (nextPageRoute === this.pageRoute) return;
       this.forms.settle();
       this.stopLongViews();
-      this.settleVisiblePage();
+      this.settleVisiblePage(true);
       this.pageRoute = nextPageRoute;
       this.pageViewId = id(this.runtime, "pv");
       this.visibleStartedAt = this.isVisible() ? now : null;
-      this.emit("page_view", {});
+      this.emit("page_view", this.qualityPayload("enter"));
     });
   };
 
@@ -319,11 +339,29 @@ export class BrowserTracker implements Tracker {
     return normalized;
   }
 
-  private settleVisiblePage(): void {
-    if (this.visibleStartedAt === null) return;
-    const visibleDurationMs = Math.max(0, this.runtime.now() - this.visibleStartedAt);
+  private qualityPayload(
+    method: "enter" | "leave",
+    closed = false,
+  ): TrackerEvent["payload"] {
+    try {
+      return this.quality?.[method](closed) ?? {};
+    } catch {
+      this.drop("QUALITY_COLLECTOR_FAILED");
+      return {};
+    }
+  }
+
+  private settleVisiblePage(closed = false): void {
+    if (this.visibleStartedAt === null && !closed) return;
+    const visibleDurationMs =
+      this.visibleStartedAt === null
+        ? 0
+        : Math.max(0, this.runtime.now() - this.visibleStartedAt);
     this.visibleStartedAt = null;
-    this.emit("page_leave", { visibleDurationMs });
+    this.emit("page_leave", {
+      visibleDurationMs,
+      ...this.qualityPayload("leave", closed),
+    });
   }
 
   private refreshSession(): void {
@@ -347,6 +385,12 @@ export class BrowserTracker implements Tracker {
   private emit(
     canonicalEvent: FrontendInsightEventName,
     payload: TrackerEvent["payload"],
+    context: Partial<
+      Pick<
+        TrackerEvent,
+        "pageViewId" | "pageRoute" | "pageUrl" | "userId" | "sessionId"
+      >
+    > = {},
   ): void {
     if (this.destroyed) return;
     this.refreshSession();
@@ -372,6 +416,7 @@ export class BrowserTracker implements Tracker {
       browser: browserName(userAgent),
       timestamp: this.runtime.now(),
       payload,
+      ...context,
     };
     let candidate = event;
     if (this.config.beforeSend) {
@@ -387,6 +432,10 @@ export class BrowserTracker implements Tracker {
     if (this.queue.length >= this.config.maximumQueueSize) {
       this.queue.shift();
       this.drop("QUEUE_OVERFLOW");
+    }
+    if (candidate.event === "page_leave" && candidate.payload.qualityVersion) {
+      candidate.payload.qualityDropped = this.diagnostics.droppedEvents;
+      candidate.payload.qualityFailed = this.diagnostics.failedBatches;
     }
     this.queue.push(candidate);
     this.diagnostics.queueSize = this.queue.length;
@@ -786,7 +835,7 @@ export class BrowserTracker implements Tracker {
       sdk: {
         name: SDK_NAME,
         version: SDK_VERSION,
-        ...(this.config.usageCoverage?.enabled
+        ...(this.config.usageCoverage?.enabled || this.config.quality
           ? {
               usageCoverage: {
                 businessSampleRate: this.config.businessOperations?.enabled
@@ -880,7 +929,8 @@ export class BrowserTracker implements Tracker {
     this.forms.settle();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
-    this.settleVisiblePage();
+    this.settleVisiblePage(true);
+    this.safe(() => this.quality?.destroy());
     void this.flush("lifecycle");
     this.uninstallLifecycle();
     this.destroyed = true;

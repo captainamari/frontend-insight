@@ -796,7 +796,22 @@
     },
     "emptyPayload": {
       "type": "object",
-      "additionalProperties": false
+      "additionalProperties": false,
+      "properties": {
+        "qualityVersion": {
+          "const": "r5a-1"
+        },
+        "qualityMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "qualitySampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
     },
     "pageLeavePayload": {
       "type": "object",
@@ -805,6 +820,84 @@
         "visibleDurationMs"
       ],
       "properties": {
+        "qualityVersion": {
+          "const": "r5a-1"
+        },
+        "qualityMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "qualitySampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "qualitySequence": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "qualityDropped": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "qualityFailed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "qualitySuppressed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "apiStarted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "apiCompleted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "resourceStarted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "resourceCompleted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "resourceFailed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "longtaskCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "longtaskTotal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 86400000
+        },
+        "qualityClosed": {
+          "type": "boolean"
+        },
+        "blankScreen": {
+          "type": "boolean"
+        },
+        "blankRule": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+        },
         "visibleDurationMs": {
           "type": "integer",
           "minimum": 0,
@@ -822,13 +915,39 @@
         "navigationType"
       ],
       "properties": {
+        "qualityVersion": {
+          "const": "r5a-1"
+        },
+        "qualityMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "qualitySampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,64}$"
+        },
+        "rowBucket": {
+          "enum": [
+            "lt100",
+            "100to1000",
+            "gt1000"
+          ]
+        },
         "metric": {
           "enum": [
             "lcp",
             "inp",
             "cls",
             "fcp",
-            "ttfb"
+            "ttfb",
+            "first_screen_time",
+            "list_render_duration"
           ]
         },
         "value": {
@@ -865,6 +984,23 @@
         "durationMs"
       ],
       "properties": {
+        "qualityVersion": {
+          "const": "r5a-1"
+        },
+        "qualityMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "qualitySampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "apiRequestId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,64}$"
+        },
         "success": {
           "type": "boolean"
         },
@@ -915,6 +1051,36 @@
         "errorCategory"
       ],
       "properties": {
+        "qualityVersion": {
+          "const": "r5a-1"
+        },
+        "qualityMask": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "qualitySampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "breadcrumb": {
+          "type": "object",
+          "maxProperties": 50,
+          "propertyNames": {
+            "pattern": "^b[0-9]{1,2}$"
+          },
+          "additionalProperties": {
+            "enum": [
+              "navigation",
+              "action",
+              "api_success",
+              "api_failure",
+              "visible",
+              "hidden"
+            ]
+          }
+        },
         "errorType": {
           "enum": [
             "js",

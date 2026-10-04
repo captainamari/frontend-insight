@@ -69,22 +69,22 @@
 | `operation_fail_rate` | 操作失败率 | operation | `partial` | R4-C |
 | `repeated_operation_rate` | 重复操作率 | operation | `partial` | R4-C |
 | `path_steps` | 操作路径步数 | operation | `partial` | R4-B |
-| `lcp` | 最大内容绘制 | performance | `partial` | R5-A |
-| `inp` | 交互到下次绘制 | performance | `partial` | R5-A |
-| `cls` | 累积布局偏移 | performance | `partial` | R5-A |
-| `fcp` | 首次内容绘制 | performance | `partial` | R5-A |
-| `ttfb` | 首字节时间 | performance | `partial` | R5-A |
-| `first_screen_time` | 业务首屏时间 | performance | `not_collected` | R5-A |
-| `api_duration` | 接口耗时 | performance | `not_collected` | R5-A |
-| `api_slow_top` | 慢接口 TOP | performance | `not_collected` | R5-A |
-| `list_render_duration` | 列表渲染耗时 | performance | `not_collected` | R5-A |
-| `longtask_count` | 长任务次数 | performance | `not_collected` | R5-A |
-| `longtask_total` | 长任务总时长 | performance | `not_collected` | R5-A |
-| `js_error_rate` | JS 错误率 | stability | `partial` | R5-A |
-| `api_error_rate` | API 错误率 | stability | `not_collected` | R5-A |
-| `resource_error_rate` | 资源错误率 | stability | `not_collected` | R5-A |
-| `blank_screen_rate` | 白屏率 | stability | `not_collected` | R5-A |
-| `breadcrumb` | 安全操作面包屑 | stability | `not_collected` | R5-A |
+| `lcp` | 最大内容绘制 | performance | `implemented` | R5-A |
+| `inp` | 交互到下次绘制 | performance | `implemented` | R5-A |
+| `cls` | 累积布局偏移 | performance | `implemented` | R5-A |
+| `fcp` | 首次内容绘制 | performance | `implemented` | R5-A |
+| `ttfb` | 首字节时间 | performance | `implemented` | R5-A |
+| `first_screen_time` | 业务首屏时间 | performance | `implemented` | R5-A |
+| `api_duration` | 接口耗时 | performance | `implemented` | R5-A |
+| `api_slow_top` | 慢接口 TOP | performance | `implemented` | R5-A |
+| `list_render_duration` | 列表渲染耗时 | performance | `implemented` | R5-A |
+| `longtask_count` | 长任务次数 | performance | `implemented` | R5-A |
+| `longtask_total` | 长任务总时长 | performance | `implemented` | R5-A |
+| `js_error_rate` | JS 错误率 | stability | `implemented` | R5-A |
+| `api_error_rate` | API 错误率 | stability | `implemented` | R5-A |
+| `resource_error_rate` | 资源错误率 | stability | `implemented` | R5-A |
+| `blank_screen_rate` | 白屏率 | stability | `implemented` | R5-A |
+| `breadcrumb` | 安全操作面包屑 | stability | `implemented` | R5-A |
 | `dept_usage` | 部门使用率 | organization | `partial` | R4-C |
 | `role_usage` | 角色使用率 | organization | `partial` | R4-C |
 | `role_feature_profile` | 角色功能画像 | organization | `partial` | R4-C |

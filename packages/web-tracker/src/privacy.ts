@@ -72,7 +72,8 @@ export function applyRestrictedBeforeSend(
     return null;
   }
   if (
-    (original.payload.workflowInstanceId ||
+    (original.payload.qualityVersion ||
+      original.payload.workflowInstanceId ||
       original.payload.formInstanceId ||
       original.payload.businessAdapter) &&
     JSON.stringify(candidate.payload) !== JSON.stringify(original.payload)

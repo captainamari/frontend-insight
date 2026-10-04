@@ -124,6 +124,60 @@ export function validateTransportBatch(
 
   for (const [index, event] of batch.events.entries()) {
     const path = `/events/${index}`;
+    if (event.payload.qualityVersion) {
+      const p = event.payload;
+      const required =
+        event.event === "page_view"
+          ? ["qualityMask", "qualitySampleRate"]
+          : event.event === "page_leave"
+            ? [
+                "qualityMask",
+                "qualitySampleRate",
+                "qualitySequence",
+                "qualityClosed",
+                "qualityDropped",
+                "qualityFailed",
+                "qualitySuppressed",
+                "apiStarted",
+                "apiCompleted",
+                "resourceStarted",
+                "resourceCompleted",
+                "resourceFailed",
+                "longtaskCount",
+                "longtaskTotal",
+              ]
+            : ["qualitySampleRate"];
+      const invalid =
+        required.some((key) => p[key] === undefined) ||
+        (event.event === "api" &&
+          (!p.apiRequestId ||
+            (p.failureType === "http"
+              ? !(Number(p.statusCode) >= 400 && p.success === false)
+              : ["network", "timeout"].includes(String(p.failureType))
+                ? !(p.statusCode === 0 && p.success === false)
+                : p.failureType === "none"
+                  ? !(
+                      Number(p.statusCode) >= 100 &&
+                      Number(p.statusCode) < 400 &&
+                      p.success === true
+                    )
+                  : p.failureType === "aborted"
+                    ? !(p.statusCode === 0 && p.success === false)
+                    : true))) ||
+        (event.event === "page_leave" &&
+          (Number(p.apiCompleted) > Number(p.apiStarted) ||
+            Number(p.resourceCompleted) > Number(p.resourceStarted) ||
+            Number(p.resourceFailed) > Number(p.resourceCompleted))) ||
+        (event.event === "performance" &&
+          p.metric === "list_render_duration" &&
+          (!p.sampleId || !p.rowBucket));
+      if (invalid)
+        return error(
+          REJECTION_CODES.schemaInvalid,
+          `${path}/payload`,
+          "invalid quality fact relationship",
+        );
+    }
     if (
       event.event === "custom" &&
       event.payload.name === "form_summary" &&

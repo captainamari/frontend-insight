@@ -214,6 +214,11 @@ export class BrowserObservability {
   }
 
   captureApiError(details: ApiErrorDetails): void {
+    if (
+      details.failureType === "business" ||
+      (details.statusCode >= 100 && details.statusCode < 400)
+    )
+      return;
     this.emit("api", {
       success: false,
       requestMethod: requestMethod(details.method),

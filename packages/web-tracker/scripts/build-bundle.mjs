@@ -29,3 +29,17 @@ if (!report.passed) {
   );
 }
 console.log(JSON.stringify(report));
+
+await build({
+  entryPoints: ["src/quality.ts"],
+  outfile: "dist/quality.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  legalComments: "none",
+});
+const qualityBytes = gzipSync(await readFile("dist/quality.js")).byteLength;
+if (qualityBytes > maximumGzipBytes) throw new Error("QUALITY_BUNDLE_BUDGET");
+console.log(JSON.stringify({ qualityGzipBytes: qualityBytes, maximumGzipBytes }));

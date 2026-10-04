@@ -7,6 +7,10 @@
     ".": {
       "types": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./quality": {
+      "types": "./src/quality.ts",
+      "import": "./dist/quality.js"
     }
   },
   "scripts": {
@@ -16,7 +20,8 @@
     "budget": "node scripts/build-bundle.mjs --check"
   },
   "dependencies": {
-    "@frontend-insight/event-contract": "workspace:*"
+    "@frontend-insight/event-contract": "workspace:*",
+    "web-vitals": "5.3.0"
   },
   "devDependencies": {
     "esbuild": "0.28.1",

@@ -1,3 +1,4 @@
+import { QUALITY_DEFINITION_VERSION, QUALITY_KEYS } from "./quality-definition.js";
 import { CANONICAL_METRIC_KEYS } from "@frontend-insight/event-contract";
 import {
   SYSTEM_METRIC_SEED,
@@ -765,7 +766,10 @@ const scoreInputs: SystemMetricDefinition[] = scoreInputSpecs.map(
 export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
   ...attachmentSeeds.map((seed) => {
     const item = details[seed.metricKey]!;
-    const unavailableReason = item.unavailableReason ?? null;
+    const quality = (QUALITY_KEYS as readonly string[]).includes(seed.metricKey);
+    const unavailableReason = quality
+      ? "Requires r5a-1 opt-in, closed unsampled observed cohort, compatible definition and complete request terminals; unsupported/missing data stays unavailable."
+      : (item.unavailableReason ?? null);
     return Object.freeze({
       origin: "system" as const,
       metricKey: seed.metricKey,
@@ -775,25 +779,32 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
       formulaDescription: item.formulaDescription,
       numeratorDescription: item.numeratorDescription,
       denominatorDescription: item.denominatorDescription,
-      deduplicationKey: item.deduplicationKey,
+      deduplicationKey: quality
+        ? "eventId + pageViewId; apiRequestId/sampleId; latest cumulative page settlement"
+        : item.deduplicationKey,
       unit: item.unit,
       percentiles: Object.freeze([...item.percentiles]),
-      reportingTiming: item.reportingTiming,
+      reportingTiming: quality
+        ? "显式opt-in；页面开始cohort，终态读取至asOf，最多向后24h；longtask与资源计数随page_leave累计结算。"
+        : item.reportingTiming,
       entityScopes: Object.freeze([...item.entityScopes]),
       timeGranularities: Object.freeze([...item.timeGranularities]),
       minimumSample: item.minimumSample,
       missingPolicy: item.missingPolicy,
       owner: seed.milestone === "R4-B" ? "Jesse" : OWNER,
       definitionVersion:
-        seed.milestone === "R4-C"
-          ? R4C_FACT_DEFINITION_VERSION
-          : seed.milestone === "R4-B"
-            ? WORKFLOW_FACT_DEFINITION_VERSION
-            : identityMetricKeys.has(seed.metricKey)
-              ? IDENTITY_DEFINITION_VERSION
-              : DEFINITION_VERSION,
+        seed.milestone === "R5-A"
+          ? QUALITY_DEFINITION_VERSION
+          : seed.milestone === "R4-C"
+            ? R4C_FACT_DEFINITION_VERSION
+            : seed.milestone === "R4-B"
+              ? WORKFLOW_FACT_DEFINITION_VERSION
+              : identityMetricKeys.has(seed.metricKey)
+                ? IDENTITY_DEFINITION_VERSION
+                : DEFINITION_VERSION,
       implementationStatus: seed.implementationStatus,
       availableFrom:
+        seed.milestone !== "R5-A" &&
         seed.milestone !== "R4-B" &&
         seed.milestone !== "R4-C" &&
         seed.implementationStatus === "partial"
