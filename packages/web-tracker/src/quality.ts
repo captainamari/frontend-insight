@@ -405,7 +405,8 @@ export function createQualityCollectors(options: QualityOptions) {
             ),
             failureType,
           });
-          crumb(failed ? "api_failure" : "api_success");
+          if (state === s && failureType !== "aborted")
+            crumb(failed ? "api_failure" : "api_success");
         });
       try {
         const value = await execute();
@@ -427,6 +428,7 @@ export function createQualityCollectors(options: QualityOptions) {
     },
     async observeResource<T>(execute: () => Promise<T>): Promise<T> {
       const s = state;
+      const requestCrumbs = [...crumbs];
       let tracked = false;
       safe(() => {
         if (
@@ -455,7 +457,11 @@ export function createQualityCollectors(options: QualityOptions) {
               resourceType: "other",
               requestPath: "/controlled-resource",
               ...(options.breadcrumbs
-                ? { breadcrumb: Object.fromEntries(crumbs.map((c, i) => [`b${i}`, c])) }
+                ? {
+                    breadcrumb: Object.fromEntries(
+                      requestCrumbs.map((c, i) => [`b${i}`, c]),
+                    ),
+                  }
                 : {}),
             }),
           );

@@ -759,36 +759,36 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 16. R5-A：页面分析——性能与稳定性 collector/指标
 
-建议分支：`agent/v1-8-r5a-quality-collectors`
+实际分支：`agent/v1-8-r5a-quality-collectors`。下列为实现/fixture完成标记；最终同提交Actions及手工交接状态以[R5-A results](../progress/v1.8-r5a-results.md)为准，不代表Jesse已手工验收。canonical改名已由继承contract v3完成，本次只扩展，未重复迁移。
 
 ### 16.1 性能 collector
 
-- [ ] 将 `web_vital` + 大写 vitalName 切换为 `event=performance`，`payload.metric` 使用 `lcp`、`inp`、`cls`、`fcp`、`ttfb`；
-- [ ] `lcp`、`inp`、`cls`、`fcp`、`ttfb` 按附件输出规定主分位数，并保留 P50/P75/P90/P99、sample 和 threshold version；
-- [ ] 增加业务显式 `first_screen_time` API；
-- [ ] 增加 API 汇总适配器，形成 `api_duration`、`api_slow_top`、`api_error_rate` 的成功与失败请求分母；全局 fetch 包装默认关闭；
-- [ ] 增加 `list_render_duration` 显式组件计时，行数分桶 `<100/100–1000/>1000`；
-- [ ] 增加 `longtask_count`、`longtask_total`，按 `pageRoute` 在 `page_leave` 汇总；
-- [ ] collector 都有开关、采样、队列大小、事件大小和宿主异常隔离。
+- [x] 将 `web_vital` + 大写 vitalName 切换为 `event=performance`，`payload.metric` 使用 `lcp`、`inp`、`cls`、`fcp`、`ttfb`；
+- [x] `lcp`、`inp`、`cls`、`fcp`、`ttfb` 按附件输出规定主分位数，并保留 P50/P75/P90/P99、sample 和 threshold version；
+- [x] 增加业务显式 `first_screen_time` API；
+- [x] 增加 API 汇总适配器，形成 `api_duration`、`api_slow_top`、`api_error_rate` 的成功与失败请求分母；全局 fetch 包装默认关闭；
+- [x] 增加 `list_render_duration` 显式组件计时，行数分桶 `<100/100–1000/>1000`；
+- [x] 增加 `longtask_count`、`longtask_total`，按 `pageRoute` 在 `page_leave` 汇总；
+- [x] collector 都有开关、采样、队列大小、事件大小和宿主异常隔离。
 
 ### 16.2 稳定性 collector
 
-- [ ] `event=error` 覆盖 JS/resource，`event=api` 覆盖 API 正常/异常汇总；
-- [ ] `js_error_rate` 使用 JS 异常次数 / `pv`；
-- [ ] `api_error_rate` 使用 HTTP/网络/超时异常请求 / API 请求总数；
-- [ ] `resource_error_rate` 增加资源请求总数汇总后才激活；
-- [ ] `blank_screen_rate` 按页面模板 opt-in，返回启用检测 PV 分母、规则版本和 coverage；
-- [ ] `breadcrumb` 环形缓冲最多 50 条，仅随错误发送，只含页面跳转、安全 action、脱敏 API 和允许的生命周期；
-- [ ] 保留稳定 error group、指纹限流和安全堆栈，不因字段改名降低现有隐私保护。
+- [x] `event=error` 覆盖 JS/resource，`event=api` 覆盖 API 正常/异常汇总；
+- [x] `js_error_rate` 使用 JS 异常次数 / `pv`；
+- [x] `api_error_rate` 使用 HTTP/网络/超时异常请求 / API 请求总数；
+- [x] `resource_error_rate` 增加资源请求总数汇总后才激活；
+- [x] `blank_screen_rate` 按页面模板 opt-in，返回启用检测 PV 分母、规则版本和 coverage；
+- [x] `breadcrumb` 环形缓冲最多 50 条，仅随错误发送，只含页面跳转、安全 action、脱敏 API 和允许的生命周期；
+- [x] 保留稳定 error group、指纹限流和安全堆栈，不因字段改名降低现有隐私保护。
 
 ### 16.3 查询、容量与阶段门
 
-- [ ] 所有 rate 的 numerator/denominator、0 分母、缺失 collector、样本不足和 partial 时段 golden fixture；
-- [ ] Chromium/WebKit 的 PerformanceObserver 支持与降级；
-- [ ] API/resource 成功分母新增后的事件量、20/200 events/s 链路和 ClickHouse 扫描预算；
-- [ ] collector 开关组合、重复安装/销毁、页面切换结算顺序和 Beacon flush；
-- [ ] token/query/header/body/form/DOM/raw userId 的全链路负向 fixture；
-- [ ] 指标查询只能返回附件 key，旧 event/metric alias 被拒绝。
+- [x] 所有 rate 的 numerator/denominator、0 分母、缺失 collector、样本不足和 partial 时段 golden fixture；
+- [x] Chromium/WebKit 的 PerformanceObserver 支持与降级；
+- [x] API/resource 成功分母新增后的事件量、20/200 events/s 链路和 ClickHouse 扫描预算；
+- [x] collector 开关组合、重复安装/销毁、页面切换结算顺序和 Beacon flush；
+- [x] token/query/header/body/form/DOM/raw userId 的全链路负向 fixture；
+- [x] 指标查询只能返回附件 key，旧 event/metric alias 被拒绝。
 
 阶段门：性能与稳定性字典指标均为 `implemented` 或有经评审的 `not_collected` 原因；任何称为 rate 的指标都有真实分母；SDK 对宿主业务的同步耗时、包体和异常隔离通过预算。
 

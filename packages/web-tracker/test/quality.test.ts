@@ -176,6 +176,31 @@ describe("R5-A SDK collector isolation and privacy", () => {
       events.findIndex((e) => e.event === "page_view" && e.pageRoute === "/next"),
     );
   });
+  it("does not attach a later page's breadcrumbs to a pending resource", async () => {
+    const f = fixture();
+    f.quality.action();
+    let reject!: (reason: Error) => void;
+    const pending = f.quality
+      .observeResource(
+        () =>
+          new Promise((_, fail) => {
+            reject = fail;
+          }),
+      )
+      .catch((error) => error);
+    history.pushState({}, "", "/resource-next");
+    f.quality.action();
+    f.quality.action();
+    const original = new Error("private");
+    reject(original);
+    expect(await pending).toBe(original);
+    const events = await f.finish();
+    const error = events.find((e) => e.event === "error");
+    expect(error.pageViewId).toBe(
+      events.find((e) => e.event === "page_view").pageViewId,
+    );
+    expect(Object.values(error.payload.breadcrumb)).toEqual(["navigation", "action"]);
+  });
   it("rejects arbitrary API paths and never changes host outcomes when telemetry fails", async () => {
     const f = fixture();
     const value = { status: 200 };
