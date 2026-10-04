@@ -300,7 +300,7 @@ export class BrowserTracker implements Tracker {
       if (nextPageRoute === this.pageRoute) return;
       this.forms.settle();
       this.stopLongViews();
-      this.settleVisiblePage(true);
+      this.settleVisiblePage(Boolean(this.quality));
       this.pageRoute = nextPageRoute;
       this.pageViewId = id(this.runtime, "pv");
       this.visibleStartedAt = this.isVisible() ? now : null;
@@ -940,7 +940,7 @@ export class BrowserTracker implements Tracker {
     this.forms.settle();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
-    this.settleVisiblePage(true);
+    this.settleVisiblePage(Boolean(this.quality));
     this.safe(() => this.quality?.destroy());
     void this.flush("lifecycle");
     this.uninstallLifecycle();

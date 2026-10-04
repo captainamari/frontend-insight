@@ -80,6 +80,19 @@ describe("R5-A pinned quality facts and DAG", () => {
       inputs: { double_error: { value: 0.4, status: "available" } },
     });
   });
+  it("never exposes facts for disabled or absent version definitions", () => {
+    const f = fixture();
+    f.snapshot.definitions[0]!.enabled = false;
+    expect(bindQualityFacts(f.facts, f.snapshot).inputs.api_error_rate).toMatchObject({
+      value: null,
+      reason: "VERSION_METRIC_DISABLED_OR_MISSING",
+    });
+    f.snapshot.definitions = [];
+    expect(bindQualityFacts(f.facts, f.snapshot).inputs.api_error_rate).toMatchObject({
+      value: null,
+      reason: "VERSION_METRIC_DISABLED_OR_MISSING",
+    });
+  });
   it("rejects cycles and wrong-library snapshots", () => {
     const f = fixture();
     f.snapshot.definitions[0]!.origin = "business";

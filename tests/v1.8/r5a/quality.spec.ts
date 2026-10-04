@@ -208,7 +208,20 @@ test("R5-A actual optional SDK, safe payloads, Kafka facts and quality API", asy
   const catalog = await (
     await request.get(root + "/metrics/catalog?type=quality", { headers })
   ).json();
-  const active = catalog.activeVersion.id;
+  // A new isolated project deliberately has no auto-activated quality version.
+  expect(catalog.activeVersion).toBeNull();
+  const initialResponse = await request.post(root + "/metrics/versions", {
+    headers,
+    data: { type: "quality" },
+  });
+  expect(initialResponse.status()).toBe(201);
+  const initial = await initialResponse.json();
+  const activation = await request.post(
+    root + `/metrics/versions/${initial.id}/activate`,
+    { headers },
+  );
+  expect(activation.status(), await activation.text()).toBe(201);
+  const active = initial.id;
   const before = await (
     await request.get(root + `/metrics/versions/${active}`, { headers })
   ).json();

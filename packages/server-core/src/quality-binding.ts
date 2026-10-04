@@ -19,12 +19,12 @@ export function bindQualityFacts(
     if (inputs[key]) return inputs[key]!;
     const d = definitions.get(key);
     if (!d || !d.enabled)
-      return {
+      return (inputs[key] = {
         value: null,
         status: "metric_not_available",
         sampleSize: null,
         reason: "VERSION_METRIC_DISABLED_OR_MISSING",
-      };
+      });
     if (visiting.has(key)) throw new Error("QUALITY_FORMULA_CYCLE");
     visiting.add(key);
     let value: FormulaInputValue;
@@ -75,6 +75,7 @@ export function bindQualityFacts(
     inputs[key] = value;
     return value;
   }
+  for (const key of Object.keys(result.inputs)) evaluate(key);
   for (const d of snapshot.definitions) evaluate(d.metricKey);
   return {
     versionId: snapshot.version.id,

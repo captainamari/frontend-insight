@@ -412,14 +412,16 @@ export function createQualityCollectors(options: QualityOptions) {
         safe(() => terminal(value.status, value.status >= 400 ? "http" : "none"));
         return value;
       } catch (e) {
-        terminal(
-          0,
-          e instanceof Error && e.name === "TimeoutError"
-            ? "timeout"
-            : e instanceof Error && e.name === "AbortError"
-              ? "aborted"
-              : "network",
-        );
+        safe(() => {
+          terminal(
+            0,
+            e instanceof Error && e.name === "TimeoutError"
+              ? "timeout"
+              : e instanceof Error && e.name === "AbortError"
+                ? "aborted"
+                : "network",
+          );
+        });
         throw e;
       }
     },

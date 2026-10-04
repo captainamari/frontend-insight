@@ -194,4 +194,78 @@ describe("R5-A SDK collector isolation and privacy", () => {
     expect(await f.quality.observeApi("/save", async () => evil)).toBe(evil);
     expect((await f.finish()).filter((e) => e.event === "api")).toHaveLength(0);
   });
+  it("keeps the original thrown Error even when its telemetry name getter throws", async () => {
+    const f = fixture();
+    const error = new Error("host");
+    Object.defineProperty(error, "name", {
+      get() {
+        throw new Error("telemetry getter");
+      },
+    });
+    try {
+      await f.quality.observeApi("/save", async () => {
+        throw error;
+      });
+      throw new Error("unexpected success");
+    } catch (caught) {
+      expect(caught === error).toBe(true);
+    }
+    const events = await f.finish();
+    expect(
+      events.find((e) => e.event === "page_leave")?.payload.qualitySuppressed,
+    ).toBe(1);
+  });
+  it("distinguishes an empty template from a detector that never settled", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const options = {
+      blankScreen: { routes: { [location.pathname]: "#r5a_missing_root" } },
+    };
+    const f = fixture(options);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(
+      (await f.finish()).find((e) => e.event === "page_leave")?.payload.blankScreen,
+    ).toBe(true);
+    const early = fixture(options);
+    expect(
+      (await early.finish()).find((e) => e.event === "page_leave")?.payload.blankScreen,
+    ).toBeUndefined();
+    vi.restoreAllMocks();
+  });
+  it("settles pending longtask entries before leave and disconnects on destroy", async () => {
+    let disconnected = 0;
+    let pending = [{ duration: 51 }, { duration: 50 }];
+    class Observer {
+      static supportedEntryTypes = ["longtask"];
+      observe() {}
+      disconnect() {
+        disconnected++;
+      }
+      takeRecords() {
+        const result = pending;
+        pending = [];
+        return result;
+      }
+    }
+    const previous = window.PerformanceObserver;
+    Object.defineProperty(window, "PerformanceObserver", {
+      value: Observer,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      const f = fixture({ longtasks: true });
+      const events = await f.finish();
+      expect(events.find((e) => e.event === "page_leave")?.payload).toMatchObject({
+        longtaskCount: 1,
+        longtaskTotal: 51,
+      });
+      expect(disconnected).toBe(1);
+    } finally {
+      Object.defineProperty(window, "PerformanceObserver", {
+        value: previous,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
 });
