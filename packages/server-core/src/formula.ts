@@ -347,6 +347,18 @@ export function inspectFormulaAst(
           metricKey: node.metricKey,
         });
       }
+      if (
+        [
+          "form_efficiency",
+          "dept_usage",
+          "role_usage",
+          "role_feature_profile",
+        ].includes(node.metricKey)
+      ) {
+        throw new FormulaValidationError("FORMULA_STRUCTURED_INPUT_NOT_SCALAR", path, {
+          metricKey: node.metricKey,
+        });
+      }
       if (reference.projectId !== context.projectId) {
         throw new FormulaValidationError("FORMULA_CROSS_PROJECT_REFERENCE", path, {
           metricKey: node.metricKey,

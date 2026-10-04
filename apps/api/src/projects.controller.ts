@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { objectReferenceKeys } from "@frontend-insight/server-core";
 import {
   CANONICAL_ENVIRONMENTS,
   CANONICAL_RANGES,
@@ -18,6 +20,8 @@ import {
   Delete,
   Get,
   HttpCode,
+  Header,
+  Headers,
   HttpException,
   Inject,
   Param,
@@ -114,6 +118,45 @@ export const businessAnalysisSchema = projectOverviewSchema
     workflowVersion: z.string().uuid().optional(),
     workflowEvidencePage: z.coerce.number().int().min(1).max(1000).optional(),
     versionId: z.string().uuid().optional(),
+  })
+  .strict();
+
+export const usageSourceSchema = z
+  .object({
+    env: z.enum(CANONICAL_ENVIRONMENTS),
+    sourceKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    coverage: z.enum(["complete", "interrupted"]),
+    sdkVersion: z.literal("0.8.0"),
+    releases: z
+      .array(z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$/))
+      .min(1)
+      .max(20),
+    validUntil: z.string().datetime({ offset: true }),
+    attested: z.literal(true),
+  })
+  .strict();
+
+export const directorySchema = z
+  .object({
+    env: z.enum(CANONICAL_ENVIRONMENTS),
+    sourceKey: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
+    coverage: z.enum(["complete", "unknown"]),
+    validUntil: z.string().datetime({ offset: true }),
+    entries: z
+      .array(
+        z
+          .object({
+            userId: z.string().regex(/^u_[a-zA-Z0-9_-]{16,100}$/),
+            deptId: z.string().regex(/^dept_[a-z0-9_]{1,48}$/),
+            roleId: z
+              .string()
+              .regex(/^role_[a-z0-9_]{1,48}$/)
+              .nullable(),
+            eligible: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(500),
   })
   .strict();
 
@@ -378,6 +421,117 @@ export class ProjectsController {
   ) {
     await this.requireProject(principal, projectId, false);
     return evaluateDataStatus(await this.core.mysql.getDataStatus(projectId));
+  }
+
+  @Post(":projectId/object-reference-keys")
+  @Header("Cache-Control", "no-store")
+  async objectKeys(
+    @CurrentPrincipal() principal: Principal,
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @Headers("origin") origin?: string,
+    @Headers("sec-fetch-site") fetchSite?: string,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    if (origin || fetchSite)
+      throw new HttpException({ code: "OBJECT_KEYS_BACKEND_ONLY" }, 403);
+    const parsed = z
+      .object({ env: z.enum(["prod", "staging", "dev"]) })
+      .strict()
+      .safeParse(input);
+    if (!parsed.success)
+      throw new HttpException({ code: "OBJECT_KEY_REQUEST_INVALID" }, 400);
+    await this.core.mysql.pool.execute(
+      "INSERT INTO audit_logs (project_id,actor_user_id,action,entity_type,entity_id,metadata,request_id) VALUES (?,?,?,?,?,?,?)",
+      [
+        projectId,
+        principal.userId,
+        "object_reference.keys_issued",
+        "project",
+        projectId,
+        JSON.stringify({ env: parsed.data.env }),
+        randomUUID(),
+      ],
+    );
+    return {
+      projectId,
+      env: parsed.data.env,
+      expiresAt: new Date(
+        (Math.floor(Date.now() / 86400000) + 1) * 86400000,
+      ).toISOString(),
+      keys: objectReferenceKeys(
+        this.core.environment.ACCOUNT_HMAC_KEY,
+        projectId,
+        parsed.data.env,
+        Date.now(),
+      ).map((k) => ({ epoch: k.epoch, secret: Buffer.from(k.secret).toString("hex") })),
+    };
+  }
+
+  @Get(":projectId/usage-sources")
+  async usageSources(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.usageSource.list(projectId);
+  }
+  @Post(":projectId/usage-sources")
+  async createUsageSource(
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    const parsed = usageSourceSchema.safeParse(input);
+    if (!parsed.success) throw new HttpException("USAGE_SOURCE_INVALID", 400);
+    return this.core.usageSource.create(projectId, principal.userId, parsed.data);
+  }
+  @Post(":projectId/usage-sources/:versionId/publish")
+  async publishUsageSource(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.usageSource.publish(
+      projectId,
+      principal.userId,
+      parseInput(z.string().uuid(), versionId),
+    );
+  }
+
+  @Get(":projectId/directory")
+  async directory(
+    @Param("projectId") projectId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.directory.list(projectId);
+  }
+  @Post(":projectId/directory")
+  async createDirectory(
+    @Param("projectId") projectId: string,
+    @Body() input: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    const parsed = directorySchema.safeParse(input);
+    if (!parsed.success) throw new HttpException("DIRECTORY_INVALID", 400);
+    return this.core.directory.create(projectId, principal.userId, parsed.data);
+  }
+  @Post(":projectId/directory/:versionId/publish")
+  async publishDirectory(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.requireProject(principal, projectId, true);
+    return this.core.directory.publish(
+      projectId,
+      principal.userId,
+      parseInput(z.string().uuid(), versionId),
+    );
   }
 
   private async requireProject(

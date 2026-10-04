@@ -117,6 +117,8 @@ interface MetricLineage {
     minimumSample: number;
     missingPolicy: string;
     implementationStatus: ImplementationStatus;
+    definitionVersion?: string;
+    atomicSources?: string[];
   }>;
   edges: Array<{ from: string; to: string }>;
   directUpstream: string[];
@@ -562,6 +564,27 @@ async function refreshWorkflowFacts() {
     showMessage({
       type: "success",
       message: "工作流事实定义已更新到草稿；请检查差异并重新review，激活版本保持原快照",
+    });
+  } catch (cause) {
+    showMessage({
+      type: "error",
+      message: cause instanceof Error ? cause.message : "定义更新失败",
+    });
+  }
+}
+
+async function refreshR4CFacts() {
+  if (!selectedVersion.value || selectedVersion.value.status !== "draft") return;
+  try {
+    await api.request(
+      `/api/projects/${props.projectId}/metrics/versions/${selectedVersion.value.id}/r4c-facts`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+    await loadVersion();
+    showMessage({
+      type: "success",
+      message:
+        "操作效率与组织定义已更新到草稿；请检查差异并重新review，激活版本保持原快照",
     });
   } catch (cause) {
     showMessage({
@@ -1190,6 +1213,15 @@ onBeforeUnmount(() => {
             "
             @click="refreshWorkflowFacts"
             >同步工作流事实定义到草稿</el-button
+          >
+          <el-button
+            v-if="
+              props.canWrite &&
+              selectedVersion.libraryType === 'operational' &&
+              selectedVersion.status === 'draft'
+            "
+            @click="refreshR4CFacts"
+            >同步操作效率与组织定义到草稿</el-button
           >
           <el-button
             v-if="canWrite && ['draft', 'superseded'].includes(selectedVersion.status)"

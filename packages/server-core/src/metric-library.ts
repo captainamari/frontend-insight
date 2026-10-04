@@ -1,4 +1,9 @@
-import { WORKFLOW_FACT_METRIC_KEYS } from "./system-metric-catalog.js";
+import {
+  R4C_FACT_METRIC_KEYS,
+  R4C_FACT_DEFINITION_VERSION,
+  isHistoricalR4CDefinition,
+  WORKFLOW_FACT_METRIC_KEYS,
+} from "./system-metric-catalog.js";
 import {
   copyStoredScore,
   validateStoredScore,
@@ -163,6 +168,8 @@ export interface MetricLineageReadModel {
     minimumSample: number;
     missingPolicy: string;
     implementationStatus: SystemMetricImplementationStatus;
+    definitionVersion: string;
+    atomicSources: readonly string[];
   }[];
   edges: readonly { from: string; to: string }[];
   directUpstream: readonly string[];
@@ -344,7 +351,11 @@ export function validateMetricVersionSnapshot(input: {
     else if (
       snapshot.origin !== "system" ||
       (snapshot.definitionVersion !== system.definitionVersion &&
-        !isHistoricalIdentityDefinition(snapshot.metricKey, snapshot.definitionVersion))
+        !isHistoricalIdentityDefinition(
+          snapshot.metricKey,
+          snapshot.definitionVersion,
+        ) &&
+        !isHistoricalR4CDefinition(snapshot.metricKey, snapshot.definitionVersion))
     ) {
       errors.push({
         code: "SYSTEM_METRIC_CHANGED",
@@ -435,9 +446,16 @@ export function validateMetricVersionSnapshot(input: {
     } else throw cause;
   }
 
-  const statusByKey = new Map(
-    METRIC_CATALOG.map((item) => [item.metricKey, item.implementationStatus]),
-  );
+  // Persisted system definitions are authoritative for this version. A newer
+  // collector/catalog must not promote dependencies in an inherited snapshot.
+  const statusByKey = new Map([
+    ...METRIC_CATALOG.map(
+      (item) => [item.metricKey, item.implementationStatus] as const,
+    ),
+    ...input.definitions
+      .filter((item) => item.origin === "system")
+      .map((item) => [item.metricKey, item.implementationStatus] as const),
+  ]);
   const definitions = input.definitions
     .filter((item) => item.origin === "business")
     .sort(
@@ -881,6 +899,59 @@ export class MetricLibraryService {
         "metric_library_version",
         versionId,
         { metricKeys: WORKFLOW_FACT_METRIC_KEYS },
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    return this.getVersion(projectId, versionId);
+  }
+
+  async refreshR4CFacts(projectId: string, versionId: string, actor: Principal) {
+    const connection = await this.mysql.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const version = await this.requireVersion(connection, projectId, versionId, true);
+      if (version.status !== "draft" || version.libraryType !== "operational")
+        throw new MetricLibraryError(
+          "R4C_FACT_REFRESH_REQUIRES_OPERATIONAL_DRAFT",
+          409,
+        );
+      for (const key of R4C_FACT_METRIC_KEYS) {
+        const metric = systemMetricDefinition(key)!;
+        await connection.execute(
+          `UPDATE metric_definitions SET unit=?,definition_version=?,implementation_status=?,business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,percentiles=?,reporting_timing=?,minimum_sample=?,missing_policy=?,owner=?,available_from=NULL,unavailable_reason=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+          [
+            metric.unit,
+            metric.definitionVersion,
+            metric.implementationStatus,
+            metric.businessDescription,
+            metric.formulaDescription,
+            metric.numeratorDescription,
+            metric.denominatorDescription,
+            metric.deduplicationKey,
+            JSON.stringify(metric.percentiles),
+            metric.reportingTiming,
+            metric.minimumSample,
+            metric.missingPolicy,
+            metric.owner,
+            metric.unavailableReason,
+            versionId,
+            key,
+          ],
+        );
+      }
+      await this.insertAudit(
+        connection,
+        projectId,
+        actor.userId,
+        "metric_library.r4c_facts_refreshed",
+        "metric_library_version",
+        versionId,
+        { metricKeys: R4C_FACT_METRIC_KEYS },
       );
       await connection.commit();
     } catch (error) {
@@ -1392,6 +1463,37 @@ export class MetricLibraryService {
           minimumSample: item.minimumSample,
           missingPolicy: item.missingPolicy,
           implementationStatus: item.implementationStatus,
+          definitionVersion: item.definitionVersion,
+          atomicSources:
+            item.definitionVersion !== R4C_FACT_DEFINITION_VERSION
+              ? []
+              : key === "form_efficiency"
+                ? [
+                    "contract_v3.custom.form_summary",
+                    "event-time page/module revisions",
+                    "efficiency-policy.lifecycle_settlement",
+                  ]
+                : key === "operation_fail_rate"
+                  ? [
+                      "contract_v3.custom.feature_started + controlled business terminal",
+                      "operationInstanceId",
+                      "efficiency-policy.unknown_blocks_rate",
+                    ]
+                  : key === "repeated_operation_rate"
+                    ? [
+                        "contract_v3.custom.feature_started + verified object reference",
+                        "48h object_operation_refs; project/env/user/type/key isolation",
+                        "reference-free repeated_operation_proofs; rolling inclusive 24h witnesses",
+                        "related session cohort; +/-24h lookaround; 24h lateness",
+                      ]
+                    : ["dept_usage", "role_usage", "role_feature_profile"].includes(key)
+                      ? [
+                          "immutable eligible directory version",
+                          "identified page_view and controlled operation start observations",
+                          "matched visibleDurationMs page_leave segments",
+                          "organization-facts fixed closed buckets; k=5 whole-family suppression",
+                        ]
+                      : [],
         };
       }),
       edges,

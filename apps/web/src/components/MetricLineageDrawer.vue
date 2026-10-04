@@ -11,6 +11,8 @@ interface LineageNode {
   minimumSample: number;
   missingPolicy: string;
   implementationStatus: ImplementationStatus;
+  definitionVersion?: string;
+  atomicSources?: string[];
 }
 
 interface MetricLineage {
@@ -121,6 +123,20 @@ function truncate(value: string, maximum = 22): string {
 <template>
   <el-drawer v-model="open" title="指标血缘" size="min(860px, 96vw)">
     <article v-if="lineage" class="lineage-content">
+      <section v-if="lineage.nodes.some((node) => node.atomicSources?.length)">
+        <h3>版本与原子事实来源</h3>
+        <ul>
+          <li
+            v-for="node in lineage.nodes.filter((item) => item.atomicSources?.length)"
+            :key="node.metricKey"
+          >
+            {{ node.metricKey }} · {{ node.definitionVersion }}：{{
+              node.atomicSources?.join("；")
+            }}
+          </li>
+        </ul>
+        <p>来源血缘不代表覆盖完整；正式可用状态仍取决于本次查询事实与覆盖检查。</p>
+      </section>
       <header class="lineage-summary">
         <div>
           <span>当前指标</span>

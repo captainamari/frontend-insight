@@ -486,3 +486,30 @@ describe("formula DAG", () => {
     ).toBe("FORMULA_DEPENDENCY_MISSING");
   });
 });
+
+describe("R4-C structured outputs", () => {
+  it("rejects compound form and organization results as scalar AST references", () => {
+    for (const metricKey of [
+      "form_efficiency",
+      "dept_usage",
+      "role_usage",
+      "role_feature_profile",
+    ]) {
+      expect(
+        code(() =>
+          validateFormulaAst(
+            { type: "metric", metricKey },
+            {
+              projectId,
+              outputUnit: "ratio",
+              outputScope: "module",
+              outputGranularity: "day",
+              minimumSample: 5,
+              resolveMetric: () => metric(metricKey, "ratio", 5),
+            },
+          ),
+        ),
+      ).toBe("FORMULA_STRUCTURED_INPUT_NOT_SCALAR");
+    }
+  });
+});

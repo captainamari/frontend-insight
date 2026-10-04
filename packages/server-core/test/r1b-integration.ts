@@ -575,7 +575,10 @@ try {
      JOIN score_dimensions dim ON dim.id = si.score_dimension_id
      JOIN score_definitions score ON score.id = dim.score_definition_id
      JOIN metric_definitions metric ON metric.id = si.metric_definition_id
-     WHERE score.status = 'active' AND metric.implementation_status = 'not_collected'`,
+     JOIN metric_library_versions version ON version.id = score.library_version_id
+     WHERE version.project_id = ? AND score.status = 'active'
+       AND metric.implementation_status = 'not_collected'`,
+    [projectId],
   );
   if (Number(invalidScoreRows[0]?.count) !== 0) {
     throw new Error("NOT_COLLECTED_METRIC_BOUND_TO_ACTIVE_SCORE");

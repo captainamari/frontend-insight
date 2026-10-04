@@ -51,6 +51,7 @@ function fixture(role: "owner" | "viewer" | null, versionStatus = "draft") {
       implementationStatus: "implemented",
       errors: [],
     })),
+    refreshR4CFacts: vi.fn(async () => ({ version, definitions: [] })),
     validateVersion: vi.fn(async () => ({ valid: true })),
     activateVersion: vi.fn(async () => ({ ...version, status: "active" })),
     abandonDraft: vi.fn(async () => undefined),
@@ -198,5 +199,35 @@ describe("R1-B metric library authorization and immutable editing", () => {
       controller.catalog("project-b", { type: "operational" }, admin),
     ).rejects.toMatchObject({ status: 403 });
     expect(metricLibrary.catalog).not.toHaveBeenCalled();
+  });
+});
+
+describe("R4-C fact definition refresh authorization", () => {
+  it("permits authorized admin, denies viewer and rejects untrusted body fields", async () => {
+    const allowed = fixture("owner");
+    await allowed.controller.refreshR4CFacts(
+      "project-a",
+      allowed.version.id,
+      {},
+      admin,
+    );
+    expect(allowed.metricLibrary.refreshR4CFacts).toHaveBeenCalledWith(
+      "project-a",
+      allowed.version.id,
+      admin,
+    );
+    const denied = fixture("viewer");
+    await expect(
+      denied.controller.refreshR4CFacts("project-a", denied.version.id, {}, viewer),
+    ).rejects.toBeInstanceOf(HttpException);
+    expect(denied.metricLibrary.refreshR4CFacts).not.toHaveBeenCalled();
+    await expect(
+      allowed.controller.refreshR4CFacts(
+        "project-a",
+        allowed.version.id,
+        { implementationStatus: "implemented" },
+        admin,
+      ),
+    ).rejects.toBeInstanceOf(HttpException);
   });
 });

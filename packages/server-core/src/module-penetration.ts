@@ -1,3 +1,4 @@
+import { directoryAt, type DirectoryVersion } from "./organization-directory.js";
 import {
   localDateTime,
   projectLocalInstant,
@@ -14,6 +15,7 @@ export interface PopulationEvidence extends PopulationScope {
   sourceVersion: string;
   window: { from: string; to: string };
   count: number;
+  directoryVersion?: string;
   coverage: "complete" | "unknown" | "insufficient";
   // Coverage comes from a trusted collector/source contract, never first-event time.
   coverageWindows: { from: string; to: string }[];
@@ -53,8 +55,8 @@ export function evaluateModulePenetration(input: {
   to: string;
   timezone: string;
   observedNumerator: number | null;
-  numeratorEvidence?: PopulationEvidence;
-  denominatorEvidence?: PopulationEvidence;
+  numeratorEvidence?: PopulationEvidence | undefined;
+  denominatorEvidence?: PopulationEvidence | undefined;
 }) {
   const observationWindow = penetrationObservationWindow(input.to, input.timezone);
   const n = input.numeratorEvidence,
@@ -68,21 +70,24 @@ export function evaluateModulePenetration(input: {
     denominator: d?.count ?? null,
     denominatorSource: d?.source ?? null,
     sourceVersion: d?.sourceVersion ?? null,
-    directoryVersion: null,
+    directoryVersion: d?.directoryVersion ?? null,
     observationWindow,
+    denominatorWindow: d?.window ?? observationWindow,
     coverage: "unknown",
     estimated: false,
     availability: "unavailable",
     reason: "PENETRATION_SOURCE_MISSING",
-    explanation:
-      "已批准90个项目日历日活跃用户近似。当前缺少可信完整业务活动来源或覆盖证据；页面访问观察不是完整业务UV，分母不代表编制人数或真实系统总人数。",
+    explanation: d?.directoryVersion
+      ? "分母来自该窗口内单一可信完整eligible目录版本。目录不证明活动覆盖；只有兼容且完整的规范业务分子才能形成正式渗透率。"
+      : "已批准90个项目日历日活跃用户近似。当前缺少可信完整业务活动来源或覆盖证据；页面访问观察不是完整业务UV，分母不代表编制人数或真实系统总人数。",
   };
   const unavailable = (reason: string, coverage = "unknown") => ({
     ...base,
     reason,
     coverage,
   });
-  if (Date.parse(input.from) < Date.parse(observationWindow.from))
+  const directory = !!d?.directoryVersion;
+  if (!directory && Date.parse(input.from) < Date.parse(observationWindow.from))
     return unavailable("PENETRATION_RANGE_INCOMPATIBLE");
   if (!n || !d || !n.source || !d.source || !n.sourceVersion || !d.sourceVersion)
     return unavailable("PENETRATION_SOURCE_MISSING");
@@ -100,12 +105,13 @@ export function evaluateModulePenetration(input: {
     )
   )
     return unavailable("PENETRATION_IDENTITY_SCOPE_INCOMPATIBLE");
-  if (n.source !== d.source || n.sourceVersion !== d.sourceVersion)
+  if (!directory && (n.source !== d.source || n.sourceVersion !== d.sourceVersion))
     return unavailable("PENETRATION_SOURCE_INCOMPATIBLE");
   if (
     Date.parse(n.window.from) !== Date.parse(input.from) ||
     Date.parse(n.window.to) !== Date.parse(input.to) ||
-    Date.parse(d.window.from) !== Date.parse(observationWindow.from) ||
+    Date.parse(d.window.from) !==
+      Date.parse(directory ? input.from : observationWindow.from) ||
     Date.parse(d.window.to) !== Date.parse(input.to)
   )
     return unavailable("PENETRATION_RANGE_INCOMPATIBLE");
@@ -122,11 +128,44 @@ export function evaluateModulePenetration(input: {
   return {
     ...base,
     value: n.count / d.count,
-    estimated: true,
-    availability: "estimated",
+    estimated: !directory,
+    availability: directory ? "available" : "estimated",
     coverage: "complete",
-    reason: "PENETRATION_ACTIVE_POPULATION_ESTIMATE",
-    explanation:
-      "模块规范业务UV / 同项目、环境、身份及业务范围的90个项目日历日活跃用户。分母是活跃用户近似，不是编制人数或真实系统总人数。",
+    reason: directory
+      ? "PENETRATION_TRUSTED_DIRECTORY"
+      : "PENETRATION_ACTIVE_POPULATION_ESTIMATE",
+    explanation: directory
+      ? "模块规范业务UV / 同项目、环境、身份与窗口的可信完整eligible目录人数；目录版本固定，不重解释历史。"
+      : "模块规范业务UV / 同项目、环境、身份及业务范围的90个项目日历日活跃用户。分母是活跃用户近似，不是编制人数或真实系统总人数。",
+  };
+}
+
+/** No UI query can assert directory coverage. Caller must apply organization suppression first. */
+export function directoryPopulationEvidence(
+  versions: DirectoryVersion[],
+  scope: PopulationScope,
+  from: string,
+  to: string,
+  asOf: number,
+): PopulationEvidence | undefined {
+  const a = directoryAt(versions, scope.env, Date.parse(from), asOf);
+  const b = directoryAt(versions, scope.env, Date.parse(to) - 1, asOf);
+  if (
+    !a ||
+    !b ||
+    a.id !== b.id ||
+    a.projectId !== scope.projectId ||
+    a.coverage !== "complete"
+  )
+    return;
+  return {
+    ...scope,
+    source: "trusted_eligible_directory",
+    sourceVersion: a.id,
+    directoryVersion: a.id,
+    window: { from, to },
+    count: a.entries.filter((e) => e.eligible).length,
+    coverage: "complete",
+    coverageWindows: [{ from, to }],
   };
 }

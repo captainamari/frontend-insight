@@ -65,9 +65,9 @@
 | `hourly_distribution` | 时段分布 | usage | `not_collected` | R6 |
 | `bounce_rate` | 跳出率（单页会话率） | usage | `not_collected` | R6 |
 | `task_duration` | 任务耗时 | operation | `implemented` | R4-B |
-| `form_efficiency` | 表单效率 | operation | `not_collected` | R4-C |
-| `operation_fail_rate` | 操作失败率 | operation | `not_collected` | R4-C |
-| `repeated_operation_rate` | 重复操作率 | operation | `not_collected` | R4-C |
+| `form_efficiency` | 表单效率 | operation | `partial` | R4-C |
+| `operation_fail_rate` | 操作失败率 | operation | `partial` | R4-C |
+| `repeated_operation_rate` | 重复操作率 | operation | `partial` | R4-C |
 | `path_steps` | 操作路径步数 | operation | `partial` | R4-B |
 | `lcp` | 最大内容绘制 | performance | `partial` | R5-A |
 | `inp` | 交互到下次绘制 | performance | `partial` | R5-A |
@@ -85,9 +85,9 @@
 | `resource_error_rate` | 资源错误率 | stability | `not_collected` | R5-A |
 | `blank_screen_rate` | 白屏率 | stability | `not_collected` | R5-A |
 | `breadcrumb` | 安全操作面包屑 | stability | `not_collected` | R5-A |
-| `dept_usage` | 部门使用率 | organization | `not_collected` | R4-C |
-| `role_usage` | 角色使用率 | organization | `not_collected` | R4-C |
-| `role_feature_profile` | 角色功能画像 | organization | `not_collected` | R4-C |
+| `dept_usage` | 部门使用率 | organization | `partial` | R4-C |
+| `role_usage` | 角色使用率 | organization | `partial` | R4-C |
+| `role_feature_profile` | 角色功能画像 | organization | `partial` | R4-C |
 | `abnormal_access` | 异常访问 | organization | `not_collected` | R7 |
 | `operational_score` | 运营分数 | score | `partial` | R1-C |
 | `quality_score` | 质量分数 | score | `not_collected` | R1-C |

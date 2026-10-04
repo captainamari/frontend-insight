@@ -42,8 +42,8 @@ export function createTracker(config: TrackerConfig): Tracker {
         env: config.env,
         release: config.release,
         endpoint: endpoint.toString(),
-        deptId: config.deptId ?? null,
-        roleId: config.roleId ?? null,
+        deptId: null,
+        roleId: null,
         flushIntervalMs: config.flushIntervalMs ?? 10_000,
         maximumQueueSize: Math.min(config.maximumQueueSize ?? 100, 100),
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
@@ -54,6 +54,11 @@ export function createTracker(config: TrackerConfig): Tracker {
         normalizePageRoute: config.normalizePageRoute,
         beforeSend: config.beforeSend,
         observability: normalizeObservabilityConfig(config.observability),
+        initialUserId: config.initialUserId,
+        usageCoverage: config.usageCoverage,
+        forms: config.forms,
+        businessOperations: config.businessOperations,
+        repeatedOperations: config.repeatedOperations,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,
@@ -69,3 +74,5 @@ export function createTracker(config: TrackerConfig): Tracker {
 export type * from "./types.js";
 
 export type { WorkflowDefinition, WorkflowHandle, WorkflowState } from "./workflow.js";
+
+export type { FormHandle, FormDefinition, FormCollectorConfig } from "./forms.js";

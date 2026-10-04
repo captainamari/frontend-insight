@@ -10,6 +10,127 @@ export interface BusinessObservation {
   firstDataAt: string | null;
 }
 export interface BusinessResponse {
+  organization?: {
+    status: string;
+    reason: string;
+    definitionVersion?: string;
+    coverage?: string;
+    values:
+      | {
+          from: string;
+          to: string;
+          directoryVersionId: string;
+          usageSourceVersionId?: string | null;
+          coverageReason?: string | null;
+          groups: {
+            dimension: string;
+            key: string;
+            moduleId: string;
+            active: number;
+            eligible: number;
+            observedRatio: number;
+            value?: number | null;
+            formalActive?: number | null;
+            pv: number;
+            visibleDurationMs: number | null;
+            durationReason: string | null;
+          }[];
+          roleDurationProfile:
+            { roleId: string; moduleId: string; visibleDurationMs: number }[] | null;
+          roleFeatureProfile: {
+            roleId: string;
+            moduleId: string;
+            pv: number;
+            visibleDurationMs: number | null;
+          }[];
+        }[]
+      | null;
+    directoryVersions: {
+      id: string;
+      from: string | null;
+      until: string;
+      coverage: string;
+    }[];
+  };
+  efficiency?: {
+    asOf: string;
+    coverage: string;
+    definitionVersion: string;
+    form_efficiency: {
+      value:
+        | {
+            formId: string;
+            changesPerSubmit: number;
+            resetRate: number;
+            validationErrorRate: number;
+          }[]
+        | null;
+      status: string;
+      reason: string | null;
+      results: {
+        formId: string;
+        sampleSize: number;
+        reason: string | null;
+        changesPerSubmit: number | null;
+        resetRate: number | null;
+        validationErrorRate: number | null;
+      }[];
+      observations: {
+        formId: string;
+        changes: number;
+        resets: number;
+        submits: number;
+        validationFailures: number;
+        lifecycles: number;
+        noSubmit: number;
+        overflow: number;
+      }[];
+    };
+    operation_fail_rate: {
+      value: number | null;
+      status: string;
+      reason: string | null;
+      observedValue: number | null;
+      observations: {
+        started: number;
+        success: number;
+        rejected: number;
+        technical_failure: number;
+        canceled: number;
+        unknown: number;
+        unresolved: number;
+      };
+    };
+    collectorStates: Record<string, string>;
+    repeated_operation_rate: {
+      reason: string | null;
+      value: number | null;
+      observedValue: number | null;
+      numerator: number;
+      denominator: number;
+      status: string;
+    };
+    trends: {
+      from: string;
+      to: string;
+      partialBucket: boolean;
+      form_efficiency: {
+        results: {
+          formId: string;
+          changesPerSubmit: number | null;
+          resetRate: number | null;
+          validationErrorRate: number | null;
+          reason: string | null;
+        }[];
+      };
+      operation_fail_rate: { observedValue: number | null; reason: string | null };
+      repeated_operation_rate: {
+        value: number | null;
+        observedValue: number | null;
+        reason: string | null;
+      };
+    }[];
+  } | null;
   project: OverviewResponse["project"];
   query: OverviewResponse["query"];
   identity: string;
@@ -37,7 +158,11 @@ export interface BusinessResponse {
       }[];
     })[];
     trends: (OverviewResponse["metrics"]["trends"][number] & {
-      penetration?: { observationWindow: { from: string; to: string }; reason: string };
+      penetration?: {
+        observationWindow: { from: string; to: string };
+        denominatorWindow?: { from: string; to: string };
+        reason: string;
+      };
     })[];
   };
   observation: BusinessObservation | null;
@@ -65,6 +190,7 @@ export interface BusinessResponse {
   };
   penetration: {
     observationWindow?: { from: string; to: string };
+    denominatorWindow?: { from: string; to: string };
     value: number | null;
     numerator: number | null;
     denominator: number | null;

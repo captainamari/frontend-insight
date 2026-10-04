@@ -185,6 +185,7 @@ export interface ProjectIngestionConfig extends ProjectRecord {
 }
 
 export interface EventEnrichment {
+  directoryVersionId?: string | null;
   eventId: string;
   userId: string | null;
   featureId: string | null;

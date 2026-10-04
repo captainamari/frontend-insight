@@ -187,6 +187,15 @@ try {
       ),
       version = list.find((v) => v.status === "draft")!;
     versions[type] = version.id;
+    if (type === "operational") {
+      // Freeze the inherited R4-A unavailable-definition fixture before activation.
+      // R4-C separately verifies that the new partial definition can be bound.
+      await mysql.pool.execute(
+        "UPDATE metric_definitions SET implementation_status='not_collected',definition_version='system-v1.8.0' WHERE library_version_id=? AND metric_key='operation_fail_rate'",
+        [version.id],
+      );
+    }
+
     const base = root + "/score-management";
     const options = await call<
       Awaited<ReturnType<ScoreManagementService["businessOptions"]>>
@@ -326,7 +335,7 @@ try {
   assert.equal(observed.penetration.reason, "PENETRATION_SOURCE_MISSING");
   assert(!JSON.stringify(observed).includes("isolated-hmac-"));
   // Page aggregate + frozen score workflow facts + workflow facts/SDK metadata.
-  assert.equal(observed.diagnostics.clickHouseQueries, 4);
+  assert.equal(observed.diagnostics.clickHouseQueries, 7);
   for (const bad of [
     "env=all",
     "range=24h",
@@ -617,7 +626,7 @@ try {
         queries,
         scans,
       });
-      assert(queries.every((n) => n === 4));
+      assert(queries.every((n) => n === 7));
       assert(p95 <= 2000, `${range}: ${p95}`);
     }
   }

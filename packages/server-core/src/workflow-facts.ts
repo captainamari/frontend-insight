@@ -70,7 +70,7 @@ export class WorkflowFactStore {
       bytesRead = Number(body.statistics?.bytes_read ?? 0);
     if (includeSdk) {
       const metadata = await this.client.query({
-        query: `SELECT project_id AS projectId,count() AS observed,countIf(sdk_version='0.5.0') AS compatible FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) GROUP BY project_id`,
+        query: `SELECT project_id AS projectId,count() AS observed,countIf(sdk_version IN ('0.5.0','0.6.0')) AS compatible FROM raw_events WHERE project_id IN {projectIds:Array(UUID)} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({start:Int64}) AND timestamp<=fromUnixTimestamp64Milli({end:Int64}) AND received_at<=fromUnixTimestamp64Milli({end:Int64}) GROUP BY project_id`,
         query_params: {
           projectIds,
           env,

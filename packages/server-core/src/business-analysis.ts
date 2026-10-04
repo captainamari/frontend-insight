@@ -1,3 +1,6 @@
+import { readUsageSources } from "./usage-source.js";
+import { readDirectories, directorySegments } from "./organization-directory.js";
+import type { EfficiencyFactStore } from "./efficiency-facts.js";
 import { storageFailureCode } from "./clickhouse-logger.js";
 import { mergeWorkflowFacts } from "./workflow-score-facts.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
@@ -24,9 +27,13 @@ import {
 } from "./business-facts.js";
 import {
   IDENTITY_DEFINITION_VERSION,
+  R4C_FACT_DEFINITION_VERSION,
   WORKFLOW_FACT_DEFINITION_VERSION,
 } from "./system-metric-catalog.js";
-import { evaluateModulePenetration } from "./module-penetration.js";
+import {
+  evaluateModulePenetration,
+  directoryPopulationEvidence,
+} from "./module-penetration.js";
 const iso = (v: unknown) => (v ? new Date(v as string).toISOString() : null);
 export interface BusinessQuery extends OverviewQuery {
   moduleId?: string | undefined;
@@ -41,6 +48,7 @@ export class BusinessAnalysisService {
     private readonly scores: ScoreManagementService,
     private readonly facts: BusinessFactStore,
     private readonly workflowFacts?: WorkflowFactStore,
+    private readonly efficiencyFacts?: EfficiencyFactStore,
   ) {}
   async analysis(projectId: string, input: BusinessQuery) {
     const asOf = new Date();
@@ -150,8 +158,16 @@ export class BusinessAnalysisService {
         const workflowDefinitions = this.workflowFacts
           ? await readWorkflowFactDefinitions(c, projectId)
           : [];
+        const directories = this.efficiencyFacts
+          ? await readDirectories(c, projectId)
+          : [];
+        const sources = this.efficiencyFacts
+          ? await readUsageSources(c, projectId)
+          : [];
         await c.commit();
         return {
+          sources,
+          directories,
           workflowDefinitions,
           pathPages,
           p,
@@ -261,9 +277,106 @@ export class BusinessAnalysisService {
               throw new MetricLibraryError("WORKFLOW_FACT_STORE_UNAVAILABLE", 503);
             })
         : null;
+    const efficiency =
+      this.efficiencyFacts && moduleId
+        ? await this.efficiencyFacts
+            .read(
+              projectId,
+              moduleId,
+              query.env,
+              query.from,
+              query.to,
+              asOf,
+              snapshot.pathPages,
+              query.buckets,
+            )
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                ["EFFICIENCY_FACT_LIMIT", "EFFICIENCY_SERIES_LIMIT"].includes(
+                  cause.message,
+                )
+              ) {
+                throw new MetricLibraryError(cause.message, 400);
+              }
+              throw new MetricLibraryError("EFFICIENCY_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
+    const organization =
+      this.efficiencyFacts && moduleId
+        ? await this.efficiencyFacts
+            .readOrganization({
+              projectId,
+              moduleId,
+              env: query.env,
+              asOf: asOf.valueOf(),
+              buckets: query.buckets,
+              directories: snapshot.directories,
+              sources: snapshot.sources,
+              formalDefinitionActive: [
+                "dept_usage",
+                "role_usage",
+                "role_feature_profile",
+              ].every((key) =>
+                definitions.some(
+                  (d) =>
+                    d.metricKey === key &&
+                    d.definitionVersion === R4C_FACT_DEFINITION_VERSION,
+                ),
+              ),
+              pages: snapshot.pathPages,
+            })
+            .catch((cause: unknown) => {
+              if (
+                cause instanceof Error &&
+                ["ORGANIZATION_FACT_LIMIT", "ORGANIZATION_SERIES_LIMIT"].includes(
+                  cause.message,
+                )
+              )
+                throw new MetricLibraryError(cause.message, 400);
+              throw new MetricLibraryError("ORGANIZATION_FACT_STORE_UNAVAILABLE", 503);
+            })
+        : null;
     const fact = observation
       ? businessFactWindow(observation.window)
       : { inputs: {}, raw: {}, events: 0, lastDataAt: null };
+    const mergeEfficiency = (window: typeof fact, observed: typeof efficiency) => {
+      const definition = definitions.find((d) => d.metricKey === "operation_fail_rate");
+      if (!observed || definition?.definitionVersion !== R4C_FACT_DEFINITION_VERSION)
+        return;
+      if (
+        definitions.find((d) => d.metricKey === "repeated_operation_rate")
+          ?.definitionVersion === R4C_FACT_DEFINITION_VERSION
+      ) {
+        const repeated = observed.repeated_operation_rate;
+        window.raw.repeated_operation_rate = {
+          value: repeated.observedValue,
+          sampleSize: repeated.denominator,
+          status: repeated.observedValue === null ? "missing" : "available",
+          reason: repeated.reason,
+        };
+        window.inputs.repeated_operation_rate = {
+          value: repeated.value,
+          sampleSize: repeated.denominator,
+          status: repeated.value === null ? "metric_not_available" : "available",
+          reason: repeated.reason,
+        };
+      }
+      const operation = observed.operation_fail_rate;
+      window.raw.operation_fail_rate = {
+        value: operation.observedValue,
+        sampleSize: operation.sampleSize,
+        status: operation.observedValue === null ? "missing" : "available",
+        reason: operation.reason,
+      };
+      window.inputs.operation_fail_rate = {
+        value: operation.value,
+        sampleSize: operation.sampleSize,
+        status: operation.value === null ? "metric_not_available" : "available",
+        reason: operation.reason,
+      };
+    };
+    mergeEfficiency(fact, efficiency);
     const workflowScore = active?.result;
     if (
       workflowScore?.workflowObservation &&
@@ -295,9 +408,11 @@ export class BusinessAnalysisService {
               }))
             : undefined,
         rawScope:
-          m.definition.metricKey === "task_duration"
-            ? "按工作流定义版本分别输出普通P50/P90/P75/P99，不把不同任务类型的分位数合并成标量；当前页与工作流列表一致，覆盖未知。"
-            : "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
+          m.definition.metricKey === "operation_fail_rate"
+            ? "显式业务适配器的全部兼容开始cohort；未知结果阻断比率，覆盖未验证，不能视为合格评分输入。"
+            : m.definition.metricKey === "task_duration"
+              ? "按工作流定义版本分别输出普通P50/P90/P75/P99，不把不同任务类型的分位数合并成标量；当前页与工作流列表一致，覆盖未知。"
+              : "同窗口、按事件时间匹配启用模块/页面 revision 的已识别 page_view 观察；UV 只覆盖已观测页面访问，不代表已验证完整业务活动。",
       }));
     const moduleRows = [
       ...new Map(
@@ -327,7 +442,62 @@ export class BusinessAnalysisService {
       pages,
       modules: snapshot.modules,
       workflows: snapshot.workflows,
+      efficiencyDefinition: R4C_FACT_DEFINITION_VERSION,
+      usageSourceVersions: snapshot.sources,
+      directoryVersions: snapshot.directories.map((d) => ({
+        id: d.id,
+        from: d.from,
+        until: d.until,
+      })),
     });
+    const populationScope = {
+      projectId,
+      env: query.env,
+      identityVersion: IDENTITY_DEFINITION_VERSION,
+      activityScope: "identified_valid_classified_business_activity",
+    };
+    const usageNumerator = (from: string, to: string) => {
+      const whole = organization?.population;
+      if (whole && whole.from === from && whole.to === to)
+        return {
+          ...populationScope,
+          source: "admin_attested_usage",
+          sourceVersion: whole.sourceVersion,
+          window: { from, to },
+          count: whole.count,
+          coverage: "complete" as const,
+          coverageWindows: [{ from, to }],
+        };
+      const row = organization?.values?.find((v) => v.from === from && v.to === to);
+      if (!row || row.normativeUsers === null || !row.usageSourceVersionId)
+        return undefined;
+      return {
+        ...populationScope,
+        source: "admin_attested_usage",
+        sourceVersion: row.usageSourceVersionId,
+        window: { from, to },
+        count: row.normativeUsers,
+        coverage: "complete" as const,
+        coverageWindows: [{ from, to }],
+      };
+    };
+    const directoryDenominator = (from: string, to: string) =>
+      organization?.values
+        ? directoryPopulationEvidence(
+            snapshot.directories,
+            populationScope,
+            from,
+            to,
+            asOf.valueOf(),
+          )
+        : undefined;
+    const directoryVersions = directorySegments(
+      snapshot.directories,
+      query.env,
+      Date.parse(query.from),
+      Date.parse(query.to),
+      asOf.valueOf(),
+    );
     return {
       project: {
         id: projectId,
@@ -379,6 +549,11 @@ export class BusinessAnalysisService {
             );
             if (trend) mergeWorkflowFacts(bucketFact, trend.facts);
           }
+          const efficiencyTrend = efficiency?.trends.find(
+            (t) => t.from === b.from && t.to === b.to,
+          );
+          if (efficiencyTrend && efficiency)
+            mergeEfficiency(bucketFact, { ...efficiency, ...efficiencyTrend });
           const reason =
             b.versionId !== active?.version.id || b.segment !== activeFrom
               ? "HISTORICAL_VERSION_NOT_RECALCULATED"
@@ -396,6 +571,8 @@ export class BusinessAnalysisService {
               to: b.to,
               timezone: query.timezone,
               observedNumerator: observation?.buckets[i]?.uv ?? null,
+              numeratorEvidence: usageNumerator(b.from, b.to),
+              denominatorEvidence: directoryDenominator(b.from, b.to),
             }),
             reason,
             metrics: evaluate(bucketFact, selected, reason).map((m) => ({
@@ -451,6 +628,8 @@ export class BusinessAnalysisService {
         to: query.to,
         timezone: query.timezone,
         observedNumerator: observation?.window.uv ?? null,
+        numeratorEvidence: usageNumerator(query.from, query.to),
+        denominatorEvidence: directoryDenominator(query.from, query.to),
       }),
       workflows: snapshot.workflows.map((w) => ({
         id: String(w.id),
@@ -464,6 +643,16 @@ export class BusinessAnalysisService {
         stepOrder: Number(w.step_order ?? 0),
         activatedAt: iso(w.activated_at),
       })),
+      efficiency,
+      organization: {
+        ...(organization ?? {
+          status: "not_collected",
+          reason: "TRUSTED_DIRECTORY_MISSING",
+          values: null,
+        }),
+        directoryVersions,
+        asOf: asOf.toISOString(),
+      },
       workflowAnalysis,
       workflowFacts: workflowAnalysis
         ? { status: workflowAnalysis.status, reason: workflowAnalysis.reason }
@@ -471,9 +660,14 @@ export class BusinessAnalysisService {
       diagnostics: {
         metadataQueries,
         clickHouseQueries:
-          clickHouseQueries + (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
+          clickHouseQueries +
+          (efficiency ? 1 + efficiency.repeatedQueries : 0) +
+          (organization?.queries ?? 0) +
+          (workflowAnalysis?.diagnostics.clickHouseQueries ?? 0),
         elapsedMs: performance.now() - started,
         scans: observation?.statistics ?? null,
+        efficiencyScans: efficiency?.statistics ?? null,
+        organizationScans: organization?.statistics ?? null,
         physicalRetentionDays: 90,
         coverage: "保留原始事实的观察；长范围缺失不补值，非生产容量证明。",
       },

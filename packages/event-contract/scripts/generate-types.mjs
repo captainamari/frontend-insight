@@ -129,6 +129,22 @@ const schema = {
       required: ["name", "version"],
       properties: {
         name: { type: "string", pattern: "^[a-z][a-z0-9-]{0,31}$" },
+        usageCoverage: {
+          type: "object",
+          additionalProperties: false,
+          required: ["droppedEvents", "failedBatches", "businessSampleRate"],
+          properties: {
+            businessSampleRate: { type: "number", minimum: 0, maximum: 1 },
+            droppedEvents: { type: "integer", minimum: 0, maximum: 1000000 },
+            failedBatches: { type: "integer", minimum: 0, maximum: 1000000 },
+          },
+        },
+        collectors: {
+          type: "array",
+          uniqueItems: true,
+          maxItems: 3,
+          items: { enum: ["forms", "business_results", "repeated_operations"] },
+        },
         version: {
           type: "string",
           pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?$",
@@ -371,6 +387,84 @@ const schema = {
   },
 };
 
+// R4-C summaries use exact fields. No labels, DOM values or arbitrary objects.
+const formFields = {
+  formId: { type: "string", pattern: "^[a-z][a-z0-9_]{0,63}$" },
+  formInstanceId: { type: "string", pattern: "^frm_[0-9a-f]{32}$" },
+  changeCount: { type: "integer", minimum: 0, maximum: 10000 },
+  resetCount: { type: "integer", minimum: 0, maximum: 10000 },
+  submitCount: { type: "integer", minimum: 0, maximum: 10000 },
+  validationFailureCount: { type: "integer", minimum: 0, maximum: 10000 },
+  counterOverflow: { type: "boolean" },
+  sampleRate: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+};
+Object.assign(schema.$defs.customPayload.properties, formFields, {
+  objectReference: {
+    type: "string",
+    maxLength: 2048,
+    pattern: "^or1_[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{43}$",
+  },
+  repeatedEligible: { const: true },
+  businessSampleRate: { type: "number", exclusiveMinimum: 0, maximum: 1 },
+  businessAdapter: { const: true },
+  businessResult: {
+    enum: ["success", "rejected", "technical_failure", "canceled", "unknown"],
+  },
+});
+schema.$defs.customPayload.allOf.push(
+  {
+    if: {
+      anyOf: [
+        { required: ["objectReference"], properties: { objectReference: true } },
+        { required: ["repeatedEligible"], properties: { repeatedEligible: true } },
+      ],
+    },
+    then: { properties: { name: { const: "feature_started" } } },
+  },
+  {
+    if: { properties: { name: { const: "form_summary" } }, required: ["name"] },
+    then: {
+      required: Object.keys(formFields),
+      properties: Object.fromEntries(Object.keys(formFields).map((k) => [k, true])),
+      propertyNames: { enum: ["name", ...Object.keys(formFields)] },
+    },
+    else: {
+      properties: Object.fromEntries(Object.keys(formFields).map((k) => [k, false])),
+    },
+  },
+  {
+    if: {
+      anyOf: [
+        "businessAdapter",
+        "businessResult",
+        "businessSampleRate",
+        "objectReference",
+        "repeatedEligible",
+      ].map((k) => ({
+        required: [k],
+        properties: { [k]: true },
+      })),
+    },
+    then: {
+      required: ["businessAdapter", "featureKey", "operationInstanceId"],
+      properties: {
+        businessAdapter: true,
+        featureKey: true,
+        operationInstanceId: true,
+        name: {
+          enum: [
+            "feature_started",
+            "feature_succeeded",
+            "feature_failed",
+            "feature_canceled",
+          ],
+        },
+        labels: false,
+      },
+    },
+  },
+);
+
 const canonicalTypes = `/* AUTO-GENERATED from canonical-names.json. Do not edit directly. */
 
 export const CANONICAL_PUBLIC_FIELDS = ${asConst(manifest.publicFields.map(({ key }) => key))};
@@ -403,6 +497,8 @@ export type PayloadValue = string | number | boolean | null;
 export interface FrontendInsightSdk {
   name: string;
   version: string;
+  usageCoverage?: { droppedEvents: number; failedBatches: number; businessSampleRate: number };
+  collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
 export interface FrontendInsightEventV3 {

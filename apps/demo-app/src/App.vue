@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import EfficiencyDemo from "./EfficiencyDemo.vue";
 import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
 import type { Tracker, TrackerEvent } from "@frontend-insight/web-tracker";
@@ -325,6 +326,7 @@ onBeforeUnmount(() => {
       </button>
     </form>
     <WorkflowDemo />
+    <EfficiencyDemo />
   </main>
 
   <div v-else class="demo-shell">

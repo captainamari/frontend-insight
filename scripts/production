@@ -126,7 +126,7 @@ host_memory_bytes() {
   if [[ "$(uname -s)" == "Darwin" ]]; then
     sysctl -n hw.memsize
   elif [[ -r /proc/meminfo ]]; then
-    awk '/MemTotal/ { print $2 * 1024 }' /proc/meminfo
+    awk '/MemTotal/ { printf "%.0f\n", $2 * 1024 }' /proc/meminfo
   else
     printf '0\n'
   fi

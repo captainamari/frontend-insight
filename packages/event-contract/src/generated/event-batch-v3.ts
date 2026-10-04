@@ -2,13 +2,15 @@
 
 export type FrontendInsightEnvironment = "prod" | "staging" | "dev";
 export type FrontendInsightEventName = "page_view" | "page_leave" | "performance" | "api" | "error" | "custom";
-export type FrontendInsightCustomEventName = "feature_exposed" | "feature_started" | "feature_succeeded" | "feature_failed" | "feature_canceled" | "feature_long_view_started" | "feature_long_view_heartbeat" | "feature_long_view_ended" | "workflow_started" | "workflow_step_reached" | "workflow_completed" | "workflow_failed" | "workflow_canceled";
+export type FrontendInsightCustomEventName = "feature_exposed" | "feature_started" | "feature_succeeded" | "feature_failed" | "feature_canceled" | "feature_long_view_started" | "feature_long_view_heartbeat" | "feature_long_view_ended" | "workflow_started" | "workflow_step_reached" | "workflow_completed" | "workflow_failed" | "workflow_canceled" | "form_summary";
 
 export type PayloadValue = string | number | boolean | null;
 
 export interface FrontendInsightSdk {
   name: string;
   version: string;
+  usageCoverage?: { droppedEvents: number; failedBatches: number; businessSampleRate: number };
+  collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
 export interface FrontendInsightEventV3 {

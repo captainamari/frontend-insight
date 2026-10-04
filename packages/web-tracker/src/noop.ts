@@ -1,3 +1,4 @@
+import { noopForm } from "./forms.js";
 import { noopWorkflow } from "./workflow.js";
 import type { Tracker, TrackerDiagnostics } from "./types.js";
 
@@ -16,6 +17,8 @@ export function createNoopTracker(code: string, development = false): Tracker {
   };
   if (development) console.warn(`[frontend-insight] tracker disabled: ${code}`);
   return {
+    trackForm: noopForm,
+    observeBusiness: (_key, execute) => execute(),
     startWorkflow: noopWorkflow,
     getActiveWorkflows: () => [],
     setUser() {},
