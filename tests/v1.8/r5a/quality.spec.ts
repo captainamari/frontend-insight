@@ -25,6 +25,28 @@ test("R5-A actual optional SDK, safe payloads, Kafka facts and quality API", asy
   expect(created.status()).toBe(201);
   const project = await created.json();
   const root = `/api/projects/${project.id}`;
+  const mod = await (
+    await request.post(root + "/modules", {
+      headers,
+      data: { moduleKey: "quality_fixture", name: "Quality fixture" },
+    })
+  ).json();
+  expect(
+    (
+      await request.post(root + "/page-definitions", {
+        headers,
+        data: {
+          moduleId: mod.id,
+          name: "Quality fixture",
+          pageRoute: "/r5a-fixture",
+          templateKey: "task_operation",
+          isCore: true,
+          criticalityWeight: 1,
+          expectedFrequency: "daily",
+        },
+      })
+    ).status(),
+  ).toBe(201);
   await page.route("**/r5a-index.js", (r) =>
     r.fulfill({
       contentType: "text/javascript",
@@ -182,6 +204,56 @@ test("R5-A actual optional SDK, safe payloads, Kafka facts and quality API", asy
     { headers },
   );
   expect(alias.status()).toBe(400);
+  // The refresh endpoint can mutate only a quality draft; active snapshots remain byte-identical.
+  const catalog = await (
+    await request.get(root + "/metrics/catalog?type=quality", { headers })
+  ).json();
+  const active = catalog.activeVersion.id;
+  const before = await (
+    await request.get(root + `/metrics/versions/${active}`, { headers })
+  ).json();
+  expect(
+    (
+      await request.post(root + `/metrics/versions/${active}/quality-facts`, {
+        headers,
+        data: {},
+      })
+    ).status(),
+  ).toBe(409);
+  const createdDraft = await request.post(root + "/metrics/versions", {
+    headers,
+    data: { type: "quality", sourceVersionId: active },
+  });
+  expect(createdDraft.status()).toBe(201);
+  const draft = await createdDraft.json();
+  expect(
+    (
+      await request.post(root + `/metrics/versions/${draft.id}/quality-facts`, {
+        headers,
+        data: {},
+      })
+    ).status(),
+  ).toBe(201);
+  const after = await (
+    await request.get(root + `/metrics/versions/${active}`, { headers })
+  ).json();
+  expect(after).toEqual(before);
+  const versioned = await (
+    await request.get(root + "/observability/quality?" + q + "&versionId=" + draft.id, {
+      headers,
+    })
+  ).json();
+  expect(versioned.binding.versionId).toBe(draft.id);
+  expect(versioned.binding.mode).toBe("preview");
+  expect(versioned.binding.inputs.api_error_rate.reason).toBe("LATENESS_WINDOW_OPEN");
+  const lineage = await (
+    await request.get(root + `/metrics/versions/${draft.id}/lineage/api_error_rate`, {
+      headers,
+    })
+  ).json();
+  expect(lineage.nodes[0].atomicSources).toContain(
+    "Kafka consumer raw_events payload_json",
+  );
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     `artifacts/r5a-${info.project.name}.json`,

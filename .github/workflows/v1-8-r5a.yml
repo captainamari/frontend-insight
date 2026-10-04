@@ -172,6 +172,13 @@ jobs:
           mkdir -p artifacts
           node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B delivery plus R1-A through R4-A regressions", implementation:"inherited R4-B regression verification during R4-C", manualAcceptanceReady:true, unresolvedExtensions:["Q07 step partial completion", "Q08 optional/skipped intermediate steps"], dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"R4-B user confirmation on 2026-09-29; not R4-C acceptance", milestoneComplete:false}, null, 2))'
 
+      - name: Record R5-A exact-commit delivery evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync('artifacts/r5a-evidence.json',JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'16.1-16.3 quality collectors and facts; R1 through R4-C regressions',automation:'passed',realIntegration:'passed',manualAcceptanceReady:true,manualAcceptance:'deferred by Jesse on 2026-10-04 until unified R5 acceptance; not passed',milestoneComplete:false,nextStageAuthorized:false},null,2));
+          NODE
+
       - name: Verify every artifact commit and print safe performance evidence
         run: |
           node --input-type=module <<'NODE'
@@ -181,7 +188,7 @@ jobs:
           const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           assert.equal(checkout, process.env.GITHUB_SHA);
           const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
-          for (const name of ["r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          for (const name of ["r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
           const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
           const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
           const summaries = files.map(name => {

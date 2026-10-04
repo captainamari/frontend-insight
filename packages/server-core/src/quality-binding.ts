@@ -7,7 +7,7 @@ import { QUALITY_DEFINITION_VERSION, type QualityFactStore } from "./quality-fac
 import type { MetricLibraryService } from "./metric-library.js";
 /** A caller-selected immutable snapshot controls semantics; new collectors never relabel old definitions. */
 export function bindQualityFacts(
-  result: Awaited<ReturnType<QualityFactStore["read"]>>,
+  result: Pick<Awaited<ReturnType<QualityFactStore["read"]>>, "inputs" | "from" | "to">,
   snapshot: Awaited<ReturnType<MetricLibraryService["getVersion"]>>,
 ) {
   if (snapshot.version.libraryType !== "quality")
@@ -60,6 +60,16 @@ export function bindQualityFacts(
         value: null,
         status: "insufficient_sample",
         reason: "INSUFFICIENT_SAMPLE",
+      };
+    if (
+      snapshot.version.status === "active" &&
+      (!snapshot.version.activatedAt || result.from < snapshot.version.activatedAt)
+    )
+      value = {
+        ...value,
+        value: null,
+        status: "metric_not_available",
+        reason: "VERSION_RANGE_BOUNDARY",
       };
     visiting.delete(key);
     inputs[key] = value;

@@ -105,6 +105,7 @@ const propertyValue = {
 const qualityProperties = {
   qualityVersion: { const: "r5a-1" },
   qualityMask: { type: "integer", minimum: 0, maximum: 255 },
+  qualityVitals: { type: "integer", minimum: 0, maximum: 31 },
   qualitySampleRate: { type: "number", minimum: 0, maximum: 1 },
 };
 const qualityCounters = Object.fromEntries(
@@ -206,9 +207,19 @@ const schema = {
     performancePayload: {
       type: "object",
       additionalProperties: false,
-      required: ["metric", "value", "rating", "navigationType"],
+      required: ["metric", "value", "navigationType"],
+      allOf: [
+        {
+          if: {
+            properties: { metric: { enum: ["lcp", "inp", "cls", "fcp", "ttfb"] } },
+            required: ["metric"],
+          },
+          then: { required: ["rating"], properties: { rating: true } },
+        },
+      ],
       properties: {
         ...qualityProperties,
+        qualitySequence: { type: "integer", minimum: 1, maximum: 86400000 },
         sampleId: { type: "string", pattern: "^[a-zA-Z0-9_-]{1,64}$" },
         rowBucket: { enum: ["lt100", "100to1000", "gt1000"] },
         metric: { enum: manifest.performanceMetrics },

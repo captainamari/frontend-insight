@@ -499,8 +499,6 @@ export class EventConsumerRuntime {
             : event.event === "api" &&
                 payload.success === false &&
                 payload.failureType !== "business" &&
-                payload.failureType !== "aborted" &&
-                payload.failureType !== "business" &&
                 payload.failureType !== "aborted"
               ? propertyString(payload, "failureType")
               : null,
@@ -509,8 +507,6 @@ export class EventConsumerRuntime {
             ? propertyString(payload, "errorType")
             : event.event === "api" &&
                 payload.success === false &&
-                payload.failureType !== "business" &&
-                payload.failureType !== "aborted" &&
                 payload.failureType !== "business" &&
                 payload.failureType !== "aborted"
               ? "api"

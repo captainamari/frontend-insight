@@ -1,3 +1,5 @@
+import type { RowDataPacket } from "mysql2/promise";
+import type { MySqlStore } from "./mysql-store.js";
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { SafeClickHouseLogger } from "./clickhouse-logger.js";
 import { sessionPercentile } from "./score-observation.js";
@@ -7,6 +9,8 @@ import type { FormulaInputValue } from "./formula.js";
 import { QUALITY_DEFINITION_VERSION, QUALITY_KEYS } from "./quality-definition.js";
 export { QUALITY_DEFINITION_VERSION, QUALITY_KEYS } from "./quality-definition.js";
 export interface QualityEvent {
+  errorGroup?: string | null;
+  classified?: boolean;
   transportIncomplete?: boolean;
   id: string;
   event: string;
@@ -18,6 +22,9 @@ export interface QualityEvent {
   payload: Record<string, unknown>;
 }
 export interface QualityMetric extends FormulaInputValue {
+  formula: string;
+  unit: string;
+  percentileAlgorithm: string;
   numerator: number | null;
   denominator: number | null;
   coverage: { observedViews: number; enabledViews: number; settledViews: number };
@@ -75,21 +82,44 @@ export function reduceQuality(
       .sort(
         (a, b) => Number(b.payload.qualitySequence) - Number(a.payload.qualitySequence),
       );
+    const counters = [
+      "apiStarted",
+      "apiCompleted",
+      "resourceStarted",
+      "resourceCompleted",
+      "resourceFailed",
+      "longtaskCount",
+      "longtaskTotal",
+      "qualityDropped",
+      "qualityFailed",
+      "qualitySuppressed",
+    ];
+    for (let i = 1; i < terminals.length; i++) {
+      const newer = terminals[i - 1]!,
+        older = terminals[i]!;
+      if (
+        newer.payload.qualitySequence === older.payload.qualitySequence ||
+        counters.some((key) => Number(newer.payload[key]) < Number(older.payload[key]))
+      )
+        conflict = true;
+    }
     if (terminals[0]) leaves.set(v.pageView, terminals[0]);
   }
-  const baseReason = all.some((e) => e.transportIncomplete)
-    ? "TRANSPORT_INCOMPLETE"
-    : views.some((v) => !v.user)
-      ? "IDENTITY_NOT_VERIFIED"
-      : conflict
-        ? "FACT_CONFLICT"
-        : from < asOf - 89 * 86400000
-          ? "FACT_RETENTION_RANGE_NOT_COVERED"
-          : to > asOf - 86400000
-            ? "LATENESS_WINDOW_OPEN"
-            : views.length === 0
-              ? "NO_PAGE_VIEWS"
-              : null;
+  const baseReason = views.some((v) => v.classified === false)
+    ? "PAGE_SCOPE_NOT_VERIFIED"
+    : all.some((e) => e.transportIncomplete)
+      ? "TRANSPORT_INCOMPLETE"
+      : views.some((v) => !v.user)
+        ? "IDENTITY_NOT_VERIFIED"
+        : conflict
+          ? "FACT_CONFLICT"
+          : from < asOf - 89 * 86400000
+            ? "FACT_RETENTION_RANGE_NOT_COVERED"
+            : to > asOf - 86400000
+              ? "LATENESS_WINDOW_OPEN"
+              : views.length === 0
+                ? "NO_PAGE_VIEWS"
+                : null;
   const relevant = all.filter((e) => groups.has(e.pageView));
   const maskFor = (key: string) =>
     ["lcp", "inp", "cls", "fcp", "ttfb"].includes(key)
@@ -129,6 +159,7 @@ export function reduceQuality(
       !p ||
       p.qualityClosed !== true ||
       p.qualitySampleRate !== 1 ||
+      p.qualityMask !== v.payload.qualityMask ||
       Number(p.qualityDropped) > 0 ||
       Number(p.qualityFailed) > 0 ||
       Number(p.qualitySuppressed) > 0
@@ -145,9 +176,8 @@ export function reduceQuality(
       const previous = bySample.get(id);
       if (
         !previous ||
-        previous.at < e.at ||
-        (previous.at === e.at &&
-          Number(previous.payload.value) < Number(e.payload.value))
+        Number(previous.payload.qualitySequence ?? previous.at) <=
+          Number(e.payload.qualitySequence ?? e.at)
       )
         bySample.set(id, e);
     }
@@ -164,7 +194,11 @@ export function reduceQuality(
       enabled = views.filter(
         (v) =>
           v.payload.qualityVersion === "r5a-1" &&
-          (Number(v.payload.qualityMask) & bit) !== 0,
+          (Number(v.payload.qualityMask) & bit) !== 0 &&
+          (bit !== 1 ||
+            (Number(v.payload.qualityVitals) &
+              (1 << ["lcp", "inp", "cls", "fcp", "ttfb"].indexOf(key))) !==
+              0),
       );
     let reason = conflict ? "FACT_CONFLICT" : baseReason;
     if (!reason && enabled.length === 0) reason = "COLLECTOR_DISABLED_OR_UNSUPPORTED";
@@ -262,11 +296,31 @@ export function reduceQuality(
               ? "p50"
               : "p90"
         ]!;
+    if (values.length && denominator === null) denominator = values.length;
     const sample = denominator ?? values.length;
+    if (
+      !reason &&
+      values.length === 0 &&
+      [
+        "lcp",
+        "inp",
+        "cls",
+        "fcp",
+        "ttfb",
+        "first_screen_time",
+        "list_render_duration",
+      ].includes(key)
+    )
+      reason =
+        key === "inp" ? "NO_INTERACTION_SAMPLES" : "NO_VALID_PERFORMANCE_SAMPLES";
     if (!reason && sample < (systemMetricDefinition(key)?.minimumSample ?? 5))
       reason = "INSUFFICIENT_SAMPLE";
     if (key === "api_slow_top") reason = reason ?? "STRUCTURED_RESULT_NOT_SCALAR";
     const result: QualityMetric = {
+      formula: systemMetricDefinition(key)?.formulaDescription ?? key,
+      unit: systemMetricDefinition(key)?.unit ?? "unknown",
+      percentileAlgorithm:
+        "linear-interpolation; window samples recomputed, never average bucket percentiles",
       value: reason ? null : observed,
       observedValue: observed,
       numerator,
@@ -285,7 +339,14 @@ export function reduceQuality(
         settledViews: enabled.filter((v) => !badTerminal(v)).length,
       },
       definitionVersion: QUALITY_DEFINITION_VERSION,
-      thresholdVersion: "web-vitals-2020-2024-r5a-1",
+      thresholdVersion:
+        bit === 1
+          ? "web-vitals-5.3.0"
+          : key.startsWith("api_")
+            ? "api-slow-1000ms-v1"
+            : key === "blank_screen_rate"
+              ? "root-empty-3s-v1"
+              : "r5a-observed-facts-v1",
       percentiles,
     };
     metrics[key] = result;
@@ -342,6 +403,34 @@ export function reduceQuality(
     metrics,
     inputs,
     apiSlowTop,
+    errorContexts: relevant
+      .filter((e) => e.event === "error" && e.payload.qualityVersion === "r5a-1")
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 20)
+      .map((e) => ({
+        eventId: e.id,
+        errorGroupId: e.errorGroup ?? null,
+        pageRoute: e.page,
+        at: new Date(e.at).toISOString(),
+        category: e.payload.errorType,
+        breadcrumbs: Object.entries(
+          (e.payload.breadcrumb ?? {}) as Record<string, unknown>,
+        )
+          .sort(([a], [b]) => Number(a.slice(1)) - Number(b.slice(1)))
+          .map(([, value]) => value)
+          .filter((value) =>
+            [
+              "navigation",
+              "action",
+              "api_success",
+              "api_failure",
+              "visible",
+              "hidden",
+            ].includes(String(value)),
+          )
+          .slice(-50),
+      })),
+    affectedUsers: new Set(js.map((e) => e.user).filter(Boolean)).size,
     listBuckets,
     definitionVersion: QUALITY_DEFINITION_VERSION,
     formulaScope:
@@ -375,6 +464,7 @@ export class QualityFactStore {
     to: string,
     asOf = new Date().toISOString(),
     pageRoute?: string,
+    pages: QualityPageWindow[] = [],
   ) {
     const start = Date.parse(from),
       end = Date.parse(to),
@@ -387,7 +477,7 @@ export class QualityFactStore {
     )
       throw new Error("QUALITY_RANGE_INVALID");
     const r = await this.client.query({
-      query: `SELECT event_id AS id,event,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,page_view_id AS pageView,page_route AS page,user_id AS user,sdk_usage,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<fromUnixTimestamp64Milli({until:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND event IN ('page_view','page_leave','performance','api','error') LIMIT 50001`,
+      query: `SELECT event_id AS id,event,toUnixTimestamp64Milli(timestamp) AS at,toUnixTimestamp64Milli(received_at) AS received,page_view_id AS pageView,page_route AS page,user_id AS user,error_group_id AS errorGroup,sdk_usage,payload_json FROM raw_events WHERE project_id={project:UUID} AND env={env:String} AND timestamp>=fromUnixTimestamp64Milli({from:Int64}) AND timestamp<fromUnixTimestamp64Milli({until:Int64}) AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND event IN ('page_view','page_leave','performance','api','error') LIMIT 50001`,
       query_params: {
         project: projectId,
         env,
@@ -409,6 +499,14 @@ export class QualityFactStore {
       ...e,
       at: Number(e.at),
       received: Number(e.received),
+      classified:
+        pages.filter(
+          (p) =>
+            p.page === e.page &&
+            p.from <= Number(e.at) &&
+            Number(e.at) < p.to &&
+            p.active,
+        ).length === 1,
       transportIncomplete: Boolean(
         e.sdk_usage &&
         (JSON.parse(e.sdk_usage).droppedEvents ||
@@ -426,4 +524,38 @@ export class QualityFactStore {
       },
     };
   }
+}
+
+export interface QualityPageWindow {
+  page: string;
+  from: number;
+  to: number;
+  active: boolean;
+}
+export async function readQualityPages(
+  mysql: MySqlStore,
+  projectId: string,
+  from: string,
+  to: string,
+): Promise<QualityPageWindow[]> {
+  const [rows] = await mysql.pool.query<RowDataPacket[]>(
+    `SELECT p.page_route,r.status AS page_status,m.status AS module_status,GREATEST(r.effective_from,m.effective_from) AS starts,LEAST(COALESCE(r.effective_to,?),COALESCE(m.effective_to,?)) AS ends FROM page_definitions p JOIN page_definition_revisions r ON r.page_definition_id=p.id JOIN module_revisions m ON m.module_id=r.module_id AND m.effective_from<COALESCE(r.effective_to,?) AND (m.effective_to IS NULL OR m.effective_to>r.effective_from) WHERE p.project_id=? AND r.effective_from<? AND (r.effective_to IS NULL OR r.effective_to>?) AND m.effective_from<? AND (m.effective_to IS NULL OR m.effective_to>?) LIMIT 10001`,
+    [
+      new Date(to),
+      new Date(to),
+      new Date(to),
+      projectId,
+      new Date(to),
+      new Date(from),
+      new Date(to),
+      new Date(from),
+    ],
+  );
+  if (rows.length > 10000) throw new Error("QUALITY_PAGE_REVISION_LIMIT");
+  return rows.map((r) => ({
+    page: String(r.page_route),
+    from: new Date(r.starts).valueOf(),
+    to: new Date(r.ends).valueOf(),
+    active: r.page_status === "active" && r.module_status === "active",
+  }));
 }

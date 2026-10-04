@@ -30,6 +30,7 @@ const bits = {
 };
 type State = {
   mask: number;
+  vitalMask: number;
   selected: boolean;
   start: number;
   emit: QualityEmit;
@@ -53,6 +54,7 @@ export function createQualityCollectors(options: QualityOptions) {
     ? Math.max(0, Math.min(1, options.sampleRate!))
     : 1;
   const observers: PerformanceObserver[] = [];
+  const drains: (() => void)[] = [];
   let crumbs: string[] = [],
     timer: ReturnType<typeof setTimeout> | undefined;
   let fingerprints = new Map<string, number>();
@@ -84,9 +86,10 @@ export function createQualityCollectors(options: QualityOptions) {
         ...meta(),
         metric,
         value,
-        rating: ["lcp", "cls", "inp", "fcp", "ttfb"].includes(metric)
-          ? rateWebVital(metric as WebVitalName, value)
-          : "good",
+        qualitySequence: ++state.sequence,
+        ...(["lcp", "cls", "inp", "fcp", "ttfb"].includes(metric)
+          ? { rating: rateWebVital(metric as WebVitalName, value) }
+          : {}),
         navigationType: "unknown",
         ...extra,
       });
@@ -110,6 +113,7 @@ export function createQualityCollectors(options: QualityOptions) {
         ...(type === "event" ? { durationThreshold: 40 } : {}),
       });
       observers.push(ob);
+      drains.push(() => callback(ob.takeRecords()));
       return true;
     } catch {
       return false;
@@ -133,6 +137,7 @@ export function createQualityCollectors(options: QualityOptions) {
       p.runtime.window.removeEventListener("unhandledrejection", onRejection);
       unwatch();
       observers.splice(0).forEach((o) => o.disconnect());
+      drains.length = 0;
       if (timer) p.runtime.clearTimeout(timer);
       port = undefined;
       state = undefined;
@@ -143,6 +148,7 @@ export function createQualityCollectors(options: QualityOptions) {
       enter() {
         unwatch();
         observers.splice(0).forEach((o) => o.disconnect());
+        drains.length = 0;
         if (timer) p.runtime.clearTimeout(timer);
         fingerprints = new Map();
         crumbs = [];
@@ -153,8 +159,9 @@ export function createQualityCollectors(options: QualityOptions) {
         );
         state = {
           mask,
+          vitalMask: 0,
           selected: Math.random() < rate,
-          start: p.runtime.now(),
+          start: p.runtime.now() - (firstPage ? p.runtime.window.performance.now() : 0),
           emit: p.capture(),
           sequence: 0,
           apiStarted: 0,
@@ -189,6 +196,19 @@ export function createQualityCollectors(options: QualityOptions) {
           mask &= ~bits.longtasks;
         // Navigation metrics belong only to the document's first page view, never a later SPA route.
         if (options.vitals && firstPage) {
+          const supported =
+            (
+              p.runtime.window as Window & {
+                PerformanceObserver?: typeof PerformanceObserver;
+              }
+            ).PerformanceObserver?.supportedEntryTypes ?? [];
+          state.vitalMask = [
+            "largest-contentful-paint",
+            "event",
+            "layout-shift",
+            "paint",
+            "navigation",
+          ].reduce((n, key, i) => n | (supported.includes(key) ? 1 << i : 0), 0);
           unwatch = watchQualityVitals((metric) => {
             if (state === current && !current.closed)
               performance(metric.name.toLowerCase(), metric.value, {
@@ -220,6 +240,7 @@ export function createQualityCollectors(options: QualityOptions) {
       },
       leave(closed) {
         if (!state) return {};
+        for (const drain of drains) safe(drain);
         crumb("hidden");
         const d = p.diagnostics();
         state.closed = closed;

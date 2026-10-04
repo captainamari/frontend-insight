@@ -273,6 +273,7 @@ export class BrowserTracker implements Tracker {
     this.runtime.window.addEventListener("popstate", this.handlePageRouteChange);
     this.runtime.window.addEventListener("hashchange", this.handlePageRouteChange);
     this.runtime.window.addEventListener("pagehide", this.handlePageHide);
+    this.runtime.window.addEventListener("pageshow", this.handlePageShow);
     this.runtime.document.addEventListener(
       "visibilitychange",
       this.handleVisibilityChange,
@@ -285,6 +286,7 @@ export class BrowserTracker implements Tracker {
     this.runtime.window.removeEventListener("popstate", this.handlePageRouteChange);
     this.runtime.window.removeEventListener("hashchange", this.handlePageRouteChange);
     this.runtime.window.removeEventListener("pagehide", this.handlePageHide);
+    this.runtime.window.removeEventListener("pageshow", this.handlePageShow);
     this.runtime.document.removeEventListener(
       "visibilitychange",
       this.handleVisibilityChange,
@@ -321,8 +323,17 @@ export class BrowserTracker implements Tracker {
     this.safe(() => {
       this.forms.settle();
       this.stopLongViews();
-      this.settleVisiblePage();
+      this.settleVisiblePage(Boolean(this.quality));
       void this.flush("lifecycle");
+    });
+  };
+
+  private readonly handlePageShow = (event: PageTransitionEvent): void => {
+    if (!event.persisted || !this.quality) return;
+    this.safe(() => {
+      this.pageViewId = id(this.runtime, "pv");
+      this.visibleStartedAt = this.isVisible() ? this.runtime.now() : null;
+      this.emit("page_view", this.qualityPayload("enter"));
     });
   };
 

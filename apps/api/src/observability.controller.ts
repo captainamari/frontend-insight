@@ -1,4 +1,4 @@
-import { bindQualityFacts } from "@frontend-insight/server-core";
+import { bindQualityFacts, readQualityPages } from "@frontend-insight/server-core";
 import type { AnalyticsRange, Principal } from "@frontend-insight/server-core";
 import { Controller, Get, HttpException, Inject, Param, Query } from "@nestjs/common";
 import { z } from "zod";
@@ -49,6 +49,7 @@ export class ObservabilityController {
       Date.parse(q.to) - Date.parse(q.from) > 89 * 86400000
     )
       throw new HttpException("QUALITY_RANGE_INVALID", 400);
+    const pages = await readQualityPages(this.core.mysql, projectId, q.from, q.to);
     const result = await this.core.qualityFacts.read(
       projectId,
       q.env,
@@ -56,15 +57,23 @@ export class ObservabilityController {
       q.to,
       undefined,
       q.pageRoute,
+      pages,
     );
     const snapshot = q.versionId
       ? await this.core.metricLibrary.getVersion(projectId, q.versionId)
       : null;
     if (snapshot && snapshot.version.libraryType !== "quality")
       throw new HttpException("QUALITY_LIBRARY_REQUIRED", 400);
+    const binding = snapshot ? bindQualityFacts(result, snapshot) : null;
     return {
       ...result,
-      binding: snapshot ? bindQualityFacts(result, snapshot) : null,
+      metrics: Object.fromEntries(
+        Object.entries(result.metrics).map(([key, metric]) => [
+          key,
+          binding ? { ...metric, ...binding.inputs[key] } : metric,
+        ]),
+      ),
+      binding,
       mode: snapshot ? "versioned" : "observation",
     };
   }

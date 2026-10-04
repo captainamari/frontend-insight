@@ -27,6 +27,24 @@ const project = await json("/api/projects", {
     origins: [origin],
   }),
 });
+const mod = await json(`/api/projects/${project.id}/modules`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({ moduleKey: "quality_load", name: "Quality load" }),
+});
+await json(`/api/projects/${project.id}/page-definitions`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    moduleId: mod.id,
+    name: "Quality load",
+    pageRoute: "/r5a-load",
+    templateKey: "task_operation",
+    isCore: true,
+    criticalityWeight: 1,
+    expectedFrequency: "daily",
+  }),
+});
 const start = Date.now(),
   prefix = randomUUID().replaceAll("-", "");
 let sequence = 0,

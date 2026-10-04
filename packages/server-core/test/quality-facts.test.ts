@@ -22,7 +22,12 @@ function cohort(count = 5): QualityEvent[] {
       ...base,
       id: `v${i}`,
       event: "page_view",
-      payload: { qualityVersion: "r5a-1", qualityMask: 255, qualitySampleRate: 1 },
+      payload: {
+        qualityVersion: "r5a-1",
+        qualityMask: 255,
+        qualityVitals: 31,
+        qualitySampleRate: 1,
+      },
     });
     events.push({
       ...base,
@@ -48,6 +53,7 @@ function cohort(count = 5): QualityEvent[] {
       payload: {
         qualityVersion: "r5a-1",
         qualityMask: 255,
+        qualityVitals: 31,
         qualitySampleRate: 1,
         qualitySequence: 1,
         qualityClosed: true,
@@ -236,6 +242,36 @@ describe("R5-A real denominator and cohort reduction", () => {
     expect(reduceQuality(rows, from, to, asOf).metrics.blank_screen_rate?.reason).toBe(
       "BLANK_RULE_NOT_SETTLED",
     );
+  });
+  it("refuses a regressing cumulative settlement or a conflicting sequence", () => {
+    const rows = cohort(),
+      later = structuredClone(rows.find((e) => e.event === "page_leave")!);
+    later.id = "regression";
+    later.payload.qualitySequence = 2;
+    later.payload.resourceStarted = 0;
+    later.payload.resourceCompleted = 0;
+    expect(
+      reduceQuality([...rows, later], from, to, asOf).metrics.resource_error_rate
+        ?.reason,
+    ).toBe("FACT_CONFLICT");
+    later.payload.qualitySequence = 1;
+    expect(
+      reduceQuality([...rows, later], from, to, asOf).metrics.resource_error_rate
+        ?.reason,
+    ).toBe("FACT_CONFLICT");
+  });
+  it("retains the latest vital revision even when its value decreases", () => {
+    const rows = cohort();
+    const original = rows.find((e) => e.payload.metric === "lcp")!;
+    original.payload.qualitySequence = 1;
+    original.payload.value = 100;
+    const later = structuredClone(original);
+    later.id = "revised";
+    later.payload.value = 0;
+    later.payload.qualitySequence = 2;
+    expect(
+      reduceQuality([...rows, later], from, to, asOf).metrics.lcp?.percentiles.p50,
+    ).toBe(3);
   });
   it("rejects resource exhaustion", () =>
     expect(() => reduceQuality(Array(50001).fill(cohort()[0]), from, to, asOf)).toThrow(
