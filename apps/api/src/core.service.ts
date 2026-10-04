@@ -42,10 +42,17 @@ export class CoreService implements OnModuleDestroy {
     password: this.environment.CLICKHOUSE_PASSWORD,
     database: this.environment.CLICKHOUSE_DATABASE,
   });
+  readonly qualityFacts = new QualityFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
   readonly scores = new ScoreManagementService(
     this.mysql,
     this.metricLibrary,
     this.workflowFacts,
+    this.qualityFacts,
   );
   readonly publisher = new KafkaEnvelopePublisher(
     this.environment.KAFKA_BROKERS,
@@ -71,12 +78,6 @@ export class CoreService implements OnModuleDestroy {
     },
     this.mysql,
   );
-  readonly qualityFacts = new QualityFactStore({
-    url: this.environment.CLICKHOUSE_URL,
-    username: this.environment.CLICKHOUSE_USERNAME,
-    password: this.environment.CLICKHOUSE_PASSWORD,
-    database: this.environment.CLICKHOUSE_DATABASE,
-  });
   readonly observability = new ObservabilityStore(
     {
       url: this.environment.CLICKHOUSE_URL,

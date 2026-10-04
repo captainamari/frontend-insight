@@ -216,6 +216,37 @@ test("R5-A actual optional SDK, safe payloads, Kafka facts and quality API", asy
   });
   expect(initialResponse.status()).toBe(201);
   const initial = await initialResponse.json();
+  const template = await (
+    await request.get(root + "/score-management/templates?type=quality", { headers })
+  ).json();
+  const options = await (
+    await request.get(root + "/score-management/business-options", { headers })
+  ).json();
+  const saved = await request.put(root + `/score-management/versions/${initial.id}`, {
+    headers,
+    data: {
+      configuration: template.configuration,
+      business: {
+        confirmed: true,
+        scopeId: project.id,
+        optionsDigest: options.optionsDigest,
+        workflowWeights: {},
+        durationMinimumSample: 5,
+      },
+    },
+  });
+  expect(saved.status(), await saved.text()).toBe(200);
+  const scoreQuery = {
+    env: "dev",
+    from: q.get("from"),
+    to: q.get("to"),
+    granularity: "day",
+  };
+  const review = await request.post(
+    root + `/score-management/versions/${initial.id}/review`,
+    { headers, data: scoreQuery },
+  );
+  expect(review.status(), await review.text()).toBe(201);
   const activation = await request.post(
     root + `/metrics/versions/${initial.id}/activate`,
     { headers },
@@ -259,6 +290,23 @@ test("R5-A actual optional SDK, safe payloads, Kafka facts and quality API", asy
   expect(versioned.binding.versionId).toBe(draft.id);
   expect(versioned.binding.mode).toBe("preview");
   expect(versioned.binding.inputs.api_error_rate.reason).toBe("LATENESS_WINDOW_OPEN");
+  const scoreResult = await request.get(
+    root +
+      `/score-management/versions/${draft.id}/result?` +
+      new URLSearchParams({
+        ...scoreQuery,
+        from: scoreQuery.from!,
+        to: scoreQuery.to!,
+      }),
+    { headers },
+  );
+  expect(scoreResult.status(), await scoreResult.text()).toBe(200);
+  const actualScore = await scoreResult.json();
+  expect(actualScore.qualityObservation.inputs.api_error_rate.reason).toBe(
+    "LATENESS_WINDOW_OPEN",
+  );
+  expect(actualScore.value).toBeNull();
+  expect(actualScore.configurationSnapshot).toEqual(template.configuration);
   const lineage = await (
     await request.get(root + `/metrics/versions/${draft.id}/lineage/api_error_rate`, {
       headers,
