@@ -32,7 +32,7 @@ await consumer.run({
     const ids = eventCounts.get(envelope.projectId!) ?? new Set<string>();
     for (const e of envelope.batch?.events ?? []) ids.add(e.eventId);
     eventCounts.set(envelope.projectId!, ids);
-    if (ids.size >= 39) seen.add(envelope.projectId!);
+    if (ids.size >= 40) seen.add(envelope.projectId!);
   },
 });
 async function until(check: () => boolean) {
@@ -61,7 +61,7 @@ try {
       format: "JSONEachRow",
     });
     const rows = await r.json();
-    assert(rows.length >= 37);
+    assert(rows.length >= 40);
     assert(!forbidden.test(JSON.stringify(rows)), "R5B_CLICKHOUSE_LEAK");
   }
 } finally {

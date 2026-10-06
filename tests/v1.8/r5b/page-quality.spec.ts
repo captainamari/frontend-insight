@@ -136,6 +136,21 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   expect(serialized).not.toMatch(
     /FI_R5B_PRIVATE|person@example|123456|user_id|device_id|session_id/,
   );
+  const queryTimes: number[] = [];
+  let queryStatistics: unknown;
+  for (let i = 0; i < 25; i++) {
+    const started = performance.now();
+    const r = await request.get(endpoint + q, { headers });
+    expect(r.status()).toBe(200);
+    const body = await r.json();
+    expect(body.statistics.clickHouseQueries).toBe(1);
+    expect(body.statistics.rowsRead).toBeLessThanOrEqual(1000000);
+    queryStatistics = body.statistics;
+    if (i >= 5) queryTimes.push(performance.now() - started);
+  }
+  queryTimes.sort((a, b) => a - b);
+  const queryP95Ms = queryTimes[Math.ceil(queryTimes.length * 0.95) - 1]!;
+  expect(queryP95Ms).toBeLessThanOrEqual(2000);
   const ids = result!.items.map((e) => e.occurrenceId);
   expect(result!.nextCursor).toBeTruthy();
   const next = await request.get(
@@ -196,7 +211,7 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   expect((await request.get(endpoint + q, { headers: vh })).status()).toBe(403);
   expect(
     (
-      await request.put(root + `/members/${viewer.user.id}`, {
+      await request.put(root + `/members/${viewer.user.userId}`, {
         headers,
         data: { role: "viewer" },
       })
@@ -278,6 +293,9 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
         projectId: project.id,
         browser: info.project.name,
         firstUsableMs,
+        queryP95Ms,
+        queryStatistics,
+        sampleCount: queryTimes.length,
         occurrences: 37,
         categories: 7,
         cursor: "passed",

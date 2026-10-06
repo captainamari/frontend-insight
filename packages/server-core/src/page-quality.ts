@@ -304,17 +304,17 @@ export class PageQualityStore {
         max_bytes_to_read: "268435456",
         read_overflow_mode: "throw",
       },
-      format: "JSONEachRow",
+      format: "JSON",
     });
+    const body = await response.json<Record<string, unknown>>();
     return {
-      ...qualityOccurrencePage(
-        await response.json<Record<string, unknown>>(),
-        projectId,
-        q,
-        this.secret,
-        cursor,
-      ),
-      statistics: { clickHouseQueries: 1 },
+      ...qualityOccurrencePage(body.data, projectId, q, this.secret, cursor),
+      statistics: {
+        clickHouseQueries: 1,
+        rowsRead: body.statistics?.rows_read ?? 0,
+        bytesRead: body.statistics?.bytes_read ?? 0,
+        elapsedSeconds: body.statistics?.elapsed ?? 0,
+      },
     };
   }
   async close() {
