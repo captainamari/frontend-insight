@@ -67,7 +67,16 @@ export function createQualityCollectors(options: QualityOptions) {
       if (state) state.suppressed++;
     }
   };
-  const meta = () => ({ qualityVersion: VERSION, qualitySampleRate: rate });
+  const meta = () => ({
+    qualityVersion: VERSION,
+    qualitySampleRate: rate,
+    viewportBucket:
+      port && port.runtime.window.innerWidth < 768
+        ? "small"
+        : port && port.runtime.window.innerWidth < 1280
+          ? "medium"
+          : "large",
+  });
   const crumb = (kind: string) => {
     if (options.breadcrumbs) {
       crumbs.push(kind);
@@ -129,7 +138,8 @@ export function createQualityCollectors(options: QualityOptions) {
         const v = e as ErrorEvent;
         captureException(v.error ?? new Error(v.message));
       });
-    const onRejection = (e: PromiseRejectionEvent) => captureException(e.reason);
+    const onRejection = (e: PromiseRejectionEvent) =>
+      captureException(e.reason, "promise");
     p.runtime.window.addEventListener("error", onError, true);
     p.runtime.window.addEventListener("unhandledrejection", onRejection);
     dispose = () => {
@@ -267,7 +277,10 @@ export function createQualityCollectors(options: QualityOptions) {
       destroy: () => safe(dispose),
     };
   };
-  function captureException(error: unknown) {
+  function captureException(
+    error: unknown,
+    category: "js" | "promise" | "vue" | "react" | "other" = "js",
+  ) {
     safe(() => {
       if (!options.jsErrors || !state?.selected || state.closed) return;
       const e = error instanceof Error ? error : new Error("Unhandled exception");
@@ -292,7 +305,7 @@ export function createQualityCollectors(options: QualityOptions) {
         frame && port
           ? normalizeRequestPath(frame[0], port.runtime.window.location.href)
           : "[unavailable]";
-      const key = name + message + stack,
+      const key = category + name + message + stack,
         count = fingerprints.get(key) ?? 0;
       if (count >= 5 || (!fingerprints.has(key) && fingerprints.size >= 100)) {
         state.suppressed++;
@@ -302,7 +315,9 @@ export function createQualityCollectors(options: QualityOptions) {
       state.emit("error", {
         ...meta(),
         errorType: "js",
-        errorCategory: "js",
+        errorCategory: ["js", "promise", "vue", "react", "other"].includes(category)
+          ? category
+          : "other",
         errorName: name || "Error",
         errorMessage: message || "Error",
         stackTopFrame: stack,

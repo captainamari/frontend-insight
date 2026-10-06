@@ -798,6 +798,13 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "viewportBucket": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
         "qualityVersion": {
           "const": "r5a-1"
         },
@@ -825,6 +832,13 @@
         "visibleDurationMs"
       ],
       "properties": {
+        "viewportBucket": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
         "qualityVersion": {
           "const": "r5a-1"
         },
@@ -952,6 +966,13 @@
         }
       ],
       "properties": {
+        "viewportBucket": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
         "qualityVersion": {
           "const": "r5a-1"
         },
@@ -1031,6 +1052,13 @@
         "durationMs"
       ],
       "properties": {
+        "viewportBucket": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
         "qualityVersion": {
           "const": "r5a-1"
         },
@@ -1103,6 +1131,13 @@
         "errorCategory"
       ],
       "properties": {
+        "viewportBucket": {
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        },
         "qualityVersion": {
           "const": "r5a-1"
         },

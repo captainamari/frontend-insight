@@ -103,6 +103,7 @@ const propertyValue = {
 };
 
 const qualityProperties = {
+  viewportBucket: { enum: ["small", "medium", "large"] },
   qualityVersion: { const: "r5a-1" },
   qualityMask: { type: "integer", minimum: 0, maximum: 255 },
   qualityVitals: { type: "integer", minimum: 0, maximum: 31 },

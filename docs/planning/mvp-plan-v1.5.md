@@ -1,3 +1,5 @@
+> **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
+
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
 > **R5-A 授权与实施 · 2026-10-04**：Jesse批准暂缓R4-C手工验收，R5完成后统一验收，未记录为通过。refactor合并PR #21为 `07121333cdaf9543a47cbb3dba05418342b934a9`，继承 `78033f123e85971d13067c76ecee956d0e2808c2`。仅实施§16.1–16.3；[R5-A results](../progress/v1.8-r5a-results.md)记录位置与门禁，[decisions](../progress/v1.8-r5a-decisions.md)记录口径。旧阶段限制保留为历史；不自动合并或进入R5-B/R6/R7/R8。

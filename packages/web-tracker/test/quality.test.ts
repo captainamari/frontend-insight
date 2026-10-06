@@ -66,6 +66,25 @@ function fixture(
   };
 }
 describe("R5-A SDK collector isolation and privacy", () => {
+  it("records explicit framework categories and Promise provenance without error text", async () => {
+    const f = fixture();
+    for (const category of ["vue", "react", "promise", "other"] as const)
+      f.quality.captureException(
+        new Error("PRIVATE_DOM token=SECRET a@example.com"),
+        category,
+      );
+    const rejection = new Event("unhandledrejection");
+    Object.defineProperty(rejection, "reason", {
+      value: new TypeError("PRIVATE_BODY"),
+    });
+    window.dispatchEvent(rejection);
+    const events = await f.finish();
+    expect(
+      events.filter((e) => e.event === "error").map((e) => e.payload.errorCategory),
+    ).toEqual(["vue", "react", "promise", "other", "promise"]);
+    expect(JSON.stringify(events)).not.toMatch(/PRIVATE|SECRET|a@example/);
+    for (const batch of f.batches) expect(validateForIngestion(batch).ok).toBe(true);
+  });
   it("captures real success, HTTP failure, timeout and business200 without inspecting response body", async () => {
     const f = fixture();
     const value = { status: 200, body: "private-response" };
