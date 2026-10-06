@@ -53,7 +53,7 @@ export const router = createRouter({
         {
           path: "pages",
           name: "project-pages",
-          component: () => import("./views/PageQualityView.vue"),
+          component: () => import("./views/PageAnalysisView.vue"),
         },
         ...(["settings"] as const).map((module) => ({
           path: module,

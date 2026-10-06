@@ -1,3 +1,4 @@
+import { PAGE_USAGE_DEFINITION } from "../src/page-usage.js";
 import {
   CANONICAL_METRIC_KEYS,
   FORBIDDEN_ALIASES,
@@ -24,12 +25,14 @@ describe("read-only system metric catalog", () => {
     );
   });
 
-  it("uses approved identified business identity consistently without UV aliases", () => {
+  it("uses explicit R6 page identity while retaining historical version recognition", () => {
     for (const key of ["uv", "dau", "wau", "mau", "hourly_distribution"]) {
       const item = METRIC_CATALOG.find((m) => m.metricKey === key)!;
-      expect(item.definitionVersion).toBe(IDENTITY_DEFINITION_VERSION);
-      expect(item.deduplicationKey).toContain("project-HMAC(userId)");
-      expect(JSON.stringify(item)).not.toContain("deviceId");
+      expect(item.definitionVersion).toBe(PAGE_USAGE_DEFINITION);
+      expect(isHistoricalIdentityDefinition(key, IDENTITY_DEFINITION_VERSION)).toBe(
+        true,
+      );
+      expect(JSON.stringify(item)).toContain("deviceId");
       expect(isHistoricalIdentityDefinition(key, "system-v1.8.0")).toBe(true);
     }
     expect(isHistoricalIdentityDefinition("js_error_rate", "system-v1.8.0")).toBe(

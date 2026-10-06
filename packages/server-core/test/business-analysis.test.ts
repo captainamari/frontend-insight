@@ -12,6 +12,9 @@ const definition = (key: string) =>
     ...METRIC_CATALOG.find((m) => m.metricKey === key)!,
     id: key,
     libraryVersionId: "v1",
+    definitionVersion: ["pv", "uv"].includes(key)
+      ? "system-identity-2026-09-09.1"
+      : METRIC_CATALOG.find((m) => m.metricKey === key)!.definitionVersion,
     formulaAst: null,
     enabled: true,
   }) as MetricLibraryDefinition;

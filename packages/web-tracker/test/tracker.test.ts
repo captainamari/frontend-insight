@@ -254,4 +254,22 @@ describe("web tracker contract v3", () => {
       lastErrorCode: "APP_ID_INVALID",
     });
   });
+  it.each([1799999, 1800000, 1800001])(
+    "R6 idle boundary %i retains leave attribution and rotates only the next active page",
+    async (idle) => {
+      const { runtime, fetchMock } = createRuntime();
+      const tracker = createTracker(config(runtime, "r6idle"));
+      vi.setSystemTime(Date.now() + idle);
+      window.history.pushState({}, "", "/r6-next");
+      await tracker.flush();
+      const batch = await payload(fetchMock);
+      const views = batch.events.filter((e) => e.event === "page_view");
+      expect(views).toHaveLength(2);
+      expect(views[0]!.sessionId === views[1]!.sessionId).toBe(idle < 1800000);
+      expect(batch.events.find((e) => e.event === "page_leave")!.sessionId).toBe(
+        views[0]!.sessionId,
+      );
+      tracker.destroy();
+    },
+  );
 });

@@ -45,3 +45,9 @@ export * from "./quality-facts.js";
 export * from "./quality-binding.js";
 
 export * from "./page-quality.js";
+
+export * from "./page-usage.js";
+
+export * from "./page-usage-binding.js";
+
+export type { RowDataPacket } from "mysql2/promise";

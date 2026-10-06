@@ -1,3 +1,4 @@
+import { PAGE_USAGE_DEFINITION, PAGE_USAGE_KEYS } from "./page-usage.js";
 import { QUALITY_DEFINITION_VERSION, QUALITY_KEYS } from "./quality-definition.js";
 import { CANONICAL_METRIC_KEYS } from "@frontend-insight/event-contract";
 import {
@@ -94,7 +95,11 @@ export function isHistoricalIdentityDefinition(
   metricKey: string,
   definitionVersion: string,
 ) {
-  return identityMetricKeys.has(metricKey) && definitionVersion === DEFINITION_VERSION;
+  return (
+    identityMetricKeys.has(metricKey) &&
+    (definitionVersion === DEFINITION_VERSION ||
+      definitionVersion === IDENTITY_DEFINITION_VERSION)
+  );
 }
 const PARTIAL_AVAILABLE_FROM = "2026-08-01T00:00:00.000Z";
 
@@ -767,21 +772,41 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
   ...attachmentSeeds.map((seed) => {
     const item = details[seed.metricKey]!;
     const quality = (QUALITY_KEYS as readonly string[]).includes(seed.metricKey);
-    const unavailableReason = quality
-      ? "Requires r5a-1 opt-in, closed unsampled observed cohort, compatible definition and complete request terminals; unsupported/missing data stays unavailable."
-      : (item.unavailableReason ?? null);
+    const unavailableReason = identityMetricKeys.has(seed.metricKey)
+      ? "Observed page scope; missing leave/identity or multiple calendar periods remain unavailable. Old snapshots require an explicit new draft and review."
+      : quality
+        ? "Requires r5a-1 opt-in, closed unsampled observed cohort, compatible definition and complete request terminals; unsupported/missing data stays unavailable."
+        : (item.unavailableReason ?? null);
     return Object.freeze({
       origin: "system" as const,
       metricKey: seed.metricKey,
       displayName: seed.displayName,
-      businessDescription: item.businessDescription,
+      businessDescription: identityMetricKeys.has(seed.metricKey)
+        ? "页面范围观测；userId 去重，匿名 deviceId 兜底，不合并登录前后身份。"
+        : item.businessDescription,
       category: seed.category,
-      formulaDescription: item.formulaDescription,
-      numeratorDescription: item.numeratorDescription,
+      formulaDescription: identityMetricKeys.has(seed.metricKey)
+        ? ({
+            pv: "count(page_view), idempotent eventId",
+            uv: "uniq(userId ?? deviceId)",
+            vv: "uniq(sessionId), idle >= 30 minutes",
+            dau: "uniq(identity) per project-local day",
+            wau: "uniq(identity) per project-local Monday week",
+            mau: "uniq(identity) per project-local month",
+            avg_usage_duration: "sum(valid visible session segments) / uv",
+            hourly_distribution: "project-local hour pv/uv",
+            bounce_rate: "single-distinct-page vv / vv",
+          }[seed.metricKey] ?? item.formulaDescription)
+        : item.formulaDescription,
+      numeratorDescription: identityMetricKeys.has(seed.metricKey)
+        ? "所选页面及窗口内的观测事实，含匿名设备"
+        : item.numeratorDescription,
       denominatorDescription: item.denominatorDescription,
-      deduplicationKey: quality
-        ? "eventId + pageViewId; apiRequestId/sampleId; latest cumulative page settlement"
-        : item.deduplicationKey,
+      deduplicationKey: identityMetricKeys.has(seed.metricKey)
+        ? "eventId; pageViewId visible segments; sessionId; userId otherwise deviceId"
+        : quality
+          ? "eventId + pageViewId; apiRequestId/sampleId; latest cumulative page settlement"
+          : item.deduplicationKey,
       unit: item.unit,
       percentiles: Object.freeze([...item.percentiles]),
       reportingTiming: quality
@@ -790,7 +815,9 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
       entityScopes: Object.freeze([...item.entityScopes]),
       timeGranularities: Object.freeze([...item.timeGranularities]),
       minimumSample: item.minimumSample,
-      missingPolicy: item.missingPolicy,
+      missingPolicy: identityMetricKeys.has(seed.metricKey)
+        ? "缺失事实保持未知；无事件不补零；缺少 page_leave 不按 0；空分母不可用。"
+        : item.missingPolicy,
       owner: seed.milestone === "R4-B" ? "Jesse" : OWNER,
       definitionVersion:
         seed.milestone === "R5-A"
@@ -800,9 +827,13 @@ export const METRIC_CATALOG: readonly SystemMetricDefinition[] = Object.freeze([
             : seed.milestone === "R4-B"
               ? WORKFLOW_FACT_DEFINITION_VERSION
               : identityMetricKeys.has(seed.metricKey)
-                ? IDENTITY_DEFINITION_VERSION
+                ? PAGE_USAGE_DEFINITION
                 : DEFINITION_VERSION,
-      implementationStatus: seed.implementationStatus,
+      implementationStatus: (PAGE_USAGE_KEYS as readonly string[]).includes(
+        seed.metricKey,
+      )
+        ? "implemented"
+        : seed.implementationStatus,
       availableFrom:
         seed.milestone !== "R5-A" &&
         seed.milestone !== "R4-B" &&

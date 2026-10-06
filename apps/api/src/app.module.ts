@@ -1,3 +1,4 @@
+import { PageOperationsController } from "./page-operations.controller.js";
 import {
   ScoreManagementController,
   ScoreReadController,
@@ -31,6 +32,7 @@ import { ScorePreflightController } from "./score-preflight.controller.js";
     ScoreReadController,
     OperationalController,
     ObservabilityController,
+    PageOperationsController,
     SystemController,
   ],
   providers: [

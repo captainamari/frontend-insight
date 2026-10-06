@@ -161,7 +161,7 @@ export class BrowserTracker implements Tracker {
         /^ses_[0-9a-f]{32}$/.test(saved.id) &&
         typeof saved.at === "number" &&
         saved.at <= runtime.now() &&
-        runtime.now() - saved.at <= config.sessionTimeoutMs
+        runtime.now() - saved.at < config.sessionTimeoutMs
       )
         this.sessionId = saved.id;
     } catch {
@@ -200,7 +200,7 @@ export class BrowserTracker implements Tracker {
             ),
         },
         session: () =>
-          this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs
+          this.runtime.now() - this.lastActivityAt >= this.config.sessionTimeoutMs
             ? "expired"
             : this.sessionId,
         emit: (name, control) => this.emit("custom", { name, ...control }),
@@ -377,7 +377,7 @@ export class BrowserTracker implements Tracker {
 
   private refreshSession(): void {
     const now = this.runtime.now();
-    if (now - this.lastActivityAt > this.config.sessionTimeoutMs) {
+    if (now - this.lastActivityAt >= this.config.sessionTimeoutMs) {
       this.lastActivityAt = now;
       this.forms?.settle();
       this.sessionId = id(this.runtime, "ses");
@@ -404,7 +404,9 @@ export class BrowserTracker implements Tracker {
     > = {},
   ): void {
     if (this.destroyed) return;
-    this.refreshSession();
+    // Settlements and background quality samples retain their original session.
+    if (canonicalEvent === "page_view" || canonicalEvent === "custom")
+      this.refreshSession();
     const userAgent = this.runtime.navigator.userAgent
       .replace(/[^A-Za-z0-9 .()/_;:-]/g, "")
       .slice(0, 256);
@@ -601,7 +603,7 @@ export class BrowserTracker implements Tracker {
           businessResult &&
           (this.userId !== operationUser ||
             this.sessionId !== operationSession ||
-            this.runtime.now() - this.lastActivityAt > this.config.sessionTimeoutMs)
+            this.runtime.now() - this.lastActivityAt >= this.config.sessionTimeoutMs)
         ) {
           this.warn("BUSINESS_OPERATION_CONTEXT_CHANGED");
           return;

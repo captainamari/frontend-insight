@@ -60,11 +60,13 @@ const categories = [
   ["js", "JS"],
   ["other", "Other"],
 ];
-const paths = computed(
-  () =>
-    data.value?.routes.filter((p) =>
-      p.toLowerCase().includes(pathSearch.value.toLowerCase()),
-    ) ?? [],
+const paths = computed(() =>
+  [
+    ...new Set([
+      ...(data.value?.routes ?? []),
+      ...(typeof route.query.pageRoute === "string" ? [route.query.pageRoute] : []),
+    ]),
+  ].filter((p) => p.toLowerCase().includes(pathSearch.value.toLowerCase())),
 );
 const signature = computed(() =>
   JSON.stringify([
@@ -211,12 +213,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="panel page-quality" aria-labelledby="quality-title">
     <h1 id="quality-title">页面分析</h1>
-    <nav aria-label="页面分析类型" class="quality-tabs">
-      <button type="button" aria-current="page">质量分析</button>
-      <button type="button" disabled title="运营分析将在后续阶段开放">
-        运营分析（待开放）
-      </button>
-    </nav>
+
     <p>按页面、时间和错误类别定位问题。时间使用项目时区；上方可选择自定义日期。</p>
     <div class="quality-filters">
       <label

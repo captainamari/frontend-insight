@@ -1142,6 +1142,19 @@ onBeforeUnmount(() => {
         }
       "
     />
+    <OverviewBindingsPanel
+      surface="page"
+      v-if="selectedVersion && selectedVersion.libraryType === 'operational'"
+      :project-id="projectId"
+      :version-id="selectedVersion.id"
+      :can-write="canWrite"
+      @saved="
+        (id) => {
+          selectedVersionId = id;
+          void load();
+        }
+      "
+    />
     <div class="library-toolbar">
       <el-select
         v-if="versionsOnly"

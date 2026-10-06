@@ -54,16 +54,16 @@
 
 | key | 中文名 | 类别 | 实施状态 | 交付里程碑 |
 | --- | --- | --- | --- | --- |
-| `pv` | 页面浏览量 | usage | `partial` | R6 |
-| `uv` | 活跃用户数 | usage | `partial` | R6 |
-| `dau` | 日活跃用户数 | usage | `not_collected` | R6 |
-| `wau` | 周活跃用户数 | usage | `not_collected` | R6 |
-| `mau` | 月活跃用户数 | usage | `not_collected` | R6 |
-| `vv` | 会话数（VV） | usage | `partial` | R6 |
+| `pv` | 页面浏览量 | usage | `implemented` | R6 |
+| `uv` | 活跃用户数 | usage | `implemented` | R6 |
+| `dau` | 日活跃用户数 | usage | `implemented` | R6 |
+| `wau` | 周活跃用户数 | usage | `implemented` | R6 |
+| `mau` | 月活跃用户数 | usage | `implemented` | R6 |
+| `vv` | 会话数（VV） | usage | `implemented` | R6 |
 | `module_penetration` | 功能模块渗透率 | usage | `not_collected` | R4-A |
-| `avg_usage_duration` | 人均使用时长 | usage | `not_collected` | R6 |
-| `hourly_distribution` | 时段分布 | usage | `not_collected` | R6 |
-| `bounce_rate` | 跳出率（单页会话率） | usage | `not_collected` | R6 |
+| `avg_usage_duration` | 人均使用时长 | usage | `implemented` | R6 |
+| `hourly_distribution` | 时段分布 | usage | `implemented` | R6 |
+| `bounce_rate` | 跳出率（单页会话率） | usage | `implemented` | R6 |
 | `task_duration` | 任务耗时 | operation | `implemented` | R4-B |
 | `form_efficiency` | 表单效率 | operation | `partial` | R4-C |
 | `operation_fail_rate` | 操作失败率 | operation | `partial` | R4-C |

@@ -100,42 +100,42 @@
       "label": "页面浏览量",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "uv",
       "label": "活跃用户数",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "dau",
       "label": "日活跃用户数",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "wau",
       "label": "周活跃用户数",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "mau",
       "label": "月活跃用户数",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "vv",
       "label": "会话数（VV）",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "module_penetration",
@@ -149,21 +149,21 @@
       "label": "人均使用时长",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "hourly_distribution",
       "label": "时段分布",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "bounce_rate",
       "label": "跳出率（单页会话率）",
       "category": "usage",
       "milestone": "R6",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "task_duration",

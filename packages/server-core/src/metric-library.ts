@@ -1,3 +1,4 @@
+import { PAGE_USAGE_DEFINITION } from "./page-usage.js";
 import { QUALITY_KEYS, QUALITY_DEFINITION_VERSION } from "./quality-definition.js";
 import {
   R4C_FACT_METRIC_KEYS,
@@ -28,7 +29,6 @@ import type { Principal } from "./model.js";
 import type { MySqlStore } from "./mysql-store.js";
 import {
   METRIC_CATALOG,
-  IDENTITY_DEFINITION_VERSION,
   isHistoricalIdentityDefinition,
   RESERVED_SYSTEM_METRIC_KEYS,
   systemMetricDefinition,
@@ -572,14 +572,18 @@ export class MetricLibraryService {
   async displayBindings(
     projectId: string,
     versionId: string,
-    surface: "overview" | "business",
+    surface: "overview" | "business" | "page",
   ) {
     const snapshot = await this.getVersion(projectId, versionId);
     const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
       `SELECT d.metric_key FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name=? AND b.surface_key=? ORDER BY b.display_order,d.metric_key`,
       [
         versionId,
-        surface === "overview" ? "project-overview" : "project-business",
+        surface === "overview"
+          ? "project-overview"
+          : surface === "page"
+            ? "project-pages"
+            : "project-business",
         surface,
       ],
     );
@@ -590,7 +594,7 @@ export class MetricLibraryService {
     versionId: string,
     metricKeys: string[],
     actor: Principal,
-    surface: "overview" | "business",
+    surface: "overview" | "business" | "page",
   ) {
     if (metricKeys.length > 24 || new Set(metricKeys).size !== metricKeys.length)
       throw new MetricLibraryError(`${surface.toUpperCase()}_BINDING_LIMIT`, 400);
@@ -624,7 +628,9 @@ export class MetricLibraryService {
         if (
           !d ||
           !d.enabled ||
-          !d.entityScopes.includes(surface === "overview" ? "project" : "module")
+          !d.entityScopes.includes(
+            surface === "overview" ? "project" : surface === "page" ? "page" : "module",
+          )
         )
           throw new MetricLibraryError(`${surface.toUpperCase()}_BINDING_INVALID`, 400);
         if (d.implementationStatus === "not_collected")
@@ -634,7 +640,11 @@ export class MetricLibraryService {
         `DELETE b FROM metric_display_bindings b JOIN metric_definitions d ON d.id=b.metric_definition_id WHERE d.library_version_id=? AND b.route_name=? AND b.surface_key=?`,
         [
           version.id,
-          surface === "overview" ? "project-overview" : "project-business",
+          surface === "overview"
+            ? "project-overview"
+            : surface === "page"
+              ? "project-pages"
+              : "project-business",
           surface,
         ],
       );
@@ -644,7 +654,11 @@ export class MetricLibraryService {
           [
             randomUUID(),
             definitions.find((d) => d.metricKey === key)!.id,
-            surface === "overview" ? "project-overview" : "project-business",
+            surface === "overview"
+              ? "project-overview"
+              : surface === "page"
+                ? "project-pages"
+                : "project-business",
             surface,
             i,
           ],
@@ -807,7 +821,7 @@ export class MetricLibraryService {
           await this.insertSystemDefinition(connection, id, definition);
         // Only the new working draft adopts approved directory metadata. Existing snapshots remain byte-for-byte unchanged.
         for (const definition of METRIC_CATALOG.filter(
-          (item) => item.definitionVersion === IDENTITY_DEFINITION_VERSION,
+          (item) => item.definitionVersion === PAGE_USAGE_DEFINITION,
         )) {
           if (
             !current.some(
@@ -818,7 +832,7 @@ export class MetricLibraryService {
           )
             continue;
           await connection.execute(
-            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=?,implementation_status=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
             [
               definition.businessDescription,
               definition.formulaDescription,
@@ -828,6 +842,7 @@ export class MetricLibraryService {
               definition.missingPolicy,
               definition.unavailableReason,
               definition.definitionVersion,
+              definition.implementationStatus,
               id,
               definition.metricKey,
             ],

@@ -835,6 +835,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 建议分支：`agent/v1-8-r6-page-operations`
 
+2026-10-06 授权：Jesse 接受 R5 自动化回归，基线 `63663310`，允许 R6 推送、Draft PR 和完整 Actions 修复；历史“不进入 R6/待统一手工验收”不再阻断开发。没有执行或补写手工验收，不自动合并 R6。实施和证据见 `docs/progress/v1.8-r6-results.md`；指标版本与迁移决策见 `v1.8-r6-decisions.md`。以下勾选须在真实 CI 闭环后更新。
+
 ### 18.1 范围
 
 - [ ] `pv`：`page_view` 计数，不去重；

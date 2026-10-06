@@ -213,6 +213,36 @@ export class MetricLibraryController {
     );
   }
 
+  @Get("versions/:versionId/page-bindings")
+  async pageBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return this.core.metricLibrary.displayBindings(projectId, versionId, "page");
+  }
+  @Put("versions/:versionId/page-bindings")
+  async savePageBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() raw: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const body = parseInput(
+      z.object({ metricKeys: z.array(metricKeySchema).max(24) }).strict(),
+      raw,
+    );
+    return this.core.metricLibrary.saveDisplayBindings(
+      projectId,
+      versionId,
+      body.metricKeys,
+      principal,
+      "page",
+    );
+  }
+
   @Post("versions/:versionId/validate")
   @HttpCode(200)
   async validate(
