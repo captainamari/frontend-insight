@@ -1,0 +1,200 @@
+{
+  "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+  "runId": 37430418922,
+  "artifactId": 11396994586,
+  "artifactCount": 40,
+  "allTestedCommitsMatch": true,
+  "files": [
+    "r1c-integration.json",
+    "r2-browser-performance-chromium.json",
+    "r2-browser-performance-webkit.json",
+    "r2-integration.json",
+    "r2-upgrade.json",
+    "r3-browser-chromium-admin.json",
+    "r3-browser-chromium-viewer.json",
+    "r3-browser-webkit-admin.json",
+    "r3-browser-webkit-viewer.json",
+    "r3-integration.json",
+    "r4a-browser-chromium-admin.json",
+    "r4a-browser-chromium-viewer.json",
+    "r4a-browser-webkit-admin.json",
+    "r4a-browser-webkit-viewer.json",
+    "r4a-integration.json",
+    "r4b-evidence.json",
+    "r4b-safe-poll-chromium.json",
+    "r4b-safe-poll-webkit.json",
+    "r4b-sdk-bundle.json",
+    "r4b-sdk-chromium.json",
+    "r4b-sdk-synchronous.json",
+    "r4b-sdk-webkit.json",
+    "r4c-chromium.json",
+    "r4c-evidence.json",
+    "r4c-integration.json",
+    "r4c-sdk-bundle.json",
+    "r4c-sdk-synchronous.json",
+    "r4c-webkit.json",
+    "r5a-chromium.json",
+    "r5a-evidence.json",
+    "r5a-load.json",
+    "r5a-sdk-bundle.json",
+    "r5a-webkit.json",
+    "r5b-chromium.json",
+    "r5b-evidence.json",
+    "r5b-privacy.json",
+    "r5b-webkit.json",
+    "r6-chromium.json",
+    "r6-evidence.json",
+    "r6-webkit.json"
+  ],
+  "evidence": {
+    "r6-evidence.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "prHead": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "pr": 24,
+      "runId": "37430418922",
+      "automation": "passed",
+      "realIntegration": "passed",
+      "browsers": ["chromium", "webkit"],
+      "inherited": "R1\u2013R5 including R5-A pressure and R5-B privacy",
+      "manualAcceptance": "not performed",
+      "automaticMerge": false
+    },
+    "r6-chromium.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "projectId": "ac4d89e5-6f1a-41da-b107-ee8d5b913f3d",
+      "browser": "chromium",
+      "realIntegration": "passed",
+      "fixture": {
+        "views": 9,
+        "selectedViews": 6,
+        "users": 2,
+        "vv": 6,
+        "bounce": 0.5,
+        "durationPerUser": 4500
+      },
+      "warmups": 5,
+      "sampleCount": 20,
+      "p95Ms": 38.942393000000266,
+      "statistics": {
+        "clickHouseQueries": 3,
+        "rowsRead": 1089,
+        "bytesRead": 215515,
+        "elapsedSeconds": 0.003274002,
+        "returnedEvents": 18,
+        "usageClickHouseQueries": 1,
+        "metadataQueryUpperBound": 12
+      },
+      "environment": {
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 4,
+        "memoryBytes": 16766414848
+      },
+      "capacityPromise": false
+    },
+    "r6-webkit.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "projectId": "17324663-16ea-426a-95b6-18c386ee0302",
+      "browser": "webkit",
+      "realIntegration": "passed",
+      "fixture": {
+        "views": 9,
+        "selectedViews": 6,
+        "users": 2,
+        "vv": 6,
+        "bounce": 0.5,
+        "durationPerUser": 4500
+      },
+      "warmups": 5,
+      "sampleCount": 20,
+      "p95Ms": 43.923795000000155,
+      "statistics": {
+        "clickHouseQueries": 3,
+        "rowsRead": 792,
+        "bytesRead": 20327,
+        "elapsedSeconds": 0.003874645,
+        "returnedEvents": 18,
+        "usageClickHouseQueries": 1,
+        "metadataQueryUpperBound": 12
+      },
+      "environment": {
+        "platform": "linux",
+        "arch": "x64",
+        "cpus": 4,
+        "memoryBytes": 16766414848
+      },
+      "capacityPromise": false
+    },
+    "r5a-load.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "profiles": [
+        {
+          "eventsPerSecond": 20,
+          "seconds": 60,
+          "sentEvents": 1200,
+          "elapsedMs": 59014.898257
+        },
+        {
+          "eventsPerSecond": 200,
+          "seconds": 10,
+          "sentEvents": 2000,
+          "elapsedMs": 9032.063556000001
+        }
+      ],
+      "accepted": 3200,
+      "apiRequests": 640,
+      "resourceRequests": 1280,
+      "ingestionP95Ms": 105.84929700000066,
+      "queryP95Ms": 44.666365999990376,
+      "statistics": {
+        "clickHouseQueries": 1,
+        "rowsRead": 3585,
+        "bytesRead": 1676895,
+        "elapsedSeconds": 0.005406446
+      },
+      "catchupMs": 1391
+    },
+    "r5b-chromium.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "projectId": "36f85f2d-5eb0-4ed8-b057-a2a45f4c7c43",
+      "browser": "chromium",
+      "firstUsableMs": 160.16961700000002,
+      "queryP95Ms": 22.498988000000054,
+      "queryStatistics": {
+        "clickHouseQueries": 1,
+        "rowsRead": 300,
+        "bytesRead": 126036,
+        "elapsedSeconds": 0.004556653
+      },
+      "sampleCount": 20,
+      "occurrences": 37,
+      "categories": 7,
+      "cursor": "passed",
+      "keyboard": "passed",
+      "scopeAndViewer": "passed",
+      "privacy": "passed",
+      "realIntegration": "passed"
+    },
+    "r5b-webkit.json": {
+      "testedCommit": "12f6124ae61a265ade79a57a15f1d172203e8b56",
+      "projectId": "9d7cf888-16f9-41de-98d2-0d2be9d00aef",
+      "browser": "webkit",
+      "firstUsableMs": 549.2922310000004,
+      "queryP95Ms": 21.91031699999985,
+      "queryStatistics": {
+        "clickHouseQueries": 1,
+        "rowsRead": 339,
+        "bytesRead": 24404,
+        "elapsedSeconds": 0.005317568
+      },
+      "sampleCount": 20,
+      "occurrences": 37,
+      "categories": 7,
+      "cursor": "passed",
+      "keyboard": "passed",
+      "scopeAndViewer": "passed",
+      "privacy": "passed",
+      "realIntegration": "passed"
+    }
+  }
+}

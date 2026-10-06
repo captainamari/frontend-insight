@@ -835,23 +835,23 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 建议分支：`agent/v1-8-r6-page-operations`
 
-2026-10-06 授权：Jesse 接受 R5 自动化回归，基线 `63663310`，允许 R6 推送、Draft PR 和完整 Actions 修复；历史“不进入 R6/待统一手工验收”不再阻断开发。没有执行或补写手工验收，不自动合并 R6。实施和证据见 `docs/progress/v1.8-r6-results.md`；指标版本与迁移决策见 `v1.8-r6-decisions.md`。以下勾选须在真实 CI 闭环后更新。
+2026-10-06 授权：Jesse 接受 R5 自动化回归，基线 `63663310`，允许 R6 推送、Draft PR 和完整 Actions 修复；历史“不进入 R6/待统一手工验收”不再阻断开发。没有执行或补写手工验收，不自动合并 R6。实施和证据见 `docs/progress/v1.8-r6-results.md`；指标版本与迁移决策见 `v1.8-r6-decisions.md`。2026-10-06 完整 Actions `37430418922` 已通过，已验证代码 `12f6124ae61a265ade79a57a15f1d172203e8b56`；40 个证据 testedCommit 与当时 checkout/PR head 一致。Draft PR #24 未合并。
 
 ### 18.1 范围
 
-- [ ] `pv`：`page_view` 计数，不去重；
-- [ ] `uv`：`userId` 去重，未登录按 `deviceId` 兜底，并明确匿名/已识别构成；
-- [ ] `dau`、`wau`、`mau`：按项目时区自然日/周/月去重；
-- [ ] `vv`：`sessionId` 去重和 30 分钟 idle 边界；
-- [ ] `avg_usage_duration`：有效会话时长之和 / `uv`；
-- [ ] `hourly_distribution`：项目本地小时的 `pv/uv`；
-- [ ] `bounce_rate`：单页会话 / 总会话，只作诊断、不默认告警；
-- [ ] 页面可见时长 P50/P75/P90/P99、coverage、页面深度和功能模块广度作为扩展诊断指标；
-- [ ] 页面工作流/任务；
-- [ ] 页面级 display bindings；
-- [ ] 同源趋势；
-- [ ] 页面模板和目标；
-- [ ] 未归类 route 配置入口。
+- [x] `pv`：`page_view` 计数，不去重；
+- [x] `uv`：`userId` 去重，未登录按 `deviceId` 兜底，并明确匿名/已识别构成；
+- [x] `dau`、`wau`、`mau`：按项目时区自然日/周/月去重；
+- [x] `vv`：`sessionId` 去重和 30 分钟 idle 边界；
+- [x] `avg_usage_duration`：有效会话时长之和 / `uv`；
+- [x] `hourly_distribution`：项目本地小时的 `pv/uv`；
+- [x] `bounce_rate`：单页会话 / 总会话，只作诊断、不默认告警；
+- [x] 页面可见时长 P50/P75/P90/P99、coverage、页面深度和功能模块广度作为扩展诊断指标；
+- [x] 页面工作流/任务；
+- [x] 页面级 display bindings；
+- [x] 同源趋势；
+- [x] 页面模板和目标；
+- [x] 未归类 route 配置入口。
 
 ### 18.2 删除/迁移
 
