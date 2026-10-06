@@ -848,12 +848,20 @@ watch(
   <button
     v-if="
       typeof route.query.analysisReturn === 'string' &&
-      route.query.analysisReturn.split('?')[0] ===
-        '/projects/' + String(route.params.projectId) + '/business'
+      ['business', 'pages'].some(
+        (section) =>
+          route.query.analysisReturn &&
+          String(route.query.analysisReturn).split('?')[0] ===
+            '/projects/' + String(route.params.projectId) + '/' + section,
+      )
     "
     @click="router.push(String(route.query.analysisReturn))"
   >
-    返回原业务分析
+    {{
+      String(route.query.analysisReturn).split("?")[0].endsWith("/pages")
+        ? "返回原页面分析"
+        : "返回原业务分析"
+    }}
   </button>
   <div>
     <PageHeader

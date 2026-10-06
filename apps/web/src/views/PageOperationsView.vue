@@ -314,7 +314,14 @@ onBeforeUnmount(() => {
         :to="{
           name: 'project-metrics',
           params: route.params,
-          query: { ...route.query, pageRoute: route.query.pageRoute },
+          query: {
+            ...route.query,
+            tab: 'analysis-objects',
+            object: 'pages',
+            create: route.query.pageRoute && !data.pages.length ? 'page' : undefined,
+            pageRoute: route.query.pageRoute,
+            analysisReturn: route.fullPath,
+          },
         }"
         >配置页面、目标与展示绑定</RouterLink
       >

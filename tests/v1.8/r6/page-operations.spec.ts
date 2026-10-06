@@ -6,6 +6,7 @@ import { platform, arch, cpus, totalmem } from "node:os";
 test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality context", async ({
   page,
   request,
+  browser,
 }, info) => {
   test.setTimeout(180000);
   const auth = await (
@@ -319,6 +320,30 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   await page.getByLabel("页面路径", { exact: true }).selectOption("/r6-b");
   await page.getByLabel("页面路径", { exact: true }).selectOption("/r6-a");
   await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("6");
+  const adminPage = await browser.newPage();
+  const base = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
+  await adminPage.goto(base + "/login");
+  await adminPage.getByLabel("邮箱").fill("admin@example.invalid");
+  await adminPage.getByLabel("密码").fill("LocalAdmin-1234");
+  await adminPage.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(adminPage).toHaveURL(/\/projects/);
+  const unclassified = new URLSearchParams(q);
+  unclassified.set("pageRoute", "/r6-b");
+  unclassified.set("tab", "operations");
+  await adminPage.goto(base + `/projects/${project.id}/pages?${unclassified}`);
+  await adminPage.getByRole("link", { name: "配置页面、目标与展示绑定" }).click();
+  await expect(adminPage.getByRole("dialog", { name: "新建页面定义" })).toBeVisible();
+  await expect(
+    adminPage.getByRole("dialog").getByLabel("观测或模板 route"),
+  ).toHaveValue("/r6-b");
+  await adminPage
+    .getByRole("dialog")
+    .getByRole("button", { name: "取消", exact: true })
+    .click();
+  await adminPage.getByRole("button", { name: "返回原页面分析" }).click();
+  await expect(adminPage.getByLabel("页面路径", { exact: true })).toHaveValue("/r6-b");
+  await expect(adminPage).toHaveURL(/env=dev/);
+  await adminPage.close();
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     `artifacts/r6-${info.project.name}.json`,
