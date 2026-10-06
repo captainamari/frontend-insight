@@ -1,4 +1,4 @@
-import { PAGE_USAGE_DEFINITION } from "./page-usage.js";
+import { PAGE_USAGE_DEFINITION, PAGE_USAGE_KEYS } from "./page-usage.js";
 import { QUALITY_KEYS, QUALITY_DEFINITION_VERSION } from "./quality-definition.js";
 import {
   R4C_FACT_METRIC_KEYS,
@@ -832,7 +832,7 @@ export class MetricLibraryService {
           )
             continue;
           await connection.execute(
-            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=?,implementation_status=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+            `UPDATE metric_definitions SET business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,missing_policy=?,unavailable_reason=?,definition_version=?,implementation_status=?,available_from=NULL WHERE library_version_id=? AND metric_key=? AND origin='system'`,
             [
               definition.businessDescription,
               definition.formulaDescription,
@@ -1029,6 +1029,63 @@ export class MetricLibraryService {
         "metric_library_version",
         versionId,
         { metricKeys: QUALITY_KEYS },
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    return this.getVersion(projectId, versionId);
+  }
+
+  async refreshPageUsageFacts(projectId: string, versionId: string, actor: Principal) {
+    const connection = await this.mysql.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const version = await this.requireVersion(connection, projectId, versionId, true);
+      if (version.status !== "draft" || version.libraryType !== "operational")
+        throw new MetricLibraryError(
+          "PAGE_USAGE_REFRESH_REQUIRES_OPERATIONAL_DRAFT",
+          409,
+        );
+      for (const key of PAGE_USAGE_KEYS) {
+        const metric = systemMetricDefinition(key)!;
+        await connection.execute(
+          `UPDATE metric_definitions SET unit=?,definition_version=?,implementation_status=?,business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,percentiles=?,reporting_timing=?,minimum_sample=?,missing_policy=?,owner=?,available_from=NULL,unavailable_reason=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+          [
+            metric.unit,
+            metric.definitionVersion,
+            metric.implementationStatus,
+            metric.businessDescription,
+            metric.formulaDescription,
+            metric.numeratorDescription,
+            metric.denominatorDescription,
+            metric.deduplicationKey,
+            JSON.stringify(metric.percentiles),
+            metric.reportingTiming,
+            metric.minimumSample,
+            metric.missingPolicy,
+            metric.owner,
+            metric.unavailableReason,
+            versionId,
+            key,
+          ],
+        );
+      }
+      await connection.execute(
+        "UPDATE score_definitions SET reviewed_digest=NULL WHERE library_version_id=?",
+        [versionId],
+      );
+      await this.insertAudit(
+        connection,
+        projectId,
+        actor.userId,
+        "metric_library.page_usage_facts_refreshed",
+        "metric_library_version",
+        versionId,
+        { metricKeys: PAGE_USAGE_KEYS },
       );
       await connection.commit();
     } catch (error) {

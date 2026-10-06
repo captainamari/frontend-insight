@@ -331,7 +331,7 @@ if (!validation.valid || validation.definitions.length !== 3) {
 }
 if (
   validation.definitions.find((item) => item.metricKey === "active_user_blend")
-    ?.implementationStatus !== "not_collected"
+    ?.implementationStatus !== "implemented"
 ) {
   throw new Error("DEPENDENCY_STATUS_NOT_DERIVED");
 }

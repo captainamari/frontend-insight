@@ -34,3 +34,9 @@ C07 接入流程：管理员发布完整组织目录，登记所有业务页面/
 源声明与目录均只向后生效；更改页面/module revision、功能或发布版本后重新声明；发现缺失发布 interrupted。SDK声明不是自动完成目录或指标激活，三个步骤分别可追溯。正式组织活动为已识别、已归类页面访问或受控登记功能成功；开始、拒绝、取消与未知不能当成功。时长需真实匹配page_leave，缺失不补0。
 
 完整的可信业务后端引用接入、版本review、三类状态及Mac手工步骤见 [R4-C接入与验收指南](../../docs/guides/v1.8-r4c-local-acceptance-macos.md)。默认保留数据，不执行reset，不自动进入R5。
+
+### R6 page usage settlements
+
+The default SDK emits controlled `usageVersion: "r6-1"` on page views and leaves. Each visible segment has `usageSequence`; route exit, pagehide and destroy mark `usageClosed: true`. A visibility hide alone is not a terminal settlement. Duplicate terminal callbacks are suppressed, and BFCache restoration opens a fresh page view. These fields are immutable under `beforeSend`; no content or identity fields are added.
+
+R6 duration queries require an observed page view plus contiguous settlements through a terminal. Legacy or incomplete facts remain unavailable, with sample/coverage diagnostics; they are not backfilled as zero. Exactly 30 minutes idle starts a new session on the next active event, while a leave retains the previous session. Anonymous UV uses deviceId fallback and is reported separately from identified users.

@@ -106,6 +106,7 @@ export class PageOperationsController {
       : null;
     const modules = await this.core.mysql.listModules(projectId, {
       includeArchived: true,
+      at: new Date(Date.parse(range.to) - 1),
     });
     let facts;
     try {
@@ -151,7 +152,8 @@ export class PageOperationsController {
       inputs: undefined,
       scope: { projectId, ...range, pageRoute: q.pageRoute ?? null },
       timezone: project.timezone,
-      canConfigure: role === "admin",
+      canConfigure:
+        principal.globalRole === "admin" && ["owner", "admin"].includes(role),
       version: version ?? null,
       bindingKeys: keys,
       cards: cards(facts.inputs, range.from, range.to),

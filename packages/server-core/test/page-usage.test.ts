@@ -140,3 +140,29 @@ it("R6 duration requires terminal and contiguous settlements, not just a hidden 
     ).inputs.avg_usage_duration?.value,
   ).toBeNull();
 });
+
+it("R6 spring DST gap and a leap-month boundary preserve calendar identities", () => {
+  const spring = pageUsageWindow(
+    [
+      event("a", 0, { at: Date.parse("2026-03-08T06:59:00Z") }),
+      event("b", 0, { at: Date.parse("2026-03-08T07:01:00Z") }),
+    ],
+    "2026-03-08T05:00:00Z",
+    "2026-03-09T04:00:00Z",
+    "America/New_York",
+  );
+  expect(spring.inputs.dau?.value).toBe(1);
+  expect(spring.hourly[2]?.pv).toBeNull();
+  expect(spring.hourly[3]?.pv).toBe(1);
+  const leap = pageUsageWindow(
+    [
+      event("c", 0, { at: Date.parse("2024-02-29T23:59:00Z") }),
+      event("d", 0, { at: Date.parse("2024-03-01T00:00:00Z") }),
+    ],
+    "2024-02-29T00:00:00Z",
+    "2024-03-02T00:00:00Z",
+    "UTC",
+  );
+  expect(leap.calendar.mau?.map((r) => r.period)).toEqual(["2024-02", "2024-03"]);
+  expect(leap.inputs.mau?.value).toBeNull();
+});

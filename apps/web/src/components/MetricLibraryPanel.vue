@@ -594,6 +594,27 @@ async function refreshR4CFacts() {
   }
 }
 
+async function refreshPageUsageFacts() {
+  if (!selectedVersion.value || selectedVersion.value.status !== "draft") return;
+  try {
+    await api.request(
+      `/api/projects/${props.projectId}/metrics/versions/${selectedVersion.value.id}/page-usage-facts`,
+      { method: "POST", body: JSON.stringify({}) },
+    );
+    await loadVersion();
+    showMessage({
+      type: "success",
+      message:
+        "R6 页面使用定义已更新到草稿；请检查差异并重新review，激活版本保持原快照",
+    });
+  } catch (cause) {
+    showMessage({
+      type: "error",
+      message: cause instanceof Error ? cause.message : "定义更新失败",
+    });
+  }
+}
+
 async function validateSelected(): Promise<void> {
   if (!selectedVersion.value) return;
   saving.value = true;
@@ -1235,6 +1256,15 @@ onBeforeUnmount(() => {
             "
             @click="refreshR4CFacts"
             >同步操作效率与组织定义到草稿</el-button
+          >
+          <el-button
+            v-if="
+              props.canWrite &&
+              selectedVersion.libraryType === 'operational' &&
+              selectedVersion.status === 'draft'
+            "
+            @click="refreshPageUsageFacts"
+            >同步页面使用定义到草稿</el-button
           >
           <el-button
             v-if="canWrite && ['draft', 'superseded'].includes(selectedVersion.status)"

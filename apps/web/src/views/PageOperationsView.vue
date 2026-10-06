@@ -74,7 +74,9 @@ const route = useRoute(),
   router = useRouter(),
   data = ref<Response | null>(null),
   loading = ref(false),
-  error = ref("");
+  error = ref(""),
+  routeChoices = ref<string[]>([]);
+let choiceScope = "";
 let generation = 0,
   controller: AbortController | null = null,
   navigation = Promise.resolve();
@@ -88,6 +90,11 @@ const signature = computed(() =>
 );
 async function load() {
   const id = ++generation;
+  const scope = JSON.stringify([route.params.projectId, route.query.env]);
+  if (scope !== choiceScope) {
+    routeChoices.value = [];
+    choiceScope = scope;
+  }
   controller?.abort();
   controller = new AbortController();
   data.value = null;
@@ -101,7 +108,12 @@ async function load() {
       `/api/projects/${encodeURIComponent(String(route.params.projectId))}/page-operations?${q}`,
       { signal: controller.signal },
     );
-    if (id === generation) data.value = r;
+    if (id === generation) {
+      data.value = r;
+      routeChoices.value = [
+        ...new Set([...r.routes, ...r.pages.map((p) => p.pageRoute)]),
+      ];
+    }
   } catch (e) {
     if (id === generation)
       error.value =
@@ -126,8 +138,7 @@ function select(value: string) {
 const paths = computed(() =>
   [
     ...new Set([
-      ...(data.value?.routes ?? []),
-      ...(data.value?.pages.map((p) => p.pageRoute) ?? []),
+      ...routeChoices.value,
       ...(typeof route.query.pageRoute === "string" ? [route.query.pageRoute] : []),
     ]),
   ].sort(),

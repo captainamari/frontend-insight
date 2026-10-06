@@ -188,6 +188,14 @@ try {
       version = list.find((v) => v.status === "draft")!;
     versions[type] = version.id;
     if (type === "operational") {
+      // This inherited fixture deliberately verifies pre-R6 identified/classified snapshots.
+      // R6's separate real fixture verifies anonymous-inclusive new definitions.
+      await mysql.pool.execute(
+        "UPDATE metric_definitions SET definition_version='system-identity-2026-09-09.1',implementation_status='partial' WHERE library_version_id=? AND metric_key IN ('pv','uv','vv')",
+        [version.id],
+      );
+    }
+    if (type === "operational") {
       // Freeze the inherited R4-A unavailable-definition fixture before activation.
       // R4-C separately verifies that the new partial definition can be bound.
       await mysql.pool.execute(

@@ -87,6 +87,14 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   });
   expect(draftResponse.status()).toBe(201);
   const draft = await draftResponse.json();
+  expect(
+    (
+      await request.post(root + `/metrics/versions/${draft.id}/page-usage-facts`, {
+        headers,
+        data: {},
+      })
+    ).status(),
+  ).toBe(201);
   const keys = [
     "pv",
     "uv",
@@ -242,6 +250,11 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   expect(
     (await request.get(endpoint + q + "&token=private", { headers })).status(),
   ).toBe(400);
+  const foreignVersion = new URLSearchParams(q);
+  foreignVersion.set("versionId", randomUUID());
+  expect((await request.get(endpoint + foreignVersion, { headers })).status()).toBe(
+    404,
+  );
   const viewer = await (
     await request.post("/api/auth/login", {
       data: { email: "viewer@example.invalid", password: "LocalViewer-1234" },

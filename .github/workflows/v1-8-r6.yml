@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   statuses: write
+  pull-requests: read
 
 concurrency:
   group: v1-8-r6-${{ github.ref }}
@@ -198,6 +199,24 @@ jobs:
           writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
           NODE
 
+      - name: Record R6 exact-commit evidence and verify Draft PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const checkout=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          assert.equal(checkout,process.env.GITHUB_SHA);
+          const response=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/pulls?state=open&head=${encodeURIComponent(process.env.GITHUB_REPOSITORY_OWNER+':'+process.env.GITHUB_REF_NAME)}`,{headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json'}});
+          assert(response.ok,'PR_HEAD_READ_FAILED');
+          const prs=await response.json();
+          const pr=prs.find(p=>p.base.ref==='refactor');
+          assert(pr && pr.draft && pr.head.sha===checkout,'PR_HEAD_OR_DRAFT_MISMATCH');
+          writeFileSync('artifacts/r6-evidence.json',JSON.stringify({testedCommit:checkout,prHead:pr.head.sha,pr:pr.number,runId:process.env.GITHUB_RUN_ID,automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],inherited:'R1–R5 including R5-A pressure and R5-B privacy',manualAcceptance:'not performed',automaticMerge:false},null,2));
+          NODE
+
       - name: Verify every artifact commit and print safe performance evidence
         run: |
           node --input-type=module <<'NODE'
@@ -207,7 +226,7 @@ jobs:
           const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           assert.equal(checkout, process.env.GITHUB_SHA);
           const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
-          for (const name of ["r6-chromium.json", "r6-webkit.json", "r5b-evidence.json", "r5b-chromium.json", "r5b-webkit.json", "r5b-privacy.json", "r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          for (const name of ["r6-evidence.json", "r6-chromium.json", "r6-webkit.json", "r5b-evidence.json", "r5b-chromium.json", "r5b-webkit.json", "r5b-privacy.json", "r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
           const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
           const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
           const summaries = files.map(name => {
