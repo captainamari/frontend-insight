@@ -858,7 +858,7 @@ watch(
     @click="router.push(String(route.query.analysisReturn))"
   >
     {{
-      String(route.query.analysisReturn).split("?")[0].endsWith("/pages")
+      String(route.query.analysisReturn).split("?")[0]?.endsWith("/pages")
         ? "返回原页面分析"
         : "返回原业务分析"
     }}
