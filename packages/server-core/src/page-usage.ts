@@ -27,6 +27,9 @@ export interface UsageEvent {
   session: string;
   pageView: string;
   duration: number | null;
+  usageVersion?: string;
+  usageSequence?: number;
+  usageClosed?: boolean | number;
 }
 export interface UsagePage {
   pageRoute: string;
@@ -113,7 +116,20 @@ export function pageUsageWindow(
         e.at >= v.at &&
         identity(e) === identity(v),
     );
-    if (segments.length) durations.push(segments.reduce((n, e) => n + e.duration!, 0));
+    segments.sort((a, b) => Number(a.usageSequence) - Number(b.usageSequence));
+    if (
+      v.usageVersion === "r6-1" &&
+      segments.length &&
+      segments.at(-1)!.usageClosed &&
+      segments.every(
+        (e, i) =>
+          e.usageVersion === "r6-1" &&
+          Number(e.usageSequence) === i + 1 &&
+          (i === segments.length - 1 || !e.usageClosed),
+      )
+    ) {
+      durations.push(segments.reduce((n, e) => n + e.duration!, 0));
+    }
   }
   const depths: number[] = [],
     breadths: number[] = [];
@@ -152,7 +168,7 @@ export function pageUsageWindow(
     avg_usage_duration: input(
       completeDuration ? durations.reduce((n, v) => n + v, 0) / users.size : null,
       durations.length,
-      completeDuration ? null : "PAGE_LEAVE_OR_IDENTITY_MISSING",
+      completeDuration ? null : "PAGE_LEAVE_INCOMPLETE_OR_IDENTITY_MISSING",
     ),
     bounce_rate: input(
       vvSet.size ? depths.filter((n) => n === 1).length / vvSet.size : null,
@@ -266,7 +282,7 @@ export class PageUsageStore {
     pages: UsagePage[] = [],
   ) {
     const response = await this.client.query({
-      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,event,page_route AS route,user_id AS user,device_id AS device,session_id AS session,page_view_id AS pageView,visible_duration_ms AS duration FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event IN ('page_view','page_leave') AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3) ORDER BY received_at DESC LIMIT 1 BY event_id LIMIT 50001`,
+      query: `SELECT event_id AS id,toUnixTimestamp64Milli(timestamp) AS at,event,page_route AS route,user_id AS user,device_id AS device,session_id AS session,page_view_id AS pageView,visible_duration_ms AS duration,JSONExtractString(payload_json,'usageVersion') AS usageVersion,JSONExtractUInt(payload_json,'usageSequence') AS usageSequence,JSONExtractBool(payload_json,'usageClosed') AS usageClosed FROM raw_events WHERE project_id={projectId:UUID} AND env={env:String} AND event IN ('page_view','page_leave') AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3) ORDER BY received_at DESC LIMIT 1 BY event_id LIMIT 50001`,
       query_params: { projectId, env, from, to },
       format: "JSON",
       clickhouse_settings: {

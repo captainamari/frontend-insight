@@ -25,6 +25,62 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   expect(created.status()).toBe(201);
   const project = await created.json(),
     root = `/api/projects/${project.id}`;
+  const post = async (path: string, data: unknown) => {
+    const r = await request.post(root + path, { headers, data });
+    expect(r.status(), path).toBe(201);
+    return r.json();
+  };
+  const module = await post("/modules", { moduleKey: "r6_module", name: "R6 module" });
+  const configured = await post("/page-definitions", {
+    moduleId: module.id,
+    name: "R6 page A",
+    pageRoute: "/r6-a",
+    templateKey: "task_operation",
+    isCore: true,
+    criticalityWeight: 1,
+    expectedFrequency: "daily",
+    effectiveFrom: new Date(Date.now() - 7200000).toISOString(),
+  });
+  await post("/features", {
+    featureKey: "r6_task",
+    name: "R6 page task",
+    featureType: "action",
+    pageDefinitionId: configured.id,
+    operationLifecycleEnabled: true,
+    isKeyTask: true,
+  });
+  const workflow = await post("/workflow-definitions", {
+    moduleId: module.id,
+    workflowKey: "r6_workflow",
+    name: "R6 linked workflow",
+    startPolicy: "explicit_sdk",
+    timeoutSeconds: 600,
+    terminalPolicy: {
+      completedStepKey: "done",
+      failedStepKey: null,
+      canceledStepKey: null,
+      timeoutState: "approximate_abandoned",
+    },
+    steps: [
+      {
+        stepKey: "start",
+        name: "Start",
+        stepOrder: 1,
+        triggerKind: "explicit_sdk",
+        triggerConfig: {},
+      },
+      {
+        stepKey: "done",
+        name: "Done",
+        stepOrder: 2,
+        triggerKind: "operation_terminal",
+        triggerConfig: { operationKey: "r6_task", state: "succeeded" },
+      },
+    ],
+  });
+  await post(`/workflow-definitions/${workflow.id}/activate`, {
+    versionId: workflow.latestVersion.id,
+  });
   const draftResponse = await request.post(root + "/metrics/versions", {
     headers,
     data: { type: "operational" },
@@ -73,7 +129,7 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
     const runtime = {
       window,
       document,
-      navigator,
+      navigator: { userAgent: navigator.userAgent, sendBeacon: () => false },
       storage: localStorage,
       fetch: window.fetch.bind(window),
       crypto,
@@ -83,33 +139,36 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
       setInterval: window.setInterval.bind(window),
       clearInterval: window.clearInterval.bind(window),
     };
-    const a = createTracker({
-      appId,
-      env: "dev",
-      release: "r6-browser",
-      endpoint: location.origin + "/v1/events",
-      runtime,
-    });
-    now += 1000;
-    history.pushState({}, "", "/r6-b");
-    now += 1000;
-    a.destroy();
-    await a.flush();
-    history.pushState({}, "", "/r6-a");
-    const b = createTracker({
-      appId,
-      env: "dev",
-      release: "r6-browser",
-      endpoint: location.origin + "/v1/events",
-      initialUserId: "u_r6_fixture",
-      runtime,
-    });
-    now += 2000;
-    b.destroy();
-    await b.flush();
+    for (let i = 0; i < 3; i++) {
+      history.replaceState({}, "", "/r6-a");
+      const a = createTracker({
+        appId,
+        env: "dev",
+        release: "r6-browser",
+        endpoint: location.origin + "/v1/events",
+        runtime,
+      });
+      now += 1000;
+      history.pushState({}, "", "/r6-b");
+      now += 1000;
+      a.destroy();
+      await a.flush();
+      history.pushState({}, "", "/r6-a");
+      const b = createTracker({
+        appId,
+        env: "dev",
+        release: "r6-browser",
+        endpoint: location.origin + "/v1/events",
+        initialUserId: "u_r6_fixture",
+        runtime,
+      });
+      now += 2000;
+      b.destroy();
+      await b.flush();
+    }
   }, project.appId);
   const to = new Date(Date.now() - 1).toISOString();
-  expect(sent.length).toBeGreaterThan(0);
+  await expect.poll(() => sent.length).toBeGreaterThan(0);
   // Actual transport retry, same event IDs: must not increase PV/duration.
   const retry = await request.post("http://127.0.0.1:4174/v1/events", {
     headers: { origin: "http://127.0.0.1:4174" },
@@ -136,13 +195,14 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
         const r = await request.get(endpoint + q, { headers });
         expect(r.status()).toBe(200);
         result = await r.json();
+        if (result.diagnostics.coverage !== 1) return null;
         return result.cards.find(
           (c: { key: string; value: number | null }) => c.key === "pv",
         ).value;
       },
       { timeout: 45000 },
     )
-    .toBe(2);
+    .toBe(6);
   expect(
     result.cards.find((c: { key: string; value: number | null }) => c.key === "uv")
       .value,
@@ -150,7 +210,7 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   expect(
     result.cards.find((c: { key: string; value: number | null }) => c.key === "vv")
       .value,
-  ).toBe(2);
+  ).toBe(6);
   expect(
     result.cards.find(
       (c: { key: string; value: number | null }) => c.key === "bounce_rate",
@@ -160,7 +220,7 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
     result.cards.find(
       (c: { key: string; value: number | null }) => c.key === "avg_usage_duration",
     ).value,
-  ).toBe(1500);
+  ).toBe(4500);
   expect(result.identity).toMatchObject({ identified: 1, anonymous: 1 });
   expect(result.diagnostics.coverage).toBe(1);
   expect(JSON.stringify(result)).not.toMatch(
@@ -213,7 +273,8 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
     expect(r.status()).toBe(200);
     const body = await r.json();
     stats = body.statistics;
-    expect(stats.clickHouseQueries).toBe(1);
+    expect(stats.usageClickHouseQueries).toBe(1);
+    expect(stats.clickHouseQueries).toBe(3);
     expect(stats.rowsRead).toBeLessThanOrEqual(1000000);
     if (i >= 5) times.push(performance.now() - t);
   }
@@ -227,20 +288,24 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
   await expect(page).toHaveURL(/\/projects/);
   const url = `/projects/${project.id}/pages?${q}&tab=operations`;
   await page.goto(url);
-  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("2");
+  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("6");
   await expect(
     page.getByRole("link", { name: "配置页面、目标与展示绑定" }),
   ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "R6 linked workflow v1" }),
+  ).toBeVisible();
+  await expect(page.getByText("R6 page A · /r6-a")).toBeVisible();
   await page.getByRole("button", { name: "质量分析", exact: true }).click();
   await expect(page.getByLabel("页面路径", { exact: true })).toHaveValue("/r6-a");
   await expect(page).toHaveURL(/env=dev/);
   await page.getByRole("button", { name: "运营分析", exact: true }).click();
-  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("2");
+  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("6");
   await page.reload();
   await expect(page.getByLabel("页面路径", { exact: true })).toHaveValue("/r6-a");
   await page.getByLabel("页面路径", { exact: true }).selectOption("/r6-b");
   await page.getByLabel("页面路径", { exact: true }).selectOption("/r6-a");
-  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("2");
+  await expect(page.getByTestId("usage-pv").locator("strong")).toHaveText("6");
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     `artifacts/r6-${info.project.name}.json`,
@@ -253,12 +318,12 @@ test("R6 SDK to Kafka/ClickHouse, versioned page operations and shared quality c
         browser: info.project.name,
         realIntegration: "passed",
         fixture: {
-          views: 3,
-          selectedViews: 2,
+          views: 9,
+          selectedViews: 6,
           users: 2,
-          vv: 2,
+          vv: 6,
           bounce: 0.5,
-          durationPerUser: 1500,
+          durationPerUser: 4500,
         },
         warmups: 5,
         sampleCount: 20,

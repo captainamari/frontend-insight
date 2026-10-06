@@ -104,6 +104,8 @@ export class BrowserTracker implements Tracker {
   private readonly originalReplaceState: History["replaceState"];
   private deviceId: string;
   private sessionId: string;
+  private usageSequence = 0;
+  private usageClosed = false;
   private pageViewId: string;
   private userId: string | null = null;
   private pageRoute: string;
@@ -300,7 +302,7 @@ export class BrowserTracker implements Tracker {
       if (nextPageRoute === this.pageRoute) return;
       this.forms.settle();
       this.stopLongViews();
-      this.settleVisiblePage(Boolean(this.quality));
+      this.settleVisiblePage(true);
       this.pageRoute = nextPageRoute;
       this.pageViewId = id(this.runtime, "pv");
       this.visibleStartedAt = this.isVisible() ? now : null;
@@ -323,13 +325,13 @@ export class BrowserTracker implements Tracker {
     this.safe(() => {
       this.forms.settle();
       this.stopLongViews();
-      this.settleVisiblePage(Boolean(this.quality));
+      this.settleVisiblePage(true);
       void this.flush("lifecycle");
     });
   };
 
   private readonly handlePageShow = (event: PageTransitionEvent): void => {
-    if (!event.persisted || !this.quality) return;
+    if (!event.persisted) return;
     this.safe(() => {
       this.pageViewId = id(this.runtime, "pv");
       this.visibleStartedAt = this.isVisible() ? this.runtime.now() : null;
@@ -363,7 +365,8 @@ export class BrowserTracker implements Tracker {
   }
 
   private settleVisiblePage(closed = false): void {
-    if (this.visibleStartedAt === null && !closed) return;
+    if (this.usageClosed || (this.visibleStartedAt === null && !closed)) return;
+    this.usageClosed = closed;
     const visibleDurationMs =
       this.visibleStartedAt === null
         ? 0
@@ -371,6 +374,9 @@ export class BrowserTracker implements Tracker {
     this.visibleStartedAt = null;
     this.emit("page_leave", {
       visibleDurationMs,
+      usageVersion: "r6-1",
+      usageSequence: ++this.usageSequence,
+      usageClosed: closed,
       ...this.qualityPayload("leave", closed),
     });
   }
@@ -407,6 +413,11 @@ export class BrowserTracker implements Tracker {
     // Settlements and background quality samples retain their original session.
     if (canonicalEvent === "page_view" || canonicalEvent === "custom")
       this.refreshSession();
+    if (canonicalEvent === "page_view") {
+      this.usageSequence = 0;
+      this.usageClosed = false;
+      payload = { ...payload, usageVersion: "r6-1" };
+    }
     const userAgent = this.runtime.navigator.userAgent
       .replace(/[^A-Za-z0-9 .()/_;:-]/g, "")
       .slice(0, 256);
@@ -942,7 +953,7 @@ export class BrowserTracker implements Tracker {
     this.forms.settle();
     this.stopLongViews();
     this.runtime.clearInterval(this.flushTimer);
-    this.settleVisiblePage(Boolean(this.quality));
+    this.settleVisiblePage(true);
     this.safe(() => this.quality?.destroy());
     void this.flush("lifecycle");
     this.uninstallLifecycle();

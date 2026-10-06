@@ -124,6 +124,23 @@ export function validateTransportBatch(
 
   for (const [index, event] of batch.events.entries()) {
     const path = `/events/${index}`;
+    if (
+      event.payload.usageVersion &&
+      event.event === "page_leave" &&
+      (event.payload.usageSequence === undefined ||
+        event.payload.usageClosed === undefined)
+    ) {
+      return {
+        ok: false,
+        errors: [
+          {
+            path,
+            code: REJECTION_CODES.schemaInvalid,
+            message: "usage settlement requires sequence and terminal flag",
+          },
+        ],
+      };
+    }
     if (event.payload.qualityVersion) {
       const p = event.payload;
       const required =

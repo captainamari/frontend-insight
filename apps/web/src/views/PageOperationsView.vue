@@ -49,12 +49,25 @@ interface Response {
     effectiveFrom: string;
     effectiveTo: string | null;
   }[];
+  tasks: {
+    key: string;
+    name: string;
+    isKeyTask: boolean;
+    status: string;
+    lifecycle: boolean;
+  }[];
   workflows: {
     versionId: string;
     name: string;
     version: number;
     sampleState: string;
-    [key: string]: unknown;
+    started: number;
+    completed: number;
+    failed: number;
+    canceled: number;
+    inProgress: number;
+    successRate: number | null;
+    task_duration: { p50: number | null; p90: number | null; sample: number };
   }[];
 }
 const route = useRoute(),
@@ -127,6 +140,20 @@ const points = computed(
       secondary: t.cards.find((c) => c.key === "uv")?.value ?? null,
     })) ?? [],
 );
+const reasonText = (reason: string | null) =>
+  reason
+    ? ({
+        NO_PAGE_VIEWS: "没有页面访问事实",
+        NO_ACTIVE_METRIC_VERSION: "请管理员激活运营指标版本",
+        PAGE_DEFINITION_UPGRADE_REQUIRED: "所选版本为旧口径，请在草稿中升级并评审",
+        VERSION_RANGE_BOUNDARY: "查询跨越该指标版本的生效边界",
+        MULTIPLE_CALENDAR_PERIODS_SEE_SERIES: "跨多个自然周期，请查看下方周期明细",
+        DISTRIBUTION_SEE_HOURLY: "请查看下方时段分布",
+        PAGE_LEAVE_INCOMPLETE_OR_IDENTITY_MISSING: "缺少完整页面结束片段或身份事实",
+        EMPTY_DENOMINATOR: "没有有效分母",
+        INSUFFICIENT_SAMPLE: "有效样本不足",
+      }[reason] ?? "该指标暂不可用：" + reason)
+    : "";
 const display = (v: number | null) =>
   v === null ? "—" : Number.isInteger(v) ? String(v) : v.toFixed(3);
 watch(signature, load, { immediate: true });
@@ -181,7 +208,7 @@ onBeforeUnmount(() => {
           <h2>{{ card.name }}</h2>
           <strong>{{ display(card.value) }}</strong> {{ card.unit }}
           <p>{{ card.key }} · {{ card.definitionVersion }}</p>
-          <small v-if="card.reason">{{ card.reason }}</small>
+          <small v-if="card.reason">{{ reasonText(card.reason) }}</small>
         </article>
       </div>
       <p>
@@ -202,13 +229,13 @@ onBeforeUnmount(() => {
             <tr v-for="t in data.trend" :key="t.from">
               <td>{{ t.localStart }}</td>
               <td v-for="c in t.cards" :key="c.key">
-                {{ display(c.value) }} {{ c.reason }}
+                {{ display(c.value) }} {{ reasonText(c.reason) }}
               </td>
             </tr>
           </tbody>
         </table>
       </details>
-      <h2>自然周期活跃用户</h2>
+      <h2>自然周期活跃用户（R6 观测明细）</h2>
       <p>
         按筛选窗口与项目自然日、周一开始的周、月相交统计；部分周期不外推，跨周期不相加。
       </p>
@@ -282,11 +309,28 @@ onBeforeUnmount(() => {
       >
       <p v-else>viewer 只读；页面与绑定配置由管理员维护。</p>
       <h2>页面工作流 / 任务</h2>
+      <p>
+        通过页面绑定任务的 operation key
+        关联工作流；未显式关联的模块工作流不会冒充页面任务。
+      </p>
+      <p v-for="task in data.tasks" :key="task.key">
+        {{ task.name }} · {{ task.isKeyTask ? "关键任务" : "页面操作" }} ·
+        {{ task.status }}
+      </p>
       <p v-if="!data.workflows.length">没有关联当前页面的工作流定义或任务事实。</p>
       <article v-for="w in data.workflows" :key="w.versionId">
         <h3>{{ w.name }} v{{ w.version }}</h3>
         <p>{{ w.sampleState }}</p>
-        <pre>{{ JSON.stringify(w, null, 2) }}</pre>
+        <p>
+          启动 {{ w.started }} · 完成 {{ w.completed }} · 失败 {{ w.failed }} · 取消
+          {{ w.canceled }} · 进行中 {{ w.inProgress }}
+        </p>
+        <p>
+          完成率 {{ display(w.successRate) }} · 耗时 P50
+          {{ display(w.task_duration.p50) }} / P90
+          {{ display(w.task_duration.p90) }} 毫秒 · 有效样本
+          {{ w.task_duration.sample }}
+        </p>
       </article>
     </template>
   </section>

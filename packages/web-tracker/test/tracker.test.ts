@@ -236,7 +236,12 @@ describe("web tracker contract v3", () => {
     expect(sendBeacon).toHaveBeenCalledOnce();
     const batch = await payload(fetchMock);
     expect(batch.events.find((event) => event.event === "page_leave")?.payload).toEqual(
-      { visibleDurationMs: 2500 },
+      {
+        visibleDurationMs: 2500,
+        usageVersion: "r6-1",
+        usageSequence: 1,
+        usageClosed: false,
+      },
     );
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).keepalive).toBe(true);
     tracker.destroy();

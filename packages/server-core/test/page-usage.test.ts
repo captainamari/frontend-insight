@@ -17,6 +17,9 @@ function event(
     session: "s1",
     pageView: id,
     duration: null,
+    usageVersion: "r6-1",
+    usageSequence: 1,
+    usageClosed: true,
     ...overrides,
   };
 }
@@ -102,4 +105,38 @@ describe("R6 hand-computable page usage", () => {
     expect(r.inputs.uv?.value).toBeNull();
     expect(r.identity.missing).toBe(1);
   });
+});
+
+it("R6 duration requires terminal and contiguous settlements, not just a hidden segment", () => {
+  const a = event("a", 0),
+    hidden = event("h", 1000, {
+      event: "page_leave",
+      pageView: "a",
+      duration: 100,
+      usageClosed: false,
+    });
+  const terminal = event("t", 2000, {
+    event: "page_leave",
+    pageView: "a",
+    duration: 200,
+    usageSequence: 2,
+  });
+  expect(
+    pageUsageWindow([a, hidden], from, to, "UTC").inputs.avg_usage_duration?.value,
+  ).toBeNull();
+  expect(
+    pageUsageWindow([a, terminal], from, to, "UTC").inputs.avg_usage_duration?.value,
+  ).toBeNull();
+  expect(
+    pageUsageWindow([a, hidden, terminal], from, to, "UTC").inputs.avg_usage_duration
+      ?.value,
+  ).toBe(300);
+  expect(
+    pageUsageWindow(
+      [{ ...a, usageVersion: "legacy" }, hidden, terminal],
+      from,
+      to,
+      "UTC",
+    ).inputs.avg_usage_duration?.value,
+  ).toBeNull();
 });

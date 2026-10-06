@@ -78,9 +78,20 @@ export class PageOperationsController {
       this.core.mysql.pool,
       projectId,
     );
-    const workflows = definitions.filter((d) =>
-      d.steps.some((s) => s.triggerConfig.pageRoute === q.pageRoute),
+    const selectedPageIds = new Set(
+      pageRows
+        .filter((r) => !q.pageRoute || r.page_route === q.pageRoute)
+        .map((r) => String(r.id)),
     );
+    const tasks = (await this.core.mysql.listFeatures(projectId)).filter(
+      (f) => f.pageDefinitionId && selectedPageIds.has(f.pageDefinitionId),
+    );
+    const workflows = definitions.filter((d) =>
+      d.steps.some((s) =>
+        tasks.some((t) => s.triggerConfig.operationKey === t.featureKey),
+      ),
+    );
+
     // Existing workflow reducer owns terminal/cohort semantics; expose only safe aggregate rows.
     const workflowFacts = workflows.length
       ? await this.core.workflowFacts.read(
@@ -167,7 +178,26 @@ export class PageOperationsController {
             ? new Date(r.effective_to as string).toISOString()
             : null,
         })),
+      tasks: tasks.map((t) => ({
+        key: t.featureKey,
+        name: t.name,
+        isKeyTask: t.isKeyTask,
+        status: t.status,
+        lifecycle: t.operationLifecycleEnabled,
+      })),
       workflows: workflowFacts?.definitions ?? [],
+      statistics: {
+        ...facts.statistics,
+        usageClickHouseQueries: facts.statistics.clickHouseQueries,
+        clickHouseQueries:
+          facts.statistics.clickHouseQueries +
+          (workflowFacts?.diagnostics.clickHouseQueries ?? 0),
+        rowsRead:
+          facts.statistics.rowsRead + (workflowFacts?.diagnostics.rowsRead ?? 0),
+        bytesRead:
+          facts.statistics.bytesRead + (workflowFacts?.diagnostics.bytesRead ?? 0),
+        metadataQueryUpperBound: 12,
+      },
       observationNotice:
         "仅表示窗口内收到的事实；无数据不代表零。会话深度/单页率按窗口内跨页面事实计算。",
     };

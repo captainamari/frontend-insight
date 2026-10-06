@@ -186,7 +186,7 @@ const schema = {
     emptyPayload: {
       type: "object",
       additionalProperties: false,
-      properties: qualityProperties,
+      properties: { ...qualityProperties, usageVersion: { const: "r6-1" } },
     },
     pageLeavePayload: {
       type: "object",
@@ -195,6 +195,9 @@ const schema = {
       properties: {
         ...qualityProperties,
         ...qualityCounters,
+        usageVersion: { const: "r6-1" },
+        usageSequence: { type: "integer", minimum: 1, maximum: 1000000 },
+        usageClosed: { type: "boolean" },
         qualityClosed: { type: "boolean" },
         blankScreen: { type: "boolean" },
         blankRule: { type: "string", pattern: "^[a-z][a-z0-9_-]{0,31}$" },

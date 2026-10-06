@@ -188,14 +188,14 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import {writeFileSync} from 'node:fs';
-          writeFileSync('artifacts/r5a-evidence.json',JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'16.1-16.3 quality collectors and facts; R1 through R4-C regressions',automation:'passed',realIntegration:'passed',manualAcceptanceReady:true,manualAcceptance:'deferred by Jesse on 2026-10-04 until unified R5 acceptance; not passed',milestoneComplete:false,nextStageAuthorized:false},null,2));
+          writeFileSync('artifacts/r5a-evidence.json',JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'16.1-16.3 quality collectors and facts; R1 through R4-C regressions',automation:'passed',realIntegration:'passed',manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
           NODE
 
       - name: Record R5-B exact-commit delivery evidence
         run: |
           node --input-type=module <<'NODE'
           import {writeFileSync} from 'node:fs';
-          writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'pending Jesse unified R5 acceptance',milestoneComplete:false,nextStageAuthorized:false},null,2));
+          writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
           NODE
 
       - name: Verify every artifact commit and print safe performance evidence
