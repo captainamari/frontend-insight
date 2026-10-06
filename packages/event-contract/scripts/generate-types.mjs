@@ -102,6 +102,28 @@ const propertyValue = {
   ],
 };
 
+const qualityProperties = {
+  viewportBucket: { enum: ["small", "medium", "large"] },
+  qualityVersion: { const: "r5a-1" },
+  qualityMask: { type: "integer", minimum: 0, maximum: 255 },
+  qualityVitals: { type: "integer", minimum: 0, maximum: 31 },
+  qualitySampleRate: { type: "number", minimum: 0, maximum: 1 },
+};
+const qualityCounters = Object.fromEntries(
+  [
+    "qualitySequence",
+    "qualityDropped",
+    "qualityFailed",
+    "qualitySuppressed",
+    "apiStarted",
+    "apiCompleted",
+    "resourceStarted",
+    "resourceCompleted",
+    "resourceFailed",
+    "longtaskCount",
+    "longtaskTotal",
+  ].map((key) => [key, { type: "integer", minimum: 0, maximum: 86400000 }]),
+);
 const schema = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
   $id: "https://frontend-insight.internal/schemas/event-batch-v3.json",
@@ -161,12 +183,21 @@ const schema = {
         eventVariant("custom", "customPayload"),
       ],
     },
-    emptyPayload: { type: "object", additionalProperties: false },
+    emptyPayload: {
+      type: "object",
+      additionalProperties: false,
+      properties: qualityProperties,
+    },
     pageLeavePayload: {
       type: "object",
       additionalProperties: false,
       required: ["visibleDurationMs"],
       properties: {
+        ...qualityProperties,
+        ...qualityCounters,
+        qualityClosed: { type: "boolean" },
+        blankScreen: { type: "boolean" },
+        blankRule: { type: "string", pattern: "^[a-z][a-z0-9_-]{0,31}$" },
         visibleDurationMs: {
           type: "integer",
           minimum: 0,
@@ -177,8 +208,21 @@ const schema = {
     performancePayload: {
       type: "object",
       additionalProperties: false,
-      required: ["metric", "value", "rating", "navigationType"],
+      required: ["metric", "value", "navigationType"],
+      allOf: [
+        {
+          if: {
+            properties: { metric: { enum: ["lcp", "inp", "cls", "fcp", "ttfb"] } },
+            required: ["metric"],
+          },
+          then: { required: ["rating"], properties: { rating: true } },
+        },
+      ],
       properties: {
+        ...qualityProperties,
+        qualitySequence: { type: "integer", minimum: 1, maximum: 86400000 },
+        sampleId: { type: "string", pattern: "^[a-zA-Z0-9_-]{1,64}$" },
+        rowBucket: { enum: ["lt100", "100to1000", "gt1000"] },
         metric: { enum: manifest.performanceMetrics },
         value: { type: "number", minimum: 0, maximum: 86400000 },
         rating: { enum: ["good", "needs_improvement", "poor"] },
@@ -192,6 +236,8 @@ const schema = {
       additionalProperties: false,
       required: ["success", "requestMethod", "requestPath", "statusCode", "durationMs"],
       properties: {
+        ...qualityProperties,
+        apiRequestId: { type: "string", pattern: "^[a-zA-Z0-9_-]{1,64}$" },
         success: { type: "boolean" },
         requestMethod: {
           enum: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "OTHER"],
@@ -209,6 +255,22 @@ const schema = {
       additionalProperties: false,
       required: ["errorType", "errorCategory"],
       properties: {
+        ...qualityProperties,
+        breadcrumb: {
+          type: "object",
+          maxProperties: 50,
+          propertyNames: { pattern: "^b[0-9]{1,2}$" },
+          additionalProperties: {
+            enum: [
+              "navigation",
+              "action",
+              "api_success",
+              "api_failure",
+              "visible",
+              "hidden",
+            ],
+          },
+        },
         errorType: { enum: ["js", "resource"] },
         errorCategory: {
           enum: ["resource", "vue", "react", "promise", "js", "other"],

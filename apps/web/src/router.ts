@@ -50,7 +50,12 @@ export const router = createRouter({
           component: () => import("./views/BusinessAnalysisView.vue"),
           meta: { requiresAuth: true },
         },
-        ...(["pages", "settings"] as const).map((module) => ({
+        {
+          path: "pages",
+          name: "project-pages",
+          component: () => import("./views/PageQualityView.vue"),
+        },
+        ...(["settings"] as const).map((module) => ({
           path: module,
           name: "project-" + module,
           component: () => import("./views/ProjectStageView.vue"),

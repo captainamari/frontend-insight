@@ -1,3 +1,4 @@
+import type { QualityFactory } from "./quality-port.js";
 import type { FormCollectorConfig, FormHandle } from "./forms.js";
 import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
 import type {
@@ -71,6 +72,7 @@ export type BusinessResult =
   "success" | "rejected" | "technical_failure" | "canceled" | "unknown";
 
 export interface TrackerConfig {
+  quality?: QualityFactory;
   initialUserId?: string;
   usageCoverage?: { enabled: boolean };
   forms?: FormCollectorConfig;

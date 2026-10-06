@@ -1,3 +1,4 @@
+import { QUALITY_KEYS, QUALITY_DEFINITION_VERSION } from "./quality-definition.js";
 import {
   R4C_FACT_METRIC_KEYS,
   R4C_FACT_DEFINITION_VERSION,
@@ -355,7 +356,11 @@ export function validateMetricVersionSnapshot(input: {
           snapshot.metricKey,
           snapshot.definitionVersion,
         ) &&
-        !isHistoricalR4CDefinition(snapshot.metricKey, snapshot.definitionVersion))
+        !isHistoricalR4CDefinition(snapshot.metricKey, snapshot.definitionVersion) &&
+        !(
+          (QUALITY_KEYS as readonly string[]).includes(snapshot.metricKey) &&
+          snapshot.definitionVersion === "system-v1.8.0"
+        ))
     ) {
       errors.push({
         code: "SYSTEM_METRIC_CHANGED",
@@ -963,6 +968,63 @@ export class MetricLibraryService {
     return this.getVersion(projectId, versionId);
   }
 
+  async refreshQualityFacts(projectId: string, versionId: string, actor: Principal) {
+    const connection = await this.mysql.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const version = await this.requireVersion(connection, projectId, versionId, true);
+      if (version.status !== "draft" || version.libraryType !== "quality")
+        throw new MetricLibraryError(
+          "QUALITY_FACT_REFRESH_REQUIRES_QUALITY_DRAFT",
+          409,
+        );
+      for (const key of QUALITY_KEYS) {
+        const metric = systemMetricDefinition(key)!;
+        await connection.execute(
+          `UPDATE metric_definitions SET unit=?,definition_version=?,implementation_status=?,business_description=?,formula_description=?,numerator_definition=?,denominator_definition=?,deduplication_key=?,percentiles=?,reporting_timing=?,minimum_sample=?,missing_policy=?,owner=?,available_from=NULL,unavailable_reason=? WHERE library_version_id=? AND metric_key=? AND origin='system'`,
+          [
+            metric.unit,
+            metric.definitionVersion,
+            metric.implementationStatus,
+            metric.businessDescription,
+            metric.formulaDescription,
+            metric.numeratorDescription,
+            metric.denominatorDescription,
+            metric.deduplicationKey,
+            JSON.stringify(metric.percentiles),
+            metric.reportingTiming,
+            metric.minimumSample,
+            metric.missingPolicy,
+            metric.owner,
+            metric.unavailableReason,
+            versionId,
+            key,
+          ],
+        );
+      }
+      await connection.execute(
+        "UPDATE score_definitions SET reviewed_digest=NULL WHERE library_version_id=?",
+        [versionId],
+      );
+      await this.insertAudit(
+        connection,
+        projectId,
+        actor.userId,
+        "metric_library.quality_facts_refreshed",
+        "metric_library_version",
+        versionId,
+        { metricKeys: QUALITY_KEYS },
+      );
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+    return this.getVersion(projectId, versionId);
+  }
+
   async saveBusinessMetric(input: {
     projectId: string;
     versionId: string;
@@ -1398,7 +1460,7 @@ export class MetricLibraryService {
   ): Promise<MetricLibraryDefinition | SystemMetricDefinition> {
     assertMetricKeyRequest(metricKey);
     const system = systemMetricDefinition(metricKey);
-    if (system) return system;
+    if (system && !versionId) return system;
     const params: unknown[] = [projectId, metricKey];
     const versionClause = versionId ? "AND mlv.id = ?" : "AND mlv.status = 'active'";
     if (versionId) params.push(versionId);
@@ -1465,35 +1527,43 @@ export class MetricLibraryService {
           implementationStatus: item.implementationStatus,
           definitionVersion: item.definitionVersion,
           atomicSources:
-            item.definitionVersion !== R4C_FACT_DEFINITION_VERSION
-              ? []
-              : key === "form_efficiency"
-                ? [
-                    "contract_v3.custom.form_summary",
-                    "event-time page/module revisions",
-                    "efficiency-policy.lifecycle_settlement",
-                  ]
-                : key === "operation_fail_rate"
+            item.definitionVersion === QUALITY_DEFINITION_VERSION
+              ? [
+                  "contract_v3 r5a-1 opt-in page cohort",
+                  "Kafka consumer raw_events payload_json",
+                  "deduplicated API/resource starts and terminals; versioned rules and coverage",
+                ]
+              : item.definitionVersion !== R4C_FACT_DEFINITION_VERSION
+                ? []
+                : key === "form_efficiency"
                   ? [
-                      "contract_v3.custom.feature_started + controlled business terminal",
-                      "operationInstanceId",
-                      "efficiency-policy.unknown_blocks_rate",
+                      "contract_v3.custom.form_summary",
+                      "event-time page/module revisions",
+                      "efficiency-policy.lifecycle_settlement",
                     ]
-                  : key === "repeated_operation_rate"
+                  : key === "operation_fail_rate"
                     ? [
-                        "contract_v3.custom.feature_started + verified object reference",
-                        "48h object_operation_refs; project/env/user/type/key isolation",
-                        "reference-free repeated_operation_proofs; rolling inclusive 24h witnesses",
-                        "related session cohort; +/-24h lookaround; 24h lateness",
+                        "contract_v3.custom.feature_started + controlled business terminal",
+                        "operationInstanceId",
+                        "efficiency-policy.unknown_blocks_rate",
                       ]
-                    : ["dept_usage", "role_usage", "role_feature_profile"].includes(key)
+                    : key === "repeated_operation_rate"
                       ? [
-                          "immutable eligible directory version",
-                          "identified page_view and controlled operation start observations",
-                          "matched visibleDurationMs page_leave segments",
-                          "organization-facts fixed closed buckets; k=5 whole-family suppression",
+                          "contract_v3.custom.feature_started + verified object reference",
+                          "48h object_operation_refs; project/env/user/type/key isolation",
+                          "reference-free repeated_operation_proofs; rolling inclusive 24h witnesses",
+                          "related session cohort; +/-24h lookaround; 24h lateness",
                         ]
-                      : [],
+                      : ["dept_usage", "role_usage", "role_feature_profile"].includes(
+                            key,
+                          )
+                        ? [
+                            "immutable eligible directory version",
+                            "identified page_view and controlled operation start observations",
+                            "matched visibleDurationMs page_leave segments",
+                            "organization-facts fixed closed buckets; k=5 whole-family suppression",
+                          ]
+                        : [],
         };
       }),
       edges,

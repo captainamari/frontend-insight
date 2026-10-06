@@ -1,3 +1,7 @@
+import { bindQualityFacts } from "./quality-binding.js";
+import { readQualityPages, type QualityFactStore } from "./quality-facts.js";
+import type { ScoreFact } from "./score-evaluation.js";
+type QualityObservation = Awaited<ReturnType<QualityFactStore["read"]>>;
 import { segmentOverviewBuckets } from "./project-overview.js";
 import { readWorkflowFactDefinitions } from "./workflow-definitions.js";
 import type { WorkflowFactStore } from "./workflow-facts.js";
@@ -58,6 +62,7 @@ export class ScoreManagementService {
     private readonly mysql: MySqlStore,
     private readonly library: MetricLibraryService,
     private readonly workflowFacts?: WorkflowFactStore,
+    private readonly qualityFacts?: QualityFactStore,
   ) {}
   async businessOptions(projectId: string) {
     const [project, settings, modules, pages, workflows] = await Promise.all([
@@ -338,6 +343,7 @@ export class ScoreManagementService {
       periods,
       mode,
       observation.get(projectId),
+      (await this.qualityObservations([snapshot], query)).get(projectId),
     );
   }
   /** All real single-project and batch reads use this same evaluator and explanation. */
@@ -347,6 +353,7 @@ export class ScoreManagementService {
     periods: RowDataPacket[],
     mode: "current" | "historical_trial" = "current",
     workflowObservation?: WorkflowScoreObservation,
+    qualityObservation?: QualityObservation,
   ) {
     if (!snapshot.score)
       throw new MetricLibraryError("SCORE_CONFIGURATION_NOT_SAVED", 404);
@@ -394,14 +401,41 @@ export class ScoreManagementService {
             })),
           }
         : null;
-    // Workflow observations are real; unknown exposure never becomes an available leaf.
-    // Quality/usage remain at their previously approved later-stage boundaries.
+    const quality =
+      qualityObservation && snapshot.version.libraryType === "quality"
+        ? bindQualityFacts(qualityObservation, snapshot)
+        : null;
+    const qualityScoreFacts: Record<string, ScoreFact> = {};
+    for (const [key, input] of Object.entries(quality?.inputs ?? {})) {
+      const metric = qualityObservation!.metrics[key];
+      qualityScoreFacts[key] = {
+        ...input,
+        ...(configuration.scope !== "project"
+          ? { value: null, reason: "QUALITY_MODULE_SCOPE_NOT_VERIFIED" }
+          : {}),
+        status:
+          configuration.scope !== "project"
+            ? "metric_not_available"
+            : input.status === "data_delayed"
+              ? "delayed"
+              : input.status,
+        reason:
+          configuration.scope !== "project"
+            ? "QUALITY_MODULE_SCOPE_NOT_VERIFIED"
+            : (input.reason ?? null),
+        context,
+        numerator: metric?.numerator ?? null,
+        denominator: metric?.denominator ?? null,
+        availableFrom: query.from,
+      };
+    }
+    // Same evaluator for quality and workflow; exposure remains explicitly unverified.
     const result = evaluateScore({
       configuration,
       binding: scoreBinding(snapshot, definitionVersion),
       context,
-      facts: workflow?.facts ?? {},
-      pipelineStatus: workflow?.samples.total ? "healthy" : "no_data",
+      facts: quality ? qualityScoreFacts : (workflow?.facts ?? {}),
+      pipelineStatus: quality || workflow?.samples.total ? "healthy" : "no_data",
       configurationConfirmed: dependencies.confirmed,
       effectiveAt: snapshot.version.activatedAt,
       mode,
@@ -431,6 +465,13 @@ export class ScoreManagementService {
       calculatedAt: new Date().toISOString(),
       trend: null,
       workflowObservation: workflow,
+      qualityObservation: quality
+        ? {
+            ...quality,
+            metrics: qualityObservation!.metrics,
+            statistics: qualityObservation!.statistics,
+          }
+        : null,
       samples: {
         total: null,
         valid: null,
@@ -448,11 +489,55 @@ export class ScoreManagementService {
         activeDates: null,
         numerator: null,
         denominator: null,
-        reason: workflow
-          ? "工作流样本已接入；覆盖未验证时保持 partial。质量/使用事实仍属 R5-A/R6。"
-          : "尚无工作流依赖快照或事实源；质量/使用事实属 R5-A/R6。",
+        reason: quality
+          ? "质量事实已按所选版本接入同一评分求值器；全项目来源曝光仍未验证。"
+          : workflow
+            ? "工作流样本已接入；覆盖未验证时保持 partial。使用事实仍属 R6。"
+            : "尚无工作流依赖快照或事实源；质量源未接入或范围超出保留窗口；使用事实属 R6。",
       },
     };
+  }
+  private async qualityObservations(
+    snapshots: Awaited<ReturnType<ScoreManagementService["get"]>>[],
+    query: ScoreQuery,
+  ) {
+    const ids = [
+      ...new Set(
+        snapshots
+          .filter(
+            (s) =>
+              s.version.libraryType === "quality" &&
+              s.score &&
+              s.definitions.some((d) => d.definitionVersion.startsWith("r5a-facts-")),
+          )
+          .map((s) => s.version.projectId),
+      ),
+    ];
+    if (
+      !this.qualityFacts ||
+      !ids.length ||
+      Date.parse(query.to) - Date.parse(query.from) > 89 * 86400000
+    )
+      return new Map<string, QualityObservation>();
+    // Only the explicit single-project score route requests facts. Project-card batches
+    // retain their existing fixed query budget and conservative unavailable state.
+    if (ids.length !== 1) return new Map<string, QualityObservation>();
+    const projectId = ids[0]!;
+    const pages = await readQualityPages(this.mysql, projectId, query.from, query.to);
+    return new Map([
+      [
+        projectId,
+        await this.qualityFacts.read(
+          projectId,
+          query.env,
+          query.from,
+          query.to,
+          query.asOf,
+          undefined,
+          pages,
+        ),
+      ],
+    ]);
   }
   private async workflowObservations(
     connection: Pick<MySqlStore["pool"], "query">,

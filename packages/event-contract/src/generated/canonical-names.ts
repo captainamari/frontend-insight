@@ -52,7 +52,9 @@ export const CANONICAL_PERFORMANCE_METRICS = [
   "inp",
   "cls",
   "fcp",
-  "ttfb"
+  "ttfb",
+  "first_screen_time",
+  "list_render_duration"
 ] as const;
 export const CANONICAL_METRIC_KEYS = [
   "pv",

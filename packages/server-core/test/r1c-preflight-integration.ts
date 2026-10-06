@@ -85,7 +85,22 @@ try {
     const readiness = result.readiness as { key: string; reason: string }[];
     assert(readiness.some((item) => item.reason === "SCORE_OWNER_MISSING"));
     assert(readiness.some((item) => item.reason === "SCORE_TARGET_REQUIRED"));
-    assert(readiness.some((item) => item.reason === "partial"));
+    const snapshot = await request(
+      admin,
+      `/api/projects/${projectId}/metrics/versions/${versionId}`,
+    );
+    const definitions = snapshot.definitions as {
+      metricKey: string;
+      implementationStatus: string;
+    }[];
+    assert.equal(
+      readiness.some((item) => item.reason === "partial"),
+      definitions.some(
+        (d) => metricKeys.includes(d.metricKey) && d.implementationStatus === "partial",
+      ),
+      "Preflight must use the selected immutable definition, including implemented R5-A quality sources",
+    );
+    assert.equal(result.reason, "SCORE_PREFLIGHT_CONFIGURATION_ONLY");
     await request(viewer, path, configuration, 403);
     const negative = await request(
       admin,

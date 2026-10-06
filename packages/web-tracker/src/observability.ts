@@ -205,15 +205,20 @@ export class BrowserObservability {
     this.instrumentedFetch = null;
   }
 
-  captureException(error: unknown): void {
+  captureException(error: unknown, category: "js" | "promise" = "js"): void {
     this.emit("error", {
       errorType: "js",
-      errorCategory: "js",
+      errorCategory: category,
       ...errorDetails(error),
     });
   }
 
   captureApiError(details: ApiErrorDetails): void {
+    if (
+      details.failureType === "business" ||
+      (details.statusCode >= 100 && details.statusCode < 400)
+    )
+      return;
     this.emit("api", {
       success: false,
       requestMethod: requestMethod(details.method),
@@ -260,7 +265,7 @@ export class BrowserObservability {
   };
 
   private readonly handleUnhandledRejection = (event: PromiseRejectionEvent): void => {
-    this.captureException(event.reason ?? "Unhandled promise rejection");
+    this.captureException(event.reason ?? "Unhandled promise rejection", "promise");
   };
 
   private installFetchInstrumentation(): void {

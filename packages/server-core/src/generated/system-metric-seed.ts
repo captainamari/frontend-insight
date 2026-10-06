@@ -121,112 +121,112 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "lcp",
     "displayName": "最大内容绘制",
     "category": "performance",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "inp",
     "displayName": "交互到下次绘制",
     "category": "performance",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "cls",
     "displayName": "累积布局偏移",
     "category": "performance",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "fcp",
     "displayName": "首次内容绘制",
     "category": "performance",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "ttfb",
     "displayName": "首字节时间",
     "category": "performance",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "first_screen_time",
     "displayName": "业务首屏时间",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "api_duration",
     "displayName": "接口耗时",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "api_slow_top",
     "displayName": "慢接口 TOP",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "list_render_duration",
     "displayName": "列表渲染耗时",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "longtask_count",
     "displayName": "长任务次数",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "longtask_total",
     "displayName": "长任务总时长",
     "category": "performance",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "js_error_rate",
     "displayName": "JS 错误率",
     "category": "stability",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "api_error_rate",
     "displayName": "API 错误率",
     "category": "stability",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "resource_error_rate",
     "displayName": "资源错误率",
     "category": "stability",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "blank_screen_rate",
     "displayName": "白屏率",
     "category": "stability",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {
     "metricKey": "breadcrumb",
     "displayName": "安全操作面包屑",
     "category": "stability",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R5-A"
   },
   {

@@ -80,7 +80,11 @@ export function observabilityGroupId(
   event: string,
   payload: Record<string, unknown>,
 ): string | null {
-  const isApiFailure = event === "api" && payload.success === false;
+  const isApiFailure =
+    event === "api" &&
+    payload.success === false &&
+    payload.failureType !== "business" &&
+    payload.failureType !== "aborted";
   if (event !== "error" && !isApiFailure) return null;
   const status = propertyNumber(payload, "statusCode");
   const statusClass = status === null ? "" : `${Math.floor(status / 100)}xx`;
@@ -492,13 +496,19 @@ export class EventConsumerRuntime {
         error_category:
           event.event === "error"
             ? propertyString(payload, "errorCategory")
-            : event.event === "api" && payload.success === false
+            : event.event === "api" &&
+                payload.success === false &&
+                payload.failureType !== "business" &&
+                payload.failureType !== "aborted"
               ? propertyString(payload, "failureType")
               : null,
         error_type:
           event.event === "error"
             ? propertyString(payload, "errorType")
-            : event.event === "api" && payload.success === false
+            : event.event === "api" &&
+                payload.success === false &&
+                payload.failureType !== "business" &&
+                payload.failureType !== "aborted"
               ? "api"
               : null,
         error_name: propertyString(payload, "errorName"),

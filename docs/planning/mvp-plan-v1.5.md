@@ -1,4 +1,8 @@
+> **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
+
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
+
+> **R5-A 授权与实施 · 2026-10-04**：Jesse批准暂缓R4-C手工验收，R5完成后统一验收，未记录为通过。refactor合并PR #21为 `07121333cdaf9543a47cbb3dba05418342b934a9`，继承 `78033f123e85971d13067c76ecee956d0e2808c2`。仅实施§16.1–16.3；[R5-A results](../progress/v1.8-r5a-results.md)记录位置与门禁，[decisions](../progress/v1.8-r5a-decisions.md)记录口径。旧阶段限制保留为历史；不自动合并或进入R5-B/R6/R7/R8。
 
 > **R4-B 验收与 R4-C 授权 · 2026-09-29**：用户确认 R4-B 手工验收通过，相关分支已合入 refactor，本次进入 R4-C。远端实际起点 `982341b2aee7d61b7473ded6b055e021bb095272`（PR #20），包含 `236169a04768bf2b20717d813fafffd8bed371f2`；Actions `36381630769` 已重新核对 completed/success 且 head SHA一致。2026-09-29为确认日期，不补造执行日期、设备、步骤或截图。旧失败与阶段门保留为历史，旧“不得进入 R4-C”由本确认解除；不代表批准Q07或缺步骤/跳步建议。R3仍为“R3 自动化与真实集成通过；用户批准免除独立手工验收并进入 R4-A。”不自动合并，不进入R5。
 
@@ -757,65 +761,67 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 16. R5-A：页面分析——性能与稳定性 collector/指标
 
-建议分支：`agent/v1-8-r5a-quality-collectors`
+实际分支：`agent/v1-8-r5a-quality-collectors`。下列为实现/fixture完成标记；最终同提交Actions及手工交接状态以[R5-A results](../progress/v1.8-r5a-results.md)为准，不代表Jesse已手工验收。canonical改名已由继承contract v3完成，本次只扩展，未重复迁移。
 
 ### 16.1 性能 collector
 
-- [ ] 将 `web_vital` + 大写 vitalName 切换为 `event=performance`，`payload.metric` 使用 `lcp`、`inp`、`cls`、`fcp`、`ttfb`；
-- [ ] `lcp`、`inp`、`cls`、`fcp`、`ttfb` 按附件输出规定主分位数，并保留 P50/P75/P90/P99、sample 和 threshold version；
-- [ ] 增加业务显式 `first_screen_time` API；
-- [ ] 增加 API 汇总适配器，形成 `api_duration`、`api_slow_top`、`api_error_rate` 的成功与失败请求分母；全局 fetch 包装默认关闭；
-- [ ] 增加 `list_render_duration` 显式组件计时，行数分桶 `<100/100–1000/>1000`；
-- [ ] 增加 `longtask_count`、`longtask_total`，按 `pageRoute` 在 `page_leave` 汇总；
-- [ ] collector 都有开关、采样、队列大小、事件大小和宿主异常隔离。
+- [x] 将 `web_vital` + 大写 vitalName 切换为 `event=performance`，`payload.metric` 使用 `lcp`、`inp`、`cls`、`fcp`、`ttfb`；
+- [x] `lcp`、`inp`、`cls`、`fcp`、`ttfb` 按附件输出规定主分位数，并保留 P50/P75/P90/P99、sample 和 threshold version；
+- [x] 增加业务显式 `first_screen_time` API；
+- [x] 增加 API 汇总适配器，形成 `api_duration`、`api_slow_top`、`api_error_rate` 的成功与失败请求分母；全局 fetch 包装默认关闭；
+- [x] 增加 `list_render_duration` 显式组件计时，行数分桶 `<100/100–1000/>1000`；
+- [x] 增加 `longtask_count`、`longtask_total`，按 `pageRoute` 在 `page_leave` 汇总；
+- [x] collector 都有开关、采样、队列大小、事件大小和宿主异常隔离。
 
 ### 16.2 稳定性 collector
 
-- [ ] `event=error` 覆盖 JS/resource，`event=api` 覆盖 API 正常/异常汇总；
-- [ ] `js_error_rate` 使用 JS 异常次数 / `pv`；
-- [ ] `api_error_rate` 使用 HTTP/网络/超时异常请求 / API 请求总数；
-- [ ] `resource_error_rate` 增加资源请求总数汇总后才激活；
-- [ ] `blank_screen_rate` 按页面模板 opt-in，返回启用检测 PV 分母、规则版本和 coverage；
-- [ ] `breadcrumb` 环形缓冲最多 50 条，仅随错误发送，只含页面跳转、安全 action、脱敏 API 和允许的生命周期；
-- [ ] 保留稳定 error group、指纹限流和安全堆栈，不因字段改名降低现有隐私保护。
+- [x] `event=error` 覆盖 JS/resource，`event=api` 覆盖 API 正常/异常汇总；
+- [x] `js_error_rate` 使用 JS 异常次数 / `pv`；
+- [x] `api_error_rate` 使用 HTTP/网络/超时异常请求 / API 请求总数；
+- [x] `resource_error_rate` 增加资源请求总数汇总后才激活；
+- [x] `blank_screen_rate` 按页面模板 opt-in，返回启用检测 PV 分母、规则版本和 coverage；
+- [x] `breadcrumb` 环形缓冲最多 50 条，仅随错误发送，只含页面跳转、安全 action、脱敏 API 和允许的生命周期；
+- [x] 保留稳定 error group、指纹限流和安全堆栈，不因字段改名降低现有隐私保护。
 
 ### 16.3 查询、容量与阶段门
 
-- [ ] 所有 rate 的 numerator/denominator、0 分母、缺失 collector、样本不足和 partial 时段 golden fixture；
-- [ ] Chromium/WebKit 的 PerformanceObserver 支持与降级；
-- [ ] API/resource 成功分母新增后的事件量、20/200 events/s 链路和 ClickHouse 扫描预算；
-- [ ] collector 开关组合、重复安装/销毁、页面切换结算顺序和 Beacon flush；
-- [ ] token/query/header/body/form/DOM/raw userId 的全链路负向 fixture；
-- [ ] 指标查询只能返回附件 key，旧 event/metric alias 被拒绝。
+- [x] 所有 rate 的 numerator/denominator、0 分母、缺失 collector、样本不足和 partial 时段 golden fixture；
+- [x] Chromium/WebKit 的 PerformanceObserver 支持与降级；
+- [x] API/resource 成功分母新增后的事件量、20/200 events/s 链路和 ClickHouse 扫描预算；
+- [x] collector 开关组合、重复安装/销毁、页面切换结算顺序和 Beacon flush；
+- [x] token/query/header/body/form/DOM/raw userId 的全链路负向 fixture；
+- [x] 指标查询只能返回附件 key，旧 event/metric alias 被拒绝。
 
 阶段门：性能与稳定性字典指标均为 `implemented` 或有经评审的 `not_collected` 原因；任何称为 rate 的指标都有真实分母；SDK 对宿主业务的同步耗时、包体和异常隔离通过预算。
 
 ## 17. R5-B：页面分析——质量 TAB UI
 
-建议分支：`agent/v1-8-r5b-page-quality-ui`
+实际分支：`agent/v1-8-r5b-page-quality-ui`
+
+2026-10-06复核：代码 `d60b924` 的 [Actions 37419628249](https://github.com/captainamari/frontend-insight/actions/runs/37419628249) 全部成功，历史失败已修复，37份JSON证据SHA一致。下列标记表示实现及自动化已交付；Jesse统一手工验收仍待确认，详见[R5-B results](../progress/v1.8-r5b-results.md)与PR #23，不代填手工验收通过。
 
 ### 17.1 数据与 API
 
-- [ ] 标准化 error category：api/resource/vue/react/promise/js/other；
-- [ ] 保留 stable error group；
-- [ ] 增加按 `pageRoute/timestamp/category` 的 occurrence read model；
-- [ ] cursor pagination；
-- [ ] sanitized stack frames；
-- [ ] safe reproduction context；
-- [ ] 最新/全部实例切换；
-- [ ] `release/env/browser/os` 和视口档位；
-- [ ] query/headers/body/账号原值永不返回。
+- [x] 标准化 error category：api/resource/vue/react/promise/js/other；
+- [x] 保留 stable error group；
+- [x] 增加按 `pageRoute/timestamp/category` 的 occurrence read model；
+- [x] cursor pagination；
+- [x] sanitized stack frames；
+- [x] safe reproduction context；
+- [x] 最新/全部实例切换；
+- [x] `release/env/browser/os` 和视口档位；
+- [x] query/headers/body/账号原值永不返回。
 
 ### 17.2 UI
 
-- [ ] 页面分析默认 quality；
-- [ ] `pageRoute` 模糊单选、custom date、category；
-- [ ] 路径、时间、堆栈、复现条件、类别；
-- [ ] 复现条件抽屉；
-- [ ] group 折叠和分页；
-- [ ] 数据状态、availableFrom、`release`；
-- [ ] URL 可刷新/分享；
-- [ ] 键盘可打开/关闭抽屉。
+- [x] 页面分析默认 quality；
+- [x] `pageRoute` 模糊单选、custom date、category；
+- [x] 路径、时间、堆栈、复现条件、类别；
+- [x] 复现条件抽屉；
+- [x] group 折叠和分页；
+- [x] 数据状态、availableFrom、`release`；
+- [x] URL 可刷新/分享；
+- [x] 键盘可打开/关闭抽屉。
 
 ### 17.3 隐私测试
 

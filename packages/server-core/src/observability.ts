@@ -610,7 +610,7 @@ export class ObservabilityStore {
           countIf(vital_rating = 'poor') AS poor_samples,
           countIf(vital_rating = 'poor') / count() AS poor_rate,
           max(timestamp) AS last_seen_at
-        FROM (${observabilityEventsWhere("AND event = 'performance' AND vital_value IS NOT NULL" + (env ? " AND env={env:String}" : ""))})
+        FROM (${observabilityEventsWhere("AND event = 'performance' AND vital_name IN ('lcp','inp','cls','fcp','ttfb') AND vital_value IS NOT NULL" + (env ? " AND env={env:String}" : ""))})
         GROUP BY pageRoute, vital_name, release
         ORDER BY poor_rate DESC, sample_size DESC, pageRoute
         LIMIT ${Math.max(1, Math.min(1000, limit))}

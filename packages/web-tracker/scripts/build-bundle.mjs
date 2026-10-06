@@ -29,3 +29,35 @@ if (!report.passed) {
   );
 }
 console.log(JSON.stringify(report));
+
+await build({
+  entryPoints: ["src/quality.ts"],
+  outfile: "dist/quality.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  legalComments: "none",
+});
+const qualityBytes = gzipSync(await readFile("dist/quality.js")).byteLength;
+if (qualityBytes > maximumGzipBytes) throw new Error("QUALITY_BUNDLE_BUDGET");
+console.log(JSON.stringify({ qualityGzipBytes: qualityBytes, maximumGzipBytes }));
+
+if (process.env.GITHUB_SHA) {
+  await mkdir("../../artifacts", { recursive: true });
+  await writeFile(
+    "../../artifacts/r5a-sdk-bundle.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA,
+        base: report,
+        optionalQualityGzipBytes: qualityBytes,
+        combinedGzipBytes: report.gzipBytes + qualityBytes,
+        note: "Base entrypoint retains its existing 12KiB cap; optional extension is a separate explicit download, not free or included in the base figure.",
+      },
+      null,
+      2,
+    ),
+  );
+}

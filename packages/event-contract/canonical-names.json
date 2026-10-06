@@ -85,7 +85,15 @@
     "form_summary"
   ],
   "environments": ["prod", "staging", "dev"],
-  "performanceMetrics": ["lcp", "inp", "cls", "fcp", "ttfb"],
+  "performanceMetrics": [
+    "lcp",
+    "inp",
+    "cls",
+    "fcp",
+    "ttfb",
+    "first_screen_time",
+    "list_render_duration"
+  ],
   "metricKeys": [
     {
       "key": "pv",
@@ -197,112 +205,112 @@
       "label": "最大内容绘制",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "inp",
       "label": "交互到下次绘制",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "cls",
       "label": "累积布局偏移",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "fcp",
       "label": "首次内容绘制",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "ttfb",
       "label": "首字节时间",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "first_screen_time",
       "label": "业务首屏时间",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "api_duration",
       "label": "接口耗时",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "api_slow_top",
       "label": "慢接口 TOP",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "list_render_duration",
       "label": "列表渲染耗时",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "longtask_count",
       "label": "长任务次数",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "longtask_total",
       "label": "长任务总时长",
       "category": "performance",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "js_error_rate",
       "label": "JS 错误率",
       "category": "stability",
       "milestone": "R5-A",
-      "implementationStatus": "partial"
+      "implementationStatus": "implemented"
     },
     {
       "key": "api_error_rate",
       "label": "API 错误率",
       "category": "stability",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "resource_error_rate",
       "label": "资源错误率",
       "category": "stability",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "blank_screen_rate",
       "label": "白屏率",
       "category": "stability",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "breadcrumb",
       "label": "安全操作面包屑",
       "category": "stability",
       "milestone": "R5-A",
-      "implementationStatus": "not_collected"
+      "implementationStatus": "implemented"
     },
     {
       "key": "dept_usage",

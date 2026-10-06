@@ -38,6 +38,7 @@ export function createTracker(config: TrackerConfig): Tracker {
     if (existing?.getDiagnostics().state === "active") return existing;
     const tracker = new BrowserTracker(
       {
+        quality: config.quality,
         appId: config.appId,
         env: config.env,
         release: config.release,
