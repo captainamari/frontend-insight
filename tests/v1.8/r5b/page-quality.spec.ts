@@ -254,6 +254,9 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   await page.getByLabel("页面路径", { exact: true }).selectOption("/r5b-fixture");
   await page.getByLabel("错误类别").selectOption("vue");
   await expect(page).toHaveURL(/category=vue/);
+  await expect(page.getByLabel("页面路径", { exact: true })).toHaveValue(
+    "/r5b-fixture",
+  );
   await page.reload();
   await expect(page.getByLabel("错误类别")).toHaveValue("vue");
   const button = page.getByRole("button", { name: /^打开复现条件/ }).first();
@@ -267,6 +270,8 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   await expect(button).toBeFocused();
   await page.getByLabel("错误类别").selectOption("all");
   await page.getByLabel("实例范围").selectOption("all");
+  await expect(page.getByLabel("错误类别")).toHaveValue("all");
+  await expect(page.getByLabel("实例范围")).toHaveValue("all");
   await expect(page.getByRole("button", { name: "下一页", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "下一页", exact: true }).click();
   await expect(page).toHaveURL(/cursor=/);

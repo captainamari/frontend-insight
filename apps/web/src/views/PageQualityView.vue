@@ -138,18 +138,23 @@ async function load() {
     if (id === generation) loading.value = false;
   }
 }
+let filterNavigation = Promise.resolve();
 function change(key: string, value?: string) {
-  void router.push({
-    query: {
-      ...route.query,
-      [key]: value || undefined,
-      cursor: undefined,
-      ...(key === "groupId"
-        ? { mode: value ? "all" : "latest" }
-        : key !== "mode"
-          ? { groupId: undefined }
-          : {}),
-    },
+  // Read the route only after the preceding navigation commits, so rapid
+  // changes compose instead of overwriting each other with stale query values.
+  filterNavigation = filterNavigation.then(async () => {
+    await router.push({
+      query: {
+        ...route.query,
+        [key]: value || undefined,
+        cursor: undefined,
+        ...(key === "groupId"
+          ? { mode: value ? "all" : "latest" }
+          : key !== "mode"
+            ? { groupId: undefined }
+            : {}),
+      },
+    });
   });
 }
 function detail(item: Occurrence) {

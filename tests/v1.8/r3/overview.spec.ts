@@ -96,6 +96,19 @@ for (const role of ["admin", "viewer"] as const) {
         await expect(
           page.getByRole("heading", { name: "工作流追踪", exact: true }),
         ).toBeVisible();
+      } else if (suffix === "pages") {
+        await expect(
+          page.getByRole("heading", { name: "页面分析", exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("button", { name: "质量分析", exact: true }),
+        ).toHaveAttribute("aria-current", "page");
+        await expect(page.getByLabel("页面路径", { exact: true })).toBeVisible();
+        await expect(page.getByRole("table", { name: "质量错误实例" })).toBeVisible();
+        for (const key of ["env", "from", "to"])
+          expect(new URL(page.url()).searchParams.get(key)).toBe(
+            original.searchParams.get(key),
+          );
       } else {
         await expect(
           page.getByText("当前阶段尚未开放正文功能", { exact: false }),
