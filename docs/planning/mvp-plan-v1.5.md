@@ -796,30 +796,32 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 17. R5-B：页面分析——质量 TAB UI
 
-建议分支：`agent/v1-8-r5b-page-quality-ui`
+实际分支：`agent/v1-8-r5b-page-quality-ui`
+
+以上及下列标记表示实现已交付；最终同提交CI与Jesse统一手工验收状态以[R5-B results](../progress/v1.8-r5b-results.md)和PR #23交接正文为准，不代填验收通过。
 
 ### 17.1 数据与 API
 
-- [ ] 标准化 error category：api/resource/vue/react/promise/js/other；
-- [ ] 保留 stable error group；
-- [ ] 增加按 `pageRoute/timestamp/category` 的 occurrence read model；
-- [ ] cursor pagination；
-- [ ] sanitized stack frames；
-- [ ] safe reproduction context；
-- [ ] 最新/全部实例切换；
-- [ ] `release/env/browser/os` 和视口档位；
-- [ ] query/headers/body/账号原值永不返回。
+- [x] 标准化 error category：api/resource/vue/react/promise/js/other；
+- [x] 保留 stable error group；
+- [x] 增加按 `pageRoute/timestamp/category` 的 occurrence read model；
+- [x] cursor pagination；
+- [x] sanitized stack frames；
+- [x] safe reproduction context；
+- [x] 最新/全部实例切换；
+- [x] `release/env/browser/os` 和视口档位；
+- [x] query/headers/body/账号原值永不返回。
 
 ### 17.2 UI
 
-- [ ] 页面分析默认 quality；
-- [ ] `pageRoute` 模糊单选、custom date、category；
-- [ ] 路径、时间、堆栈、复现条件、类别；
-- [ ] 复现条件抽屉；
-- [ ] group 折叠和分页；
-- [ ] 数据状态、availableFrom、`release`；
-- [ ] URL 可刷新/分享；
-- [ ] 键盘可打开/关闭抽屉。
+- [x] 页面分析默认 quality；
+- [x] `pageRoute` 模糊单选、custom date、category；
+- [x] 路径、时间、堆栈、复现条件、类别；
+- [x] 复现条件抽屉；
+- [x] group 折叠和分页；
+- [x] 数据状态、availableFrom、`release`；
+- [x] URL 可刷新/分享；
+- [x] 键盘可打开/关闭抽屉。
 
 ### 17.3 隐私测试
 

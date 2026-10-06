@@ -219,6 +219,7 @@ onBeforeUnmount(() => {
       /></label>
       <label
         >页面路径<select
+          aria-label="页面路径"
           :value="route.query.pageRoute ?? ''"
           @change="change('pageRoute', ($event.target as HTMLSelectElement).value)"
         >
@@ -228,6 +229,7 @@ onBeforeUnmount(() => {
       >
       <label
         >错误类别<select
+          aria-label="错误类别"
           :value="route.query.category ?? 'all'"
           @change="change('category', ($event.target as HTMLSelectElement).value)"
         >
@@ -236,6 +238,7 @@ onBeforeUnmount(() => {
       >
       <label
         >实例范围<select
+          aria-label="实例范围"
           :value="route.query.mode ?? 'latest'"
           @change="change('mode', ($event.target as HTMLSelectElement).value)"
         >
@@ -371,6 +374,30 @@ onBeforeUnmount(() => {
   </section>
 </template>
 <style scoped>
+.page-quality button,
+.page-quality input,
+.page-quality select {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+}
+.page-quality button:hover:not(:disabled) {
+  border-color: var(--blue);
+  color: var(--blue);
+}
+.page-quality button:disabled {
+  color: var(--muted);
+  background: var(--canvas);
+}
+.quality-tabs button[aria-current="page"] {
+  color: var(--blue);
+  border-color: var(--blue);
+  font-weight: 600;
+}
+
 .quality-tabs,
 .quality-filters,
 .quality-pagination {

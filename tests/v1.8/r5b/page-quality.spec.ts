@@ -43,7 +43,8 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   );
   const sent: string[] = [];
   page.on("request", (r) => {
-    if (r.url().endsWith("/v1/events")) sent.push(r.postData() ?? "");
+    if (r.url().endsWith("/v1/events") && r.method() === "POST" && r.postData())
+      sent.push(r.postData()!);
   });
   const from = new Date(Date.now() - 1000).toISOString();
   await page.goto("http://127.0.0.1:4174/r5b-fixture");
@@ -102,6 +103,7 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
     } catch {
       /* expected */
     }
+    await tracker.flush();
     tracker.destroy();
     await tracker.flush();
   }, project.appId);
@@ -219,6 +221,7 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   ).toBe(true);
   expect((await request.get(endpoint + q, { headers: vh })).status()).toBe(200);
   // Rejected payloads must not become occurrence context or reach the event topic.
+  expect(sent.length).toBeGreaterThan(0);
   const original = JSON.parse(sent[0]!);
   for (const field of ["headers", "body", "query", "dom", "account"]) {
     const poison = structuredClone(original);
