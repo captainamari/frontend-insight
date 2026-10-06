@@ -798,7 +798,7 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 实际分支：`agent/v1-8-r5b-page-quality-ui`
 
-以上及下列标记表示实现已交付；最终同提交CI与Jesse统一手工验收状态以[R5-B results](../progress/v1.8-r5b-results.md)和PR #23交接正文为准，不代填验收通过。
+2026-10-06复核：代码 `d60b924` 的 [Actions 37419628249](https://github.com/captainamari/frontend-insight/actions/runs/37419628249) 全部成功，历史失败已修复，37份JSON证据SHA一致。下列标记表示实现及自动化已交付；Jesse统一手工验收仍待确认，详见[R5-B results](../progress/v1.8-r5b-results.md)与PR #23，不代填手工验收通过。
 
 ### 17.1 数据与 API
 
