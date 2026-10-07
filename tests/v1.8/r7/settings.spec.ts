@@ -351,7 +351,7 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
     multiplier: 2,
     workStart: 9,
     workEnd: 18,
-    workDays: [0],
+    workDays: [(new Date().getUTCDay() + 3) % 7],
     visibleRoles: ["owner"],
     sharedSubjects: [],
     exceptions: [],

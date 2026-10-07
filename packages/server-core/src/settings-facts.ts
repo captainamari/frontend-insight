@@ -90,7 +90,7 @@ export function evaluateAbnormal(
   const seen = new Set<string>();
   const users = new Map<string, SettingsFact[]>();
   for (const r of rows) {
-    if (!r.user_id || !r.operation_instance_id || r.feature_stage !== "feature_started")
+    if (!r.user_id || !r.operation_instance_id || r.feature_stage !== "started")
       continue;
     const id = r.user_id + ":" + r.operation_instance_id;
     if (seen.has(id)) continue;

@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { defaultScoreTemplate } from "../src/score-templates.js";
 import { MySqlStore } from "../src/mysql-store.js";
 import { SettingsService, exportTokenHash } from "../src/settings.js";
 import type { RowDataPacket } from "mysql2/promise";
@@ -89,6 +90,145 @@ try {
   assert.equal(rows[0]!.token_prefix, token.slice(0, 10));
   assert(!JSON.stringify(await one.interfaces(pid, 1)).includes(token));
   const q = { env: "dev", from: scope.from, to: new Date(now).toISOString() };
+  // Activate through the inherited review API, then compare exports with its versioned source.
+  const root = `/api/projects/${pid}`;
+  const module = await call(
+    root + "/modules",
+    admin.accessToken,
+    "POST",
+    { moduleKey: "r7_module", name: "R7 version fixture" },
+    201,
+  );
+  await call(
+    root + "/page-definitions",
+    admin.accessToken,
+    "POST",
+    {
+      moduleId: module.id,
+      name: "R7 page",
+      pageRoute: "/r7",
+      templateKey: "task_operation",
+      isCore: true,
+      criticalityWeight: 1,
+      expectedFrequency: "daily",
+    },
+    201,
+  );
+  await call(
+    root + "/operational-settings/versions",
+    admin.accessToken,
+    "POST",
+    {
+      targetUsers: 10,
+      expectedActiveWeekdays: [1, 2, 3, 4, 5],
+      effectiveFrom: new Date(now - 86400000).toISOString(),
+    },
+    201,
+  );
+  const workflow = await call(
+    root + "/workflow-definitions",
+    admin.accessToken,
+    "POST",
+    {
+      moduleId: module.id,
+      workflowKey: "r7_workflow",
+      name: "R7 version workflow",
+      startPolicy: "first_step",
+      timeoutSeconds: 600,
+      terminalPolicy: {
+        completedStepKey: "done",
+        failedStepKey: null,
+        canceledStepKey: null,
+        timeoutState: "approximate_abandoned",
+      },
+      steps: [
+        {
+          stepKey: "start",
+          name: "Start",
+          stepOrder: 1,
+          triggerKind: "explicit_sdk",
+          triggerConfig: {},
+        },
+        {
+          stepKey: "done",
+          name: "Done",
+          stepOrder: 2,
+          triggerKind: "explicit_sdk",
+          triggerConfig: {},
+        },
+      ],
+    },
+    201,
+  );
+  await call(
+    root + `/workflow-definitions/${workflow.id}/activate`,
+    admin.accessToken,
+    "POST",
+    { versionId: (workflow.latestVersion as { id: string }).id },
+    201,
+  );
+  const versions = (await call(
+    root + "/metrics/versions?type=operational",
+    admin.accessToken,
+  )) as unknown as { id: string; status: string }[];
+  const version = versions.find((v) => v.status === "draft")!;
+  const options = await call(
+    root + "/score-management/business-options",
+    admin.accessToken,
+  );
+  await call(
+    root + `/score-management/versions/${version.id}`,
+    admin.accessToken,
+    "PUT",
+    {
+      configuration: defaultScoreTemplate("operational").configuration,
+      business: {
+        confirmed: true,
+        scopeId: pid,
+        optionsDigest: options.optionsDigest,
+        workflowWeights: Object.fromEntries(
+          (options.workflows as { id: string }[]).map((w) => [w.id, 1]),
+        ),
+        durationMinimumSample: 5,
+      },
+    },
+  );
+  await call(
+    root + `/metrics/versions/${version.id}/overview-bindings`,
+    admin.accessToken,
+    "PUT",
+    { metricKeys: ["pv", "uv", "vv"] },
+  );
+  await call(
+    root + `/score-management/versions/${version.id}/review`,
+    admin.accessToken,
+    "POST",
+    { ...q, granularity: "day" },
+    201,
+  );
+  await call(
+    root + `/metrics/versions/${version.id}/activate`,
+    admin.accessToken,
+    "POST",
+    undefined,
+    201,
+  );
+  const queryString = new URLSearchParams(q).toString();
+  const source = await call(
+    root + "/overview?range=custom&" + queryString,
+    admin.accessToken,
+  );
+  const exported = await call(
+    `/api/external/projects/${pid}/metric_snapshot?` + queryString,
+    token,
+  );
+  assert.equal((exported.version as { id: string }).id, version.id);
+  assert.deepEqual(exported.metrics, (source.metrics as { cards: unknown }).cards);
+  assert.deepEqual(exported.pipeline, source.pipeline);
+  await mysql.pool.execute(
+    "DELETE FROM export_rate_windows WHERE export_interface_id=?",
+    [created.id],
+  );
   // Six concurrent authorizations across separate service/store/pool instances share exactly three admissions.
   const results = await Promise.allSettled(
     Array.from({ length: 6 }, (_, i) =>
@@ -216,6 +356,7 @@ try {
         limitPerMinute: 3,
         invalidCredentialRateLimited: true,
         cache: "No authorization or revocation cache",
+        versionedSourceMatches: true,
         productionCapacityClaim: false,
       },
       null,

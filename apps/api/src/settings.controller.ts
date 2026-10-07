@@ -27,6 +27,7 @@ import {
   R7_SDK_VERSION,
   EXPORT_KINDS,
   type Principal,
+  type RowDataPacket,
 } from "@frontend-insight/server-core";
 import { CoreService } from "./core.service.js";
 import { CurrentPrincipal, parseInput } from "./http.js";
@@ -148,12 +149,10 @@ export class SettingsController {
     // Global admins are represented as "admin" by the shared permission service.
     // Approval attestation additionally needs an actual owner membership; do not infer it from global admin.
     if (p.globalRole === "admin") {
-      const [members] = await this.core.mysql.pool.query<
-        import("@frontend-insight/server-core").RowDataPacket[]
-      >("SELECT role FROM project_members WHERE project_id=? AND user_id=?", [
-        id,
-        p.userId,
-      ]);
+      const [members] = await this.core.mysql.pool.query<RowDataPacket[]>(
+        "SELECT role FROM project_members WHERE project_id=? AND user_id=?",
+        [id, p.userId],
+      );
       if (members[0]?.role === "owner") return "owner";
     }
     return role;

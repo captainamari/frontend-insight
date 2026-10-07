@@ -18,7 +18,7 @@ function event(id: string, at: string, version = "0.8.0"): SettingsFact {
     user_id: "hashed-user",
     device_id: id,
     operation_instance_id: id,
-    feature_stage: "feature_started",
+    feature_stage: "started",
     request_id: "request",
   };
 }
