@@ -21,7 +21,10 @@ async function call(
 ) {
   const r = await fetch(base + path, {
     method,
-    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   assert.equal(r.status, status, `${path}: ${r.status}`);
