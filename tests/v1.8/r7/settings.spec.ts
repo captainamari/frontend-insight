@@ -421,12 +421,22 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
     })
     .toBe(true);
   const viewerEvidence = await (
-    await request.get(settings + "/abnormal-evidence?env=dev&range=7d", { headers: vh })
+    await request.get(settings + "/abnormal-evidence?env=dev&range=7d&export=json", {
+      headers: vh,
+    })
   ).json();
   expect(viewerEvidence.items).toEqual([]);
   const audit = await (await request.get(settings + "/audit", { headers })).text();
   expect(audit).toContain("abnormal.export");
   expect(audit).not.toContain(target.token);
+  expect(JSON.parse(audit).items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        action: "abnormal.export",
+        metadata: expect.objectContaining({ state: "NO_VISIBLE_APPROVED_RULE" }),
+      }),
+    ]),
+  );
   // URL context, reload, latest project wins; data endpoints are never mocked.
   await page.goto(url.replace("tab=integration", "tab=probes"));
   await page.reload();

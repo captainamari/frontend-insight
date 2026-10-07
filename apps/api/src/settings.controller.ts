@@ -477,7 +477,7 @@ export class SettingsController {
         this.core.mysql.pool,
         id,
         p.userId,
-        "abnormal.view",
+        exportFormat ? "abnormal.export" : "abnormal.view",
         id,
         request.id,
         { state: "NO_VISIBLE_APPROVED_RULE" },
