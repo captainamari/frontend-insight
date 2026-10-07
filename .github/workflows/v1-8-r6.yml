@@ -199,7 +199,7 @@ jobs:
           writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
           NODE
 
-      - name: Record R6 exact-commit evidence and verify Draft PR head
+      - name: Record R6 exact-commit evidence and verify actual PR head
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -213,7 +213,7 @@ jobs:
           assert(response.ok,'PR_HEAD_READ_FAILED');
           const prs=await response.json();
           const pr=prs.find(p=>p.base.ref==='refactor');
-          assert(pr && pr.draft && pr.head.sha===checkout,'PR_HEAD_OR_DRAFT_MISMATCH');
+          assert(pr && pr.state==='open' && pr.head.sha===checkout,'PR_HEAD_OR_STATE_MISMATCH');
           writeFileSync('artifacts/r6-evidence.json',JSON.stringify({testedCommit:checkout,prHead:pr.head.sha,pr:pr.number,runId:process.env.GITHUB_RUN_ID,automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],inherited:'R1–R5 including R5-A pressure and R5-B privacy',manualAcceptance:'not performed',automaticMerge:false},null,2));
           NODE
 

@@ -63,6 +63,7 @@ function queryString() {
   return q;
 }
 async function change(values: Record<string, string | undefined>, replace = false) {
+  if (route.name !== "projects") return;
   invalidate();
   clearTimeout(timer);
   const query = { ...route.query, search: search.value.trim(), ...values };
@@ -253,6 +254,9 @@ async function create() {
   }
 }
 async function enter(card: EntryCard) {
+  // A pending search must not cancel the asynchronous project-access navigation.
+  clearTimeout(timer);
+  invalidate();
   await router.push({
     path: card.entry.path,
     query: {
@@ -281,7 +285,9 @@ function date(value: string | null, zone: string) {
 }
 watch(
   () => route.fullPath,
-  () => void load(),
+  () => {
+    if (route.name === "projects") void load();
+  },
   { immediate: true },
 );
 watch(
