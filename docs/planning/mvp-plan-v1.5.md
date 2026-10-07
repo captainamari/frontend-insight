@@ -873,51 +873,55 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 19.1 接入指南
 
-- [ ] 项目基础设置、成员、Origin；
-- [ ] 当前推荐探针的最小代码；
-- [ ] CSP/endpoint/`appId`；
-- [ ] 测试事件和数据状态；
-- [ ] admin/viewer 边界；
-- [ ] 将创建项目移至入口页。
+- [x] 项目基础设置、成员、Origin；
+- [x] 当前推荐探针的最小代码；
+- [x] CSP/endpoint/`appId`；
+- [x] 测试事件和数据状态；
+- [x] admin/viewer 边界；
+- [x] 将创建项目移至入口页。
 
 ### 19.2 探针版本
 
-- [ ] probe policy CRUD；
-- [ ] recommended/supported/deprecated/blocked；
-- [ ] 从事件按版本统计占比和最后观测；
-- [ ] release notes/升级建议；
-- [ ] contract version；
-- [ ] 不实现远程自动升级；
-- [ ] blocked 策略有审计和显式确认。
+- [x] probe policy CRUD；
+- [x] recommended/supported/deprecated/blocked；
+- [x] 从事件按版本统计占比和最后观测；
+- [x] release notes/升级建议；
+- [x] contract version；
+- [x] 不实现远程自动升级；
+- [x] blocked 策略有审计和显式确认。
 
 ### 19.3 接口管理
 
-- [ ] metric snapshot/trend/error summary/Prometheus 类型；
-- [ ] 默认关闭；
-- [ ] 创建、启用、停用、轮换和撤销；
-- [ ] token 只显示一次，DB 保存 hash；
-- [ ] 参数 tooltip、分页、最近调用；
-- [ ] per-project/interface/range scope；
-- [ ] 限流、request ID 和审计；
-- [ ] 禁止任意字段/SQL/group by；
-- [ ] Prometheus 标签基数 allowlist；
-- [ ] `appId` 不能作为凭证。
+- [x] metric snapshot/trend/error summary/Prometheus 类型；
+- [x] 默认关闭；
+- [x] 创建、启用、停用、轮换和撤销；
+- [x] token 只显示一次，DB 保存 hash；
+- [x] 参数 tooltip、分页、最近调用；
+- [x] per-project/interface/range scope；
+- [x] 限流、request ID 和审计；
+- [x] 禁止任意字段/SQL/group by；
+- [x] Prometheus 标签基数 allowlist；
+- [x] `appId` 不能作为凭证。
 
 ### 19.4 异常访问规则
 
 - [ ] `abnormal_access` 固定首版规则：非工作时间高频、个人历史操作量异常、多 IP/多设备和无权限路由拦截异常；
 - [ ] 规则、阈值、适用范围和可见角色必须经管理层/安全评审并版本化；
-- [ ] 只返回调查证据和审计入口，不生成个人评分或绩效排名；
-- [ ] 小样本、共享账号、时区和出差/值班例外处理；
-- [ ] 规则命中、查看和导出均有审计。
+- [x] 只返回调查证据和审计入口，不生成个人评分或绩效排名；
+- [x] 小样本、共享账号、时区和出差/值班例外处理；
+- [x] 规则命中、查看和导出均有审计。
+
+三种现有事实支持的观察规则及审批/审计工程流程已验证；真实管理层/安全批准、多 IP 与权限拦截事实仍缺失，以上前两项不得勾选。
 
 ### 19.5 安全测试与阶段门
 
-- 跨项目 token、过期/撤销 token、接口停用、超范围、暴力限流；
-- Prometheus 输出无 `pageRoute/error message/userId` 高基数标签；
-- 接口错误不暴露 SQL/Secret；
-- viewer 不能创建或查看明文 token；
-- 设置页接入指南、探针版本、接口管理和异常访问四组目标任务全部通过。
+- [x] 跨项目 token、过期/撤销 token、接口停用、超范围、暴力限流；
+- [x] Prometheus 输出无 `pageRoute/error message/userId` 高基数标签；
+- [x] 接口错误不暴露 SQL/Secret；
+- [x] viewer 不能创建或查看明文 token；
+- [ ] 设置页接入指南、探针版本、接口管理和异常访问四组目标任务全部通过。
+
+最终代码 `066fbeb4761389f90f92fe85e31498b96450bff7` 的 [R7 完整真实回归 37610555062](https://github.com/captainamari/frontend-insight/actions/runs/37610555062) 通过；R6 入口修复先落 R6 后同步，R6 手工验收及异常业务审批状态保持待完成。
 
 ## 20. R8：清理、回归和最终验收
 
