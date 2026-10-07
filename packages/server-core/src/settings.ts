@@ -307,6 +307,10 @@ export class SettingsService {
         [target.id],
       );
       if (Number(counts[0]!.calls) > Number(target.rate_limit_per_minute)) {
+        await c.execute(
+          "UPDATE export_interfaces SET last_called_at=CURRENT_TIMESTAMP(3),last_status='EXPORT_RATE_LIMITED' WHERE id=?",
+          [target.id],
+        );
         await this.audit(
           c,
           project,
@@ -324,6 +328,10 @@ export class SettingsService {
       );
       const credential = credentials[0];
       if (!credential) {
+        await c.execute(
+          "UPDATE export_interfaces SET last_called_at=CURRENT_TIMESTAMP(3),last_status='EXPORT_CREDENTIAL_INVALID' WHERE id=?",
+          [target.id],
+        );
         await this.audit(
           c,
           project,
@@ -373,6 +381,15 @@ export class SettingsService {
     });
     if (result.code) fail(result.code, result.status);
     return { id: result.id! };
+  }
+  async finishExport(project: string, id: string, requestId: string, code: string) {
+    await this.transaction(async (c) => {
+      await c.execute(
+        "UPDATE export_interfaces SET last_called_at=CURRENT_TIMESTAMP(3),last_status=? WHERE id=? AND project_id=?",
+        [code, id, project],
+      );
+      await this.audit(c, project, null, "export.completed", id, requestId, { code });
+    });
   }
   async rules(project: string) {
     const [rows] = await this.mysql.pool.query<RowDataPacket[]>(

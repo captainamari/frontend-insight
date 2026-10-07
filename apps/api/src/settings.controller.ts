@@ -296,12 +296,20 @@ export class SettingsController {
   ) {
     await this.access(p, id);
     const { q } = await this.range(id, raw),
-      facts = await this.core.settingsFacts.read(id, q.env, q.from, q.to);
+      facts = await this.core.settingsFacts.read(id, q.env, q.from, q.to),
+      policies = await this.core.settings.probes(id),
+      distribution = probeDistribution(facts.rows, q.from, q.to);
     return {
       projectId: id,
       query: q,
-      policies: await this.core.settings.probes(id),
-      ...probeDistribution(facts.rows, q.from, q.to),
+      policies,
+      ...distribution,
+      items: distribution.items.map((item) => ({
+        ...item,
+        policyStatus:
+          policies.find((p) => p.version === item.version)?.status ??
+          (item.version === R7_SDK_VERSION ? "recommended" : "unknown"),
+      })),
       statistics: facts.statistics,
     };
   }
@@ -585,11 +593,14 @@ export class ExternalSettingsController {
     @Param("kind") rawKind: string,
     @Query() raw: unknown,
     @Headers("authorization") authorization: string | undefined,
+    @Req() request: FastifyRequest,
     @Res({ passthrough: true }) response: FastifyReply,
   ) {
     // Server-generated IDs; never echo credentials or user-controlled query values in errors/audit.
-    const requestId = randomUUID();
+    const requestId = request.id;
     response.header("x-request-id", requestId);
+    let authorizedId: string | null = null,
+      outcome = "success";
     try {
       parseInput(uuid, id);
       const kind = parseInput(z.enum(EXPORT_KINDS), rawKind),
@@ -598,13 +609,14 @@ export class ExternalSettingsController {
         throw new HttpException("CURSOR_NOT_SUPPORTED", 400);
       if (!authorization || !/^Bearer fi_[A-Za-z0-9_-]{43}$/.test(authorization))
         throw new HttpException("EXPORT_CREDENTIAL_INVALID", 401);
-      await this.core.settings.authorizeExport(
+      const authorizationResult = await this.core.settings.authorizeExport(
         id,
         kind,
         authorization.slice(7),
         q,
         requestId,
       );
+      authorizedId = authorizationResult.id;
       const overview = await this.core.projectOverview.overview(id, {
         env: q.env,
         range: "custom",
@@ -702,8 +714,22 @@ export class ExternalSettingsController {
           : typeof e.code === "string" && /^EXPORT_[A-Z_]+$/.test(e.code)
             ? e.code
             : "EXPORT_UNAVAILABLE";
+      outcome = code;
+      if (!authorizedId)
+        await this.core.settings.audit(
+          this.core.mysql.pool,
+          null,
+          null,
+          "export.request_rejected",
+          "external",
+          requestId,
+          { code },
+        );
       response.status(status);
       return { code, requestId };
+    } finally {
+      if (authorizedId)
+        await this.core.settings.finishExport(id, authorizedId, requestId, outcome);
     }
   }
 }

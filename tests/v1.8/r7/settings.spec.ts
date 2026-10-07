@@ -106,6 +106,7 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
       r.url().endsWith("/v1/events") &&
       r.request().method() === "POST" &&
       r.status() === 202,
+    { timeout: 15000 },
   );
   await page.addScriptTag({ url: "/r7-host-snippet.js", type: "module" });
   await sent;

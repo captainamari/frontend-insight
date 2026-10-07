@@ -429,6 +429,10 @@ onBeforeUnmount(() => {
             由当前部署提供；业务项目自行评估和升级。
           </p>
           <p>
+            Release notes：部署内置 0.8.0 包含 contract
+            v3、质量采集与页面时长分段；详细功能见接入验收指南。升级建议：业务方先验证新版本，再显式调整依赖与接入地址。
+          </p>
+          <p>
             appId：<code data-testid="settings-app-id">{{
               integration.project.appId
             }}</code>
@@ -530,6 +534,8 @@ onBeforeUnmount(() => {
           </p>
           <el-table :data="probeData?.items ?? []" empty-text="当前范围无真实事件"
             ><el-table-column prop="version" label="实际观测版本" /><el-table-column
+              prop="policyStatus"
+              label="策略（unknown 仍计入分母）" /><el-table-column
               prop="contractVersion"
               label="契约" /><el-table-column
               prop="count"
