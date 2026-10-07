@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { randomUUID } from "node:crypto";
 import { loadApiEnvironment } from "@frontend-insight/shared-config";
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
@@ -10,7 +11,8 @@ export async function bootstrap(): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
     bodyLimit: 64 * 1024,
     trustProxy: false,
-    requestIdHeader: "x-request-id",
+    requestIdHeader: false,
+    genReqId: () => randomUUID(),
   });
   const nestOptions = environment.NODE_ENV === "test" ? { logger: false as const } : {};
   const app = await NestFactory.create<NestFastifyApplication>(

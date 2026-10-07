@@ -867,6 +867,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 19. R7：设置
 
+2026-10-07：Jesse 授权从待朋友手工验收的 R6 叠加分支并行开发。实现和最终验证状态见 [R7 results](../progress/v1.8-r7-results.md)，审批与事实缺口见 [R7 decisions](../progress/v1.8-r7-decisions.md)。下列阶段门只在证据齐备后勾选；开发授权不是异常规则批准。
+
 建议分支：`agent/v1-8-r7-settings`
 
 ### 19.1 接入指南

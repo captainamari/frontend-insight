@@ -1,3 +1,8 @@
+import {
+  SettingsController,
+  ExternalSettingsController,
+  SdkDistributionController,
+} from "./settings.controller.js";
 import { PageOperationsController } from "./page-operations.controller.js";
 import {
   ScoreManagementController,
@@ -21,6 +26,9 @@ import { ScorePreflightController } from "./score-preflight.controller.js";
 
 @Module({
   controllers: [
+    SettingsController,
+    ExternalSettingsController,
+    SdkDistributionController,
     AdminController,
     AuthController,
     IngestionController,

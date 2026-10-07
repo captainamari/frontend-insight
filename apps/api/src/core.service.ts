@@ -1,4 +1,6 @@
 import {
+  SettingsService,
+  SettingsFactStore,
   QualityFactStore,
   PageQualityStore,
   PageUsageStore,
@@ -32,6 +34,13 @@ import type { OnModuleDestroy } from "@nestjs/common";
 export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
+  readonly settings = new SettingsService(this.mysql);
+  readonly settingsFacts = new SettingsFactStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
   readonly usageSource = new UsageSourceService(this.mysql);
   readonly directory = new OrganizationDirectoryService(
     this.mysql,
@@ -81,6 +90,7 @@ export class CoreService implements OnModuleDestroy {
     this.environment.ACCOUNT_HMAC_KEY,
     {
       projectCacheTtlMs: this.environment.PROJECT_CACHE_TTL_MS,
+      checkProbe: (project, version) => this.settings.assertProbe(project, version),
       directories: (projectId) => readDirectories(this.mysql.pool, projectId),
       maximumRequestsPerMinute: this.environment.INGESTION_RATE_LIMIT_PER_MINUTE,
     },
@@ -156,6 +166,7 @@ export class CoreService implements OnModuleDestroy {
       this.qualityFacts.close(),
       this.pageQuality.close(),
       this.pageUsage.close(),
+      this.settingsFacts.close(),
       this.observability.close(),
       this.mysql.close(),
     ]);

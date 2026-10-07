@@ -55,11 +55,11 @@ export const router = createRouter({
           name: "project-pages",
           component: () => import("./views/PageAnalysisView.vue"),
         },
-        ...(["settings"] as const).map((module) => ({
-          path: module,
-          name: "project-" + module,
-          component: () => import("./views/ProjectStageView.vue"),
-        })),
+        {
+          path: "settings",
+          name: "project-settings",
+          component: () => import("./views/SettingsView.vue"),
+        },
       ],
     },
     {

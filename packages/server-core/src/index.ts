@@ -51,3 +51,6 @@ export * from "./page-usage.js";
 export * from "./page-usage-binding.js";
 
 export type { RowDataPacket } from "mysql2/promise";
+
+export * from "./settings.js";
+export * from "./settings-facts.js";

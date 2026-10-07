@@ -256,6 +256,7 @@ export class IngestionManager {
       maximumRequestsPerMinute?: number;
       now?: () => number;
       directories?: (projectId: string) => Promise<DirectoryVersion[]>;
+      checkProbe?: (projectId: string, version: string) => Promise<void>;
     } = {},
   ) {
     if (userHmacKey.length < 32) throw new Error("USER_HMAC_KEY_TOO_SHORT");
@@ -311,6 +312,16 @@ export class IngestionManager {
       project = await this.project(appId, nowMs);
       if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
       this.assertProject(project, context);
+      try {
+        await this.options.checkProbe?.(project.id, validation.value.sdk.version);
+      } catch (e) {
+        throw new IngestionError(
+          e instanceof Error && e.message === "PROBE_VERSION_BLOCKED"
+            ? "PROBE_VERSION_BLOCKED"
+            : "PROBE_POLICY_UNAVAILABLE",
+          e instanceof Error && e.message === "PROBE_VERSION_BLOCKED" ? 403 : 503,
+        );
+      }
       const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
       if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
       if (

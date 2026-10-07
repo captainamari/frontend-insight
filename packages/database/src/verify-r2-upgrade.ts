@@ -67,7 +67,7 @@ try {
   };
   const before = await snapshot();
   const upgrade = await runMySqlMigrations({ mysqlUrl });
-  assert.deepEqual(upgrade.applied, [3, 4, 5, 6]);
+  assert.deepEqual(upgrade.applied, [3, 4, 5, 6, 7]);
   assert.equal(await snapshot(), before);
   assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, []);
   const [tables] = await pool.query<RowDataPacket[]>(
