@@ -188,6 +188,37 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
   ).toBe(200);
   expect((await ingest()).status()).toBe(202);
   expect((await ingest()).status()).toBe(202);
+  // Real registered operation facts for the approved TEST ONLY investigation fixture.
+  expect(
+    (
+      await request.post(root + "/features", {
+        headers,
+        data: {
+          featureKey: "r7_action",
+          name: "R7 fixture operation",
+          featureType: "action",
+          operationLifecycleEnabled: true,
+        },
+      })
+    ).status(),
+  ).toBe(201);
+  await page.evaluate(async (appId) => {
+    const modulePath = "/api/sdk/0.8.0/index.js";
+    const { createTracker } = await import(modulePath);
+    const t = createTracker({
+      appId,
+      env: "dev",
+      release: "r7-operations",
+      endpoint: location.origin + "/v1/events",
+      registeredFeatures: ["r7_action"],
+      normalizePageRoute: () => "/r7-operation",
+    });
+    t.setUser("u_r7testopaqueidentity000001");
+    t.startOperation("r7_action").succeed();
+    t.startOperation("r7_action").succeed();
+    await t.flush();
+    t.destroy();
+  }, project.appId);
   const scope = {
     env: "dev",
     from,
@@ -320,7 +351,7 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
     multiplier: 2,
     workStart: 9,
     workEnd: 18,
-    workDays: [1, 2, 3, 4, 5],
+    workDays: [0],
     visibleRoles: ["owner"],
     sharedSubjects: [],
     exceptions: [],
@@ -378,6 +409,16 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
   expect(
     ev.items.filter((i: { status: string }) => i.status === "not_collected"),
   ).toHaveLength(2);
+  await expect
+    .poll(async () => {
+      const observed = await (
+        await request.get(settings + "/abnormal-evidence?env=dev&range=7d", { headers })
+      ).json();
+      return observed.items
+        .find((v: { ruleKey: string }) => v.ruleKey === "outside_hours")
+        ?.items?.some((v: { status: string }) => v.status === "hit");
+    })
+    .toBe(true);
   const viewerEvidence = await (
     await request.get(settings + "/abnormal-evidence?env=dev&range=7d", { headers: vh })
   ).json();
@@ -392,6 +433,13 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
   await page.goto(`/projects/${other.id}/settings?env=staging&range=7d`);
   await page.goto(url);
   await expect(page.getByTestId("settings-app-id")).toHaveText(project.appId);
+  await page.getByRole("tab", { name: "接口管理", exact: true }).click();
+  await page.getByRole("button", { name: "启用", exact: true }).first().click();
+  await expect(page.getByTestId("issued-token")).toBeVisible();
+  await page.getByRole("button", { name: "隐藏凭证", exact: true }).click();
+  await expect(page.getByTestId("issued-token")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId("issued-token")).toHaveCount(0);
   const vc = await browser.newContext(),
     vp = await vc.newPage();
   await vp.goto("http://127.0.0.1:4173/login");

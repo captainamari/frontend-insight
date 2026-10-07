@@ -145,6 +145,17 @@ export class SettingsController {
     if (!role) throw new HttpException("PROJECT_FORBIDDEN", 403);
     if (write && (p.globalRole !== "admin" || !["owner", "admin"].includes(role)))
       throw new HttpException("WRITE_FORBIDDEN", 403);
+    // Global admins are represented as "admin" by the shared permission service.
+    // Approval attestation additionally needs an actual owner membership; do not infer it from global admin.
+    if (p.globalRole === "admin") {
+      const [members] = await this.core.mysql.pool.query<
+        import("@frontend-insight/server-core").RowDataPacket[]
+      >("SELECT role FROM project_members WHERE project_id=? AND user_id=?", [
+        id,
+        p.userId,
+      ]);
+      if (members[0]?.role === "owner") return "owner";
+    }
     return role;
   }
   private async range(projectId: string, raw: unknown) {

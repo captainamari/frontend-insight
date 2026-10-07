@@ -321,8 +321,6 @@ async function sendTest() {
   if (!version) return;
   busy.value = true;
   error.value = "";
-  busy.value = true;
-  error.value = "";
   receipt.value = { state: "sending", ingested: false, queryable: false };
   try {
     const body = await api.request<{ eventId: string; requestId: string }>(
