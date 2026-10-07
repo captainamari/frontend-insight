@@ -447,6 +447,7 @@ test("R7 real SDK, collector, storage, settings permissions and external credent
   await vp.getByLabel("邮箱").fill("viewer@example.invalid");
   await vp.getByLabel("密码").fill("LocalViewer-1234");
   await vp.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(vp).toHaveURL(/projects/);
   await vp.goto("http://127.0.0.1:4173" + url);
   await expect(vp.getByTestId("settings-app-id")).toHaveText(project.appId);
   await expect(
