@@ -32,7 +32,7 @@ import {
 import { scoreBinding } from "./score-preflight.js";
 import { scoreExamples } from "./score-examples.js";
 import { defaultScoreTemplate, selectedScoreTemplate } from "./score-templates.js";
-import { PAGE_TEMPLATE_DURATION_TARGETS } from "./metrics.js";
+import { PAGE_TEMPLATE_DURATION_TARGETS } from "./page-score-targets.js";
 import {
   jsonValue,
   scoreDigest,

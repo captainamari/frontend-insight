@@ -56,10 +56,20 @@ function sceneFromPath(): Scene {
 
 function describe(event: Readonly<TrackerEvent>): string {
   const name = event.event === "custom" ? String(event.payload.name ?? "") : "";
+  // v3 custom business labels are nested; lifecycle controls remain at payload root.
+  const labels = event.payload.labels;
+  const duration =
+    labels && typeof labels === "object" && !Array.isArray(labels)
+      ? labels.visibleDurationMs
+      : undefined;
+  const durationText =
+    typeof duration === "number" && Number.isFinite(duration)
+      ? `${duration} ms`
+      : "时长未提供";
   if (name === "feature_started") return "只表示开始，不计入成功使用";
   if (name === "feature_succeeded") {
-    return event.payload.visibleDurationMs
-      ? `达到前台可见阈值，累计 ${event.payload.visibleDurationMs} ms`
+    return typeof duration === "number" && Number.isFinite(duration)
+      ? `达到前台可见阈值，累计 ${durationText}`
       : "业务成功条件已确认";
   }
   if (name === "feature_failed") {
@@ -69,10 +79,10 @@ function describe(event: Readonly<TrackerEvent>): string {
     return `用户明确取消，原因：${event.payload.reasonCode ?? "user_cancelled"}`;
   }
   if (name === "feature_long_view_heartbeat") {
-    return `前台可见心跳 ${event.payload.visibleDurationMs ?? 0} ms`;
+    return `前台可见心跳 ${durationText}`;
   }
   if (name === "feature_long_view_ended") {
-    return `持续展示结束，累计 ${event.payload.visibleDurationMs ?? 0} ms`;
+    return `持续展示结束，累计 ${durationText}`;
   }
   if (name === "feature_exposed") return "功能入口已实际呈现";
   if (event.event === "page_view") return "归一化页面访问";

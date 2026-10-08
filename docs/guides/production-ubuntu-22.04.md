@@ -109,6 +109,6 @@ sudo bash scripts/production status
 sudo bash scripts/production backup "before-r8"
 ```
 
-恢复命令 `sudo bash scripts/production restore before-r8 --confirm-replace-data` 会替换数据，仅在 Owner 明确批准的维护窗口执行；本次未操作目标机。恢复前校验归档 checksum 和表结构，旧格式缺少证明或表结构不一致会在破坏前拒绝，须由 Owner 使用匹配版本制定迁移/恢复方案，不把缺失数据默认为零。恢复前自动创建安全备份。
+恢复命令 `sudo bash scripts/production restore before-r8 --confirm-replace-data` 会替换数据，仅在 Owner 明确批准的维护窗口执行；本次未操作目标机。恢复前校验归档 checksum、完整有序逻辑行哈希和表结构，旧格式缺少证明或表结构不一致会在破坏前拒绝，须由 Owner 使用匹配版本制定迁移/恢复方案，不把缺失数据默认为零。恢复前自动创建安全备份；恢复后逐表重新导出完整有序 JSONEachRow 并比较 SHA-256（包括重复行），失败则保持业务服务停止。Native 分块/字典编码可能变化，不能以其导出字节相等替代逻辑数据校验。
 
 R8 的生产 CI 在隔离 runner 中真正删除测试事实、改变项目元数据后恢复，并比较持久化表、通过 HTTPS 重验账户、配置、SDK 事实及两浏览器。成功证据以 R8 results 的实际代码 SHA 为准；R7 历史链接不代表 R8 已通过。目标 Docker 27.3.1 / Compose 2.32.2 和真实服务器尚未实测。

@@ -123,37 +123,3 @@ export interface DataStatus {
   rejectedEvents: number;
   deadLetterEvents: number;
 }
-
-export interface MetricDefinition {
-  metricKey: string;
-  displayName: string;
-  businessQuestion: string;
-  entityType: "project" | "module" | "page" | "task";
-  valueType: "count" | "ratio" | "duration" | "score";
-  unit: string;
-  layer: "fact" | "atomic" | "derived" | "composite";
-  inputKeys: string[];
-  formulaDescription: string;
-  denominatorDescription: string;
-  deduplicationKey: string;
-  missingValuePolicy: string;
-  scoreDirection: "higher_better" | "lower_better" | "target_range" | "none";
-  minimumSample: number;
-  definitionVersion: string;
-  effectiveFrom: string;
-  owner: string;
-}
-
-export interface MetricLineage {
-  metricKey: string;
-  nodes: Array<{
-    id: string;
-    label: string;
-    layer: "fact" | "atomic" | "derived" | "composite";
-    valueType: string;
-    definitionVersion: string;
-  }>;
-  edges: Array<{ from: string; to: string }>;
-  directUpstream: string[];
-  directDownstream: string[];
-}

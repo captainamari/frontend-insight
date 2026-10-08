@@ -8,9 +8,9 @@ import {
   PAGE_TEMPLATE_DURATION_TARGETS,
   validateMetricCatalog,
   type MetricDefinition,
-} from "../src/metrics.js";
+} from "./legacy-metric-fixture.js";
 import { METRIC_CATALOG } from "../src/system-metric-catalog.js";
-import type { MetricProfileItem } from "../src/model.js";
+import type { MetricProfileItem } from "./legacy-metric-fixture.js";
 
 function profileItems(): MetricProfileItem[] {
   return DEFAULT_OPERATIONAL_PROFILE_ITEMS.map((item, index) => ({

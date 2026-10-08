@@ -46,6 +46,7 @@ for (const role of ["admin", "viewer"] as const) {
       .getByRole("navigation", { name: "项目导航" })
       .getByRole("button", { name: "页面分析", exact: true })
       .click();
+    await expect(page).toHaveURL(new RegExp(`/projects/${project}/pages\\?`));
     await page.goBack();
     await expect(page).toHaveURL(/\/settings\?/);
     await page.getByRole("button", { name: "返回全部项目", exact: true }).click();

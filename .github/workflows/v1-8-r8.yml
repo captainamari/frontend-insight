@@ -218,7 +218,7 @@ jobs:
         run: |
           bash scripts/m7 fault all --confirm-disruption
           bash scripts/m7 release-drill --confirm-disruption
-          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r8-recovery.json", JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,faults:["kafka","clickhouse","consumer"],restore:["all MySQL tables","raw_events","repeated_operation_proofs"],shortReferences:"excluded and cleared per ADR-020",comparison:"quiesced before/after exports identical",business:"post-restore enqueue/query and formal HTTP reads passed"},null,2))'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r8-recovery.json", JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,faults:["kafka","clickhouse","consumer"],restore:["all MySQL tables","raw_events","repeated_operation_proofs"],shortReferences:"excluded and cleared per ADR-020",comparison:"MySQL exports identical; complete ordered ClickHouse JSONEachRow SHA-256 equal",business:"post-restore enqueue/query and formal HTTP reads passed"},null,2))'
 
       - name: Record R8 stacked PR and runner evidence
         env:

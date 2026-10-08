@@ -1,4 +1,31 @@
-import type { MetricDimensionKey, MetricProfileItem, PageTemplate } from "./model.js";
+// Historical data-correctness regression only; never exported by the runtime package.
+export type MetricDimensionKey =
+  "usage_coverage" | "continuity_depth" | "task_completion" | "usage_efficiency";
+
+export interface MetricProfileItem {
+  id: string;
+  profileId: string;
+  metricKey: string;
+  dimensionKey: MetricDimensionKey;
+  dimensionWeight: number;
+  metricWeight: number;
+  targetValue: number | null;
+  floorValue: number | null;
+  ceilingValue: number | null;
+  targetMin: number | null;
+  targetMax: number | null;
+  toleranceMin: number | null;
+  toleranceMax: number | null;
+  minimumSample: number | null;
+  enabled: boolean;
+  required: boolean;
+}
+
+import {
+  PAGE_TEMPLATE_DURATION_TARGETS,
+  type NormalizationTarget,
+} from "../src/page-score-targets.js";
+export { PAGE_TEMPLATE_DURATION_TARGETS };
 
 export type MetricEntityType = "project" | "module" | "page" | "task";
 export type MetricValueType = "count" | "ratio" | "duration" | "score";
@@ -40,16 +67,6 @@ export interface MetricResult {
   availableFrom: string | null;
   reason: string | null;
   inputs: Array<{ metricKey: string; value: number | null }>;
-}
-
-export interface NormalizationTarget {
-  targetValue: number | null;
-  floorValue: number | null;
-  ceilingValue: number | null;
-  targetMin: number | null;
-  targetMax: number | null;
-  toleranceMin: number | null;
-  toleranceMax: number | null;
 }
 
 export interface LineageNode {
@@ -95,38 +112,6 @@ const factDefaults = {
   scoreDirection: "none" as const,
   minimumSample: 0,
 };
-
-export const PAGE_TEMPLATE_DURATION_TARGETS: Readonly<
-  Record<PageTemplate, NormalizationTarget>
-> = Object.freeze({
-  monitoring_dashboard: {
-    targetValue: null,
-    floorValue: null,
-    ceilingValue: null,
-    targetMin: 60_000,
-    targetMax: 3_600_000,
-    toleranceMin: 10_000,
-    toleranceMax: 14_400_000,
-  },
-  analysis_view: {
-    targetValue: null,
-    floorValue: null,
-    ceilingValue: null,
-    targetMin: 30_000,
-    targetMax: 600_000,
-    toleranceMin: 5_000,
-    toleranceMax: 1_800_000,
-  },
-  task_operation: {
-    targetValue: null,
-    floorValue: null,
-    ceilingValue: null,
-    targetMin: 10_000,
-    targetMax: 180_000,
-    toleranceMin: 2_000,
-    toleranceMax: 900_000,
-  },
-});
 
 const OPERATIONAL_SCORE_INPUT_DEFINITIONS: readonly MetricDefinition[] = [
   definition({

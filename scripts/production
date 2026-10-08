@@ -338,6 +338,8 @@ backup() {
       "SELECT * FROM $table ORDER BY tuple(*) FORMAT Native" > "$target/$table.native"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
       "DESCRIBE TABLE $table FORMAT TSV" > "$target/$table.schema.tsv"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | checksum > "$target/$table.rows.sha256"
   done
   local current_release="unknown"
   [[ -f "$STATE_DIR/current" ]] && current_release="$(< "$STATE_DIR/current")"
@@ -345,7 +347,7 @@ backup() {
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     "$current_release" \
     > "$target/metadata.json"
-  (cd "$target" && checksum mysql.sql *.native *.schema.tsv metadata.json > SHA256SUMS)
+  (cd "$target" && checksum mysql.sql *.native *.schema.tsv *.rows.sha256 metadata.json > SHA256SUMS)
   chmod 600 "$target"/*
   resume_after_backup
   trap - EXIT
@@ -363,7 +365,7 @@ restore() {
   (cd "$source" && checksum --check SHA256SUMS)
   # Fail before mutation for pre-R8/incompatible archives; never invent missing proofs.
   for table in raw_events repeated_operation_proofs; do
-    [[ -f "$source/$table.native" && -f "$source/$table.schema.tsv" ]] || fail "Backup lacks durable facts/schema: $table"
+    [[ -f "$source/$table.native" && -f "$source/$table.schema.tsv" && -f "$source/$table.rows.sha256" ]] || fail "Backup lacks durable facts/schema: $table"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
       "DESCRIBE TABLE $table FORMAT TSV" | cmp -s - "$source/$table.schema.tsv" || fail "Backup schema mismatch: $table; use the matching release before restore"
   done
@@ -377,6 +379,10 @@ restore() {
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- "TRUNCATE TABLE $table"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
       "INSERT INTO $table FORMAT Native" < "$source/$table.native"
+    # Native block boundaries/LowCardinality dictionaries are not logical data.
+    # Compare every ordered row, including duplicate rows, without exposing values.
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | checksum | cmp -s - "$source/$table.rows.sha256" || fail "Restored logical rows differ: $table; services remain stopped"
   done
   # These references are deliberately not recoverable; do not retain facts from a later timeline.
   compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "TRUNCATE TABLE object_operation_refs"'

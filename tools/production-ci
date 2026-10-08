@@ -120,10 +120,10 @@ JS
   # Compare restored logical durable rows to the quiesced archive before browser writes.
   for table in raw_events repeated_operation_proofs; do
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
-      "SELECT * FROM $table ORDER BY tuple(*) FORMAT Native" > "$RUNNER_TEMP/$table.restored.native"
-    sudo cmp "backups/production/r8-restore-ci/$table.native" "$RUNNER_TEMP/$table.restored.native"
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | sha256sum > "$RUNNER_TEMP/$table.restored.sha256"
+    sudo cmp "backups/production/r8-restore-ci/$table.rows.sha256" "$RUNNER_TEMP/$table.restored.sha256"
   done
-  node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("artifacts/production-restore.json",JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,archiveFormat:2,destructiveTest:"isolated GitHub-hosted only",durableTables:["raw_events","repeated_operation_proofs"],nonEmptyProofFixture:true,logicalRows:"Native ordered exports byte-equal",shortReferences:"not backed up, cleared on restore"},null,2))'
+  node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("artifacts/production-restore.json",JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,archiveFormat:2,destructiveTest:"isolated GitHub-hosted only",durableTables:["raw_events","repeated_operation_proofs"],nonEmptyProofFixture:true,logicalRows:"complete ordered JSONEachRow SHA-256 equal; Native archive checksum also verified",shortReferences:"not backed up, cleared on restore"},null,2))'
   ;;
 evidence)
   mkdir -p artifacts
