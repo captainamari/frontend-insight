@@ -21,6 +21,10 @@ try {
   }).admin();
   stage = "connect";
   await admin.connect();
+  // connect() only opens the seed broker. With zero retries, fetchOffsets()
+  // otherwise hits an empty broker pool before its implicit metadata refresh.
+  stage = "fetch-metadata";
+  await admin.fetchTopicMetadata({ topics });
   stage = "fetch-committed";
   const committed = await admin.fetchOffsets({
     groupId: process.env.CONSUMER_GROUP_ID,
@@ -59,6 +63,8 @@ try {
       type: safeCode(error.type),
       code: safeCode(error.code),
       cause: safeCode(error.cause?.code),
+      causeName: safeCode(error.cause?.name),
+      causeType: safeCode(error.cause?.type),
     }),
   );
   process.exitCode = 1;
