@@ -83,7 +83,15 @@ jobs:
 
       - name: Install Chromium and WebKit
         timeout-minutes: 10
-        run: pnpm exec playwright install --with-deps chromium webkit
+        run: |
+          # The hosted runner's Azure mirror repeatedly stalled package downloads.
+          # Keep Ubuntu's signed packages and the same browser/dependency versions.
+          # This modifies only the disposable CI runner, never deployment hosts.
+          if test -f /etc/apt/apt-mirrors.txt; then
+            sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/apt-mirrors.txt
+            cat /etc/apt/apt-mirrors.txt
+          fi
+          pnpm exec playwright install --with-deps chromium webkit
 
       - name: Rebuild, seed and smoke the empty baseline
         run: |
