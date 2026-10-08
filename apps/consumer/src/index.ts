@@ -215,7 +215,21 @@ export class EventConsumerRuntime {
         if (objects.length > 50) throw new Error("OBJECT_BATCH_LIMIT");
         await projectRepeatedOperations(this.clickhouse, objects);
         for (const message of messages) resolveOffset(message.offset);
-        await commitOffsetsIfNecessary();
+        // autoCommit is disabled: a no-argument call has no interval/threshold
+        // and never persists resolved offsets. Commit only the completed slice.
+        await commitOffsetsIfNecessary({
+          topics: [
+            {
+              topic: batch.topic,
+              partitions: [
+                {
+                  partition: batch.partition,
+                  offset: (BigInt(messages.at(-1)!.offset) + 1n).toString(),
+                },
+              ],
+            },
+          ],
+        });
         await heartbeat();
         return;
       }
@@ -378,7 +392,21 @@ export class EventConsumerRuntime {
         await this.mysql.markIngested(envelope.projectId, envelope.receivedAt);
       }
       for (const message of acceptedMessages) resolveOffset(message.offset);
-      await commitOffsetsIfNecessary();
+      // autoCommit is disabled: a no-argument call has no interval/threshold
+      // and never persists resolved offsets. Commit only the completed slice.
+      await commitOffsetsIfNecessary({
+        topics: [
+          {
+            topic: batch.topic,
+            partitions: [
+              {
+                partition: batch.partition,
+                offset: (BigInt(messages.at(-1)!.offset) + 1n).toString(),
+              },
+            ],
+          },
+        ],
+      });
       await heartbeat();
       this.attempts.delete(attemptKey);
       this.metrics.processedEvents += rows.length;

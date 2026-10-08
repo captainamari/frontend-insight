@@ -297,17 +297,16 @@ checksum() {
 }
 
 wait_for_zero_lag() {
-  local group
-  group="$(awk -F= '$1 == "FI_CONSUMER_GROUP_ID" { print $2; exit }' "$ENV_FILE")"
-  group="${group:-frontend-insight-production-v1}"
-  local attempt description lag
+  local attempt snapshot
   for attempt in {1..30}; do
-    description="$(compose exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh \
-      --bootstrap-server 127.0.0.1:9092 --describe --group "$group" 2>/dev/null || true)"
-    lag="$(awk 'NR > 1 && $6 ~ /^[0-9]+$/ { total += $6; found = 1 } END { if (found) print total; else print -1 }' <<< "$description")"
-    [[ "$lag" == "0" ]] && return
+    if snapshot="$(compose exec -T consumer node tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
+      info "Kafka durable offsets caught up: $snapshot"
+      return
+    fi
     sleep 2
   done
+  # This diagnostic contains only topic, partition and offsets, never event payload.
+  info "Last durable offset observation: ${snapshot:-unavailable}"
   fail "Consumer group did not reach zero lag before the backup window"
 }
 

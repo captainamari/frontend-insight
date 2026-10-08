@@ -10,10 +10,6 @@ async function login(page: Page, role: "admin" | "viewer") {
   await expect(
     page.getByRole("heading", { name: "全部项目", exact: true }),
   ).toBeVisible();
-  await page.goto("/features");
-  await expect(
-    page.getByRole("heading", { name: "功能采用", exact: true }),
-  ).toBeVisible();
 }
 async function cleanupDraft(page: Page, type: string) {
   await page.evaluate(

@@ -2,6 +2,7 @@ name: Production deployment Ubuntu 22.04
 on:
   push:
     branches: ["agent/v1-8-r7-*", "agent/v1-8-r8-*"]
+    paths-ignore: ["docs/**", "README.md"]
   workflow_dispatch:
 permissions:
   contents: read

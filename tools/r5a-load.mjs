@@ -141,6 +141,7 @@ for (const [eps, seconds] of [
   [200, 10],
 ]) {
   const begin = performance.now();
+  const firstSample = latencies.length;
   for (let second = 0; second < seconds; second++) {
     const due = begin + second * 1000;
     if (performance.now() < due)
@@ -152,7 +153,7 @@ for (const [eps, seconds] of [
       sends.push(
         (async () => {
           const t = performance.now();
-          sentAt.push(Date.now());
+          sentAt.push(...batch.map(() => Date.now()));
           const r = await json("/v1/events", {
             method: "POST",
             headers: { "content-type": "application/json", origin },
@@ -170,7 +171,15 @@ for (const [eps, seconds] of [
     }
     await Promise.all(sends);
   }
+  const profileSamples = latencies.slice(firstSample).sort((a, b) => a - b);
+  const profileP95Ms = profileSamples[Math.ceil(profileSamples.length * 0.95) - 1];
+  assert(
+    profileP95Ms <= 100,
+    `${eps} events/s HTTP p95 exceeds 100ms: ${profileP95Ms}`,
+  );
   profiles.push({
+    httpSampleCount: profileSamples.length,
+    httpP95Ms: profileP95Ms,
     eventsPerSecond: eps,
     seconds,
     sentEvents: eps * seconds,
@@ -246,8 +255,9 @@ writeFileSync(
       measurement: "HTTP validation/enqueue response; not asynchronous storage latency",
       visibility: {
         method:
-          "conservative per-batch upper bound: request start until all 3200 unique events are queryable in the dedicated project",
+          "conservative event-weighted upper bound: batch request start until all 3200 unique events are queryable in the dedicated project",
         p95UpperBoundMs: visibilityP95UpperBoundMs,
+        eventSampleCount: sentAt.length,
         allVisibleCount: visibleCount,
         pollIntervalMs: 250,
       },

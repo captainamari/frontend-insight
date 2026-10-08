@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "agent/v1-8-r8-*"
+    paths-ignore: ["docs/**", "README.md"]
   workflow_dispatch:
 
 permissions:
@@ -211,7 +212,7 @@ jobs:
         run: pnpm test:r8:e2e
 
       - name: Verify SDK Chromium and WebKit contracts
-        run: pnpm test:browser
+        run: pnpm test:browser --retries=0
 
       - name: Run Kafka ClickHouse consumer recovery and durable schema restore
         run: |
@@ -233,8 +234,8 @@ jobs:
           const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
           assert.equal(checkout, process.env.GITHUB_SHA);
           const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
-          for (const name of ["r8-evidence.json", "r8-recovery.json", "r8-chromium.json", "r8-webkit.json", "r7-chromium.json", "r7-webkit.json", "r7-integration.json", "r6-chromium.json", "r6-webkit.json", "r5b-evidence.json", "r5b-chromium.json", "r5b-webkit.json", "r5b-privacy.json", "r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
-          const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
+          for (const name of ["r8-sdk-chromium.json", "r8-sdk-webkit.json", "r8-evidence.json", "r8-recovery.json", "r8-chromium.json", "r8-webkit.json", "r7-chromium.json", "r7-webkit.json", "r7-integration.json", "r6-chromium.json", "r6-webkit.json", "r5b-evidence.json", "r5b-chromium.json", "r5b-webkit.json", "r5b-privacy.json", "r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "samples", "pages", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
           const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
           const summaries = files.map(name => {
             const data = JSON.parse(readFileSync("artifacts/" + name, "utf8"));
@@ -247,6 +248,7 @@ jobs:
             if (["r4b-sdk-bundle.json", "r4c-sdk-bundle.json"].includes(name)) Object.assign(summary, { baseline: data.baseline, current: data.current, gzipDifference: data.gzipDifference, maximumGzipBytes: data.maximumGzipBytes });
             return summary;
           });
+          for (const name of ["r8-evidence.json", "r5a-load.json", "r8-recovery.json"]) console.log(JSON.stringify({file:name, data:JSON.parse(readFileSync("artifacts/"+name,"utf8"))}));
           console.log(JSON.stringify({ checkout, artifactCount: summaries.length, allTestedCommitsMatch: true, summaries }));
           NODE
 

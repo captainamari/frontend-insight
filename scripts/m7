@@ -118,15 +118,15 @@ release_drill() {
   chmod 700 "$drill_dir"
   compose stop api web >/dev/null
   trap 'compose up --detach --wait --wait-timeout 300 api consumer web >/dev/null 2>&1 || true' EXIT
-  local attempt lag_json lag
+  local attempt drained=false snapshot
   for attempt in {1..30}; do
-    lag_json="$(compose exec -T consumer node -e \
-      "fetch('http://127.0.0.1:3200/health/ready').then(r=>r.json()).then(v=>process.stdout.write(String(v.metrics?.lag ?? -1)))" 2>/dev/null || printf '%s' -1)"
-    lag="${lag_json##*$'\n'}"
-    [[ "$lag" == "0" ]] && break
+    if snapshot="$(compose exec -T consumer node tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
+      drained=true
+      break
+    fi
     sleep 2
   done
-  [[ "$lag" == "0" ]] || fail "Consumer did not reach zero lag before backup"
+  [[ "$drained" == true ]] || fail "Durable Kafka offsets did not drain: ${snapshot:-unavailable}"
   compose stop consumer >/dev/null
   local clickhouse_password
   clickhouse_password="$(awk -F= '$1 == "M24_CLICKHOUSE_PASSWORD" { print $2; exit }' "$ENV_FILE")"
