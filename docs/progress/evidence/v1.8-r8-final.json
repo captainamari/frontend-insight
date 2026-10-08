@@ -1,0 +1,12 @@
+{
+  "baseline": "f0c92a1be0e8c0f6f720f9fa4dd82a60c5e3bf20",
+  "branch": "agent/v1-8-r8-cleanup-acceptance",
+  "base": "agent/v1-8-r7-settings",
+  "testedCommit": null,
+  "automation": "pending",
+  "productionCompose": "pending",
+  "manualAcceptance": "pending",
+  "businessApproval": "pending",
+  "finalGo": false,
+  "artifactDigestIndependentlyVerified": false
+}

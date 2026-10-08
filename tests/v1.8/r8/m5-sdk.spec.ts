@@ -1,6 +1,4 @@
 import { expect, test } from "@playwright/test";
-
-const webUrl = process.env.M5_WEB_URL ?? "http://127.0.0.1:4173";
 const demoUrl = process.env.M5_DEMO_URL ?? "http://127.0.0.1:4174";
 
 test("three controlled scenarios keep simulated credentials out of telemetry", async ({
@@ -58,51 +56,4 @@ test("three controlled scenarios keep simulated credentials out of telemetry", a
   expect(serialized).toContain("feature_failed");
   expect(serialized).toContain("feature_canceled");
   expect(serialized).toContain("feature_long_view_ended");
-});
-
-test("admin can finish the URL-preserving product loop", async ({ page }) => {
-  await page.goto(`${webUrl}/login`);
-  await page.getByLabel("邮箱").fill("admin@example.invalid");
-  await page.getByLabel("密码").fill("LocalAdmin-1234");
-  await page.getByRole("button", { name: "登录" }).click();
-
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-  await expect(page.getByText("销售数据看板")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByText("曝光后使用率（账号）")).toBeVisible();
-  await expect(page.getByText("重复账号 / 浏览器")).toBeVisible();
-
-  const url = new URL(page.url());
-  expect(url.searchParams.get("project")).toBeTruthy();
-  expect(url.searchParams.get("range")).toBe("7d");
-  const preservedQuery = url.search;
-  await page.reload();
-  await expect.poll(() => new URL(page.url()).search).toBe(preservedQuery);
-  await expect(page.getByText("销售数据看板")).toBeVisible();
-
-  await page.getByRole("button", { name: /页面访问/ }).click();
-  await expect(page.getByText("昨日同时段", { exact: false }).first()).toBeVisible();
-  await expect(page.getByText("归一化路由", { exact: true })).toBeVisible();
-
-  await page.getByRole("button", { name: /项目与接入/ }).click();
-  await expect(page.getByText("fi_public_m1demo001", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "发送测试事件" })).toBeVisible();
-  await expect(
-    page.getByText("SDK 不读取 Authorization", { exact: false }),
-  ).toBeVisible();
-});
-
-test("viewer sees project evidence but cannot mutate configuration", async ({
-  page,
-}) => {
-  await page.goto(`${webUrl}/login`);
-  await page.getByLabel("邮箱").fill("viewer@example.invalid");
-  await page.getByLabel("密码").fill("LocalViewer-1234");
-  await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
-
-  await page.getByRole("button", { name: /项目与接入/ }).click();
-  await expect(page.getByText("当前账号为只读权限")).toBeVisible();
-  await expect(page.getByRole("button", { name: "创建项目" })).toHaveCount(0);
-  await expect(page.getByLabel("项目名称")).toBeDisabled();
-  await expect(page.getByRole("button", { name: "保存项目配置" })).toHaveCount(0);
 });

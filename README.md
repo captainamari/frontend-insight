@@ -148,12 +148,11 @@ pnpm exec playwright install chromium webkit
 pnpm test:browser
 ```
 
-启动 Compose 后可以执行 M5/M6 回归与 M8 页面验收：
+当前 v1.8 只提供“全部项目 → 项目概览、业务分析、页面分析、指标管理、设置”正式入口。旧页面路由与专用 API 已移除。
 
 ```bash
-pnpm test:m5:e2e
-pnpm test:m6:e2e
-pnpm test:m8:e2e
+pnpm check
+pnpm test:r8:e2e
 ```
 
-分支推送后，GitHub Actions 会执行静态/单元检查、两种浏览器 SDK 契约、完整 Compose 数据流、M7 负载/故障/恢复和 M5/M6/M8 产品闭环。Linux CI 不能替代 Apple Silicon 目标 Mac、部署环境和真实试点的最终人工验收。
+完整回归由 `.github/workflows/v1-8-r8.yml` 执行 R1–R7、真实 SDK/存储、双浏览器、性能、隐私、负载与故障恢复；Ubuntu 22.04 生产 Compose 独立验证。执行方法见 [v1.8 最终 Mac 验收](docs/guides/v1.8-local-acceptance-macos.md) 和 [Ubuntu 生产指南](docs/guides/production-ubuntu-22.04.md)。当前工程/自动化/手工验收/业务批准分别见 [R8 results](docs/progress/v1.8-r8-results.md)。Linux CI 不能替代目标 Mac、目标服务器或真实规则批准。

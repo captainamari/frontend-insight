@@ -23,7 +23,7 @@ test("production TLS login, SDK storage and retained volumes", async ({
   expect(refreshed.status()).toBe(200);
   const tokens = await refreshed.json();
   const headers = { authorization: `Bearer ${tokens.accessToken}` };
-  let project: { id: string; appId: string };
+  let project: { id: string; appId: string; name: string };
   if (phase === "initial") {
     const response = await context.request.post("/api/projects", {
       headers,
@@ -38,6 +38,14 @@ test("production TLS login, SDK storage and retained volumes", async ({
   } else {
     project = JSON.parse(readFileSync(artifact, "utf8")).project;
   }
+  const access = await context.request.get(`/api/projects/${project.id}/access`, {
+    headers,
+  });
+  expect(access.status()).toBe(200);
+  const saved = await access.json();
+  expect(saved.name).toBe(project.name);
+  expect(saved.timezone).toBe("Asia/Shanghai");
+  expect(saved.origins).toEqual(["https://127.0.0.1:8443"]);
   await page.goto(`/projects/${project.id}/settings?env=prod&range=7d&tab=integration`);
   await expect(page.getByTestId("settings-app-id")).toHaveText(project.appId);
   const settings = `/api/projects/${project.id}/settings`;
@@ -84,7 +92,8 @@ test("production TLS login, SDK storage and retained volumes", async ({
         tlsLogin: true,
         secureRefresh: true,
         sdkQueryable: true,
-        retainedAfterRestart: phase === "retained",
+        retainedAfterRestart: phase === "retained" || phase === "restored",
+        restoredFromBackup: phase === "restored",
         phase,
       },
       null,

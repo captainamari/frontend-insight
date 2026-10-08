@@ -30,7 +30,7 @@ Commands:
   deploy [release-id]                 Build, migrate and deploy an additive release
   verify                              Check public and internal readiness endpoints
   synthetic --confirm-synthetic-data  Seed fixtures and run full flow checks
-  backup [name]                       Export MySQL, ClickHouse raw events and checksums
+  backup [name]                       Export MySQL, durable ClickHouse facts and checksums
   restore <name> --confirm-replace-data
                                       Pre-backup, replace data and restart services
   rollback <release-id> --confirm-rollback
@@ -330,18 +330,23 @@ backup() {
   wait_for_zero_lag
   compose stop consumer >/dev/null
   compose exec -T mysql bash -ec \
-    'exec mysqldump -uroot --password="$(cat /run/secrets/mysql_root_password)" --single-transaction --routines --events --add-drop-database --databases frontend_insight' \
+    'exec mysqldump -uroot --password="$(cat /run/secrets/mysql_root_password)" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
     > "$target/mysql.sql"
-  compose exec -T clickhouse bash -ec \
-    'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "SELECT * FROM raw_events FORMAT Native"' \
-    > "$target/raw_events.native"
+  # Durable projection proofs are required to preserve repeated-operation results.
+  # Never back up the short-lived object_operation_refs table (ADR-020).
+  for table in raw_events repeated_operation_proofs; do
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) FORMAT Native" > "$target/$table.native"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "DESCRIBE TABLE $table FORMAT TSV" > "$target/$table.schema.tsv"
+  done
   local current_release="unknown"
   [[ -f "$STATE_DIR/current" ]] && current_release="$(< "$STATE_DIR/current")"
-  printf '{"createdAt":"%s","release":"%s","formatVersion":1}\n' \
+  printf '{"createdAt":"%s","release":"%s","formatVersion":2}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     "$current_release" \
     > "$target/metadata.json"
-  (cd "$target" && checksum mysql.sql raw_events.native metadata.json > SHA256SUMS)
+  (cd "$target" && checksum mysql.sql *.native *.schema.tsv metadata.json > SHA256SUMS)
   chmod 600 "$target"/*
   resume_after_backup
   trap - EXIT
@@ -357,15 +362,25 @@ restore() {
   [[ -f "$source/mysql.sql" && -f "$source/raw_events.native" && \
      -f "$source/SHA256SUMS" ]] || fail "Backup is incomplete: $name"
   (cd "$source" && checksum --check SHA256SUMS)
+  # Fail before mutation for pre-R8/incompatible archives; never invent missing proofs.
+  for table in raw_events repeated_operation_proofs; do
+    [[ -f "$source/$table.native" && -f "$source/$table.schema.tsv" ]] || fail "Backup lacks durable facts/schema: $table"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "DESCRIBE TABLE $table FORMAT TSV" | cmp -s - "$source/$table.schema.tsv" || fail "Backup schema mismatch: $table; use the matching release before restore"
+  done
   local safety="pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
   backup "$safety"
   compose stop api consumer web
   compose exec -T mysql bash -ec \
     'exec mysql -uroot --password="$(cat /run/secrets/mysql_root_password)"' \
     < "$source/mysql.sql"
-  compose exec -T clickhouse bash -ec \
-    'clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "TRUNCATE TABLE raw_events"; exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "INSERT INTO raw_events FORMAT Native"' \
-    < "$source/raw_events.native"
+  for table in raw_events repeated_operation_proofs; do
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- "TRUNCATE TABLE $table"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "INSERT INTO $table FORMAT Native" < "$source/$table.native"
+  done
+  # These references are deliberately not recoverable; do not retain facts from a later timeline.
+  compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "TRUNCATE TABLE object_operation_refs"'
   compose run --rm migrate
   compose up --detach --no-build --wait --wait-timeout 300 api consumer web
   verify

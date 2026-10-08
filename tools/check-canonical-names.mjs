@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const manifest = JSON.parse(
   await readFile(resolve(root, "packages/event-contract/canonical-names.json"), "utf8"),
 );
-const sourceRoots = ["apps", "packages", "infra", "scripts", "tests", "tools"];
+const sourceRoots = ["apps", "packages", "infra", "scripts", "tests", "tools", "docs"];
 const extensions = new Set([
   ".ts",
   ".tsx",
@@ -16,15 +16,19 @@ const extensions = new Set([
   ".vue",
   ".sql",
   ".json",
+  ".md",
+  ".sh",
+  "",
 ]);
-const allowlist = [
-  /^docs\//,
-  /^packages\/event-contract\/canonical-names\.json$/,
-  /^packages\/event-contract\/scripts\/generate-types\.mjs$/,
-  /^packages\/event-contract\/src\/generated\/canonical-names\.ts$/,
-  /^packages\/test-fixtures\/fixtures\/invalid\//,
-  /^tools\/check-canonical-names\.mjs$/,
-];
+const allowlist = JSON.parse(
+  await readFile(resolve(root, "tools/canonical-allowlist.json"), "utf8"),
+);
+const allowedPaths = new Set(allowlist.map((entry) => entry.path));
+if (
+  allowedPaths.size !== allowlist.length ||
+  allowlist.some((entry) => !entry.reason || /[*^$]/.test(entry.path))
+)
+  throw new Error("CANONICAL_ALLOWLIST_INVALID");
 
 async function filesBelow(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -65,6 +69,11 @@ const featureAliases = manifest.forbiddenAliases.eventNames.filter((value) =>
   value.startsWith("feature_"),
 );
 const patterns = [
+  {
+    label: "business-domain synonym",
+    regex: /\b(?:businessDomain|business_domain|domainId|domainKey)\b|业务域/u,
+  },
+  { label: "old positive contract", regex: /schemaVersion["']?\s*:\s*[12]\b/u },
   ...unambiguousFields.map((value) => ({
     label: value,
     regex: new RegExp(`\\b${escaped(value)}\\b`),
@@ -89,25 +98,31 @@ const patterns = [
   })),
 ];
 
+export function findViolations(source) {
+  return source
+    .split(/\r?\n/u)
+    .flatMap((line, index) =>
+      patterns
+        .filter((p) => p.regex.test(line))
+        .map((p) => ({ line: index + 1, label: p.label })),
+    );
+}
+
 const violations = [];
-for (const sourceRoot of sourceRoots) {
-  for (const file of await filesBelow(resolve(root, sourceRoot))) {
-    const path = relative(root, file);
-    if (allowlist.some((rule) => rule.test(path))) continue;
-    const lines = (await readFile(file, "utf8")).split(/\r?\n/u);
-    for (const [index, line] of lines.entries()) {
-      for (const pattern of patterns) {
-        if (pattern.regex.test(line)) {
-          violations.push(`${path}:${index + 1}: ${pattern.label}`);
-        }
+if (process.argv[1] === fileURLToPath(import.meta.url))
+  for (const sourceRoot of sourceRoots) {
+    for (const file of await filesBelow(resolve(root, sourceRoot))) {
+      const path = relative(root, file);
+      if (allowedPaths.has(path)) continue;
+      for (const item of findViolations(await readFile(file, "utf8"))) {
+        violations.push(`${path}:${item.line}: ${item.label}`);
       }
     }
   }
-}
 
 if (violations.length) {
   console.error("Canonical-name check failed:\n" + violations.join("\n"));
   process.exitCode = 1;
-} else {
+} else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log("Canonical-name check passed.");
 }

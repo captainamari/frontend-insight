@@ -1,10 +1,11 @@
 name: Production deployment Ubuntu 22.04
 on:
   push:
-    branches: ["agent/v1-8-r7-*"]
+    branches: ["agent/v1-8-r7-*", "agent/v1-8-r8-*"]
   workflow_dispatch:
 permissions:
   contents: read
+  pull-requests: read
 concurrency:
   group: production-deployment-${{ github.ref }}
   cancel-in-progress: true
@@ -47,6 +48,12 @@ jobs:
       - name: Verify retained login and event data in both browsers
         env:
           FI_PRODUCTION_PHASE: retained
+        run: pnpm exec playwright test -c playwright.production.config.ts
+      - name: Backup and restore populated durable schema in isolated CI
+        run: bash tools/production-ci restore-drill
+      - name: Verify restored accounts projects policies and events in both browsers
+        env:
+          FI_PRODUCTION_PHASE: restored
         run: pnpm exec playwright test -c playwright.production.config.ts
       - name: Verify exact commit evidence
         run: bash tools/production-ci evidence
