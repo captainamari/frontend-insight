@@ -132,19 +132,14 @@ test("leaving business cancels its pending default-selection read before access 
   await page.getByLabel("密码").fill("LocalAdmin-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(page).toHaveURL(/\/settings\?/);
-  let releaseBusiness!: () => void, businessReady!: () => void;
-  let releaseAccess!: () => void, accessReady!: () => void;
+  let releaseBusiness!: () => void, releaseAccess!: () => void;
+  let businessReady = false,
+    accessReady = false;
   const businessGate = new Promise<void>((resolve) => {
     releaseBusiness = resolve;
   });
-  const businessHeld = new Promise<void>((resolve) => {
-    businessReady = resolve;
-  });
   const accessGate = new Promise<void>((resolve) => {
     releaseAccess = resolve;
-  });
-  const accessHeld = new Promise<void>((resolve) => {
-    accessReady = resolve;
   });
   let armAccess = false,
     canceled = false;
@@ -156,7 +151,7 @@ test("leaving business cancels its pending default-selection read before access 
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
     expect((await response.json()).moduleId).toBeTruthy();
-    businessReady();
+    businessReady = true;
     await businessGate;
     await route.fulfill({ response }).catch((error) => {
       if (!canceled) throw error;
@@ -164,22 +159,47 @@ test("leaving business cancels its pending default-selection read before access 
   });
   await page.route(`**/api/projects/${project}/access`, async (route) => {
     if (armAccess) {
-      accessReady();
+      const response = await route.fetch();
+      accessReady = true;
       await accessGate;
+      await route.fulfill({ response });
+      return;
     }
     await route.continue();
   });
   try {
-    await page.goto(`/projects/${project}/business?${query}`);
-    await businessHeld;
+    await test.step("hold the real default-module response during SPA entry", async () => {
+      await page
+        .getByRole("navigation", { name: "项目导航" })
+        .getByRole("button", { name: "业务分析", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/business\?/);
+      await expect
+        .poll(() => businessReady, {
+          timeout: 10000,
+          message: "real business response reached the hold",
+        })
+        .toBe(true);
+    });
     expect(canceled).toBe(false);
     armAccess = true;
     await page
       .getByRole("navigation", { name: "项目导航" })
       .getByRole("button", { name: "页面分析", exact: true })
       .click();
-    await accessHeld;
-    await expect.poll(() => canceled).toBe(true);
+    await test.step("cancel old read while the real access response is still held", async () => {
+      await expect
+        .poll(() => accessReady, { message: "new navigation reached access guard" })
+        .toBe(true);
+      // Release the obsolete real response while authorization is still blocked.
+      // Browser interception must not itself prevent the abort signal settling.
+      releaseBusiness();
+      await expect
+        .poll(() => canceled, {
+          message: "old business read aborted before authorization resolves",
+        })
+        .toBe(true);
+    });
     releaseBusiness();
     releaseAccess();
     await expect(page).toHaveURL(new RegExp(`/projects/${project}/pages\\?`));
@@ -191,6 +211,6 @@ test("leaving business cancels its pending default-selection read before access 
   } finally {
     releaseBusiness();
     releaseAccess();
-    await page.unrouteAll({ behavior: "wait" });
+    await page.unrouteAll({ behavior: "ignoreErrors" });
   }
 });
