@@ -11,6 +11,7 @@ compose() {
 }
 case "${1:-}" in
 prepare)
+  mkdir -p artifacts
   sudo bash scripts/production init-secrets --confirm-create
   # Exercise permission migration from the old root:root 600 layout without rotation.
   sudo sh -c 'sha256sum .secrets/production/* > /tmp/fi-secret-checksums; chmod 600 .secrets/production/*; chown 0:0 .secrets/production/*'

@@ -399,8 +399,8 @@ status() {
     docker stats --no-stream \
       --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}' $ids
   fi
-  [[ -f "$STATE_DIR/current" ]] && info "Current release: $(< "$STATE_DIR/current")"
-  [[ -f "$STATE_DIR/previous" ]] && info "Previous release: $(< "$STATE_DIR/previous")"
+  if [[ -f "$STATE_DIR/current" ]]; then info "Current release: $(< "$STATE_DIR/current")"; fi
+  if [[ -f "$STATE_DIR/previous" ]]; then info "Previous release: $(< "$STATE_DIR/previous")"; fi
 }
 
 logs() {
