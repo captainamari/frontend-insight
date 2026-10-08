@@ -107,11 +107,23 @@ describe("contract v3 ingestion pipeline", () => {
     expect(markReceived).toHaveBeenCalledOnce();
     const timings = manager.getMetrics().recentTimings;
     expect(timings).toHaveLength(1);
-    expect(Object.keys(timings[0]!).sort()).toEqual([
-      "sequence", "validationMs", "projectMs", "probePolicyMs", "workflowMs",
-      "directoryMs", "sanitizeMs", "kafkaMs", "statusWriteMs", "totalMs",
-    ].sort());
-    expect(Object.values(timings[0]!).every(v => Number.isFinite(v) && v >= 0)).toBe(true);
+    expect(Object.keys(timings[0]!).sort()).toEqual(
+      [
+        "sequence",
+        "validationMs",
+        "projectMs",
+        "probePolicyMs",
+        "workflowMs",
+        "directoryMs",
+        "sanitizeMs",
+        "kafkaMs",
+        "statusWriteMs",
+        "totalMs",
+      ].sort(),
+    );
+    expect(Object.values(timings[0]!).every((v) => Number.isFinite(v) && v >= 0)).toBe(
+      true,
+    );
     expect(JSON.stringify(timings)).not.toContain(rawUserId);
   });
 
