@@ -90,7 +90,7 @@ server {
 - 隔离自签名 HTTPS 代理上的 Chromium/WebKit 登录、Secure Cookie 刷新、真实 SDK 与测试事件入库查询。
 - 停止后保留卷重新部署，账号、项目和事件仍可查询。
 
-与 R7 全套回归分别保留证据，不能把开发栈成功代替生产验证。CI 的 Docker/Compose 实际版本另行记录；不声称它与目标机版本完全一致。CI 自签名证书仅用于隔离测试，目标机真实证书、网络、容量、备份恢复及生产负载仍需环境验证。最新执行结果见 R7 results，运行未通过时不得视为可部署交付。
+与 R7 全套回归分别保留证据，不能把开发栈成功代替生产验证。CI 的 Docker/Compose 实际版本另行记录；不声称它与目标机版本完全一致。CI 自签名证书仅用于隔离测试，目标机真实证书、网络、容量、备份恢复及生产负载仍需环境验证。已验证代码 `a5d741d0ce239cdbb07f513bf0c364352dbfc752` 的 [生产回归 37726292902](https://github.com/captainamari/frontend-insight/actions/runs/37726292902) 和 [完整 R7 回归 attempt 2](https://github.com/captainamari/frontend-insight/actions/runs/37726292930/attempts/2) 均成功。生产 CI 使用 Docker 28.0.4 / Compose 2.38.2；目标机版本不同。首次 R7 回归发生过 ClickHouse 241 内存限制，同代码完整重跑成功，详情与边界见 [R7 results](../progress/v1.8-r7-results.md)。
 
 若失败，保留失败阶段和脱敏错误，采集：
 

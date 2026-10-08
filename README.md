@@ -31,12 +31,14 @@ bash scripts/m7 fault all --confirm-disruption
 bash scripts/m7 release-drill --confirm-disruption
 ```
 
-Production Compose 使用文件型 Docker Secret，并提供 additive deploy、备份、恢复和保留镜像回滚：
+Ubuntu 22.04 生产部署请先阅读 [生产部署指南](docs/guides/production-ubuntu-22.04.md)，包含容量检查、密钥权限、首次管理员及 HTTPS 配置。生产流程不使用上面的演示账号或 reset。Production Compose 使用文件型 Docker Secret，并提供 additive deploy、备份、恢复和保留镜像回滚：
 
 ```bash
-bash scripts/production init-secrets --confirm-create
-bash scripts/production doctor
-bash scripts/production deploy pilot-001
+sudo bash scripts/production init-secrets --confirm-create
+sudo bash scripts/production doctor
+sudo bash scripts/production deploy "r7-$(git rev-parse --short=12 HEAD)"
+sudo bash scripts/production bootstrap-admin
+sudo bash scripts/production verify
 ```
 
 这些自动化不替代目标环境演练、真实项目试点和 M8 三项目/处理人发布门。

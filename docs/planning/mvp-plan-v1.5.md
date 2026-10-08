@@ -923,6 +923,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 最终代码 `066fbeb4761389f90f92fe85e31498b96450bff7` 的 [R7 完整真实回归 37610555062](https://github.com/captainamari/frontend-insight/actions/runs/37610555062) 通过；R6 入口修复先落 R6 后同步，R6 手工验收及异常业务审批状态保持待完成。
 
+2026-10-08 Jesse 授权 R7 追加生产部署适配。代码 `a5d741d0ce239cdbb07f513bf0c364352dbfc752` 的 Ubuntu 22.04 生产 Compose 回归 `37726292902` 与完整 R7 回归 `37726292930` attempt 2 通过；首次回归 ClickHouse 241 内存限制及重跑边界见 [最新 results](../progress/v1.8-r7-results.md)。新增 [生产部署指南](../guides/production-ubuntu-22.04.md)，不改变上述未完成的业务审批/事实门禁，不代表目标服务器已部署。
+
 ## 20. R8：清理、回归和最终验收
 
 建议分支：`agent/v1-8-r8-cleanup-acceptance`

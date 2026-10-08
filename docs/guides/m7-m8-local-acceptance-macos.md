@@ -189,11 +189,11 @@ bash scripts/m7 release-drill --confirm-disruption
 首次只在本机生成 Secret；命令不会打印值，也不会覆盖已有或半成品 Secret 集：
 
 ```bash
-bash scripts/production init-secrets --confirm-create
-bash scripts/production doctor
+sudo bash scripts/production init-secrets --confirm-create
+sudo bash scripts/production doctor
 ```
 
-检查 `.secrets/production` 目录与文件权限为 700/600，并确认：
+检查 `.secrets/production` 目录与文件权限为 700/440（root:10001 文件组，只读授予应用），并确认：
 
 - `docker compose config` 中没有 `local-only` 凭据；
 - API/consumer 使用 `*_FILE`，refresh cookie secure；
@@ -204,9 +204,9 @@ bash scripts/production doctor
 单机 pilot 部署示例：
 
 ```bash
-bash scripts/production deploy pilot-001
-bash scripts/production verify
-bash scripts/production status
+sudo bash scripts/production deploy pilot-001
+sudo bash scripts/production verify
+sudo bash scripts/production status
 ```
 
 生产必须在 TLS 反向代理和内网 ACL 后暴露 Web；不要直接公开 API/consumer 端口。集中日志 30 天留存、备份异地复制、通知路由和基础设施高可用属于部署环境 owner 的必填项，单机 Compose 不宣称代替它们。
@@ -214,8 +214,8 @@ bash scripts/production status
 备份和回滚：
 
 ```bash
-bash scripts/production backup before-upgrade
-bash scripts/production rollback pilot-001 --confirm-rollback
+sudo bash scripts/production backup before-upgrade
+sudo bash scripts/production rollback pilot-001 --confirm-rollback
 ```
 
 `backup` 为取得 MySQL/ClickHouse 一致切点，会短暂停止 API/Web 接流、等待 Kafka lag 归零并停止 consumer；应在维护窗口执行。脚本无论成功或中途失败都会尝试恢复服务，结束后仍须执行 `verify`。
@@ -223,7 +223,7 @@ bash scripts/production rollback pilot-001 --confirm-rollback
 恢复会替换当前 MySQL/ClickHouse 数据，且先自动建立 pre-restore 安全备份：
 
 ```bash
-bash scripts/production restore before-upgrade --confirm-replace-data
+sudo bash scripts/production restore before-upgrade --confirm-replace-data
 ```
 
 恢复前必须验证备份副本在另一存储位置可读取；不要把 `backups/` 或 `.secrets/` 提交到 Git。
@@ -255,3 +255,5 @@ bash scripts/production restore before-upgrade --confirm-replace-data
 ```
 
 生产 Secret、备份和 runtime 状态不会被 `dev reset` 删除，必须按组织的数据销毁流程单独处理。
+
+2026-10-08 部署补充：Linux/Ubuntu 22.04 的生产初始化、已有密钥权限迁移、首次管理员、HTTPS 和验证请以 [当前生产部署指南](production-ubuntu-22.04.md) 为准；本页 Mac 本地演练与历史结果不代表目标服务器验收。

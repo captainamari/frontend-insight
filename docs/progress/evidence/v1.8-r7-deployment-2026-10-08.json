@@ -1,0 +1,259 @@
+{
+  "scope": "2026-10-08 Ubuntu 22.04 production deployment fixes on R7",
+  "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+  "branch": "agent/v1-8-r7-settings",
+  "base": "agent/v1-8-r6-page-operations",
+  "baseSha": "9d1bcbf3544ff0b93806c554870a88963504ea2c",
+  "authorization": "Jesse authorized fixes on R7; no target-server deployment, automatic merge or R8",
+  "production": {
+    "artifactId": 11528211545,
+    "artifactDigest": "sha256:acf326b240fecbb47c3221b3d8b3be138cfc768d1bc94c337a077dc1fe773111",
+    "os": "Ubuntu 22.04",
+    "docker": "28.0.4",
+    "compose": "2.38.2",
+    "checks": [
+      "root-owned secret permission migration preserved values",
+      "non-root secret read and denied-permission fixture",
+      "read-only app root and writable tmpfs",
+      "app and web all layers scanned for actual CI secrets",
+      "one bootstrap admin, no fixture projects, repeated bootstrap rejected",
+      "Chromium/WebKit HTTPS Secure refresh and real SDK storage",
+      "retained-volume redeploy preserved login/project/events"
+    ],
+    "browserInitialSeconds": 16,
+    "browserRetainedSeconds": 4.7,
+    "ciEvidenceJsonCount": 4
+  },
+  "r7": {
+    "id": 37726292930,
+    "attempt": 2,
+    "head": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+    "status": "completed",
+    "conclusion": "success",
+    "started": "2026-10-08T04:24:34Z",
+    "updated": "2026-10-08T04:44:27Z",
+    "artifactId": 11528813321,
+    "artifactDigest": "sha256:b3b4ce1f8b5ac09f0c23fa6efc5c52707c51f652ffa44a89021d638bafc4b37e",
+    "testFiles": 68,
+    "tests": 526,
+    "artifactCount": 43,
+    "allTestedCommitsMatch": true,
+    "artifacts": [
+      {
+        "file": "r1c-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r2-browser-performance-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r2-browser-performance-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r2-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r2-upgrade.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r3-browser-chromium-admin.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r3-browser-chromium-viewer.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r3-browser-webkit-admin.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r3-browser-webkit-viewer.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r3-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4a-browser-chromium-admin.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4a-browser-chromium-viewer.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4a-browser-webkit-admin.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4a-browser-webkit-viewer.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4a-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-evidence.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-safe-poll-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-safe-poll-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-sdk-bundle.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-sdk-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-sdk-synchronous.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4b-sdk-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-evidence.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-sdk-bundle.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-sdk-synchronous.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r4c-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5a-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5a-evidence.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5a-load.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5a-sdk-bundle.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5a-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5b-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5b-evidence.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5b-privacy.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r5b-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r6-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r6-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r7-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r7-evidence.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r7-integration.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      },
+      {
+        "file": "r7-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752"
+      }
+    ],
+    "probePerformance": [
+      {
+        "file": "r7-chromium.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+        "warmups": 5,
+        "sampleCount": 20,
+        "p95Ms": 26.84176099999968,
+        "measurements": []
+      },
+      {
+        "file": "r7-webkit.json",
+        "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+        "warmups": 5,
+        "sampleCount": 20,
+        "p95Ms": 15.205298999999286,
+        "measurements": []
+      }
+    ]
+  },
+  "verification": "Read successful job steps and decoded logs; R7 log reports all 43 testedCommit values equal checkout/PR head. Production evidence step asserts checkout and browser/image evidence SHAs. Archive digests are GitHub API metadata; independent ZIP retrieval returned HTTP 403 and digests were not recomputed locally.",
+  "failures": [
+    {
+      "run": 37725771597,
+      "sha": "3b3929846c79bd1c7e4cc2debe22262667f7be4e",
+      "reason": "Workflow runner context used before runner initialization; moved temporary credential path to a step"
+    },
+    {
+      "run": 37725835417,
+      "sha": "e866c199a3995ba00be112889973de47733405ce",
+      "reason": "Browser assertions completed, but root-created evidence directory denied runner writes; also fixed status exit code without previous release"
+    },
+    {
+      "run": 37726292930,
+      "attempt": 1,
+      "sha": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+      "reason": "R4-A business query returned FACT_STORE_UNAVAILABLE; safe log code CLICKHOUSE_241 (memory limit) in 2GiB development ClickHouse. Same code entire job rerun passed attempt 2 without changed thresholds or skipped tests; underlying transient/resource cause not proven resolved."
+    }
+  ],
+  "limits": [
+    "Target Ubuntu host has not been deployed",
+    "CI Docker/Compose differs from target 27.3.1/2.32.2",
+    "No production workload capacity or backup/restore guarantee from this CI",
+    "R6 manual acceptance pending; R7 abnormal rules not approved; multi-IP/permission-denial facts unavailable"
+  ]
+}
