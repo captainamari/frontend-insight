@@ -13,13 +13,14 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     env:
-      FI_BOOTSTRAP_INPUT: ${{ runner.temp }}/production-bootstrap.json
       FI_PRIVACY_NO_TRACE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
+      - name: Set temporary credential input path
+        run: echo "FI_BOOTSTRAP_INPUT=$RUNNER_TEMP/production-bootstrap.json" >> "$GITHUB_ENV"
       - run: npm install --global pnpm@11.15.1
       - run: pnpm install --frozen-lockfile
       - name: Validate production scripts and memory boundaries
