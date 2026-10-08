@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# Only isolated GitHub-hosted jobs may use this destructive test harness.
+set -Eeuo pipefail
+[[ "${GITHUB_ACTIONS:-}" == true && "${RUNNER_ENVIRONMENT:-}" == github-hosted ]] || exit 2
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+compose() {
+  sudo FI_SECRETS_DIR="$ROOT/.secrets/production" FI_RELEASE_ID=production-ci docker compose \
+    -p frontend-insight-production --env-file .env.production \
+    -f infra/compose/m2-m4.compose.yml -f infra/compose/m5.compose.yml -f infra/compose/production.compose.yml "$@"
+}
+case "${1:-}" in
+prepare)
+  sudo bash scripts/production init-secrets --confirm-create
+  # Exercise permission migration from the old root:root 600 layout without rotation.
+  sudo sh -c 'sha256sum .secrets/production/* > /tmp/fi-secret-checksums; chmod 600 .secrets/production/*; chown 0:0 .secrets/production/*'
+  sudo bash scripts/production secure-secrets --confirm-permissions
+  sudo sh -c 'sha256sum --check /tmp/fi-secret-checksums >/dev/null; rm /tmp/fi-secret-checksums'
+  if sudo bash scripts/production init-secrets --confirm-create > /dev/null 2>&1; then exit 1; fi
+  sudo bash scripts/production doctor
+  # Canary paths must never enter ANY layer of either image.
+  sudo mkdir -p .runtime/production backups/production
+  sudo touch .runtime/production/BUILD_CONTEXT_CANARY backups/production/BUILD_CONTEXT_CANARY
+  ;;
+deploy)
+  sudo bash scripts/production deploy production-ci
+  # Reproduce denied access as the real container user, then restore permissions.
+  sudo chmod 400 .secrets/production/mysql_url
+  if sudo bash scripts/production verify-secrets > /dev/null 2>&1; then
+    sudo bash scripts/production secure-secrets --confirm-permissions
+    exit 1
+  fi
+  sudo bash scripts/production secure-secrets --confirm-permissions
+  sudo bash scripts/production verify-secrets
+  for service in api consumer; do
+    compose exec -T "$service" node -e 'const fs=require("node:fs"); if(process.getuid()===0)process.exit(1); try{fs.writeFileSync("/app/FI_READONLY_PROBE","x"); process.exit(1)}catch(e){if(!["EROFS","EACCES"].includes(e.code))throw e;} fs.writeFileSync("/tmp/fi-writable-probe","ok");'
+  done
+  sudo GITHUB_ACTIONS=true GITHUB_SHA="$GITHUB_SHA" python3 tools/production-image-audit.py
+  ;;
+bootstrap)
+  python3 - <<'PY'
+import json, os, secrets
+from pathlib import Path
+p=Path(os.environ['FI_BOOTSTRAP_INPUT'])
+p.write_text(json.dumps({'email':'production-admin@example.invalid','displayName':'Production CI TEST ONLY','password':secrets.token_hex(24)}))
+p.chmod(0o600)
+PY
+  sudo bash scripts/production bootstrap-admin --stdin-json < "$FI_BOOTSTRAP_INPUT"
+  if sudo bash scripts/production bootstrap-admin --stdin-json < "$FI_BOOTSTRAP_INPUT" > "$RUNNER_TEMP/bootstrap-repeat.log" 2>&1; then exit 1; fi
+  grep -q ADMIN_ALREADY_BOOTSTRAPPED "$RUNNER_TEMP/bootstrap-repeat.log"
+  # No seed users/projects are created by the production entrypoint.
+  compose exec -T api node --input-type=module <<'JS'
+import {loadApiEnvironment} from './packages/shared-config/dist/index.js';
+import {MySqlStore} from './packages/server-core/dist/src/index.js';
+const db=new MySqlStore(loadApiEnvironment().MYSQL_URL);
+try {
+ const [u]=await db.pool.query('SELECT COUNT(*) n FROM users');
+ const [p]=await db.pool.query('SELECT COUNT(*) n FROM projects');
+ if(u[0].n!==1 || p[0].n!==0) throw new Error('PRODUCTION_BOOTSTRAP_POLLUTED');
+} finally {await db.close();}
+JS
+  ;;
+tls)
+  mkdir -p "$RUNNER_TEMP/fi-tls"
+  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=localhost' \
+    -addext 'subjectAltName=IP:127.0.0.1,DNS:localhost' \
+    -keyout "$RUNNER_TEMP/fi-tls/key.pem" -out "$RUNNER_TEMP/fi-tls/cert.pem" 2>/dev/null
+  cat > "$RUNNER_TEMP/fi-tls/nginx.conf" <<'NGINX'
+events {}
+http {
+  access_log off;
+  error_log /dev/null;
+  server {
+    listen 127.0.0.1:8443 ssl;
+    ssl_certificate /tls/cert.pem;
+    ssl_certificate_key /tls/key.pem;
+    location / {
+      proxy_pass http://127.0.0.1:4173;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-Proto https;
+    }
+  }
+}
+NGINX
+  docker run -d --name fi-production-tls --network host \
+    -v "$RUNNER_TEMP/fi-tls:/tls:ro" nginx:1.29-alpine nginx -c /tls/nginx.conf -g 'daemon off;'
+  for attempt in {1..30}; do
+    if curl -kfsS https://127.0.0.1:8443/health > /dev/null; then exit 0; fi
+    sleep 1
+  done
+  exit 1
+  ;;
+restart)
+  sudo bash scripts/production down
+  sudo bash scripts/production deploy production-ci
+  ;;
+evidence)
+  mkdir -p artifacts
+  compose ps --format json > "$RUNNER_TEMP/production-ps.json"
+  node --input-type=module <<'JS'
+import {readFileSync,writeFileSync} from 'node:fs';
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+const sha=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+assert.equal(sha,process.env.GITHUB_SHA);
+for(const name of ['production-chromium.json','production-webkit.json','production-images.json']) {
+ const d=JSON.parse(readFileSync('artifacts/'+name,'utf8'));
+ assert.equal(d.testedCommit,sha);
+ if(name.includes('images')) continue;
+ assert.equal(d.retainedAfterRestart,true);
+}
+writeFileSync('artifacts/production-evidence.json',JSON.stringify({testedCommit:sha,runId:process.env.GITHUB_RUN_ID,os:'ubuntu-22.04',architecture:'amd64',profile:'production',secretAccess:'non-root tested, deny fixture tested',secretMigration:'values preserved',bootstrap:'one admin, zero fixture projects, repeat rejected',tls:'isolated self-signed edge; Chromium/WebKit Secure refresh',restart:'named volumes retained; login and events queryable',imageLayers:'all layers scanned for actual CI secrets',capacity:'15GiB daemon floor; no constrained-host override',limits:'CI only; target machine not deployed; production certificates and network remain operator tasks'},null,2));
+JS
+  ;;
+cleanup)
+  docker rm -f fi-production-tls > /dev/null 2>&1 || true
+  sudo bash scripts/production down || true
+  ;;
+*) exit 2 ;;
+esac

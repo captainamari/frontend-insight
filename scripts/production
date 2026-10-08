@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/production-capacity.sh"
 BASE_COMPOSE_FILE="$ROOT_DIR/infra/compose/m2-m4.compose.yml"
 WEB_COMPOSE_FILE="$ROOT_DIR/infra/compose/m5.compose.yml"
 PRODUCTION_COMPOSE_FILE="$ROOT_DIR/infra/compose/production.compose.yml"
@@ -21,6 +22,10 @@ Usage: bash scripts/production <command>
 
 Commands:
   init-secrets --confirm-create       Generate six local Docker secret files once
+  secure-secrets --confirm-permissions Fix existing secret ownership without changing values
+  bootstrap-admin                     Prompt for first admin (empty database only)
+  bootstrap-admin --stdin-json         Read first-admin JSON from stdin, never command arguments
+  verify-secrets                      Check non-root secret reads using built images
   doctor                              Validate host, secrets and Compose policy
   deploy [release-id]                 Build, migrate and deploy an additive release
   verify                              Check public and internal readiness endpoints
@@ -75,25 +80,49 @@ secret_files() {
     auth_token_secret
 }
 
+# A dedicated supplemental group grants read access to non-root application users.
+# The host directory remains root-only; Compose file secrets preserve host ownership.
+secret_gid=10001
+file_stat() {
+  if [[ "$(uname -s)" == Darwin ]]; then stat -f "$1" "$3"; else stat -c "$2" "$3"; fi
+}
+
 assert_secrets() {
-  local name value_size mode
+  local name value_size
+  [[ ! -L "$SECRETS_DIR" ]] || fail "Secret directory must not be a symlink"
+  [[ "$(file_stat '%u:%Lp' '%u:%a' "$SECRETS_DIR")" == "0:700" ]] ||
+    fail "Secret directory must be root-owned mode 700; use secure-secrets"
   while IFS= read -r name; do
-    [[ -f "$SECRETS_DIR/$name" ]] || fail "Missing secret file: $name"
+    [[ -f "$SECRETS_DIR/$name" && ! -L "$SECRETS_DIR/$name" ]] || fail "Missing or symlink secret file: $name"
     value_size="$(wc -c < "$SECRETS_DIR/$name" | tr -d ' ')"
     [[ "$value_size" -ge 32 ]] || fail "Secret file is unexpectedly short: $name"
-    if stat -f '%Lp' "$SECRETS_DIR/$name" >/dev/null 2>&1; then
-      mode="$(stat -f '%Lp' "$SECRETS_DIR/$name")"
-    else
-      mode="$(stat -c '%a' "$SECRETS_DIR/$name")"
-    fi
-    [[ "$mode" == "600" || "$mode" == "400" ]] || \
-      fail "Secret file $name must use mode 600 or 400; detected $mode"
+    [[ "$(file_stat '%u:%g:%Lp' '%u:%g:%a' "$SECRETS_DIR/$name")" == "0:$secret_gid:440" ]] ||
+      fail "Secret file $name must be root:$secret_gid mode 440; use secure-secrets"
   done < <(secret_files)
+}
+
+secure_secrets() {
+  [[ "${1:-}" == "--confirm-permissions" ]] || fail "Requires --confirm-permissions; values will be preserved"
+  [[ "$EUID" == 0 ]] || fail "Run secret setup with sudo; application containers still run as node"
+  [[ -d "$SECRETS_DIR" && ! -L "$SECRETS_DIR" ]] || fail "Secret directory missing or symlink"
+  local name
+  while IFS= read -r name; do
+    [[ -f "$SECRETS_DIR/$name" && ! -L "$SECRETS_DIR/$name" ]] || fail "Missing or symlink secret file: $name"
+  done < <(secret_files)
+  chown 0:0 "$SECRETS_DIR"
+  chmod 700 "$SECRETS_DIR"
+  while IFS= read -r name; do
+    chown "0:$secret_gid" "$SECRETS_DIR/$name"
+    chmod 440 "$SECRETS_DIR/$name"
+  done < <(secret_files)
+  assert_secrets
+  info "Secret access secured; values unchanged"
 }
 
 init_secrets() {
   [[ "${1:-}" == "--confirm-create" ]] || \
     fail "Secret generation requires --confirm-create"
+  [[ "$EUID" == 0 ]] || fail "Use sudo for init-secrets"
   require_command openssl
   mkdir -p "$SECRETS_DIR"
   chmod 700 "$SECRETS_DIR"
@@ -118,18 +147,9 @@ init_secrets() {
   printf '%s\n' "$clickhouse_password" > "$SECRETS_DIR/clickhouse_password"
   printf '%s\n' "$account_key" > "$SECRETS_DIR/account_hmac_key"
   printf '%s\n' "$token_secret" > "$SECRETS_DIR/auth_token_secret"
+  secure_secrets --confirm-permissions
   ensure_env
-  info "Created mode-600 secrets in $SECRETS_DIR; values were not printed"
-}
-
-host_memory_bytes() {
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    sysctl -n hw.memsize
-  elif [[ -r /proc/meminfo ]]; then
-    awk '/MemTotal/ { printf "%.0f\n", $2 * 1024 }' /proc/meminfo
-  else
-    printf '0\n'
-  fi
+  info "Created root-owned mode-440 secrets in $SECRETS_DIR; values were not printed"
 }
 
 doctor() {
@@ -137,22 +157,73 @@ doctor() {
   require_command docker
   docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
   docker info >/dev/null 2>&1 || fail "Docker engine is not running"
+  local endpoint
+  endpoint="${DOCKER_HOST:-$(docker context inspect --format '{{.Endpoints.docker.Host}}')}"
+  [[ "$endpoint" == unix://* ]] || fail "File secrets require a local Docker daemon; remote contexts are unsupported"
   assert_secrets
-  local memory_bytes free_kib
+  local canonical_secrets
+  canonical_secrets="$(cd "$SECRETS_DIR" && pwd -P)"
+  case "$canonical_secrets/" in
+    "$ROOT_DIR/.secrets/"*) ;;
+    "$ROOT_DIR/"*) fail "In-repository secrets must be under excluded .secrets/; prefer a directory outside the build context" ;;
+  esac
+  local memory_bytes free_kib docker_root available_kib
+  memory_bytes="$(docker info --format '{{.MemTotal}}')"
+  # 16 GiB-class hosts commonly expose less physical RAM after kernel reservations.
+  # Keep a 15 GiB usable-total floor, independent of swap, plus bounded service limits.
   if [[ "${FI_ALLOW_CONSTRAINED_HOST:-0}" != "1" ]]; then
-    memory_bytes="$(host_memory_bytes)"
-    [[ "$memory_bytes" -ge 17179869184 ]] || \
-      fail "At least 16 GiB host memory is required by the production Compose profile"
+    production_capacity_total_ok "$memory_bytes" ||
+      fail "Production requires at least 15 GiB Docker daemon RAM (16 GiB-class host); swap does not count"
     free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
-    [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free disk is required"
+    [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free workspace disk is required"
+    docker_root="$(docker info --format '{{.DockerRootDir}}')"
+    if [[ -d "$docker_root" ]]; then
+      free_kib="$(df -Pk "$docker_root" | awk 'NR==2 { print $4 }')"
+      [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free Docker data disk is required"
+    else
+      info "Docker data disk is not host-visible; check daemon disk capacity separately"
+    fi
   else
-    info "Constrained-host mode skips capacity gates and only validates policy; do not use it for a pilot"
+    info "Constrained-host mode skips capacity gates for CI only; not production approval"
+  fi
+  if [[ -r /proc/meminfo ]]; then
+    available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
+    info "Host available RAM: $available_kib KiB; steady service limits total 9.875 GiB, excluding build/transient jobs"
+    if [[ "$available_kib" -lt 11534336 ]]; then
+      info "WARNING: under 11 GiB available; account for existing containers and avoid concurrent builds/load"
+    fi
   fi
   compose config --quiet
   if compose config | grep -q 'local-only'; then
     fail "Resolved production Compose still contains a local-only credential"
   fi
-  info "Doctor passed: secret files, resource policy, log rotation and Compose are valid"
+  info "Doctor passed: configuration preflight only; deploy verifies actual container secret access and readiness"
+}
+
+check_secret_access() {
+  local service
+  for service in migrate api consumer; do
+    compose run --rm --no-deps --entrypoint node "$service" -e '
+      const fs=require("node:fs");
+      if(process.getuid()===0) throw new Error("APPLICATION_MUST_BE_NON_ROOT");
+      for(const [key,path] of Object.entries(process.env)) if(key.endsWith("_FILE")) {
+        try { if(!fs.readFileSync(path,"utf8").trim()) throw Error(); }
+        catch { console.error("SECRET_UNREADABLE: "+key); process.exit(1); }
+      }
+      console.log("Non-root secret access verified");'
+  done
+}
+
+bootstrap_admin() {
+  ensure_env
+  assert_secrets
+  if [[ "${1:-}" == "--stdin-json" ]]; then
+    compose exec -T api node apps/api/dist/bootstrap-admin.js --stdin-json
+  elif [[ -z "${1:-}" && -t 0 && -t 1 ]]; then
+    compose exec api node apps/api/dist/bootstrap-admin.js --interactive
+  else
+    fail "Use an interactive terminal or bootstrap-admin --stdin-json (email, displayName, password)"
+  fi
 }
 
 resolved_release() {
@@ -185,6 +256,7 @@ deploy() {
   export FI_RELEASE_ID="$release"
   info "Building immutable local images for release $release"
   compose build migrate api consumer web
+  check_secret_access
   compose up --detach --wait --wait-timeout 300 mysql clickhouse kafka
   compose run --rm migrate
   compose up --detach --no-build --wait --wait-timeout 300 api consumer web
@@ -355,6 +427,9 @@ shift
 
 case "$command_name" in
   init-secrets) init_secrets "$@" ;;
+  secure-secrets) secure_secrets "$@" ;;
+  bootstrap-admin) bootstrap_admin "$@" ;;
+  verify-secrets) ensure_env; check_secret_access ;;
   doctor) doctor "$@" ;;
   deploy) deploy "$@" ;;
   verify) verify "$@" ;;

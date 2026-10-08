@@ -57,8 +57,8 @@ jobs:
 
       - name: Generate ephemeral CI secrets and validate production policy
         run: |
-          bash scripts/production init-secrets --confirm-create
-          bash scripts/production doctor
+          sudo bash scripts/production init-secrets --confirm-create
+          sudo FI_ALLOW_CONSTRAINED_HOST=1 bash scripts/production doctor
 
       - name: Install browser engines
         run: pnpm exec playwright install --with-deps chromium webkit
