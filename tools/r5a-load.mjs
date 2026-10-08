@@ -140,6 +140,8 @@ for (const [eps, seconds] of [
   [20, 60],
   [200, 10],
 ]) {
+  const prior = await json("/api/system/metrics", { headers });
+  const firstSequence = prior.ingestion.requests;
   const begin = performance.now();
   const firstSample = latencies.length;
   for (let second = 0; second < seconds; second++) {
@@ -173,6 +175,61 @@ for (const [eps, seconds] of [
   }
   const profileSamples = latencies.slice(firstSample).sort((a, b) => a - b);
   const profileP95Ms = profileSamples[Math.ceil(profileSamples.length * 0.95) - 1];
+  const after = await json("/api/system/metrics", { headers });
+  const timings = after.ingestion.recentTimings.filter(
+    (t) => t.sequence > firstSequence,
+  );
+  const stages = Object.fromEntries(
+    [
+      "validationMs",
+      "projectMs",
+      "probePolicyMs",
+      "workflowMs",
+      "directoryMs",
+      "sanitizeMs",
+      "kafkaMs",
+      "statusWriteMs",
+      "totalMs",
+    ].map((key) => {
+      const values = timings
+        .map((t) => t[key])
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      return [
+        key,
+        {
+          samples: values.length,
+          p95Ms: values[Math.ceil(values.length * 0.95) - 1] ?? null,
+        },
+      ];
+    }),
+  );
+  const diagnostic = {
+    testedCommit:
+      process.env.GITHUB_SHA ??
+      execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    eventsPerSecond: eps,
+    seconds,
+    events: eps * seconds,
+    httpSamples: profileSamples,
+    httpP95Ms: profileP95Ms,
+    stages,
+    timings,
+    measurement:
+      "HTTP round trip vs admin-only numeric API stage durations; no payload/identity labels",
+  };
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    `artifacts/r8-load-profile-${eps}.json`,
+    JSON.stringify(diagnostic, null, 2),
+  );
+  console.log(
+    JSON.stringify({
+      file: `r8-load-profile-${eps}.json`,
+      ...diagnostic,
+      timings: undefined,
+    }),
+  );
   assert(
     profileP95Ms <= 100,
     `${eps} events/s HTTP p95 exceeds 100ms: ${profileP95Ms}`,

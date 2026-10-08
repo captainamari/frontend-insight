@@ -105,6 +105,14 @@ describe("contract v3 ingestion pipeline", () => {
     expect(envelope.enrichments[0]?.userId).toBe(expected);
     expect(JSON.stringify(envelope)).not.toContain(rawUserId);
     expect(markReceived).toHaveBeenCalledOnce();
+    const timings = manager.getMetrics().recentTimings;
+    expect(timings).toHaveLength(1);
+    expect(Object.keys(timings[0]!).sort()).toEqual([
+      "sequence", "validationMs", "projectMs", "probePolicyMs", "workflowMs",
+      "directoryMs", "sanitizeMs", "kafkaMs", "statusWriteMs", "totalMs",
+    ].sort());
+    expect(Object.values(timings[0]!).every(v => Number.isFinite(v) && v >= 0)).toBe(true);
+    expect(JSON.stringify(timings)).not.toContain(rawUserId);
   });
 
   it.each(invalidLegacyBatches)(
