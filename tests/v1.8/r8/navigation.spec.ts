@@ -121,7 +121,13 @@ test("leaving business cancels its pending default-selection read before access 
   page,
 }) => {
   test.setTimeout(60000);
-  await page.goto(`/projects/${project}/settings?env=prod&range=30d`);
+  const query = new URLSearchParams({
+    env: "prod",
+    range: "30d",
+    from: new Date(Date.now() - 29 * 86400000).toISOString(),
+    to: new Date().toISOString(),
+  });
+  await page.goto(`/projects/${project}/settings?${query}`);
   await page.getByLabel("邮箱").fill("admin@example.invalid");
   await page.getByLabel("密码").fill("LocalAdmin-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
@@ -148,6 +154,8 @@ test("leaving business cancels its pending default-selection read before access 
   // Delay real responses only. No fabricated business facts or authorization.
   await page.route(`**/api/projects/${project}/business?**`, async (route) => {
     const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    expect((await response.json()).moduleId).toBeTruthy();
     businessReady();
     await businessGate;
     await route.fulfill({ response }).catch((error) => {
@@ -162,8 +170,9 @@ test("leaving business cancels its pending default-selection read before access 
     await route.continue();
   });
   try {
-    await page.goto(`/projects/${project}/business?env=prod&range=30d`);
+    await page.goto(`/projects/${project}/business?${query}`);
     await businessHeld;
+    expect(canceled).toBe(false);
     armAccess = true;
     await page
       .getByRole("navigation", { name: "项目导航" })
