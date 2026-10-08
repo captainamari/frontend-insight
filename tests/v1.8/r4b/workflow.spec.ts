@@ -322,6 +322,7 @@ test("real browser SDK → API → Kafka → consumer → workflow analysis → 
     [3, 3],
   ]);
   expect(result.workflowAnalysis.evidence).toHaveLength(4);
+  expect(result.workflowAnalysis.collector).toBe("compatible_sdk_observed");
   expect(
     result.metrics.cards
       .find(

@@ -120,7 +120,7 @@ release_drill() {
   trap 'compose up --detach --wait --wait-timeout 300 api consumer web >/dev/null 2>&1 || true' EXIT
   local attempt drained=false snapshot
   for attempt in {1..30}; do
-    if snapshot="$(compose exec -T consumer node tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
+    if snapshot="$(compose exec -T consumer node /app/tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
       drained=true
       break
     fi

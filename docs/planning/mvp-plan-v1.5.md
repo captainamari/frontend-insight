@@ -1,5 +1,6 @@
 > **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
 
+> **R8 工程授权 · 2026-10-08**：用户明确授权清理、验证、推送与 Draft PR，可叠加尚未合并 R7；不代表 R6 手工验收或 R7 业务批准。当前 [R8 results](../progress/v1.8-r8-results.md)、[decisions](../progress/v1.8-r8-decisions.md) 与 [十二步指南](../guides/v1.8-local-acceptance-macos.md) 单独记录工程、自动化、手工和审批。历史阶段限制保留，不覆盖本次授权；不合并、不部署生产。
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
 > **R5-A 授权与实施 · 2026-10-04**：Jesse批准暂缓R4-C手工验收，R5完成后统一验收，未记录为通过。refactor合并PR #21为 `07121333cdaf9543a47cbb3dba05418342b934a9`，继承 `78033f123e85971d13067c76ecee956d0e2808c2`。仅实施§16.1–16.3；[R5-A results](../progress/v1.8-r5a-results.md)记录位置与门禁，[decisions](../progress/v1.8-r5a-decisions.md)记录口径。旧阶段限制保留为历史；不自动合并或进入R5-B/R6/R7/R8。
@@ -931,16 +932,16 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 20.1 删除
 
-- [ ] 旧路由和导航；
-- [ ] 旧 views；
-- [ ] 旧页面专用 DTO/API；
-- [ ] 旧 M5/M6/M8 产品 E2E 中已被新流替代的断言；
-- [ ] 旧默认入口和旧 UI 术语；
-- [ ] v1/v2 contract 和 fixture；
-- [ ] 旧公共字段、旧 event alias、旧 metric key 和 DTO alias；
-- [ ] business domain/业务域同义模型和迁移残留；
-- [ ] 临时 feature flag、placeholder 和兼容 adapter；
-- [ ] 漂移的文档链接。
+- [x] 旧路由和导航；
+- [x] 旧 views；
+- [x] 旧页面专用 DTO/API；
+- [x] 旧 M5/M6/M8 产品 E2E 中已被新流替代的断言；
+- [x] 旧默认入口和旧 UI 术语；
+- [x] v1/v2 contract 和 fixture；
+- [x] 旧公共字段、旧 event alias、旧 metric key 和 DTO alias；
+- [x] business domain/业务域同义模型和迁移残留；
+- [x] 临时 feature flag、placeholder 和兼容 adapter；
+- [x] 漂移的文档链接。
 
 执行 canonical-name 扫描：历史文档、差异说明和负向 fixture 使用显式 allowlist；除此之外 `projectKey/eventName/eventTime/visitorId/accountRef/route/properties/page_views/active_accounts/active_browsers/sessions/project_operational_index` 等旧名命中数必须为 0。
 
@@ -964,6 +965,8 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 - [ ] backup/restore 对新 schema 的演练。
 
 ### 20.3 最终手工验收
+
+R8 已提供下列十二步可复现指南，实际手工执行与签署仍未完成；不可按自动化结果勾选通过。
 
 新增 `docs/guides/v1.8-local-acceptance-macos.md`，按以下顺序：
 

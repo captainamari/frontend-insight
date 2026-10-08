@@ -299,7 +299,7 @@ checksum() {
 wait_for_zero_lag() {
   local attempt snapshot
   for attempt in {1..30}; do
-    if snapshot="$(compose exec -T consumer node tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
+    if snapshot="$(compose exec -T consumer node /app/tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
       info "Kafka durable offsets caught up: $snapshot"
       return
     fi

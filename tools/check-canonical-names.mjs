@@ -6,7 +6,16 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const manifest = JSON.parse(
   await readFile(resolve(root, "packages/event-contract/canonical-names.json"), "utf8"),
 );
-const sourceRoots = ["apps", "packages", "infra", "scripts", "tests", "tools", "docs"];
+const sourceRoots = [
+  "apps",
+  "packages",
+  "infra",
+  "scripts",
+  "tests",
+  "tools",
+  "docs",
+  ".github",
+];
 const extensions = new Set([
   ".ts",
   ".tsx",
@@ -18,6 +27,8 @@ const extensions = new Set([
   ".json",
   ".md",
   ".sh",
+  ".yaml",
+  ".yml",
   "",
 ]);
 const allowlist = JSON.parse(
@@ -109,6 +120,10 @@ export function findViolations(source) {
 }
 
 const violations = [];
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  for (const item of findViolations(await readFile(resolve(root, "README.md"), "utf8")))
+    violations.push(`README.md:${item.line}: ${item.label}`);
+}
 if (process.argv[1] === fileURLToPath(import.meta.url))
   for (const sourceRoot of sourceRoots) {
     for (const file of await filesBelow(resolve(root, sourceRoot))) {

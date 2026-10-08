@@ -96,6 +96,9 @@ restart)
   sudo bash scripts/production deploy production-ci
   ;;
 restore-drill)
+  # Safe runtime diagnostics identify packaging/cwd issues without env or secrets.
+  compose exec -T consumer node --input-type=module -e 'import {existsSync} from "node:fs"; console.log(JSON.stringify({cwd:process.cwd(),offsetTool:existsSync("/app/tools/kafka-durable-offsets.mjs"),brokerConfigured:Boolean(process.env.KAFKA_BROKERS),groupConfigured:Boolean(process.env.CONSUMER_GROUP_ID)}))'
+  compose exec -T consumer node /app/tools/kafka-durable-offsets.mjs
   # Isolated GitHub runner only (guard at file entry). A non-sensitive durable
   # proof fixture prevents an empty-table restore from masquerading as coverage.
   compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --multiquery' <<'SQL'
