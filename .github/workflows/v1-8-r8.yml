@@ -82,6 +82,7 @@ jobs:
         run: bash -n scripts/dev
 
       - name: Install Chromium and WebKit
+        timeout-minutes: 10
         run: pnpm exec playwright install --with-deps chromium webkit
 
       - name: Rebuild, seed and smoke the empty baseline
