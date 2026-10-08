@@ -141,10 +141,10 @@ release_drill() {
     --user frontend_insight \
     --password "$clickhouse_password" \
     --database frontend_insight \
-    --query 'SELECT * FROM raw_events ORDER BY event_id, received_at, request_id FORMAT Native' \
+    --query 'SELECT * FROM raw_events ORDER BY event_id, received_at, request_id SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT Native' \
     > "$drill_dir/raw_events.native"
   compose exec -T clickhouse clickhouse-client --user frontend_insight --password "$clickhouse_password" --database frontend_insight \
-    --query 'SELECT * FROM repeated_operation_proofs ORDER BY tuple(*) FORMAT Native' > "$drill_dir/repeated_operation_proofs.native"
+    --query 'SELECT * FROM repeated_operation_proofs ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT Native' > "$drill_dir/repeated_operation_proofs.native"
   chmod 600 "$drill_dir/mysql.sql" "$drill_dir/raw_events.native"
   for table in raw_events repeated_operation_proofs; do
     compose exec -T clickhouse clickhouse-client --user frontend_insight --password "$clickhouse_password" --database frontend_insight \

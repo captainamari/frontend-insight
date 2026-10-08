@@ -335,7 +335,7 @@ backup() {
   # Never back up the short-lived object_operation_refs table (ADR-020).
   for table in raw_events repeated_operation_proofs; do
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
-      "SELECT * FROM $table ORDER BY tuple(*) FORMAT Native" > "$target/$table.native"
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT Native" > "$target/$table.native"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
       "DESCRIBE TABLE $table FORMAT TSV" > "$target/$table.schema.tsv"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
