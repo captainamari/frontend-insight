@@ -116,3 +116,72 @@ for (const role of ["admin", "viewer"] as const) {
     }
   });
 }
+
+test("leaving business cancels its pending default-selection read before access resolves", async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await page.goto(`/projects/${project}/settings?env=prod&range=30d`);
+  await page.getByLabel("邮箱").fill("admin@example.invalid");
+  await page.getByLabel("密码").fill("LocalAdmin-1234");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings\?/);
+  let releaseBusiness!: () => void, businessReady!: () => void;
+  let releaseAccess!: () => void, accessReady!: () => void;
+  const businessGate = new Promise<void>((resolve) => {
+    releaseBusiness = resolve;
+  });
+  const businessHeld = new Promise<void>((resolve) => {
+    businessReady = resolve;
+  });
+  const accessGate = new Promise<void>((resolve) => {
+    releaseAccess = resolve;
+  });
+  const accessHeld = new Promise<void>((resolve) => {
+    accessReady = resolve;
+  });
+  let armAccess = false,
+    canceled = false;
+  page.on("requestfailed", (request) => {
+    if (request.url().includes(`/api/projects/${project}/business?`)) canceled = true;
+  });
+  // Delay real responses only. No fabricated business facts or authorization.
+  await page.route(`**/api/projects/${project}/business?**`, async (route) => {
+    const response = await route.fetch();
+    businessReady();
+    await businessGate;
+    await route.fulfill({ response }).catch((error) => {
+      if (!canceled) throw error;
+    });
+  });
+  await page.route(`**/api/projects/${project}/access`, async (route) => {
+    if (armAccess) {
+      accessReady();
+      await accessGate;
+    }
+    await route.continue();
+  });
+  try {
+    await page.goto(`/projects/${project}/business?env=prod&range=30d`);
+    await businessHeld;
+    armAccess = true;
+    await page
+      .getByRole("navigation", { name: "项目导航" })
+      .getByRole("button", { name: "页面分析", exact: true })
+      .click();
+    await accessHeld;
+    await expect.poll(() => canceled).toBe(true);
+    releaseBusiness();
+    releaseAccess();
+    await expect(page).toHaveURL(new RegExp(`/projects/${project}/pages\\?`));
+    await expect(
+      page
+        .getByRole("navigation", { name: "项目导航" })
+        .getByRole("button", { name: "页面分析", exact: true }),
+    ).toHaveAttribute("aria-current", "page");
+  } finally {
+    releaseBusiness();
+    releaseAccess();
+    await page.unrouteAll({ behavior: "wait" });
+  }
+});

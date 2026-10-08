@@ -91,6 +91,12 @@ jobs:
           ./scripts/dev up
           ./scripts/dev smoke
 
+      - name: Verify R8 six-module navigation and retained SDK assertions
+        run: pnpm test:r8:e2e
+
+      - name: Verify SDK Chromium and WebKit contracts
+        run: pnpm test:browser --retries=0
+
       - name: Run R5-A collector and denominator golden fixtures
         run: pnpm test:r5a
 
@@ -207,12 +213,6 @@ jobs:
           import {writeFileSync} from 'node:fs';
           writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
           NODE
-
-      - name: Verify R8 six-module navigation and retained SDK assertions
-        run: pnpm test:r8:e2e
-
-      - name: Verify SDK Chromium and WebKit contracts
-        run: pnpm test:browser --retries=0
 
       - name: Run Kafka ClickHouse consumer recovery and durable schema restore
         run: |
