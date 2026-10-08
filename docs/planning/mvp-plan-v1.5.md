@@ -949,20 +949,22 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 20.2 全量自动化
 
-- [ ] `pnpm check`；
-- [ ] contract v3；
-- [ ] canonical-name manifest、生成类型和旧名负向扫描；
-- [ ] SDK Chromium/WebKit；
-- [ ] ingestion/Kafka/consumer/ClickHouse；
-- [ ] MySQL/ClickHouse 空库 baseline 和 reset；
-- [ ] 6 模块全 E2E；
-- [ ] admin/viewer；
-- [ ] formula/score/workflow golden fixtures；
-- [ ] privacy negative fixtures；
-- [ ] query performance；
-- [ ] 20/200 events/s 负载；
-- [ ] Kafka/ClickHouse/consumer 故障恢复；
-- [ ] backup/restore 对新 schema 的演练。
+- [x] `pnpm check`；
+- [x] contract v3；
+- [x] canonical-name manifest、生成类型和旧名负向扫描；
+- [x] SDK Chromium/WebKit；
+- [x] ingestion/Kafka/consumer/ClickHouse；
+- [x] MySQL/ClickHouse 空库 baseline 和 reset；
+- [x] 6 模块全 E2E；
+- [x] admin/viewer；
+- [x] formula/score/workflow golden fixtures；
+- [x] privacy negative fixtures；
+- [x] query performance；
+- [x] 20/200 events/s 负载；
+- [x] Kafka/ClickHouse/consumer 故障恢复；
+- [x] backup/restore 对新 schema 的演练。
+
+最终代码 `745308d69d88856c0b37d0c108296dca359f33d4` 的全量 [run 37752868714](https://github.com/captainamari/frontend-insight/actions/runs/37752868714) 与生产 Compose [run 37752868903](https://github.com/captainamari/frontend-insight/actions/runs/37752868903) 均 attempt 1 成功；归档独立 SHA-256 校验及逐项 Go/No-Go 见 [R8 results](../progress/v1.8-r8-results.md)。工程/自动化通过；R6/R8 手工、R7 真实审批与可信事实仍待完成，最终 No-Go。
 
 ### 20.3 最终手工验收
 
