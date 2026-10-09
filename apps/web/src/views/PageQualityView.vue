@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, type LocationQueryRaw } from "vue-router";
 import { ElDrawer } from "element-plus";
 import "element-plus/es/components/drawer/style/css";
 import { api, ApiError } from "../api";
+import { CANONICAL_RANGES } from "@frontend-insight/event-contract/canonical";
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
+import { projects } from "../projects";
 interface Occurrence {
   occurrenceId: string;
   groupId: string;
@@ -141,6 +144,32 @@ async function load() {
   }
 }
 let filterNavigation = Promise.resolve();
+function refresh() {
+  filterNavigation = filterNavigation.then(async () => {
+    const query: LocationQueryRaw = { ...route.query, cursor: undefined };
+    const preset = CANONICAL_RANGES.find((r) => r.key === query.range)?.key ?? "7d";
+    if (preset !== "custom") {
+      // URLs pin a snapshot for pagination/navigation. An explicit refresh of a
+      // relative preset must also advance its event-time window, not just asOf.
+      const next = resolveProjectCalendar(
+        {
+          range: preset,
+          env: query.env === "dev" || query.env === "staging" ? query.env : "prod",
+        },
+        projects.find(String(route.params.projectId))?.timezone ?? "UTC",
+      );
+      Object.assign(query, {
+        range: preset,
+        from: next.from,
+        to: next.to,
+        scoreFrom: undefined,
+        scoreTo: undefined,
+      });
+    }
+    if (router.resolve({ query }).fullPath === route.fullPath) await load();
+    else await router.replace({ query }); // The route watcher loads the new scope.
+  });
+}
 function change(key: string, value?: string) {
   // Read the route only after the preceding navigation commits, so rapid
   // changes compose instead of overwriting each other with stale query values.
@@ -251,13 +280,7 @@ onBeforeUnmount(() => {
       <button v-if="route.query.groupId" type="button" @click="change('groupId')">
         返回全部错误组
       </button>
-      <button
-        type="button"
-        :disabled="loading"
-        @click="route.query.cursor ? change('cursor') : load()"
-      >
-        刷新
-      </button>
+      <button type="button" :disabled="loading" @click="refresh">刷新</button>
     </div>
     <p v-if="loading" role="status">正在读取错误实例…</p>
     <div v-if="error" role="alert">
@@ -343,7 +366,9 @@ onBeforeUnmount(() => {
           "
         >
           下一页</button
-        ><small>分页快照保留一小时；刷新可读取新到达事件。</small>
+        ><small
+          >分页快照保留一小时；刷新将预设范围更新至当前时间，自定义日期保持不变。</small
+        >
       </div>
     </template>
     <ElDrawer

@@ -20,6 +20,8 @@ interface EventEntry {
 const tokenKey = "fi-demo.simulated-token";
 const analyticsRef = "demo-operator-001";
 const appId = import.meta.env.VITE_PROJECT_KEY ?? "fi_public_m1demo001";
+const telemetryEnv = "dev";
+const telemetryRelease = "2026.08.1-demo";
 const acceptanceFast =
   new URLSearchParams(window.location.search).get("acceptance") === "fast";
 const loginForm = reactive({ username: "demo.operator", password: "" });
@@ -117,8 +119,8 @@ function initializeTracker(): void {
   if (tracker) return;
   tracker = createTracker({
     appId,
-    env: "dev",
-    release: "2026.08.1-demo",
+    env: telemetryEnv,
+    release: telemetryRelease,
     endpoint: `${window.location.origin}/v1/events`,
     registeredFeatures: [
       "sales_dashboard",
@@ -590,8 +592,10 @@ onBeforeUnmount(() => {
           <div class="privacy-proof">
             <strong>发布边界</strong>
             <p>
-              所有事件显式关联 2026.08.1-demo / production；SourceMap 不上传，运营指数
-              v1 不受影响。
+              事件发送至 {{ appId }}，环境 {{ telemetryEnv }}，版本
+              {{ telemetryRelease }}。 请在对应项目的页面分析 → 质量分析中选择
+              {{ telemetryEnv }}，触发错误后点击刷新。 SourceMap 不上传，运营指数 v1
+              不受影响。
             </p>
           </div>
         </div>

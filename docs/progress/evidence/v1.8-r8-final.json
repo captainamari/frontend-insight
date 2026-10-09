@@ -11,7 +11,7 @@
   "testedCommit": "745308d69d88856c0b37d0c108296dca359f33d4",
   "automation": "passed",
   "productionCompose": "passed",
-  "manualAcceptance": "pending",
+  "manualAcceptance": "executed_with_findings",
   "businessApproval": "pending",
   "finalGo": false,
   "artifactDigestIndependentlyVerified": true,
@@ -1058,5 +1058,13 @@
     "logicalRows": "complete ordered JSONEachRow SHA-256 equal; Native archive checksum also verified",
     "shortReferences": "not backed up, cleared on restore"
   },
-  "documentationPolicy": "Final delivery is a docs-only child of testedCommit; document head is reported in the PR and handoff, not treated as a tested application SHA."
+  "documentationPolicy": "Final delivery is a docs-only child of testedCommit; document head is reported in the PR and handoff, not treated as a tested application SHA.",
+  "manualAcceptanceFollowup": {
+    "reportedOn": "2026-10-09",
+    "source": "User reported R8 manual acceptance performed; JS errors missing from page quality across environments.",
+    "record": "docs/progress/v1.8-r8-quality-refresh-fix.md",
+    "fixVerification": "pending_current_commit_ci",
+    "userRetest": "pending",
+    "previousAutomationBoundary": "testedCommit and existing archives below describe 745308d, not this follow-up repair."
+  }
 }
