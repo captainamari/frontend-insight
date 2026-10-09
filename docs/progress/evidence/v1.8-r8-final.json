@@ -1063,8 +1063,38 @@
     "reportedOn": "2026-10-09",
     "source": "User reported R8 manual acceptance performed; JS errors missing from page quality across environments.",
     "record": "docs/progress/v1.8-r8-quality-refresh-fix.md",
-    "fixVerification": "pending_current_commit_ci",
+    "fixVerification": "passed",
     "userRetest": "pending",
-    "previousAutomationBoundary": "testedCommit and existing archives below describe 745308d, not this follow-up repair."
+    "previousAutomationBoundary": "testedCommit and existing archives below describe 745308d, not this follow-up repair.",
+    "verifiedCode": "4948ece1ef85f328a3d2275ffea7aa96d874b4b9",
+    "localChecks": {
+      "pnpmCheck": "passed",
+      "unitTests": 530,
+      "chromiumRefreshRegression": "failed_before_fix_passed_after_fix"
+    },
+    "workflows": [
+      {
+        "id": 37870342786,
+        "scope": "full_r8_including_real_demo_and_both_browsers",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342786"
+      },
+      {
+        "id": 37870342819,
+        "scope": "production_compose",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342819"
+      },
+      {
+        "id": 37870342785,
+        "scope": "code_commit_documentation",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342785"
+      }
+    ],
+    "verificationBoundary": "Workflow results and named test logs verified; new run archives were not independently downloaded. Existing independently verified archive fields describe the earlier testedCommit."
   }
 }
