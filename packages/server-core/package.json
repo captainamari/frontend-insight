@@ -23,7 +23,8 @@
     "verify:r3": "tsx test/r3-integration.ts",
     "verify:r4a": "tsx test/r4a-integration.ts",
     "verify:r4c": "tsx test/r4c-integration.ts",
-    "verify:r7": "tsx test/r7-integration.ts"
+    "verify:r7": "tsx test/r7-integration.ts",
+    "verify:d0": "tsx test/runtime-diagnostics-integration.ts"
   },
   "dependencies": {
     "@clickhouse/client": "1.23.1",

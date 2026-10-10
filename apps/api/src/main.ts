@@ -9,7 +9,7 @@ import { AppModule } from "./app.module.js";
 export async function bootstrap(): Promise<NestFastifyApplication> {
   const environment = loadApiEnvironment();
   const adapter = new FastifyAdapter({
-    bodyLimit: 64 * 1024,
+    bodyLimit: 128 * 1024,
     trustProxy: false,
     requestIdHeader: false,
     genReqId: () => randomUUID(),
@@ -23,6 +23,8 @@ export async function bootstrap(): Promise<NestFastifyApplication> {
   const fastify = adapter.getInstance();
   fastify.addHook("onRequest", (request, response, done) => {
     response.header("x-request-id", request.id);
+    if (/^\/api\/projects\/[^/]+\/diagnostics(?:\/|$)/.test(request.url))
+      response.header("Cache-Control", "private, no-store");
     done();
   });
   app.enableShutdownHooks();

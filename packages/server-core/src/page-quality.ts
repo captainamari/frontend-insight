@@ -96,6 +96,9 @@ export function projectOccurrence(row: Record<string, unknown>) {
           .filter(Boolean)
       : [];
   return {
+    eventId: /^evt_[A-Za-z0-9_-]{8,64}$/.test(String(row.event_id))
+      ? String(row.event_id)
+      : null,
     occurrenceId: createHash("sha256").update(String(row.event_id)).digest("hex"),
     groupId: /^[a-f0-9]{64}$/.test(String(row.error_group_id))
       ? String(row.error_group_id)

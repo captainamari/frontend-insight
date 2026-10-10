@@ -97,7 +97,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     ) {
       statusCode = 413;
       code = "BATCH_TOO_LARGE";
-      message = "Request body exceeds 64 KiB";
+      message = "Request body exceeds 128 KiB";
     } else if (
       typeof cause === "object" &&
       cause !== null &&

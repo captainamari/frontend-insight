@@ -5,6 +5,7 @@ import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { validateForConsumer } from "@frontend-insight/event-contract";
 import {
   MySqlStore,
+  RuntimeDiagnostics,
   SafeClickHouseLogger,
   REPEATED_TOPIC,
   parseObjectOperations,
@@ -109,6 +110,7 @@ export class EventConsumerRuntime {
   private readonly mysql: MySqlStore;
   private readonly attempts = new Map<string, number>();
   private healthServer: Server | undefined;
+  private lastDiagnosticCleanup = 0;
   readonly metrics: ConsumerMetrics = {
     ready: false,
     processedEvents: 0,
@@ -254,10 +256,18 @@ export class EventConsumerRuntime {
       const definitions = workflowProjectIds.length
         ? await readWorkflowFactDefinitions(this.mysql.pool, workflowProjectIds)
         : [];
-      const [projectRows] = workflowProjectIds.length
+      const contextProjectIds = [
+        ...new Set([
+          ...workflowProjectIds,
+          ...parsedMessages
+            .filter(({ envelope }) => envelope.batch.events.some((e) => e.diagnostic))
+            .map(({ envelope }) => envelope.projectId),
+        ]),
+      ];
+      const [projectRows] = contextProjectIds.length
         ? await this.mysql.pool.query(
             "SELECT id,app_id FROM projects WHERE id IN (?)",
-            [workflowProjectIds],
+            [contextProjectIds],
           )
         : [[]];
       const projects = projectRows as { id: string; app_id: string }[];
@@ -299,6 +309,14 @@ export class EventConsumerRuntime {
       }[];
       for (const { message, envelope } of parsedMessages) {
         try {
+          if (envelope.batch.events.some((e) => e.diagnostic)) {
+            const project = projects.find((p) => p.id === envelope.projectId);
+            if (
+              !project ||
+              envelope.batch.events.some((e) => e.appId !== project.app_id)
+            )
+              throw new Error("DIAGNOSTICS_PROJECT_CONTEXT_INVALID");
+          }
           if (envelope.batch.events.some((event) => event.payload.workflowInstanceId)) {
             const project = projects.find((p) => p.id === envelope.projectId);
             if (
@@ -374,6 +392,7 @@ export class EventConsumerRuntime {
         });
       }
       for (const envelope of envelopes) {
+        await new RuntimeDiagnostics(this.mysql).persist(this.clickhouse, envelope);
         await this.mysql.markIngested(envelope.projectId, envelope.receivedAt);
       }
       // Do not resolve a later dead-lettered message before earlier rows and
@@ -384,6 +403,10 @@ export class EventConsumerRuntime {
       this.attempts.delete(attemptKey);
       this.metrics.processedEvents += rows.length;
       this.metrics.insertedBatches += 1;
+      if (Date.now() - this.lastDiagnosticCleanup > 60_000) {
+        await new RuntimeDiagnostics(this.mysql).cleanup();
+        this.lastDiagnosticCleanup = Date.now();
+      }
       this.metrics.lastErrorCode = null;
       this.metrics.lag = Math.max(
         0,

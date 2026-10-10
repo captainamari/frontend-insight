@@ -58,3 +58,19 @@ export function findCredentialLeak(
 
   return null;
 }
+
+/** Only the exact versioned event.diagnostic.raw slot is exempt. Metadata and all
+ * ordinary fields retain the original recursive credential checks. */
+export function findEventCredentialLeak(value: {
+  diagnostic?: unknown;
+  [key: string]: unknown;
+}): string | null {
+  const { diagnostic, ...base } = value;
+  const leak = findCredentialLeak(base);
+  if (leak) return leak;
+  if (!diagnostic || typeof diagnostic !== "object" || Array.isArray(diagnostic))
+    return findCredentialLeak(diagnostic);
+  const { raw: _raw, ...metadata } = diagnostic as Record<string, unknown>;
+  void _raw;
+  return findCredentialLeak(metadata);
+}

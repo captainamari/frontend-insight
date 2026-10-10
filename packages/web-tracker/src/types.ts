@@ -2,6 +2,7 @@ import type { QualityFactory } from "./quality-port.js";
 import type { FormCollectorConfig, FormHandle } from "./forms.js";
 import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
 import type {
+  DiagnosticEnvelope,
   FrontendInsightEnvironment,
   FrontendInsightEventBatchV3,
   FrontendInsightEventV3,
@@ -140,6 +141,7 @@ export interface Tracker {
     interactionType?: InteractionType,
   ): OperationHandle;
   startLongView(featureKey: string): () => void;
+  captureDiagnostic(diagnostic: DiagnosticEnvelope): void;
   captureException(error: unknown): void;
   captureApiError(details: ApiErrorDetails): void;
   captureResourceError(details: ResourceErrorDetails): void;
