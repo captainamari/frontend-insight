@@ -356,26 +356,6 @@ export class ProjectsController {
     return feature;
   }
 
-  @Get(":projectId/onboarding/status")
-  async onboarding(
-    @Param("projectId") projectId: string,
-    @CurrentPrincipal() principal: Principal,
-  ) {
-    await this.requireProject(principal, projectId, false);
-    const project = await this.core.mysql.getProject(projectId);
-    if (!project) throw new HttpException("PROJECT_NOT_FOUND", 404);
-    return {
-      project,
-      status: await this.core.mysql.onboardingStatus(projectId),
-      integration: {
-        package: "@frontend-insight/web-tracker",
-        endpoint: "/v1/events",
-        appId: project.appId,
-        csp: "connect-src 'self' <frontend-insight-api-origin>",
-      },
-    };
-  }
-
   @Get(":projectId/members")
   async listMembers(
     @Param("projectId") projectId: string,

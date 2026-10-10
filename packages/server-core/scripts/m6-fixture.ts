@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import mysql from "mysql2/promise";
-import { DEFAULT_OPERATIONAL_PROFILE_ITEMS } from "../src/metrics.js";
 import { m5Fixture, seedM5Fixture } from "./m5-fixture.js";
 
 export const m6Fixture = {
@@ -14,22 +13,7 @@ export const m6Fixture = {
     wallboard: "20333333-3333-4333-8333-333333333333",
   },
   settingsId: "30111111-1111-4111-8111-111111111111",
-  profileId: "40111111-1111-4111-8111-111111111111",
-  assignmentId: "50111111-1111-4111-8111-111111111111",
 } as const;
-
-const itemIds = [
-  "60111111-1111-4111-8111-111111111111",
-  "60222222-2222-4222-8222-222222222222",
-  "60333333-3333-4333-8333-333333333333",
-  "60444444-4444-4444-8444-444444444444",
-  "60555555-5555-4555-8555-555555555555",
-  "60666666-6666-4666-8666-666666666666",
-  "60777777-7777-4777-8777-777777777777",
-  "60888888-8888-4888-8888-888888888888",
-  "60999999-9999-4999-8999-999999999999",
-  "60aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-] as const;
 
 function stableUuid(namespace: string, key: string): string {
   const hex = createHash("sha256").update(`${namespace}:${key}`).digest("hex");
@@ -187,77 +171,6 @@ export async function seedM6Fixture(
          status = 'active',
          effective_to = NULL`,
       [m6Fixture.settingsId, m5Fixture.projectId, m5Fixture.admin.id],
-    );
-    await pool.execute(
-      `INSERT INTO metric_profiles
-         (id, project_id, profile_key, name, version, status, effective_from,
-          created_by_user_id)
-       VALUES (?, ?, 'operational_v1', '智慧园区运营指数 v1', 1, 'active',
-               '2026-07-01 00:00:00.000', ?)
-       ON DUPLICATE KEY UPDATE
-         name = VALUES(name),
-         status = 'active',
-         effective_from = VALUES(effective_from)`,
-      [m6Fixture.profileId, m5Fixture.projectId, m5Fixture.admin.id],
-    );
-    for (const [index, item] of DEFAULT_OPERATIONAL_PROFILE_ITEMS.entries()) {
-      await pool.execute(
-        `INSERT INTO metric_profile_items
-           (id, profile_id, metric_key, dimension_key, dimension_weight,
-            metric_weight, target_value, floor_value, ceiling_value,
-            target_min, target_max, tolerance_min, tolerance_max,
-            minimum_sample, enabled, required)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           dimension_key = VALUES(dimension_key),
-           dimension_weight = VALUES(dimension_weight),
-           metric_weight = VALUES(metric_weight),
-           target_value = VALUES(target_value),
-           floor_value = VALUES(floor_value),
-           ceiling_value = VALUES(ceiling_value),
-           target_min = VALUES(target_min),
-           target_max = VALUES(target_max),
-           tolerance_min = VALUES(tolerance_min),
-           tolerance_max = VALUES(tolerance_max),
-           minimum_sample = VALUES(minimum_sample),
-           enabled = VALUES(enabled),
-           required = VALUES(required)`,
-        [
-          itemIds[index]!,
-          m6Fixture.profileId,
-          item.metricKey,
-          item.dimensionKey,
-          item.dimensionWeight,
-          item.metricWeight,
-          item.targetValue,
-          item.floorValue,
-          item.ceilingValue,
-          item.targetMin,
-          item.targetMax,
-          item.toleranceMin,
-          item.toleranceMax,
-          item.minimumSample,
-          item.enabled,
-          item.required,
-        ],
-      );
-    }
-    await pool.execute(
-      `INSERT INTO metric_profile_assignments
-         (id, project_id, entity_type, entity_id, profile_id, effective_from,
-          created_by_user_id)
-       VALUES (?, ?, 'project', ?, ?, '2026-07-01 00:00:00.000', ?)
-       ON DUPLICATE KEY UPDATE
-         profile_id = VALUES(profile_id),
-         effective_from = VALUES(effective_from),
-         effective_to = NULL`,
-      [
-        m6Fixture.assignmentId,
-        m5Fixture.projectId,
-        m5Fixture.projectId,
-        m6Fixture.profileId,
-        m5Fixture.admin.id,
-      ],
     );
   } finally {
     await pool.end();

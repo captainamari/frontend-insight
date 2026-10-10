@@ -51,19 +51,18 @@ async function login() {
 function analyticsQuery() {
   return new URLSearchParams({
     from: new Date(runStartedAt - 60_000).toISOString(),
-    to: new Date(Date.now() + 60_000).toISOString(),
-    timezone: "UTC",
-    granularity: "hour",
+    to: new Date(Date.now()).toISOString(),
+    env: "prod",
   });
 }
 
 async function pageViews(token) {
   const response = await fetch(
-    `${apiUrl}/api/projects/${projectId}/analytics/overview?${analyticsQuery()}`,
+    `${apiUrl}/api/projects/${projectId}/page-operations?${analyticsQuery()}`,
     { headers: { authorization: `Bearer ${token}` } },
   );
   if (!response.ok) throw new Error(`M7 overview failed: ${response.status}`);
-  return Number((await response.json()).current?.pv ?? 0);
+  return Number((await response.json()).diagnostics?.totalPageViews ?? 0);
 }
 
 function event(sequence) {

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount, onMounted } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import {
+  useRoute,
+  useRouter,
+  onBeforeRouteLeave,
+  onBeforeRouteUpdate,
+} from "vue-router";
 import { ElDrawer } from "element-plus";
 import "element-plus/es/components/drawer/style/css";
 import { api, ApiError } from "../api";
@@ -275,11 +280,19 @@ function workflowDefinition() {
     },
   });
 }
+// Invalidate reads before the async access guard, not only after unmount.
+// A late default-selection/403 response must never supersede user navigation.
+function cancelLoad() {
+  generation++;
+  controller?.abort();
+  loading.value = false;
+}
+onBeforeRouteLeave(cancelLoad);
+onBeforeRouteUpdate(cancelLoad);
 watch(signature, () => void load(), { immediate: true });
 onMounted(() => window.addEventListener("focus", load));
 onBeforeUnmount(() => {
-  generation++;
-  controller?.abort();
+  cancelLoad();
   window.removeEventListener("focus", load);
 });
 </script>

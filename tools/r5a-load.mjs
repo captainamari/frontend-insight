@@ -49,7 +49,8 @@ const start = Date.now(),
   prefix = randomUUID().replaceAll("-", "");
 let sequence = 0,
   accepted = 0;
-const latencies = [];
+const latencies = [],
+  sentAt = [];
 const meta = { qualityVersion: "r5a-1", qualityMask: 255, qualitySampleRate: 1 };
 function cohort() {
   const id = prefix + "_" + sequence++,
@@ -139,7 +140,10 @@ for (const [eps, seconds] of [
   [20, 60],
   [200, 10],
 ]) {
+  const prior = await json("/api/system/metrics", { headers });
+  const firstSequence = prior.ingestion.requests;
   const begin = performance.now();
+  const firstSample = latencies.length;
   for (let second = 0; second < seconds; second++) {
     const due = begin + second * 1000;
     if (performance.now() < due)
@@ -151,6 +155,7 @@ for (const [eps, seconds] of [
       sends.push(
         (async () => {
           const t = performance.now();
+          sentAt.push(...batch.map(() => Date.now()));
           const r = await json("/v1/events", {
             method: "POST",
             headers: { "content-type": "application/json", origin },
@@ -168,7 +173,70 @@ for (const [eps, seconds] of [
     }
     await Promise.all(sends);
   }
+  const profileSamples = latencies.slice(firstSample).sort((a, b) => a - b);
+  const profileP95Ms = profileSamples[Math.ceil(profileSamples.length * 0.95) - 1];
+  const after = await json("/api/system/metrics", { headers });
+  const timings = after.ingestion.recentTimings.filter(
+    (t) => t.sequence > firstSequence,
+  );
+  const stages = Object.fromEntries(
+    [
+      "validationMs",
+      "projectMs",
+      "probePolicyMs",
+      "workflowMs",
+      "directoryMs",
+      "sanitizeMs",
+      "kafkaMs",
+      "statusWriteMs",
+      "totalMs",
+    ].map((key) => {
+      const values = timings
+        .map((t) => t[key])
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      return [
+        key,
+        {
+          samples: values.length,
+          p95Ms: values[Math.ceil(values.length * 0.95) - 1] ?? null,
+        },
+      ];
+    }),
+  );
+  const diagnostic = {
+    testedCommit:
+      process.env.GITHUB_SHA ??
+      execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(),
+    eventsPerSecond: eps,
+    seconds,
+    events: eps * seconds,
+    httpSamples: profileSamples,
+    httpP95Ms: profileP95Ms,
+    stages,
+    timings,
+    measurement:
+      "HTTP round trip vs admin-only numeric API stage durations; no payload/identity labels",
+  };
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    `artifacts/r8-load-profile-${eps}.json`,
+    JSON.stringify(diagnostic, null, 2),
+  );
+  console.log(
+    JSON.stringify({
+      file: `r8-load-profile-${eps}.json`,
+      ...diagnostic,
+      timings: undefined,
+    }),
+  );
+  assert(
+    profileP95Ms <= 100,
+    `${eps} events/s HTTP p95 exceeds 100ms: ${profileP95Ms}`,
+  );
   profiles.push({
+    httpSampleCount: profileSamples.length,
+    httpP95Ms: profileP95Ms,
     eventsPerSecond: eps,
     seconds,
     sentEvents: eps * seconds,
@@ -193,6 +261,25 @@ while (Date.now() - catchup < 90000) {
 assert.equal(result.metrics.api_error_rate.denominator, 640);
 assert.equal(result.metrics.resource_error_rate.denominator, 1280);
 assert.equal(result.metrics.api_error_rate.observedValue, 0);
+const visibilityDeadline = Date.now() + 300000;
+let visibleCount = 0;
+while (Date.now() < visibilityDeadline) {
+  const observed = await json(
+    `/api/projects/${project.id}/settings/probe-versions?env=dev&range=7d`,
+    { headers },
+  );
+  visibleCount = observed.denominator;
+  if (visibleCount === accepted) break;
+  await new Promise((r) => setTimeout(r, 250));
+}
+assert.equal(visibleCount, accepted);
+const allVisibleAt = Date.now();
+const visibilityUpperBounds = sentAt
+  .map((at) => allVisibleAt - at)
+  .sort((a, b) => a - b);
+const visibilityP95UpperBoundMs =
+  visibilityUpperBounds[Math.ceil(visibilityUpperBounds.length * 0.95) - 1];
+assert(visibilityP95UpperBoundMs <= 300000);
 const queryTimes = [];
 for (let i = 0; i < 23; i++) {
   const t = performance.now();
@@ -205,7 +292,7 @@ latencies.sort((a, b) => a - b);
 queryTimes.sort((a, b) => a - b);
 const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1],
   queryP95 = queryTimes[Math.ceil(queryTimes.length * 0.95) - 1];
-assert(p95 <= 1000);
+assert(p95 <= 100, `Ingestion HTTP p95 exceeds 100ms: ${p95}`);
 assert(queryP95 <= 2000);
 assert.equal(result.statistics.clickHouseQueries, 1);
 assert(result.statistics.rowsRead <= 1000000);
@@ -218,6 +305,19 @@ writeFileSync(
         encoding: "utf8",
       }).trim(),
       profiles,
+      warmups: 0,
+      sampleCount: latencies.length,
+      queryWarmups: 3,
+      querySampleCount: 20,
+      measurement: "HTTP validation/enqueue response; not asynchronous storage latency",
+      visibility: {
+        method:
+          "conservative event-weighted upper bound: batch request start until all 3200 unique events are queryable in the dedicated project",
+        p95UpperBoundMs: visibilityP95UpperBoundMs,
+        eventSampleCount: sentAt.length,
+        allVisibleCount: visibleCount,
+        pollIntervalMs: 250,
+      },
       accepted,
       apiRequests: 640,
       resourceRequests: 1280,

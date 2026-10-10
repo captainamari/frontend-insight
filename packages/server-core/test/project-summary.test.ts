@@ -190,7 +190,7 @@ it.each([
   expect(scoreColor(value as number | null)).toBe(color),
 );
 
-it("R2 new template catalog binds partial available_from as a MySQL Date", async () => {
+it("R2 catalog binds available_from as a MySQL Date or unknown, without inventing R6 start", async () => {
   const bindings: unknown[][] = [];
   const connection = {
     execute: vi.fn(async (sql: string, args: unknown[]) => {
@@ -205,7 +205,11 @@ it("R2 new template catalog binds partial available_from as a MySQL Date", async
     { userId: "admin", globalRole: "admin", displayName: "Admin", email: null },
   );
   expect(bindings.length).toBeGreaterThan(1);
-  expect(bindings.some((args) => args[20] instanceof Date)).toBe(true);
+  expect(
+    bindings
+      .filter((args) => ["pv", "uv", "vv"].includes(String(args[2])))
+      .every((args) => args[20] === null),
+  ).toBe(true);
   for (const args of bindings)
     expect(args[20] === null || args[20] instanceof Date).toBe(true);
 });

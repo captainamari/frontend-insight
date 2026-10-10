@@ -72,7 +72,8 @@ export function applyRestrictedBeforeSend(
     return null;
   }
   if (
-    (original.payload.qualityVersion ||
+    (original.payload.usageVersion ||
+      original.payload.qualityVersion ||
       original.payload.workflowInstanceId ||
       original.payload.formInstanceId ||
       original.payload.businessAdapter) &&

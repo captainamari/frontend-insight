@@ -1,11 +1,16 @@
 import {
+  SettingsController,
+  ExternalSettingsController,
+  SdkDistributionController,
+} from "./settings.controller.js";
+import { PageOperationsController } from "./page-operations.controller.js";
+import {
   ScoreManagementController,
   ScoreReadController,
 } from "./score-management.controller.js";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
 import { Module } from "@nestjs/common";
 import { AdminController } from "./admin.controller.js";
-import { AnalyticsController } from "./analytics.controller.js";
 import { AuthController } from "./auth.controller.js";
 import { AuthGuard } from "./auth.guard.js";
 import { CoreService } from "./core.service.js";
@@ -20,17 +25,20 @@ import { ScorePreflightController } from "./score-preflight.controller.js";
 
 @Module({
   controllers: [
+    SettingsController,
+    ExternalSettingsController,
+    SdkDistributionController,
     AdminController,
     AuthController,
     IngestionController,
     ProjectsController,
-    AnalyticsController,
     MetricLibraryController,
     ScorePreflightController,
     ScoreManagementController,
     ScoreReadController,
     OperationalController,
     ObservabilityController,
+    PageOperationsController,
     SystemController,
   ],
   providers: [

@@ -16,42 +16,42 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "pv",
     "displayName": "页面浏览量",
     "category": "usage",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "uv",
     "displayName": "活跃用户数",
     "category": "usage",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "dau",
     "displayName": "日活跃用户数",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "wau",
     "displayName": "周活跃用户数",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "mau",
     "displayName": "月活跃用户数",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "vv",
     "displayName": "会话数（VV）",
     "category": "usage",
-    "implementationStatus": "partial",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
@@ -65,21 +65,21 @@ export const SYSTEM_METRIC_SEED: readonly SystemMetricSeed[] = Object.freeze(
     "metricKey": "avg_usage_duration",
     "displayName": "人均使用时长",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "hourly_distribution",
     "displayName": "时段分布",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {
     "metricKey": "bounce_rate",
     "displayName": "跳出率（单页会话率）",
     "category": "usage",
-    "implementationStatus": "not_collected",
+    "implementationStatus": "implemented",
     "milestone": "R6"
   },
   {

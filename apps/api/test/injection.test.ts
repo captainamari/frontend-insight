@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { Reflector } from "@nestjs/core";
 import { describe, expect, it } from "vitest";
 import { AdminController } from "../src/admin.controller.js";
-import { AnalyticsController } from "../src/analytics.controller.js";
+import { PageOperationsController } from "../src/page-operations.controller.js";
 import { AuthController } from "../src/auth.controller.js";
 import { AuthGuard } from "../src/auth.guard.js";
 import { CoreService } from "../src/core.service.js";
@@ -23,7 +23,7 @@ function injectionTokens(target: object): unknown[] {
 describe("NestJS runtime injection metadata", () => {
   it.each([
     AdminController,
-    AnalyticsController,
+    PageOperationsController,
     AuthController,
     IngestionController,
     ProjectsController,

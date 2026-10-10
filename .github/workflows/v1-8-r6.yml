@@ -1,0 +1,262 @@
+name: v1.8 R6 page operations and inherited regressions
+
+on:
+  push:
+    branches:
+      - "agent/v1-8-r6-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: read
+
+concurrency:
+  group: v1-8-r6-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  r4c-product:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      M5_ALLOW_NON_ARM64: "1"
+      FI_PRIVACY_NO_TRACE: "1"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install pinned pnpm
+        run: npm install --global pnpm@11.15.1
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run complete static, unit and build gate
+        run: pnpm check
+
+      - name: Validate R4-C browser test entrypoints
+        run: pnpm exec playwright test -c playwright.r4c.config.ts --list
+
+      - name: Record SDK bundle delta against the inherited base
+        run: |
+          git fetch --depth=1 origin 76a96dea8aeb00db9088e2547250aaa59034a629
+          pnpm --filter @frontend-insight/web-tracker exec node scripts/r4b-budget.mjs
+          git fetch --depth=1 origin 982341b2aee7d61b7473ded6b055e021bb095272
+          pnpm --filter @frontend-insight/web-tracker exec node scripts/r4b-budget.mjs --r4c
+
+      - name: Verify actual checkout SHA
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Run focused R4-B tests
+        run: pnpm test:r4b
+
+      - name: Run focused R4-A tests
+        run: pnpm test:r4a
+
+      - name: Run focused R3 calendar, API and read-model tests
+        run: pnpm test:r3
+
+      - name: Run focused R2 entry tests
+        run: pnpm test:r2
+
+      - name: Run R1-C score product and calculation tests
+        run: pnpm test:r1c
+
+      - name: Run focused R1-B formula and API tests
+        run: pnpm test:r1b
+
+      - name: Run accepted R1-A regression tests
+        run: pnpm test:r1a
+
+      - name: Validate local operations entrypoint
+        run: bash -n scripts/dev
+
+      - name: Install Chromium and WebKit
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Rebuild, seed and smoke the empty baseline
+        run: |
+          ./scripts/dev reset --confirm-local-data-loss
+          ./scripts/dev bootstrap
+          ./scripts/dev up
+          ./scripts/dev smoke
+
+      - name: Run R5-A collector and denominator golden fixtures
+        run: pnpm test:r5a
+
+      - name: Run R5-A SDK through real services in both browsers
+        run: pnpm test:r5a:e2e
+
+      - name: Run R5-B real scoped query and page product in Chromium and WebKit
+        run: pnpm test:r5b:e2e
+
+      - name: Verify R5-B Kafka storage logs and dead-letter privacy
+        run: node tools/r5b-storage-privacy.mjs
+
+      - name: Run R6 hand-computable fixtures
+        run: pnpm test:r6
+
+      - name: Run R6 real SDK storage API and page operations in both browsers
+        run: pnpm test:r6:e2e
+
+      - name: Run R5-A quality fact mix at 20 and 200 events per second
+        run: node tools/r5a-load.mjs
+
+      - name: Verify data-preserving 001-002 to 003-005 migration
+        run: ./scripts/dev verify-r2-upgrade
+
+      - name: Verify R4-C real directory and queued Kafka replay
+        run: ./scripts/dev verify-r4c
+
+      - name: Run R4-C controlled collection and directory tests
+        run: pnpm test:r4c
+
+      - name: Verify R4-C actual SDK and directory in both browsers
+        run: pnpm test:r4c:e2e
+
+      - name: Verify real MySQL and API metric-library flow
+        run: ./scripts/dev verify-r1b
+
+      - name: Verify real R1-A MySQL and API regressions
+        run: ./scripts/dev verify-r1a
+
+      - name: Run R1-B admin and viewer product flows
+        run: pnpm test:r1b:e2e
+
+      - name: Run R1-A Chromium and WebKit product regression
+        run: pnpm test:r1a:e2e
+
+      - name: Verify real R1-C snapshots, permissions, audit and history
+        run: ./scripts/dev verify-r1c
+
+      - name: Run R1-C Chromium and WebKit admin and viewer product flows
+        run: pnpm test:r1c:e2e
+
+      - name: Verify R2 real MySQL, ClickHouse, API and 20-project p95
+        run: ./scripts/dev verify-r2
+
+      - name: Run R2 Chromium and WebKit full admin and viewer flows
+        run: pnpm test:r2:e2e
+
+      - name: Verify R3 real MySQL, ClickHouse, isolated versions, bindings and p95
+        run: ./scripts/dev verify-r3
+
+      - name: Run R3 Chromium and WebKit admin/viewer flows and isolated fixtures
+        run: pnpm test:r3:e2e
+
+      - name: Verify R4-A real MySQL ClickHouse API and performance
+        run: ./scripts/dev verify-r4a
+
+      - name: Run R4-A Chromium and WebKit admin viewer products
+        run: pnpm test:r4a:e2e
+
+      - name: Verify real R4-B browser SDK and product chain
+        run: pnpm test:r4b:e2e
+
+      - name: Verify query and header values stay out of access and proxy error logs
+        run: |
+          curl --silent --output /dev/null 'http://127.0.0.1:4173/api/projects/summary?search=FI_R2_PRIVATE_QUERY_SENTINEL'
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("/tmp/r4b-privacy-headers", "X-Fi-Privacy: FI_R4B_PRIVATE_HEADER_SENTINEL" + "a".repeat(9000))'
+          privacy_status="$(curl --silent --output /dev/null --write-out '%{http_code}' --header @/tmp/r4b-privacy-headers 'http://127.0.0.1:4173/api/projects/summary?search=FI_R4B_PRIVATE_QUERY_SENTINEL')"
+          case "$privacy_status" in
+            400|431) ;;
+            *) echo "Expected controlled oversized-header rejection"; exit 1 ;;
+          esac
+          ./scripts/dev logs web > /tmp/r2-web-access.log
+          if grep -qE 'FI_R2_PRIVATE_QUERY_SENTINEL|FI_R4B_PRIVATE_(QUERY|HEADER)_SENTINEL|request: "' /tmp/r2-web-access.log; then
+            echo 'Unredacted query/header/request context leaked into proxy logs'
+            exit 1
+          fi
+          grep -q '"requestId"' /tmp/r2-web-access.log
+
+      - name: Record R4-C implementation for user manual acceptance
+        run: |
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4c-evidence.json", JSON.stringify({testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, baseline:"982341b2aee7d61b7473ded6b055e021bb095272", manualAcceptanceReady:true, milestoneComplete:false, implementationComplete:true, approvedDecisions:["C01","C02","C03","C04","C05","C07-A"], isolatedExtensions:["C06 cross-directory single ratio"], scope:"R4-C SDK, real facts, temporal directory, C07 formal organization, product and inherited regressions", manualAcceptance:"pending Jesse"},null,2))'
+
+      - name: Record the exact verified product commit
+        run: |
+          mkdir -p artifacts
+          node --input-type=module -e 'import {writeFileSync} from "node:fs"; writeFileSync("artifacts/r4b-evidence.json", JSON.stringify({baseline:"76a96dea8aeb00db9088e2547250aaa59034a629", inheritedAcceptedCommit:"7f1d9c89f2c4b10f14003d65d292fb56f6936c76", testedCommit:process.env.GITHUB_SHA, runId:process.env.GITHUB_RUN_ID, runAttempt:process.env.GITHUB_RUN_ATTEMPT, scope:"R4-B delivery plus R1-A through R4-A regressions", implementation:"inherited R4-B regression verification during R4-C", manualAcceptanceReady:true, unresolvedExtensions:["Q07 step partial completion", "Q08 optional/skipped intermediate steps"], dataDependency:"PENETRATION_SOURCE_MISSING", automation:"passed", realIntegration:"passed", browsers:["chromium","webkit"], manualAcceptance:"R4-B user confirmation on 2026-09-29; not R4-C acceptance", milestoneComplete:false}, null, 2))'
+
+      - name: Record R5-A exact-commit delivery evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync('artifacts/r5a-evidence.json',JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'16.1-16.3 quality collectors and facts; R1 through R4-C regressions',automation:'passed',realIntegration:'passed',manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
+          NODE
+
+      - name: Record R5-B exact-commit delivery evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          writeFileSync('artifacts/r5b-evidence.json', JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,scope:'17.1-17.4 page quality; inherited R5-A and R1 through R4-C',automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],manualAcceptanceReady:true,manualAcceptance:'not performed; Jesse accepted automation and authorized R6 on 2026-10-06',milestoneComplete:true,nextStageAuthorized:true},null,2));
+          NODE
+
+      - name: Record R6 exact-commit evidence and verify actual PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import {execFileSync} from 'node:child_process';
+          const checkout=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          assert.equal(checkout,process.env.GITHUB_SHA);
+          const response=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/pulls?state=open&head=${encodeURIComponent(process.env.GITHUB_REPOSITORY_OWNER+':'+process.env.GITHUB_REF_NAME)}`,{headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json'}});
+          assert(response.ok,'PR_HEAD_READ_FAILED');
+          const prs=await response.json();
+          const pr=prs.find(p=>p.base.ref==='refactor');
+          assert(pr && pr.state==='open' && pr.head.sha===checkout,'PR_HEAD_OR_STATE_MISMATCH');
+          writeFileSync('artifacts/r6-evidence.json',JSON.stringify({testedCommit:checkout,prHead:pr.head.sha,pr:pr.number,runId:process.env.GITHUB_RUN_ID,automation:'passed',realIntegration:'passed',browsers:['chromium','webkit'],inherited:'R1–R5 including R5-A pressure and R5-B privacy',manualAcceptance:'not performed',automaticMerge:false},null,2));
+          NODE
+
+      - name: Verify every artifact commit and print safe performance evidence
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { readdirSync, readFileSync } from "node:fs";
+          import { execFileSync } from "node:child_process";
+          const checkout = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+          assert.equal(checkout, process.env.GITHUB_SHA);
+          const files = readdirSync("artifacts").filter(name => name.endsWith(".json"));
+          for (const name of ["r6-evidence.json", "r6-chromium.json", "r6-webkit.json", "r5b-evidence.json", "r5b-chromium.json", "r5b-webkit.json", "r5b-privacy.json", "r5a-evidence.json", "r5a-sdk-bundle.json", "r5a-chromium.json", "r5a-webkit.json", "r5a-load.json", "r4c-evidence.json", "r4c-integration.json", "r4c-chromium.json", "r4c-webkit.json", "r4c-sdk-bundle.json", "r4c-sdk-synchronous.json", "r4b-evidence.json", "r4b-sdk-chromium.json", "r4b-sdk-webkit.json", "r4b-sdk-bundle.json", "r4b-sdk-synchronous.json", "r2-upgrade.json", "r2-integration.json", "r3-integration.json", "r4a-integration.json"]) assert(files.includes(name), name);
+          const fields = ["range", "steps", "concurrency", "warmup", "warmups", "count", "sampleCount", "p95", "p95Ms", "algorithm", "p95Algorithm", "httpQueriesPerSample", "workflows", "definitionVersions", "sdkInstances", "concurrentSdkInstances"];
+          const pick = value => Object.fromEntries(fields.filter(key => Object.hasOwn(value, key)).map(key => [key, value[key]]));
+          const summaries = files.map(name => {
+            const data = JSON.parse(readFileSync("artifacts/" + name, "utf8"));
+            assert.equal(data.testedCommit, checkout, name + " testedCommit");
+            const rows = data.measurements ?? data.performanceSamples ?? data.results ?? [];
+            const summary = { file: name, testedCommit: data.testedCommit, ...pick(data), firstUsableMs: data.firstUsableMs, detailFirstUsableMs: data.detailFirstUsableMs, measurements: rows.map(row => {
+              const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : [row.diagnostics];
+              return { ...pick(row), sqlQueries: [...new Set(diagnostics.flatMap(d => Number.isFinite(d?.metadataQueries) ? [d.metadataQueries] : []))], clickHouseQueries: [...new Set(diagnostics.flatMap(d => Number.isFinite(d?.clickHouseQueries) ? [d.clickHouseQueries] : []))] };
+            }) };
+            if (["r4b-sdk-bundle.json", "r4c-sdk-bundle.json"].includes(name)) Object.assign(summary, { baseline: data.baseline, current: data.current, gzipDifference: data.gzipDifference, maximumGzipBytes: data.maximumGzipBytes });
+            return summary;
+          });
+          console.log(JSON.stringify({ checkout, artifactCount: summaries.length, allTestedCommitsMatch: true, summaries }));
+          NODE
+
+      - name: Upload exact-commit verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-checkpoint-evidence
+          path: |
+            artifacts/*.json
+            artifacts/r5b-*.png
+            test-results
+
+      - name: Capture service logs on failure
+        if: failure()
+        run: ./scripts/dev logs
+
+      - name: Stop local services
+        if: always()
+        run: ./scripts/dev down

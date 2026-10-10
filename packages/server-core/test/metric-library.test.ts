@@ -114,15 +114,15 @@ describe("metric library snapshot validation", () => {
     expect(
       report.definitions.find((item) => item.metricKey === "derived_partial")
         ?.implementationStatus,
-    ).toBe("partial");
+    ).toBe("implemented");
     expect(
       report.definitions.find((item) => item.metricKey === "derived_missing")
         ?.implementationStatus,
-    ).toBe("not_collected");
+    ).toBe("implemented");
     expect(
       report.definitions.find((item) => item.metricKey === "derived_chain")
         ?.implementationStatus,
-    ).toBe("partial");
+    ).toBe("implemented");
     expect(report.order.indexOf("pv")).toBeLessThan(
       report.order.indexOf("derived_partial"),
     );
@@ -155,7 +155,7 @@ describe("metric library snapshot validation", () => {
     const definitions = operationalSystems.map((item) => ({
       ...item,
       definitionVersion:
-        item.definitionVersion === "system-identity-2026-09-09.1"
+        item.definitionVersion === "page-usage-2026-10-06.1"
           ? "system-v1.8.0"
           : item.definitionVersion,
     }));

@@ -16,6 +16,7 @@ const pv = {
   ...METRIC_CATALOG.find((m) => m.metricKey === "pv")!,
   id: "pv-id",
   libraryVersionId: "active",
+  definitionVersion: "system-identity-2026-09-09.1",
   origin: "system",
   enabled: true,
   formulaAst: null,

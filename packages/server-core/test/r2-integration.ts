@@ -22,7 +22,7 @@ const chConfig = {
   database: "frontend_insight",
 };
 const ch = createClient(chConfig),
-  analytics = new AnalyticsStore(chConfig, mysql),
+  analytics = new AnalyticsStore(chConfig),
   scores = new ScoreManagementService(mysql, new MetricLibraryService(mysql)),
   summaryService = new ProjectSummaryService(mysql, scores, analytics);
 type Summary = Awaited<ReturnType<ProjectSummaryService["summary"]>>;

@@ -79,6 +79,7 @@ try {
     );
     const active = versions.find((v) => v.status === "active");
     assert(active);
+    const activeBefore = await call<Snapshot>(admin, base + "/versions/" + active.id);
     const [draft, reused] = await Promise.all([
       call<MetricLibraryVersion>(
         admin,
@@ -116,8 +117,10 @@ try {
     });
     if (type === "operational") {
       const uv = saved.definitions.find((m) => m.metricKey === "uv")!;
-      assert.equal(uv.definitionVersion, "system-identity-2026-09-09.1");
-      assert(!JSON.stringify(uv).includes("deviceId"));
+      assert.equal(uv.definitionVersion, "page-usage-2026-10-06.1");
+      assert(JSON.stringify(uv).includes("deviceId"));
+      const activeAfter = await call<Snapshot>(admin, base + "/versions/" + active.id);
+      assert.deepEqual(activeAfter.definitions, activeBefore.definitions);
     }
     assert.equal(saved.score?.configuration.owner, "Jesse");
     assert.equal(saved.score?.dependencies.projectId, projectId);

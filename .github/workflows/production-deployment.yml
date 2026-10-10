@@ -1,0 +1,71 @@
+name: Production deployment Ubuntu 22.04
+on:
+  push:
+    branches: ["agent/v1-8-r7-*", "agent/v1-8-r8-*"]
+    paths-ignore: ["docs/**", "README.md"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: production-deployment-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  production:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      FI_PRIVACY_NO_TRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Set temporary credential input path
+        run: echo "FI_BOOTSTRAP_INPUT=$RUNNER_TEMP/production-bootstrap.json" >> "$GITHUB_ENV"
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile
+      - name: Validate production scripts and memory boundaries
+        run: |
+          bash -n scripts/production scripts/deployment-info tools/production-ci
+          pnpm exec vitest run tests/production/capacity.test.ts
+      - name: Record actual Docker versions
+        run: |
+          docker version --format 'client={{.Client.Version}} server={{.Server.Version}}'
+          docker compose version
+      - name: Prepare root-owned secrets and production capacity preflight
+        run: bash tools/production-ci prepare
+      - name: Deploy actual production stack and verify secret isolation
+        run: bash tools/production-ci deploy
+      - name: Bootstrap one real admin without fixtures or environment passwords
+        run: bash tools/production-ci bootstrap
+      - name: Start isolated TLS edge
+        run: bash tools/production-ci tls
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Production HTTPS browser SDK collector storage and settings
+        run: pnpm exec playwright test -c playwright.production.config.ts
+      - name: Recreate production containers with retained volumes
+        run: bash tools/production-ci restart
+      - name: Verify retained login and event data in both browsers
+        env:
+          FI_PRODUCTION_PHASE: retained
+        run: pnpm exec playwright test -c playwright.production.config.ts
+      - name: Backup and restore populated durable schema in isolated CI
+        run: bash tools/production-ci restore-drill
+      - name: Verify restored accounts projects policies and events in both browsers
+        env:
+          FI_PRODUCTION_PHASE: restored
+        run: pnpm exec playwright test -c playwright.production.config.ts
+      - name: Verify exact commit evidence
+        run: bash tools/production-ci evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-deployment-evidence
+          path: artifacts/production-*.json
+      - name: Safe container state on failure
+        if: failure()
+        run: sudo bash scripts/production status
+      - name: Stop isolated services
+        if: always()
+        run: bash tools/production-ci cleanup

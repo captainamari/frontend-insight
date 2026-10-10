@@ -2,7 +2,7 @@ export * from "./analytics.js";
 export * from "./analysis-objects.js";
 export * from "./auth.js";
 export * from "./model.js";
-export * from "./metrics.js";
+export * from "./page-score-targets.js";
 export * from "./formula.js";
 export * from "./score-evaluation.js";
 export * from "./score-preflight.js";
@@ -45,3 +45,12 @@ export * from "./quality-facts.js";
 export * from "./quality-binding.js";
 
 export * from "./page-quality.js";
+
+export * from "./page-usage.js";
+
+export * from "./page-usage-binding.js";
+
+export type { RowDataPacket } from "mysql2/promise";
+
+export * from "./settings.js";
+export * from "./settings-facts.js";

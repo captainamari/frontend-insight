@@ -1,5 +1,5 @@
 import { evaluateFormula } from "./formula.js";
-import { PAGE_TEMPLATE_DURATION_TARGETS } from "./metrics.js";
+import { PAGE_TEMPLATE_DURATION_TARGETS } from "./page-score-targets.js";
 import type { PageTemplate } from "./model.js";
 /** Shared query-window semantics inherited from the accepted analytics service. */
 export function expectedScoreDates(

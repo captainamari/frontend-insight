@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, type LocationQueryRaw } from "vue-router";
 import { ElDrawer } from "element-plus";
 import "element-plus/es/components/drawer/style/css";
 import { api, ApiError } from "../api";
+import { CANONICAL_RANGES } from "@frontend-insight/event-contract/canonical";
+import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
+import { projects } from "../projects";
 interface Occurrence {
   occurrenceId: string;
   groupId: string;
@@ -60,11 +63,13 @@ const categories = [
   ["js", "JS"],
   ["other", "Other"],
 ];
-const paths = computed(
-  () =>
-    data.value?.routes.filter((p) =>
-      p.toLowerCase().includes(pathSearch.value.toLowerCase()),
-    ) ?? [],
+const paths = computed(() =>
+  [
+    ...new Set([
+      ...(data.value?.routes ?? []),
+      ...(typeof route.query.pageRoute === "string" ? [route.query.pageRoute] : []),
+    ]),
+  ].filter((p) => p.toLowerCase().includes(pathSearch.value.toLowerCase())),
 );
 const signature = computed(() =>
   JSON.stringify([
@@ -139,6 +144,32 @@ async function load() {
   }
 }
 let filterNavigation = Promise.resolve();
+function refresh() {
+  filterNavigation = filterNavigation.then(async () => {
+    const query: LocationQueryRaw = { ...route.query, cursor: undefined };
+    const preset = CANONICAL_RANGES.find((r) => r.key === query.range)?.key ?? "7d";
+    if (preset !== "custom") {
+      // URLs pin a snapshot for pagination/navigation. An explicit refresh of a
+      // relative preset must also advance its event-time window, not just asOf.
+      const next = resolveProjectCalendar(
+        {
+          range: preset,
+          env: query.env === "dev" || query.env === "staging" ? query.env : "prod",
+        },
+        projects.find(String(route.params.projectId))?.timezone ?? "UTC",
+      );
+      Object.assign(query, {
+        range: preset,
+        from: next.from,
+        to: next.to,
+        scoreFrom: undefined,
+        scoreTo: undefined,
+      });
+    }
+    if (router.resolve({ query }).fullPath === route.fullPath) await load();
+    else await router.replace({ query }); // The route watcher loads the new scope.
+  });
+}
 function change(key: string, value?: string) {
   // Read the route only after the preceding navigation commits, so rapid
   // changes compose instead of overwriting each other with stale query values.
@@ -211,12 +242,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="panel page-quality" aria-labelledby="quality-title">
     <h1 id="quality-title">页面分析</h1>
-    <nav aria-label="页面分析类型" class="quality-tabs">
-      <button type="button" aria-current="page">质量分析</button>
-      <button type="button" disabled title="运营分析将在后续阶段开放">
-        运营分析（待开放）
-      </button>
-    </nav>
+
     <p>按页面、时间和错误类别定位问题。时间使用项目时区；上方可选择自定义日期。</p>
     <div class="quality-filters">
       <label
@@ -254,13 +280,7 @@ onBeforeUnmount(() => {
       <button v-if="route.query.groupId" type="button" @click="change('groupId')">
         返回全部错误组
       </button>
-      <button
-        type="button"
-        :disabled="loading"
-        @click="route.query.cursor ? change('cursor') : load()"
-      >
-        刷新
-      </button>
+      <button type="button" :disabled="loading" @click="refresh">刷新</button>
     </div>
     <p v-if="loading" role="status">正在读取错误实例…</p>
     <div v-if="error" role="alert">
@@ -346,7 +366,9 @@ onBeforeUnmount(() => {
           "
         >
           下一页</button
-        ><small>分页快照保留一小时；刷新可读取新到达事件。</small>
+        ><small
+          >分页快照保留一小时；刷新将预设范围更新至当前时间，自定义日期保持不变。</small
+        >
       </div>
     </template>
     <ElDrawer

@@ -21,7 +21,6 @@ console.log(
     appId: m5Fixture.appId,
     modules: Object.values(m6Fixture.modules),
     pages: Object.values(m6Fixture.pages),
-    profileId: m6Fixture.profileId,
     origins,
     users: [m5Fixture.admin.email, m5Fixture.viewer.email],
   }),

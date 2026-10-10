@@ -468,3 +468,61 @@ test("20 project first usable browser p95 including navigation, script and singl
   );
   expect(p95).toBeLessThanOrEqual(2000);
 });
+
+test("pending entry search cannot cancel a real project-access navigation", async ({
+  page,
+}) => {
+  await login(page, "admin");
+  await ready(page);
+  const real = await api<EntrySummary>(page, "/api/projects/summary");
+  expect(real.status).toBe(200);
+  const target = real.body.items[0]!;
+  const card = page.getByRole("article", { name: target.name, exact: true });
+  await expect(card).toHaveCount(1);
+  const entry = page.url();
+  let release!: () => void;
+  let started!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const accessStarted = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  let searched = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname === "/api/projects/summary" &&
+      url.searchParams.get("search") === target.name
+    )
+      searched++;
+  });
+  // Delay a genuine access response, not its data, beyond the 300ms search debounce.
+  await page.route(`**/api/projects/${target.id}/access`, async (route) => {
+    const response = await route.fetch();
+    started();
+    await held;
+    await route.fulfill({ response });
+  });
+  try {
+    // Same browser task guarantees input precedes entry before the debounce can fire.
+    await card.evaluate((article, name) => {
+      const input = document.querySelector<HTMLInputElement>('input[type="search"]')!;
+      input.value = name;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      article.querySelector<HTMLButtonElement>(".enter-project")!.click();
+    }, target.name);
+    await accessStarted;
+    await page.waitForTimeout(400);
+    expect(searched).toBe(0);
+    release();
+    await expect(page).toHaveURL(new RegExp(`/projects/${target.id}/overview`));
+    await expect(
+      page.getByRole("heading", { name: "项目概览", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "返回全部项目", exact: true }).click();
+    await expect(page).toHaveURL(entry);
+  } finally {
+    release();
+  }
+});

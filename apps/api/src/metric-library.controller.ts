@@ -144,6 +144,22 @@ export class MetricLibraryController {
     return this.core.metricLibrary.refreshQualityFacts(projectId, versionId, principal);
   }
 
+  @Post("versions/:versionId/page-usage-facts")
+  async refreshPageUsageFacts(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() body: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    parseInput(z.object({}).strict(), body);
+    return this.core.metricLibrary.refreshPageUsageFacts(
+      projectId,
+      versionId,
+      principal,
+    );
+  }
+
   @Get("versions/:versionId")
   async version(
     @Param("projectId") projectId: string,
@@ -210,6 +226,36 @@ export class MetricLibraryController {
       body.metricKeys,
       principal,
       "business",
+    );
+  }
+
+  @Get("versions/:versionId/page-bindings")
+  async pageBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, false);
+    return this.core.metricLibrary.displayBindings(projectId, versionId, "page");
+  }
+  @Put("versions/:versionId/page-bindings")
+  async savePageBindings(
+    @Param("projectId") projectId: string,
+    @Param("versionId") versionId: string,
+    @Body() raw: unknown,
+    @CurrentPrincipal() principal: Principal,
+  ) {
+    await this.authorize(principal, projectId, true);
+    const body = parseInput(
+      z.object({ metricKeys: z.array(metricKeySchema).max(24) }).strict(),
+      raw,
+    );
+    return this.core.metricLibrary.saveDisplayBindings(
+      projectId,
+      versionId,
+      body.metricKeys,
+      principal,
+      "page",
     );
   }
 

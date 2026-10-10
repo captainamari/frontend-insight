@@ -10,8 +10,6 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await expect(
     page.getByRole("heading", { name: "全部项目", exact: true }),
   ).toBeVisible();
-  await page.goto("/features");
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
 async function choose(
@@ -79,7 +77,7 @@ test("admin manages a controlled business metric while system definitions stay r
   await editor.getByLabel("中文名").fill(`限定活跃用户 ${suffix}`);
   await editor.getByLabel("业务说明").fill("将活跃用户数限制在明确上下界内");
   await editor.getByRole("button", { name: "下一步" }).click();
-  await choose(page, editor.getByLabel("输入指标 A"), "uv · 活跃用户数 · 部分实现");
+  await choose(page, editor.getByLabel("输入指标 A"), "uv · 活跃用户数 · 已实现");
   const clampPreviewResponse = page.waitForResponse(
     (response) =>
       response.url().includes("/definitions/preview") &&
@@ -101,7 +99,7 @@ test("admin manages a controlled business metric while system definitions stay r
   await editor.getByLabel("中文名").fill(`单会话页面数 ${suffix}`);
   await editor.getByLabel("业务说明").fill("页面浏览量除以会话数");
   await editor.getByRole("button", { name: "下一步" }).click();
-  await choose(page, editor.getByLabel("输入指标 A"), "pv · 页面浏览量 · 部分实现");
+  await choose(page, editor.getByLabel("输入指标 A"), "pv · 页面浏览量 · 已实现");
   const divisionPreviewResponse = page.waitForResponse(
     (response) =>
       response.url().includes("/definitions/preview") &&
@@ -109,7 +107,7 @@ test("admin manages a controlled business metric while system definitions stay r
       response.request().postData()?.includes(`"metricKey":"${metricKey}"`) === true &&
       response.request().postData()?.includes('"metricKey":"vv"') === true,
   );
-  await choose(page, editor.getByLabel("输入指标 B"), "vv · 会话数（VV） · 部分实现");
+  await choose(page, editor.getByLabel("输入指标 B"), "vv · 会话数（VV） · 已实现");
   await divisionPreviewResponse;
   await expect(editor).toContainText("(pv / vv)");
   await editor.getByRole("button", { name: "下一步" }).click();
