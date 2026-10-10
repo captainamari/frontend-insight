@@ -46,11 +46,11 @@ await tracker.flush();
 ## 发布、备份与回滚
 
 1. 发布前备份 MySQL 和 ClickHouse，包括新增 grants/policies/receipts/audit 与 diagnostic_details。备份含原文，访问应限定运维账户；离线备份保留与删除由部署方设置，在线 TTL 不会擦除已有备份。
-2. 暂不启用 SDK 新入口，按现有迁移命令 `pnpm migrate` 执行 MySQL 008–009 / ClickHouse 005。只新增表，不改旧迁移，不 reset/seed。可重复执行；适用于已有数据。
+2. 暂不启用 SDK 新入口，按现有迁移命令 `pnpm migrate` 执行 MySQL 008–009 / ClickHouse 005。只增量新增诊断表及列，不改旧迁移，不 reset/seed。可重复执行；适用于已有数据。
 3. 部署新 consumer，再部署 API 和代理，再启用新 SDK。旧 API/consumer 的 v3 schema 会拒绝新可选字段；不能先发新信封。滚动切换前要确认所有 consumer 实例升级。
 4. API/ingestion/代理 128 KiB，Kafka topic `max.message.bytes=262144`、broker 1 MiB；topic 原文队列保留 24 小时、segment 1 分钟。沿用部署 Compose 的 kafka-topics 初始化步骤更新已有 topic。**该队列调整同时缩短基础事件的故障重放窗口，必须保证消费延迟小于 24 小时**。详情默认保存 14 天，统计仍沿用 90 天。
 5. 逻辑 TTL 在读 API 即时生效；ClickHouse TTL 和 Kafka segment 清理是异步物理删除。缩短策略不追溯旧记录；D6 再补主动删除与完整运营 UI。备份恢复后仍由原 expires_at 决定是否可读，不能用恢复时间延长 TTL。
 6. 回滚先禁用 SDK 新入口并清空客户端待发数据，等待 Kafka 新信封消费完毕，然后回滚 API/consumer。数据库新增表保留即可；不需要删除表或旧数据。未消费新信封不能交给旧 consumer，否则会进 DLQ。回滚后旧 SDK/指标仍可运行，新原文不可由旧 API 访问。
 7. 执行恢复演练时恢复 MySQL receipt 与 ClickHouse detail 的同一备份时间点；只恢复一侧会出现 unavailable/pending，不伪造成完整详情。D7 再做完整备份恢复验收，本批不声称已经执行。
 
-专项验证只用合成 fixture，详见 results。Firefox 暂无真实浏览器覆盖；D1 栈格式 fixture、D7 再决定真实浏览器成本。
+专项验证只用合成 fixture，详见 results。本路线真实浏览器固定 Chromium/WebKit，不加入真实 Firefox CI；Firefox 在 D1 加栈格式 fixture。
