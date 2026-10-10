@@ -71,7 +71,7 @@ async function call(
   return (await r.json()) as Record<string, unknown>;
 }
 async function until<T>(fn: () => Promise<T>, ok: (v: T) => boolean) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 180; i++) {
     const v = await fn();
     if (ok(v)) return v;
     await new Promise((r) => setTimeout(r, 500));
@@ -280,6 +280,7 @@ try {
     `/api/projects/${pid}/observability/occurrences?env=dev&range=7d&mode=all`,
     viewerToken,
   );
+  assert.equal(listed.totalOccurrences, 23);
   assert(!JSON.stringify(listed).includes("FI_D0_SYNTHETIC"));
   assert(!JSON.stringify(listed).includes('"diagnostic"'));
   const rawRows = await ch.query({
@@ -342,14 +343,36 @@ try {
     (v) => v.state === "ready",
   );
   assert.equal(await count(), 26);
-  // CH TTL and read filter, even before asynchronous physical deletion.
+  // Missing physical detail remains distinct from a missing base error.
   await ch.command({
     query:
-      "ALTER TABLE diagnostic_details UPDATE expires_at=now()-INTERVAL 1 SECOND WHERE project_id={p:UUID} AND event_id={e:String}",
+      "ALTER TABLE diagnostic_details DELETE WHERE project_id={p:UUID} AND event_id={e:String}",
     query_params: { p: pid, e: event },
     clickhouse_settings: { mutations_sync: "1" },
   });
   assert.equal((await call(path, token)).state, "unavailable");
+  // expires_at is a partition key: insert an independently expired fixture,
+  // never UPDATE the partition key or change the production TTL expression.
+  const expiredEvent = "evt_d0_expired0000";
+  await ch.insert({
+    table: "diagnostic_details",
+    format: "JSONEachRow",
+    values: [
+      {
+        project_id: pid,
+        event_id: expiredEvent,
+        envelope_json: JSON.stringify(d),
+        received_at: new Date(Date.now() - 2 * 86400000)
+          .toISOString()
+          .replace("T", " ")
+          .replace("Z", ""),
+        expires_at: new Date(Date.now() - 86400000)
+          .toISOString()
+          .slice(0, 19)
+          .replace("T", " "),
+      },
+    ],
+  });
   await ch.command({
     query: "ALTER TABLE diagnostic_details MATERIALIZE TTL",
     clickhouse_settings: { mutations_sync: "1" },
@@ -358,7 +381,7 @@ try {
     query:
       "SELECT count() n FROM diagnostic_details WHERE project_id={p:UUID} AND event_id={e:String}",
     format: "JSONEachRow",
-    query_params: { p: pid, e: event },
+    query_params: { p: pid, e: expiredEvent },
   });
   assert.equal(Number((await remaining.json<{ n: string }>())[0]!.n), 0);
   const [audits] = await mysql.pool.query<RowDataPacket[]>(

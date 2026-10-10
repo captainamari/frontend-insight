@@ -45,3 +45,5 @@
 ## 后续入口
 
 只有 D0 实际证据完成并由用户合并后，再从最新 refactor 建 `agent/runtime-diagnostics-d1-errors`，按计划 D1 统一错误提取、修复栈解析、补原文详情呈现与实验室；保留本批合同、权限、TTL 和计数路径。
+
+第二轮代码 `a340e7d814d9b52d1d2c5ad48b9b1d71d2ccab0d`：[CI 38043572676](https://github.com/captainamari/frontend-insight/actions/runs/38043572676) 已完成真实 MySQL 7→8→9 / ClickHouse 4→5 保留数据升级，以及原文/角色/撤权/限流/重试/部分写入恢复断言。之后 TTL 夹具错误地 UPDATE 分区键 expires_at，被 ClickHouse 拒绝；改用独立的已过期插入记录进行物理 TTL 断言，不修改生产表结构或 TTL。后续浏览器和 DLQ 验证仍待新一轮 CI。故障恢复轮询允许 90 秒，覆盖配置中的 30 秒 consumer 暂停时间。
