@@ -1,145 +1,61 @@
-# Frontend Insight 项目学习指南（M0–M5）
+# Frontend Insight 开发者学习与维护指南（v1.8 / R8）
 
-> 历史记录：以下命令、入口和代码链接仅适用文中固定基线；v1.8 当前操作请使用 [最终验收指南](../guides/v1.8-local-acceptance-macos.md)。保留原文用于追溯，不表示当前阶段已通过手工验收。
+本文面向要接手实现与维护的人，尤其适合熟悉 Python、参与过产品设计，但尚未读过本项目 TypeScript/Vue/NestJS 代码的开发者。目标是让你能解释数据和业务行为、定位故障，并有把握地完成修改。
 
-> M0–M4 代码基线：`agent/m1-engineering-contract-migrations`，提交 `fd2f468`  
-> M5 代码基线：`agent/m5-management-ui-demo`，提交 `c1bbbf3`  
-> 学习资料分支：`agent/project-learning-guide-m0-m4`  
-> 已覆盖：M0 技术验证、M1 工程/契约/迁移、M2 Web SDK、M3 数据链路、M4 管理与分析 API、M5 Vue 管理后台与三场景 demo  
-> 尚未覆盖：M6 生产硬化、备份恢复、容量验证与真实项目试点
+**代码基线：** `agent/v1-8-r8-cleanup-acceptance`，`641e106252e7053ea9a306fddcbc1c80ad66592e`（2026-10-09），包含质量刷新修复 `4948ece`。这是一份按代码核对的学习材料，不是新增验收批准。最新工程、手工复验、业务批准及发布状态见 [R8 results](../progress/v1.8-r8-results.md)。
 
-学习资料分支用于集中维护文档，没有合入 M5 业务代码。阅读第 8–11 章时，请同时打开 `agent/m5-management-ui-demo` 或上述固定提交，避免用后续变更后的代码反推旧设计。
+## 1. 先选你的阅读路径
 
-这组文档的目标不是复述源码，而是让维护者形成一张可以解释、验证和修改项目的心智地图。读完后，你应该能回答五类问题：
+| 你现在的目标        | 阅读顺序                                                    | 完成标志                                         |
+| ------------------- | ----------------------------------------------------------- | ------------------------------------------------ |
+| 先会用产品          | [用户操作指南](../guides/user-manual/README.md) → 第 12 章  | 能从项目入口找到五大模块，知道环境/时间/权限影响 |
+| 从设计者转为维护者  | 第 12 → 13 → 14 → 15 → 16 → 17 章                           | 能从一个 UI 数字追到事实来源，再解释修改影响     |
+| 接入 SDK 或处理丢数 | 第 13 → 14 → 17 章                                          | 能区分采集、接收、消费、查询范围、缺事实         |
+| 修改业务指标或分数  | 第 14 → 15 → 17 章                                          | 能手算 fixture，并说明版本、绑定、目标和分母     |
+| 修改前端或权限      | 第 12 → 16 → 17 章                                          | 能跟踪 URL、请求生命周期和服务端授权             |
+| 排查部署与运行问题  | 第 17 章 → [生产指南](../guides/production-ubuntu-22.04.md) | 能定位失败层，保留数据并明确验证范围             |
 
-1. 一条事件为什么要经过这些模块，而不是直接写数据库？
-2. 每个存储、框架和抽象分别解决什么问题？
-3. 关键函数维护了哪些业务不变量，改错后会破坏什么？
-4. API 的数据语义如何变成不会误导使用者的页面状态？
-5. 新需求应该落在哪一层、需要补哪些测试、哪些边界暂时不能突破？
+建议按六次学习单元推进；每单元约 1–2 小时是安排建议，不是工时承诺。先读解释，再打开源码，再运行一项练习；未解释清楚输入、输出与失败路径前不要跳过。无需先系统学完前端技术栈，也不应仅背诵目录结构。
 
-## 1. 先建立正确的项目定义
+## 2. 当前主教材
 
-Frontend Insight 是“内部 Web 功能采用分析系统”，不是通用埋点平台、人员考核系统、财务级审计系统，也不是 Sentry/BI 的替代品。当前核心问题只有两个：
+| 章节                                                                  | 内容                                             | 你需要能回答的问题                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| [12. 架构与源码阅读地图](12-v1.8-architecture-and-reading-map.md)     | 工具链、分层、依赖、组件与纵向阅读               | 一条操作跨了哪些进程？为什么管理数据与事件事实分开？ |
+| [13. 契约、SDK 与事件链路](13-v1.8-contract-sdk-and-pipeline.md)      | v3、采集生命周期、发送、接收、Kafka、consumer    | 202 代表什么？失败重试/重复/offset 怎么处理？        |
+| [14. 存储、迁移与读模型](14-v1.8-storage-and-read-models.md)          | MySQL/ClickHouse、查询事实、时间/环境/身份、迁移 | UI 的数从哪来？缺失为什么不能算零？                  |
+| [15. 领域分析与评分](15-v1.8-domain-analysis-and-scoring.md)          | 分析对象、工作流、效率/组织、页面、版本化评分    | 改一个指标会影响哪些事实、绑定与页面？               |
+| [16. 前端、认证与设置](16-v1.8-web-auth-and-settings.md)              | 路由、URL、请求竞争、角色、接入及受控能力        | 切项目如何不串数据？为什么按钮隐藏不等于授权？       |
+| [17. 维护实验与排障](17-v1.8-maintenance-labs-and-troubleshooting.md) | 环境、真实缺陷案例、实验、回归选择、变更方法     | 我能复现、定位、修复并证明这个问题吗？               |
 
-- 页面和数据是否真正被查看；
-- 功能是否从曝光、开始走到了业务成功，以及是否被重复使用。
+## 3. 旧教材如何使用
 
-这个定义直接决定了代码和页面中的几个重要选择：
+01–11 章保留原编号和固定基线，仅用于理解 M0–M5 的设计演进。旧章节入口见下表。不要用历史示例接入当前 SDK，也不要把历史路由、字段、评分边界和旧维护命令当成 R8 行为。
 
-- “按钮被点击”不能算成功，操作功能必须由业务代码显式调用 `featureSucceeded`；
-- 大屏必须累计前台可见时间，后台标签页不能制造成功；
-- `visitorId`、`sessionId`、`accountId` 是三种不同口径，任何一个都不能被直接称为“真实人数”；
-- 允许 Kafka at-least-once 和查询时近似/去重语义，不承诺账务系统的 exactly-once；
-- 缺少数据时必须区分“尚未接入”“所选范围无活动”“链路延迟”“请求失败”，不能统一显示 0；
-- 管理端提供证据、定义和排障入口，不输出健康度、设计得分或人员结论。
+| 历史内容                                                                                                                                                                                                                 | 当前使用方式                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| [01 分层](01-architecture-and-boundaries.md) / [02 契约与迁移](02-contract-data-and-migrations.md)                                                                                                                       | 先理解动机，再以 12–14 的 v3 实现为准                    |
+| [03 SDK](03-web-tracker-sdk.md) / [04 消费链路](04-ingestion-and-consumer.md)                                                                                                                                            | 用于比较演进；实际字段、消费确认与重试以 13 章和源码为准 |
+| [05 API](05-auth-management-and-analytics.md) / [06 运维](06-testing-operations-and-change-playbooks.md) / [07 实验](07-code-reading-labs.md)                                                                            | 当前入口/测试先查 15–17 章，不直接执行旧命令             |
+| [08 前端](08-m5-frontend-architecture-and-runtime.md) / [09 数据状态](09-m5-analytics-views-and-data-states.md) / [10 demo](10-m5-onboarding-demo-and-local-loop.md) / [11 实验](11-m5-testing-and-code-reading-labs.md) | 仅作历史学习；正式导航、并发控制和质量刷新以 16–17 为准  |
 
-## 2. M5 完成后的系统地图
+例如，旧教材“没有分数”和旧页面路由已不适用；当前提供独立运营/质量分数及版本绑定。旧通用 `useRemoteData` 的描述也不能代表所有当前页面，每个 view 的请求控制都应按源码检查。文档区分“当时为何这样做”与“现在实际怎样做”。
 
-```mermaid
-flowchart TD
-    D["三场景 demo + Web Tracker"] -->|"事件批次"| N["Nginx 同源入口"]
-    W["Vue 管理后台"] -->|"认证/管理/分析"| N
-    N --> A["NestJS API"]
-    A --> M[(MySQL)]
-    A --> K[(Kafka)]
-    K --> C["Consumer"]
-    C --> H[(ClickHouse)]
-    A -->|"固定查询"| H
-```
+## 4. 学习记录模板与完成标准
 
-| 组件                      | 当前职责                                                        | 不负责什么                               |
-| ------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
-| `apps/web`                | 登录、项目/范围上下文、功能与页面证据、接入配置、统一页面状态   | 不在浏览器计算权威指标，不绕过服务端授权 |
-| `apps/demo-app`           | 用受控交互证明三类成功语义和隐私边界                            | 不是生产业务系统，不模拟所有异常         |
-| `infra/nginx/m5.conf`     | 提供静态文件、SPA fallback、同源 API/ingestion 代理和基础安全头 | 不替代生产网关、WAF、SSO 或 TLS 终止设计 |
-| `packages/web-tracker`    | 浏览器生命周期、三类功能事件、隐私约束、批量发送                | 不判断业务操作是否成功，不持久化离线队列 |
-| `packages/event-contract` | JSON Schema、生成类型、统一校验、拒绝码                         | 不包含数据库模型或业务授权               |
-| `apps/api`                | HTTP、NestJS 装配、输入/输出边界、认证入口                      | 不直接堆放主要业务逻辑                   |
-| `packages/server-core`    | ingestion、认证、权限、MySQL store、分析查询、状态判断          | 不依赖具体 Web UI                        |
-| Kafka                     | 削峰、解耦接收与写库、有限重放                                  | 不提供最终查询结果                       |
-| `apps/consumer`           | 手动提交 offset、批写 ClickHouse、毒消息隔离                    | 不计算 Dashboard 指标                    |
-| MySQL                     | 用户、项目、功能、Origin、成员、会话、审计和链路状态            | 不存高吞吐行为明细                       |
-| ClickHouse                | 原始事件与固定聚合查询                                          | 不作为管理元数据事实来源                 |
+每章读完留下五项简短记录：本次提交、跟读的源码/函数、一个输入如何成为输出、一个异常/缺失状态、实际执行的实验及结果。你可以用自己的笔记记录，不必把所有笔记提交仓库。
 
-M5 增加的是“可操作的产品表面”，没有改变 M2–M4 的数据所有权：项目和功能定义仍来自 MySQL，使用事实仍来自 ClickHouse，前端只是把固定 API 的语义清楚地呈现出来。
+完成主教材后，应能独立：
 
-## 3. 建议阅读顺序
+1. 画出 SDK → API → Kafka → consumer → ClickHouse → API → UI，并解释 MySQL 的参与位置。
+2. 说明一个页面指标的时间窗口、环境、身份、真实分母、版本和不可计算原因。
+3. 解释工作流实例、事件去重与终态为何是不同问题。
+4. 从浏览器 403 或“无数据”定位到具体层，而不是先重置数据库。
+5. 根据一项变更选择测试，区分 mock 证据、真实存储链路与目标环境手工验收。
+6. 完成一个有失败用例的小修复，并提供明确的提交和验证结果。
 
-| 顺序 | 文档                                                                  | 读完后的能力                                                       |
-| ---: | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
-|    1 | [架构、边界与技术选型](01-architecture-and-boundaries.md)             | 能画出组件图，解释为什么分层和为什么使用三种基础设施               |
-|    2 | [事件契约、数据模型与迁移](02-contract-data-and-migrations.md)        | 能从 Schema 追到 Kafka envelope 和 ClickHouse 行，理解兼容与升级   |
-|    3 | [Web Tracker SDK](03-web-tracker-sdk.md)                              | 能解释 SPA、会话、可见时间、长时大屏和发送策略                     |
-|    4 | [接收、Kafka 与 Consumer](04-ingestion-and-consumer.md)               | 能解释 202、HMAC、at-least-once、去重、DLQ 和数据状态              |
-|    5 | [认证、管理与分析 API](05-auth-management-and-analytics.md)           | 能解释双层授权、刷新令牌轮换和每个指标的查询口径                   |
-|    6 | [测试、运维与维护手册](06-testing-operations-and-change-playbooks.md) | 能按证据定位故障，并安全修改契约、查询或数据库                     |
-|    7 | [M0–M4 代码精读实验](07-code-reading-labs.md)                         | 能通过可重复实验把“看懂”变成“亲手验证过”                           |
-|    8 | [M5 前端架构与运行时](08-m5-frontend-architecture-and-runtime.md)     | 能解释 Vue 装配、路由认证、URL 状态、请求刷新与共享状态            |
-|    9 | [M5 分析页面与数据状态](09-m5-analytics-views-and-data-states.md)     | 能把 API 读模型映射到正确的 loading/empty/stale/delayed/ready 页面 |
-|   10 | [M5 接入、demo 与本地闭环](10-m5-onboarding-demo-and-local-loop.md)   | 能解释配置、测试事件、三类业务成功、token 隔离与 Compose 运行结构  |
-|   11 | [M5 测试与代码精读实验](11-m5-testing-and-code-reading-labs.md)       | 能运行并扩展单元、双浏览器、数据流和产品闭环验收                   |
+## 5. 后续维护规则
 
-推荐每章采用同一个循环：
+涉及契约、状态机、权限、时间范围、分母、版本绑定、迁移、部署或恢复方式的修改，应同步对应章节、用户指南和测试入口。引用源文件尽量使用相对链接；改名时检查链接。不要将复制的历史代码例子当作长期 API 规范：精确行为以当前源码、契约和对应测试为准。
 
-1. 先只读本章的“为什么”；
-2. 打开文中列出的源文件，按函数顺序走一遍；
-3. 执行对应测试或实验；
-4. 不看文档，用自己的话复述输入、状态变化、输出和失败路径；
-5. 把仍解释不清的地方记录为问题，不要靠背诵跳过。
-
-## 4. 从需求到代码的定位表
-
-| 需求概念             | 第一入口                                         | 继续追踪                                                               |
-| -------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
-| 页面访问/SPA 路由    | `packages/web-tracker/src/tracker.ts`            | `handleRouteChange`、`settleVisiblePage`                               |
-| 操作成功不能等于点击 | `BrowserTracker.featureStarted/featureSucceeded` | JSON Schema 条件约束、分析查询 `countIf`                               |
-| 大屏前台 30 秒成功   | `BrowserTracker.startLongView`                   | `AnalyticsStore.featureDetail` 的 `max` 再 `sum`                       |
-| 禁止 token/PII       | `packages/web-tracker/src/privacy.ts`            | `packages/event-contract/src/security.ts`、`IngestionManager.sanitize` |
-| Origin 和项目保护    | `IngestionManager.accept/assertProject`          | `ProjectsController` 更新后的缓存失效                                  |
-| 202 接收语义         | `IngestionController.ingest`                     | `KafkaEnvelopePublisher.publish`                                       |
-| at-least-once 与幂等 | `EventConsumerRuntime.eachBatch`                 | `AnalyticsStore.deduplicatedEventsWhere`                               |
-| admin/viewer         | `AuthGuard`、`ProjectsController.requireProject` | `MySqlStore.getProjectRole`                                            |
-| “昨日同时段”         | `previousLocalCalendarDay`                       | `packages/server-core/test/status-and-range.test.ts` 的 DST 用例       |
-| 无数据/延迟/故障     | `evaluateDataStatus`                             | `project_data_status` 与 consumer 更新点                               |
-| 数据库升级           | `packages/database/src/migrations.ts`            | `infra/*/migrations/*.sql`                                             |
-| 登录恢复与 401 刷新  | `apps/web/src/api.ts`                            | `refreshAccessToken`、`request`、`apps/web/src/auth.ts`                |
-| 项目/范围可分享      | `apps/web/src/components/AppShell.vue`           | `apps/web/src/context.ts`、`apps/web/src/range.ts`                     |
-| 旧数据保留与错误状态 | `apps/web/src/remote.ts`                         | `apps/web/src/presentation.ts`、`StatePanel.vue`                       |
-| 趋势缺口不补 0       | `fillTrendGaps`                                  | `TrendChart.vue` 的 `connectNulls: false`                              |
-| 功能采用首页         | `apps/web/src/views/FeaturesView.vue`            | features API、`DefinitionsDrawer.vue`                                  |
-| 页面访问与排行       | `apps/web/src/views/PagesView.vue`               | overview/trend/pages/data-status 四个 API                              |
-| 项目接入与测试事件   | `apps/web/src/views/OnboardingView.vue`          | Origin/CSP、权限、`/v1/events`、请求 ID                                |
-| 三类真实使用场景     | `apps/demo-app/src/App.vue`                      | `runData`、`runAction`、`startWallboard`                               |
-| 本地完整闭环         | `scripts/dev`                                    | 两层 Compose、seed、smoke、Nginx、Playwright                           |
-
-## 5. M5 后必须知道的当前边界
-
-这些不是全部都要立刻修复的问题，而是下一次扩展时必须重新评审的约束：
-
-- SDK 队列仍在内存中，刷新或断网可能丢少量事件；这是分析系统允许的取舍。
-- API 的限流、项目缓存和指标仍在单进程内；多副本部署前要重新设计一致性和汇总方式。
-- 原始重复事件会进入 ClickHouse，查询侧用 `eventId` 去重；可靠性换来了额外存储成本。
-- `retention_days` 可在管理端修改，但 ClickHouse TTL 仍固定为 90 天；UI 能保存配置不等于保留策略已经执行。
-- 功能的 long-view 阈值可在 MySQL/管理端配置，但运行中的 SDK 没有配置下发链路；demo 与 seed 只是用相同默认值对齐。
-- 管理端从项目对象取得 timezone 并传给分析 API；服务端仍接受调用方提供的合法 timezone，生产前可考虑进一步收紧。
-- `apps/web/src/types.ts` 手工维护 API 读模型，没有 OpenAPI/代码生成；后端字段变化时存在静默漂移风险。
-- `useRemoteData` 没有请求取消或序号保护；用户快速切换项目/范围时，较慢的旧请求理论上可能覆盖新请求。
-- 页面访问把四个 API 放进同一个 `Promise.all`，保证同一屏数据一致，但任一请求失败会让整屏进入 stale/error；未来拆分必须先定义“部分成功”语义。
-- 管理端没有引入 Pinia 或查询缓存。当前共享状态很少，这是降低复杂度；当跨页面可变状态、缓存失效和并发请求明显增多时再引入。
-- onboarding 的“发送测试事件”直接构造最小契约，用来定位 ingestion/Origin，不等于证明业务项目已经正确使用 SDK。
-- 本地固定账号、密码、`unsafe-inline` 样式 CSP 和单 Nginx 入口只用于开发闭环；生产 SSO、TLS、Secret、备份、恢复、容量和故障演练属于 M6。
-- M5 CI 在 Linux amd64 运行，不能替代目标 M1 Mac 的 Docker Desktop、资源占用和人工页面验收。
-
-## 6. 文档维护规则
-
-代码变化时，不要求把所有实现复制进文档，但以下变化必须同步：
-
-- 组件职责或依赖方向改变；
-- 事件字段、事件语义、拒绝码或兼容窗口改变；
-- 身份、授权、刷新令牌、URL 状态或项目上下文改变；
-- 去重、时间范围、指标口径、缺口或页面状态语义改变；
-- migration、数据保留、重试、DLQ、恢复或本地运行语义改变；
-- 本文列出的“当前阶段边界”被解除或替换。
-
-文档中的源文件路径和函数名属于可执行索引。重构改名时，CI 不会自动替你更新这些说明，代码评审必须把文档链接和路径检查列入验收。
+产品需求见 [v1.8 需求](../product/requirements-v1.8.md)，开发范围见 [v1.5 计划](../planning/mvp-plan-v1.5.md)，架构决策见 [ADR 目录](../adr/)，接入与排障见 [用户操作指南](../guides/user-manual/README.md)。若计划与代码有差异，记录差异，不把未实现或待批准能力写成可用。
