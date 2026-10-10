@@ -12,3 +12,5 @@ export type {
 } from "./generated/event-batch-v3.js";
 export * from "./security.js";
 export * from "./validator.js";
+
+export type { DiagnosticEnvelope } from "./generated/event-batch-v3.js";

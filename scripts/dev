@@ -27,6 +27,7 @@ Commands:
   verify-r3                      Verify R3 MySQL/ClickHouse/API and performance
   verify-r4a                     Verify R4-A modules, storage/API and performance
   verify-r4c                     Verify R4-C directory and Kafka upgrade/replay
+  verify-d0                      Verify runtime diagnostics real services
   verify-r7                      Verify R7 real credentials, hash, shared rate limits and audit
   verify-r2                      Verify R2 MySQL/ClickHouse/API and performance
   verify-r2-upgrade              Verify 001+002 -> 003 with retained test data
@@ -208,12 +209,27 @@ verify_r4c() {
   compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:r4c || fail "R4-C real directory/replay verification failed"
 }
 
+verify_d0() {
+  ensure_env
+  require_command docker
+  mkdir -p "$ROOT_DIR/artifacts"
+  compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:d0 || fail "D0 real service verification failed"
+}
+
 verify_r7() {
   ensure_env
   require_command docker
   mkdir -p "$ROOT_DIR/artifacts"
   compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:r7 || fail "R7 settings database verification failed"
 }
+verify_d0_upgrade() {
+  ensure_env
+  require_command docker
+  mkdir -p "$ROOT_DIR/artifacts"
+  compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "CREATE DATABASE frontend_insight_r2_upgrade CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; GRANT ALL ON frontend_insight_r2_upgrade.* TO \`$MYSQL_USER\`@\`%\`;"' || fail "Dedicated upgrade database must be new; existing application data is not reset"
+  compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/database verify:d0-upgrade || fail "R2 preserving-data upgrade failed"
+}
+
 verify_r2_upgrade() {
   ensure_env
   require_command docker
@@ -289,6 +305,8 @@ case "$command_name" in
   verify-r1c) verify_r1c "$@" ;;
   verify-r4a) verify_r4a "$@" ;;
   verify-r4c) verify_r4c "$@" ;;
+  verify-d0-upgrade) verify_d0_upgrade "$@" ;;
+  verify-d0) verify_d0 "$@" ;;
   verify-r7) verify_r7 "$@" ;;
   verify-r3) verify_r3 "$@" ;;
   verify-r2) verify_r2 "$@" ;;

@@ -1,0 +1,63 @@
+name: Runtime diagnostics D0
+on:
+  push:
+    branches: ["agent/runtime-diagnostics-d0-*"]
+    paths-ignore: ["docs/**", "README.md"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: diagnostics-d0-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  d0:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      M5_ALLOW_NON_ARM64: "1"
+      FI_PRIVACY_NO_TRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - name: Install diagnostic browsers
+        timeout-minutes: 10
+        run: |
+          if test -f /etc/apt/apt-mirrors.txt; then
+            sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/apt-mirrors.txt
+          fi
+          pnpm exec playwright install --with-deps chromium webkit
+      - name: Isolated services
+        run: |
+          ./scripts/dev bootstrap
+          ./scripts/dev up
+          ./scripts/dev smoke
+      - name: Preserve existing data through incremental migrations
+        run: ./scripts/dev verify-d0-upgrade
+      - name: Real role matrix, rate limits, retries, TTL and partial write recovery
+        run: ./scripts/dev verify-d0
+      - name: Real SDK transport in Chromium and WebKit
+        run: pnpm exec playwright test -c playwright.diagnostics.config.ts
+      - name: Inherited quality and denominator regressions
+        run: |
+          pnpm test:r5a:e2e
+          pnpm test:r5b:e2e
+          node tools/r5b-storage-privacy.mjs
+      - name: Diagnostic raw is absent from service logs
+        run: node tools/d0-log-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostics-d0-${{ github.sha }}
+          path: |
+            artifacts/d0-*.json
+            artifacts/r5b-privacy.json
+            packages/web-tracker/dist/bundle-report.json
+          retention-days: 7
+          if-no-files-found: ignore
+      - if: always()
+        run: ./scripts/dev down

@@ -278,3 +278,58 @@ describe("web tracker contract v3", () => {
     },
   );
 });
+
+describe("D0 explicit diagnostic transport", () => {
+  it("preserves raw through beforeSend, splits batches, limits details without dropping errors", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "d0_transport"),
+      beforeSend: ({ event }) => event,
+    });
+    const raw = {
+      message: "token=FI_D0_SYNTHETIC\nline 2",
+      url: "https://fixture.invalid/x?token=synthetic",
+      nested: { password: "synthetic" },
+      padding: "a".repeat(60000),
+    };
+    const diagnostic = {
+      diagnosticVersion: 1 as const,
+      contentType: "application/json" as const,
+      source: "explicit" as const,
+      policyVersion: "d0-1",
+      status: "complete" as const,
+      omittedBytes: 0,
+      suppressed: 0,
+      correlation: {},
+      raw,
+    };
+    for (let i = 0; i < 22; i++) tracker.captureDiagnostic(diagnostic);
+    await tracker.flush();
+    const batches = await Promise.all(
+      fetchMock.mock.calls.map((_, i) => payload(fetchMock, i)),
+    );
+    expect(batches.length).toBeGreaterThan(1);
+    const events = batches.flatMap((b) => b.events).filter((e) => e.event === "error");
+    expect(events).toHaveLength(22);
+    expect(
+      events
+        .slice(0, 20)
+        .every((e) => JSON.stringify(e.diagnostic?.raw) === JSON.stringify(raw)),
+    ).toBe(true);
+    expect(events.slice(20).every((e) => e.diagnostic?.status === "rate_limited")).toBe(
+      true,
+    );
+    expect(
+      batches.every(
+        (b) => new TextEncoder().encode(JSON.stringify(b)).length <= 128 * 1024,
+      ),
+    ).toBe(true);
+    tracker.captureDiagnostic({ ...diagnostic, raw: { message: "a".repeat(70000) } });
+    await tracker.flush();
+    expect(
+      (await payload(fetchMock, fetchMock.mock.calls.length - 1)).events[0]?.diagnostic
+        ?.status,
+    ).toBe("too_large");
+    tracker.destroy();
+  });
+});

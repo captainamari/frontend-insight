@@ -26,6 +26,10 @@
     "./project-range": {
       "types": "./src/project-range.ts",
       "import": "./dist/src/project-range.js"
+    },
+    "./diagnostics": {
+      "types": "./src/diagnostics.ts",
+      "import": "./dist/src/diagnostics.js"
     }
   },
   "scripts": {

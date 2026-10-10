@@ -1,3 +1,6 @@
+import { diagnosticBudgetError } from "@frontend-insight/event-contract/diagnostics";
+import type { DiagnosticEnvelope } from "@frontend-insight/event-contract";
+import { DIAGNOSTIC_LIMITS } from "@frontend-insight/event-contract/constants";
 import type { QualityHooks } from "./quality-port.js";
 import { FormCollector, noopForm } from "./forms.js";
 import type { BusinessResult } from "./types.js";
@@ -11,7 +14,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   STANDARD_CUSTOM_EVENT_NAMES,
 } from "@frontend-insight/event-contract/constants";
-import { findCredentialLeak } from "@frontend-insight/event-contract/security";
+import { findEventCredentialLeak } from "@frontend-insight/event-contract/security";
 import {
   BrowserObservability,
   type NormalizedObservabilityConfig,
@@ -408,6 +411,7 @@ export class BrowserTracker implements Tracker {
         "pageViewId" | "pageRoute" | "pageUrl" | "userId" | "sessionId"
       >
     > = {},
+    diagnostic?: DiagnosticEnvelope,
   ): void {
     if (this.destroyed) return;
     // Settlements and background quality samples retain their original session.
@@ -441,6 +445,7 @@ export class BrowserTracker implements Tracker {
       timestamp: this.runtime.now(),
       payload,
       ...context,
+      ...(diagnostic ? { diagnostic } : {}),
     };
     let candidate = event;
     if (this.config.beforeSend) {
@@ -449,8 +454,12 @@ export class BrowserTracker implements Tracker {
       if (!restricted) return this.drop("BEFORE_SEND_REJECTED");
       candidate = restricted;
     }
-    if (findCredentialLeak(candidate)) return this.drop("CREDENTIAL_DATA_REJECTED");
-    if (byteLength(candidate) > CONTRACT_LIMITS.maximumEventBytes) {
+    if (findEventCredentialLeak({ ...candidate }))
+      return this.drop("CREDENTIAL_DATA_REJECTED");
+    if (
+      byteLength({ ...candidate, diagnostic: undefined }) >
+      CONTRACT_LIMITS.maximumEventBytes
+    ) {
       return this.drop("EVENT_TOO_LARGE");
     }
     if (this.queue.length >= this.config.maximumQueueSize) {
@@ -818,6 +827,53 @@ export class BrowserTracker implements Tracker {
     return stop;
   }
 
+  private diagnosticWindow = { page: "", started: 0, count: 0, suppressed: 0 };
+
+  /** Explicit D0 entry: one base error plus optional raw evidence. No collector installed. */
+  captureDiagnostic(diagnostic: DiagnosticEnvelope): void {
+    this.safe(() => {
+      const now = this.runtime.now();
+      if (
+        this.diagnosticWindow.page !== this.pageViewId ||
+        now - this.diagnosticWindow.started >= 60_000
+      )
+        this.diagnosticWindow = {
+          page: this.pageViewId,
+          started: now,
+          count: 0,
+          suppressed: 0,
+        };
+      let value = structuredClone(diagnostic);
+      if (diagnosticBudgetError(value)) {
+        value = {
+          ...value,
+          raw: {},
+          status: "too_large",
+          omittedBytes: Math.min(2147483647, byteLength(value)),
+        };
+      } else if (this.diagnosticWindow.count >= DIAGNOSTIC_LIMITS.envelopesPerMinute) {
+        value = {
+          ...value,
+          raw: {},
+          status: "rate_limited",
+          suppressed: ++this.diagnosticWindow.suppressed,
+        };
+      } else this.diagnosticWindow.count++;
+      this.emit(
+        "error",
+        {
+          errorType: "js",
+          errorCategory: "js",
+          errorName: "Error",
+          errorMessage: "Explicit diagnostic",
+          stackTopFrame: "",
+        },
+        {},
+        value,
+      );
+    });
+  }
+
   captureException(error: unknown): void {
     this.safe(() => this.observability?.captureException(error));
   }
@@ -914,7 +970,7 @@ export class BrowserTracker implements Tracker {
   }
 
   private async send(body: string, reason: "normal" | "lifecycle"): Promise<boolean> {
-    if (reason === "lifecycle") {
+    if (reason === "lifecycle" && byteLength(JSON.parse(body)) <= 60 * 1024) {
       const queued = this.runtime.navigator.sendBeacon(
         this.config.endpoint,
         new Blob([body], { type: "application/json" }),
@@ -928,7 +984,8 @@ export class BrowserTracker implements Tracker {
           method: "POST",
           headers: { "content-type": "application/json" },
           body,
-          keepalive: reason === "lifecycle",
+          keepalive:
+            reason === "lifecycle" && byteLength(JSON.parse(body)) <= 60 * 1024,
           credentials: "omit",
         });
         if (response.ok) return true;
