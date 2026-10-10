@@ -1,5 +1,7 @@
 # M2-M4 Mac 本地验收指引
 
+> 历史记录：以下命令、入口和代码链接仅适用文中固定基线；v1.8 当前操作请使用 [最终验收指南](v1.8-local-acceptance-macos.md)。保留原文用于追溯，不表示当前阶段已通过手工验收。
+
 > 适用分支：`agent/m1-engineering-contract-migrations`  
 > 目标机器：Apple Silicon M1、32 GB 内存、1 TB 硬盘  
 > 当前范围：Web SDK、接收/消费链路、认证/项目/功能/分析 API；管理后台和 demo-app 在 M5 实现

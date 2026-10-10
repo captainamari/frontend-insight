@@ -1,0 +1,178 @@
+[
+  {
+    "path": "packages/event-contract/canonical-names.json",
+    "reason": "唯一 manifest 中 forbiddenAliases 禁止清单"
+  },
+  {
+    "path": "packages/event-contract/scripts/generate-types.mjs",
+    "reason": "生成禁止别名常量与 JSON Schema 技术 properties"
+  },
+  {
+    "path": "packages/event-contract/src/generated/canonical-names.ts",
+    "reason": "由 manifest 生成的禁止别名声明"
+  },
+  {
+    "path": "tools/check-canonical-names.mjs",
+    "reason": "扫描规则自身"
+  },
+  {
+    "path": "tools/canonical-allowlist.json",
+    "reason": "明确到文件的例外说明，不豁免父目录"
+  },
+  {
+    "path": "tests/r8/canonical.test.ts",
+    "reason": "规范旧名负向测试与普通技术词反例"
+  },
+  {
+    "path": "packages/test-fixtures/fixtures/invalid/legacy-v1.json",
+    "reason": "contract 非法事件负向 fixture；绝不用于正向 seed"
+  },
+  {
+    "path": "packages/test-fixtures/fixtures/invalid/old-fields-v3.json",
+    "reason": "contract 非法事件负向 fixture；绝不用于正向 seed"
+  },
+  {
+    "path": "packages/test-fixtures/fixtures/invalid/legacy-v2.json",
+    "reason": "contract 非法事件负向 fixture；绝不用于正向 seed"
+  },
+  {
+    "path": "packages/test-fixtures/fixtures/invalid/old-event-alias-v3.json",
+    "reason": "contract 非法事件负向 fixture；绝不用于正向 seed"
+  },
+  {
+    "path": "packages/test-fixtures/fixtures/invalid/privacy-v3.json",
+    "reason": "contract 非法事件负向 fixture；绝不用于正向 seed"
+  },
+  {
+    "path": "docs/adr/ADR-007-local-mac-runtime.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/adr/ADR-013-m7-production-and-m8-observability-v1.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/contracts/event-contract-v1.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/contracts/event-contract-v2.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/guides/m2-m4-local-macos.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/guides/m6-local-acceptance-macos.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/guides/m7-m8-local-acceptance-macos.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/01-architecture-and-boundaries.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/02-contract-data-and-migrations.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/03-web-tracker-sdk.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/04-ingestion-and-consumer.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/05-auth-management-and-analytics.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/07-code-reading-labs.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/08-m5-frontend-architecture-and-runtime.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/10-m5-onboarding-demo-and-local-loop.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/11-m5-testing-and-code-reading-labs.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/learning/README.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/mvp-plan-v1.1.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/mvp-plan-v1.2.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/mvp-plan-v1.3.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/mvp-plan-v1.4.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/mvp-plan-v1.5.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/planning/operational-metrics-health-plan-v0.1.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/product/requirements-v1.4.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/product/requirements-v1.5.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/product/requirements-v1.7.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/product/requirements-v1.8.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/progress/m7-m8-results.md",
+    "reason": "历史验收/设计追溯或 v1.8 新旧差异与禁止项说明；非运行时代码。新增文件不自动豁免。"
+  },
+  {
+    "path": "docs/contracts/v1.8-r0-deletion-checklist.md",
+    "reason": "历史文档或显式删除差异，保留旧名以便审查。"
+  },
+  {
+    "path": "docs/learning/06-testing-operations-and-change-playbooks.md",
+    "reason": "历史文档或显式删除差异，保留旧名以便审查。"
+  },
+  {
+    "path": "docs/learning/09-m5-analytics-views-and-data-states.md",
+    "reason": "历史文档或显式删除差异，保留旧名以便审查。"
+  },
+  {
+    "path": "docs/planning/operational-metrics-health-plan-v0.2.md",
+    "reason": "历史文档或显式删除差异，保留旧名以便审查。"
+  },
+  {
+    "path": "docs/product/requirements-v1.6.md",
+    "reason": "历史文档或显式删除差异，保留旧名以便审查。"
+  }
+]

@@ -147,39 +147,6 @@ export interface ProjectOperationalSettings {
   effectiveTo: string | null;
 }
 
-export type MetricDimensionKey =
-  "usage_coverage" | "continuity_depth" | "task_completion" | "usage_efficiency";
-
-export interface MetricProfileItem {
-  id: string;
-  profileId: string;
-  metricKey: string;
-  dimensionKey: MetricDimensionKey;
-  dimensionWeight: number;
-  metricWeight: number;
-  targetValue: number | null;
-  floorValue: number | null;
-  ceilingValue: number | null;
-  targetMin: number | null;
-  targetMax: number | null;
-  toleranceMin: number | null;
-  toleranceMax: number | null;
-  minimumSample: number | null;
-  enabled: boolean;
-  required: boolean;
-}
-
-export interface MetricProfileRecord {
-  id: string;
-  projectId: string;
-  profileKey: string;
-  name: string;
-  version: number;
-  status: "draft" | "active" | "retired";
-  effectiveFrom: string | null;
-  items: MetricProfileItem[];
-}
-
 export interface ProjectIngestionConfig extends ProjectRecord {
   features: FeatureRecord[];
 }

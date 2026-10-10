@@ -110,9 +110,18 @@ for (const role of ["admin", "viewer"] as const) {
             original.searchParams.get(key),
           );
       } else {
+        // R7 replaces the inherited settings placeholder; keep the R3 navigation/context gate.
         await expect(
-          page.getByText("当前阶段尚未开放正文功能", { exact: false }),
+          page.getByRole("heading", { name: "设置", exact: true }),
         ).toBeVisible();
+        await expect(
+          page.getByRole("tab", { name: "接入指南", exact: true }),
+        ).toHaveAttribute("aria-selected", "true");
+        await expect(page.getByTestId("settings-app-id")).toHaveText(/^fi_public_/);
+        for (const key of ["env", "from", "to"])
+          expect(new URL(page.url()).searchParams.get(key)).toBe(
+            original.searchParams.get(key),
+          );
       }
     }
     await nav.getByRole("button", { name: "指标管理", exact: true }).click();

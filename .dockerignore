@@ -11,3 +11,9 @@ docs
 artifacts
 test-results
 playwright-report
+
+# Never send production secrets, backups or runtime state to any image build.
+.secrets
+.runtime
+backups
+deployment-info*.txt

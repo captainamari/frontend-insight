@@ -1,5 +1,10 @@
 # Frontend Insight 文档索引
 
+当前后续开发入口：
+
+- [运行时诊断能力补齐计划（D0–D7）](planning/runtime-diagnostics-development-plan.md)：R8 合并后按顺序补齐错误原文/堆栈、console、网络与操作上下文、角色权限、SourceMap 和完整验收。
+- [ADR-021：诊断原文与项目访问权限](adr/ADR-021-runtime-diagnostics-and-access.md)：2026-10-10 用户决定、旧边界覆盖范围与尚未实施状态。
+
 `main` 当前实现基线：2026-08-04。M0–M8 已合并；M6–M8 的已实现行为仍以需求文档 v1.6、MVP 开发计划 v1.3 和对应 ADR/验收记录为依据。
 
 v1.8 R0 重构分支基线：

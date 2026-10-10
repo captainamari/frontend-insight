@@ -1,5 +1,8 @@
+> **后续诊断开发计划 · 2026-10-10**：Jesse 明确要求有价值的诊断信息不脱敏、展示按角色控制。本次只补计划，代码待开发。合并 R8 后按 [运行时诊断 D0–D7](runtime-diagnostics-development-plan.md) 顺序实施；[ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 在诊断扩展内覆盖下文旧的脱敏、query/body 禁止和 SourceMap 非目标。其他指标、权限与业务批准边界不变。
+
 > **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
 
+> **R8 工程授权 · 2026-10-08**：用户明确授权清理、验证、推送与 Draft PR，可叠加尚未合并 R7；不代表 R6 手工验收或 R7 业务批准。当前 [R8 results](../progress/v1.8-r8-results.md)、[decisions](../progress/v1.8-r8-decisions.md) 与 [十二步指南](../guides/v1.8-local-acceptance-macos.md) 单独记录工程、自动化、手工和审批。历史阶段限制保留，不覆盖本次授权；不合并、不部署生产。
 # Frontend Insight——MVP 开发计划 v1.5（v1.8 逐模块重构）
 
 > **R5-A 授权与实施 · 2026-10-04**：Jesse批准暂缓R4-C手工验收，R5完成后统一验收，未记录为通过。refactor合并PR #21为 `07121333cdaf9543a47cbb3dba05418342b934a9`，继承 `78033f123e85971d13067c76ecee956d0e2808c2`。仅实施§16.1–16.3；[R5-A results](../progress/v1.8-r5a-results.md)记录位置与门禁，[decisions](../progress/v1.8-r5a-decisions.md)记录口径。旧阶段限制保留为历史；不自动合并或进入R5-B/R6/R7/R8。
@@ -867,55 +870,63 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ## 19. R7：设置
 
+2026-10-07：Jesse 授权从待朋友手工验收的 R6 叠加分支并行开发。实现和最终验证状态见 [R7 results](../progress/v1.8-r7-results.md)，审批与事实缺口见 [R7 decisions](../progress/v1.8-r7-decisions.md)。下列阶段门只在证据齐备后勾选；开发授权不是异常规则批准。
+
 建议分支：`agent/v1-8-r7-settings`
 
 ### 19.1 接入指南
 
-- [ ] 项目基础设置、成员、Origin；
-- [ ] 当前推荐探针的最小代码；
-- [ ] CSP/endpoint/`appId`；
-- [ ] 测试事件和数据状态；
-- [ ] admin/viewer 边界；
-- [ ] 将创建项目移至入口页。
+- [x] 项目基础设置、成员、Origin；
+- [x] 当前推荐探针的最小代码；
+- [x] CSP/endpoint/`appId`；
+- [x] 测试事件和数据状态；
+- [x] admin/viewer 边界；
+- [x] 将创建项目移至入口页。
 
 ### 19.2 探针版本
 
-- [ ] probe policy CRUD；
-- [ ] recommended/supported/deprecated/blocked；
-- [ ] 从事件按版本统计占比和最后观测；
-- [ ] release notes/升级建议；
-- [ ] contract version；
-- [ ] 不实现远程自动升级；
-- [ ] blocked 策略有审计和显式确认。
+- [x] probe policy CRUD；
+- [x] recommended/supported/deprecated/blocked；
+- [x] 从事件按版本统计占比和最后观测；
+- [x] release notes/升级建议；
+- [x] contract version；
+- [x] 不实现远程自动升级；
+- [x] blocked 策略有审计和显式确认。
 
 ### 19.3 接口管理
 
-- [ ] metric snapshot/trend/error summary/Prometheus 类型；
-- [ ] 默认关闭；
-- [ ] 创建、启用、停用、轮换和撤销；
-- [ ] token 只显示一次，DB 保存 hash；
-- [ ] 参数 tooltip、分页、最近调用；
-- [ ] per-project/interface/range scope；
-- [ ] 限流、request ID 和审计；
-- [ ] 禁止任意字段/SQL/group by；
-- [ ] Prometheus 标签基数 allowlist；
-- [ ] `appId` 不能作为凭证。
+- [x] metric snapshot/trend/error summary/Prometheus 类型；
+- [x] 默认关闭；
+- [x] 创建、启用、停用、轮换和撤销；
+- [x] token 只显示一次，DB 保存 hash；
+- [x] 参数 tooltip、分页、最近调用；
+- [x] per-project/interface/range scope；
+- [x] 限流、request ID 和审计；
+- [x] 禁止任意字段/SQL/group by；
+- [x] Prometheus 标签基数 allowlist；
+- [x] `appId` 不能作为凭证。
 
 ### 19.4 异常访问规则
 
 - [ ] `abnormal_access` 固定首版规则：非工作时间高频、个人历史操作量异常、多 IP/多设备和无权限路由拦截异常；
 - [ ] 规则、阈值、适用范围和可见角色必须经管理层/安全评审并版本化；
-- [ ] 只返回调查证据和审计入口，不生成个人评分或绩效排名；
-- [ ] 小样本、共享账号、时区和出差/值班例外处理；
-- [ ] 规则命中、查看和导出均有审计。
+- [x] 只返回调查证据和审计入口，不生成个人评分或绩效排名；
+- [x] 小样本、共享账号、时区和出差/值班例外处理；
+- [x] 规则命中、查看和导出均有审计。
+
+三种现有事实支持的观察规则及审批/审计工程流程已验证；真实管理层/安全批准、多 IP 与权限拦截事实仍缺失，以上前两项不得勾选。
 
 ### 19.5 安全测试与阶段门
 
-- 跨项目 token、过期/撤销 token、接口停用、超范围、暴力限流；
-- Prometheus 输出无 `pageRoute/error message/userId` 高基数标签；
-- 接口错误不暴露 SQL/Secret；
-- viewer 不能创建或查看明文 token；
-- 设置页接入指南、探针版本、接口管理和异常访问四组目标任务全部通过。
+- [x] 跨项目 token、过期/撤销 token、接口停用、超范围、暴力限流；
+- [x] Prometheus 输出无 `pageRoute/error message/userId` 高基数标签；
+- [x] 接口错误不暴露 SQL/Secret；
+- [x] viewer 不能创建或查看明文 token；
+- [ ] 设置页接入指南、探针版本、接口管理和异常访问四组目标任务全部通过。
+
+最终代码 `066fbeb4761389f90f92fe85e31498b96450bff7` 的 [R7 完整真实回归 37610555062](https://github.com/captainamari/frontend-insight/actions/runs/37610555062) 通过；R6 入口修复先落 R6 后同步，R6 手工验收及异常业务审批状态保持待完成。
+
+2026-10-08 Jesse 授权 R7 追加生产部署适配。代码 `a5d741d0ce239cdbb07f513bf0c364352dbfc752` 的 Ubuntu 22.04 生产 Compose 回归 `37726292902` 与完整 R7 回归 `37726292930` attempt 2 通过；首次回归 ClickHouse 241 内存限制及重跑边界见 [最新 results](../progress/v1.8-r7-results.md)。新增 [生产部署指南](../guides/production-ubuntu-22.04.md)，不改变上述未完成的业务审批/事实门禁，不代表目标服务器已部署。
 
 ## 20. R8：清理、回归和最终验收
 
@@ -923,16 +934,16 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 20.1 删除
 
-- [ ] 旧路由和导航；
-- [ ] 旧 views；
-- [ ] 旧页面专用 DTO/API；
-- [ ] 旧 M5/M6/M8 产品 E2E 中已被新流替代的断言；
-- [ ] 旧默认入口和旧 UI 术语；
-- [ ] v1/v2 contract 和 fixture；
-- [ ] 旧公共字段、旧 event alias、旧 metric key 和 DTO alias；
-- [ ] business domain/业务域同义模型和迁移残留；
-- [ ] 临时 feature flag、placeholder 和兼容 adapter；
-- [ ] 漂移的文档链接。
+- [x] 旧路由和导航；
+- [x] 旧 views；
+- [x] 旧页面专用 DTO/API；
+- [x] 旧 M5/M6/M8 产品 E2E 中已被新流替代的断言；
+- [x] 旧默认入口和旧 UI 术语；
+- [x] v1/v2 contract 和 fixture；
+- [x] 旧公共字段、旧 event alias、旧 metric key 和 DTO alias；
+- [x] business domain/业务域同义模型和迁移残留；
+- [x] 临时 feature flag、placeholder 和兼容 adapter；
+- [x] 漂移的文档链接。
 
 执行 canonical-name 扫描：历史文档、差异说明和负向 fixture 使用显式 allowlist；除此之外 `projectKey/eventName/eventTime/visitorId/accountRef/route/properties/page_views/active_accounts/active_browsers/sessions/project_operational_index` 等旧名命中数必须为 0。
 
@@ -940,22 +951,26 @@ Stop 条件：revision effective window 仍可能重写历史、operation 仍可
 
 ### 20.2 全量自动化
 
-- [ ] `pnpm check`；
-- [ ] contract v3；
-- [ ] canonical-name manifest、生成类型和旧名负向扫描；
-- [ ] SDK Chromium/WebKit；
-- [ ] ingestion/Kafka/consumer/ClickHouse；
-- [ ] MySQL/ClickHouse 空库 baseline 和 reset；
-- [ ] 6 模块全 E2E；
-- [ ] admin/viewer；
-- [ ] formula/score/workflow golden fixtures；
-- [ ] privacy negative fixtures；
-- [ ] query performance；
-- [ ] 20/200 events/s 负载；
-- [ ] Kafka/ClickHouse/consumer 故障恢复；
-- [ ] backup/restore 对新 schema 的演练。
+- [x] `pnpm check`；
+- [x] contract v3；
+- [x] canonical-name manifest、生成类型和旧名负向扫描；
+- [x] SDK Chromium/WebKit；
+- [x] ingestion/Kafka/consumer/ClickHouse；
+- [x] MySQL/ClickHouse 空库 baseline 和 reset；
+- [x] 6 模块全 E2E；
+- [x] admin/viewer；
+- [x] formula/score/workflow golden fixtures；
+- [x] privacy negative fixtures；
+- [x] query performance；
+- [x] 20/200 events/s 负载；
+- [x] Kafka/ClickHouse/consumer 故障恢复；
+- [x] backup/restore 对新 schema 的演练。
+
+最终代码 `745308d69d88856c0b37d0c108296dca359f33d4` 的全量 [run 37752868714](https://github.com/captainamari/frontend-insight/actions/runs/37752868714) 与生产 Compose [run 37752868903](https://github.com/captainamari/frontend-insight/actions/runs/37752868903) 均 attempt 1 成功；归档独立 SHA-256 校验及逐项 Go/No-Go 见 [R8 results](../progress/v1.8-r8-results.md)。工程/自动化通过；R6/R8 手工、R7 真实审批与可信事实仍待完成，最终 No-Go。
 
 ### 20.3 最终手工验收
+
+R8 已提供下列十二步可复现指南，实际手工执行与签署仍未完成；不可按自动化结果勾选通过。
 
 新增 `docs/guides/v1.8-local-acceptance-macos.md`，按以下顺序：
 

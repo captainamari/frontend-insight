@@ -7,8 +7,8 @@ import {
   type OperationalDimensionResult,
   type OperationalMetricItemResult,
   type MetricStatus,
-} from "../src/metrics.js";
-import type { MetricDimensionKey, MetricProfileItem } from "../src/model.js";
+} from "./legacy-metric-fixture.js";
+import type { MetricDimensionKey, MetricProfileItem } from "./legacy-metric-fixture.js";
 import type { DataState } from "../src/status.js";
 const VERSION = "operational-v1";
 const dimensionLabels: Record<MetricDimensionKey, string> = {

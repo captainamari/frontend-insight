@@ -12,9 +12,6 @@
     "build": "pnpm contract:generate && pnpm -r --if-present build",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "test:m5:e2e": "playwright test --config playwright.m5.config.ts",
-    "test:m6:e2e": "playwright test --config playwright.m6.config.ts",
-    "test:m8:e2e": "playwright test --config playwright.m8.config.ts",
     "test:r0:e2e": "playwright test --config playwright.r0.config.ts",
     "test:r1a:e2e": "playwright test --config playwright.r1a.config.ts",
     "test:r1b:e2e": "playwright test --config playwright.r1b.config.ts",
@@ -49,7 +46,10 @@
     "test:r5b": "vitest run packages/server-core/test/page-quality.test.ts apps/api/test/page-quality.controller.test.ts packages/web-tracker/test/quality.test.ts",
     "test:r5b:e2e": "playwright test --config playwright.r5b.config.ts",
     "test:r6": "vitest run packages/server-core/test/page-usage.test.ts packages/server-core/test/page-usage-binding.test.ts apps/api/test/page-operations.controller.test.ts",
-    "test:r6:e2e": "playwright test --config playwright.r6.config.ts"
+    "test:r6:e2e": "playwright test --config playwright.r6.config.ts",
+    "test:r7": "vitest run packages/server-core/test/settings.test.ts apps/api/test/settings.controller.test.ts",
+    "test:r7:e2e": "playwright test --config playwright.r7.config.ts",
+    "test:r8:e2e": "playwright test --config playwright.r8.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

@@ -27,6 +27,7 @@ Commands:
   verify-r3                      Verify R3 MySQL/ClickHouse/API and performance
   verify-r4a                     Verify R4-A modules, storage/API and performance
   verify-r4c                     Verify R4-C directory and Kafka upgrade/replay
+  verify-r7                      Verify R7 real credentials, hash, shared rate limits and audit
   verify-r2                      Verify R2 MySQL/ClickHouse/API and performance
   verify-r2-upgrade              Verify 001+002 -> 003 with retained test data
   verify-r1c                     Verify R1-C score storage, API and historical behavior
@@ -206,6 +207,13 @@ verify_r4c() {
   mkdir -p "$ROOT_DIR/artifacts"
   compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:r4c || fail "R4-C real directory/replay verification failed"
 }
+
+verify_r7() {
+  ensure_env
+  require_command docker
+  mkdir -p "$ROOT_DIR/artifacts"
+  compose run --rm --build --no-deps --user "$(id -u):$(id -g)" --volume "$ROOT_DIR/artifacts:/evidence" --env FI_EVIDENCE_DIR=/evidence --env "GITHUB_SHA=${GITHUB_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD)}" r2-verifier pnpm --filter @frontend-insight/server-core verify:r7 || fail "R7 settings database verification failed"
+}
 verify_r2_upgrade() {
   ensure_env
   require_command docker
@@ -281,6 +289,7 @@ case "$command_name" in
   verify-r1c) verify_r1c "$@" ;;
   verify-r4a) verify_r4a "$@" ;;
   verify-r4c) verify_r4c "$@" ;;
+  verify-r7) verify_r7 "$@" ;;
   verify-r3) verify_r3 "$@" ;;
   verify-r2) verify_r2 "$@" ;;
   verify-r2-upgrade) verify_r2_upgrade "$@" ;;

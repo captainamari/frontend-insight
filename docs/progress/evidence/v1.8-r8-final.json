@@ -1,0 +1,1100 @@
+{
+  "baseline": "f0c92a1be0e8c0f6f720f9fa4dd82a60c5e3bf20",
+  "branch": "agent/v1-8-r8-cleanup-acceptance",
+  "base": "agent/v1-8-r7-settings",
+  "pr": 26,
+  "prUrl": "https://github.com/captainamari/frontend-insight/pull/26",
+  "draft": true,
+  "mergeAuthorized": false,
+  "productionServerOperated": false,
+  "candidateCode": "745308d69d88856c0b37d0c108296dca359f33d4",
+  "testedCommit": "745308d69d88856c0b37d0c108296dca359f33d4",
+  "automation": "passed",
+  "productionCompose": "passed",
+  "manualAcceptance": "executed_with_findings",
+  "businessApproval": "pending",
+  "finalGo": false,
+  "artifactDigestIndependentlyVerified": true,
+  "artifactVerificationBoundary": "The two final-run ZIPs and historical artifacts individually marked digestIndependentlyVerified were independently downloaded and SHA-256 verified. Other historical archives remain unverified. Workflow success is separate from semantic evidence validation.",
+  "history": [
+    {
+      "id": 37731646103,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "f8b8469701630c9bc873ec3e7ced4413a61a659c",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37731646103",
+      "artifacts": [
+        {
+          "id": 11530885256,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:fe668bc2c8f72e2f2605c192482338e3770f5c848d3cb578f8fc5848abcb5c81",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37731646103/artifacts/11530885256"
+        }
+      ],
+      "notes": "Backup preflight exposed uncommitted consumer offsets. No destructive restore ran."
+    },
+    {
+      "id": 37731646135,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "f8b8469701630c9bc873ec3e7ced4413a61a659c",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37731646135",
+      "artifacts": [
+        {
+          "id": 11530296525,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:c1e75bdc2172dbf6a56dd913aa40ec2a3f1f53dc862d834837c4bed5ea0d90d1",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37731646135/artifacts/11530296525"
+        }
+      ],
+      "notes": "R1A/B/C login helpers still entered retired /features; migrated precondition, assertions retained."
+    },
+    {
+      "id": 37732735597,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "5f5061a7cb350d5e1bfad9289b921a8d1a063098",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37732735597",
+      "artifacts": [
+        {
+          "id": 11531101102,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:4d5cdbd7d8a9f399a163c8bbed374e9c6cb9e143bccf246743c4682fe0014b02",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37732735597/artifacts/11531101102"
+        }
+      ],
+      "notes": "Cancelled by later diagnostic fix; partial R1/R2/R3 evidence only."
+    },
+    {
+      "id": 37732736281,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "5f5061a7cb350d5e1bfad9289b921a8d1a063098",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37732736281",
+      "artifacts": [
+        {
+          "id": 11530493664,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:593aa1240a8aef8067ed4e3cd2df34714cc38d141a0f9fbf74d28b66dce38df8",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37732736281/artifacts/11530493664"
+        }
+      ],
+      "notes": "New durable-offset helper unavailable before replacement; added safe diagnostic stages."
+    },
+    {
+      "id": 37733973780,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "aa3cb7b2b7d292cff04c9e920dcd1d9c8aa23c35",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37733973780",
+      "artifacts": [
+        {
+          "id": 11531550294,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:6e8e00f7a30a9b0242f1794db6868e9905d542f9002181f22e472615765f3a71",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37733973780/artifacts/11531550294"
+        }
+      ],
+      "notes": "fetch-committed KafkaJSNumberOfRetriesExceeded: initialized broker metadata explicitly, without adding retries."
+    },
+    {
+      "id": 37733973848,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "aa3cb7b2b7d292cff04c9e920dcd1d9c8aa23c35",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37733973848",
+      "artifacts": [
+        {
+          "id": 11530808441,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:f0cd5d76b1c08c359a143cfb6f0db644e35578804f66c3b2ce1422101f543d75",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37733973848/artifacts/11530808441"
+        }
+      ],
+      "notes": "Cancelled by metadata initialization fix; not full success."
+    },
+    {
+      "id": 37734663807,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "f7c317a74d75adf8bf75b75aed8d85603cace268",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37734663807",
+      "artifacts": [
+        {
+          "id": 11531900782,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:e951e1492abeb832bac662e251ecde84ec7956c092bf8047dabf7b16667b6308",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37734663807/artifacts/11531900782"
+        }
+      ],
+      "notes": "Earlier SHA full production success. Does not certify final code or prove Native encoding stable."
+    },
+    {
+      "id": 37734663809,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "f7c317a74d75adf8bf75b75aed8d85603cace268",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37734663809",
+      "artifacts": [
+        {
+          "id": 11531701651,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:0a32fd753b36f30d4609c3ae8e74eec1e1d3d34a27a9eff6b2e4c85fb7a95b07",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37734663809/artifacts/11531701651"
+        }
+      ],
+      "notes": "20 events/s HTTP p95=189.9225ms >100ms. Added bounded numeric stage diagnostics; root cause not established by later pass."
+    },
+    {
+      "id": 37735884044,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "167ddbb247e4473045f487024f313f66387a8e38",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37735884044",
+      "artifacts": [],
+      "notes": "New numeric-privacy assertion formatting failed; fixed Prettier, no skipped check."
+    },
+    {
+      "id": 37735884183,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "167ddbb247e4473045f487024f313f66387a8e38",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37735884183",
+      "artifacts": [
+        {
+          "id": 11532270252,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:6422535e6e18e4a51ccd608cec4019c3c8a48a65ae16d1767db329864e81c36f",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37735884183/artifacts/11532270252"
+        }
+      ],
+      "notes": "Cancelled by formatting fix; partial evidence only."
+    },
+    {
+      "id": 37736167924,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "141426cb0d0a51a1dafcd5b6db388273ead09cba",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37736167924",
+      "artifacts": [
+        {
+          "id": 11531418317,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:73b68ab49bc3f1b5fbac8567aaef9204218a5bb7b9b984622a7ad3aa1b7ca05f",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37736167924/artifacts/11531418317"
+        }
+      ],
+      "notes": "Native post-restore bytes differed. Added independently exported full ordered logical-row hashes while retaining archive checksums/schema/business verification."
+    },
+    {
+      "id": 37736167925,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "141426cb0d0a51a1dafcd5b6db388273ead09cba",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37736167925",
+      "artifacts": [
+        {
+          "id": 11532552290,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:e56e88c938f397b7feffcbb1de5359643073f4606c41f77751a655f87505121d",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37736167925/artifacts/11532552290"
+        }
+      ],
+      "notes": "R1-R7 passed; R8 demo used old duration nesting and back test raced async navigation. Fixed v3 labels display and required destination before back. 20/200eps=15.113/37.504ms; no claim earlier latency root eliminated."
+    },
+    {
+      "id": 37738200529,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "10bfbd7f733045afec83702f6f9f1df25a7918e9",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37738200529",
+      "artifacts": [
+        {
+          "id": 11533057476,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:a5eddeb88ac4b5b732c1f39b9e46ecd610ac119d42b201357c632aeced9b7a58",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37738200529/artifacts/11533057476"
+        }
+      ],
+      "notes": "R1-R7 and demo correction passed. WebKit navigation revealed late default moduleId response overriding a newer navigation; fix cancels reads before async access guard. 20/200eps HTTP p95 17.168/75.377ms."
+    },
+    {
+      "id": 37738200557,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "10bfbd7f733045afec83702f6f9f1df25a7918e9",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37738200557",
+      "artifacts": [
+        {
+          "id": 11533050972,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:b88f7049b5da99fc5edafa53a6b82afc9d638108cea91f53f0c2433eff3917b2",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37738200557/artifacts/11533050972"
+        }
+      ],
+      "notes": "Production Compose complete success for 10bfbd7 including actual logical row hashes and post-restore business. Does not certify later navigation/resource changes. Download 403; no independent archive digest recomputation."
+    },
+    {
+      "id": 37740685912,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "67c99fa32921cc8f2b3b756d35c7288345c564ee",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740685912",
+      "artifacts": [
+        {
+          "id": 11534105929,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:03c6e8b53fca3e3a4c49b4e9ad429721b2fe594bfe2af9d24a4a82efe3cea784",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740685912/artifacts/11534105929"
+        }
+      ],
+      "notes": "Cancelled by stronger deterministic fixture: explicit from/to and no preexisting cancellation; not full success."
+    },
+    {
+      "id": 37740685922,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "67c99fa32921cc8f2b3b756d35c7288345c564ee",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740685922",
+      "artifacts": [],
+      "notes": "Cancelled by deterministic navigation fixture correction; not success."
+    },
+    {
+      "id": 37740886665,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "6f2437b7705ab34e6c97b3bb1cca35e1d7507596",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740886665",
+      "artifacts": [],
+      "notes": "Cancelled by backup Native external-sort memory bound; not success."
+    },
+    {
+      "id": 37740886692,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "6f2437b7705ab34e6c97b3bb1cca35e1d7507596",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740886692",
+      "artifacts": [
+        {
+          "id": 11533452878,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:e3133d90369bcf4e0f51047fa1dc160d43ecb31263f8bc9712322509970d857c",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37740886692/artifacts/11533452878"
+        }
+      ],
+      "notes": "Cancelled by backup Native external-sort memory bound; not full success."
+    },
+    {
+      "id": 37741189062,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "a2e411cb1ecc9b42c7db3485665cdbcc855694e5",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37741189062",
+      "artifacts": [
+        {
+          "id": 11534265374,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:91b2747fe4e699a155a8cf0da8fb21fa88d5f3c8f25d11aafa029d81ac08fad8",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37741189062/artifacts/11534265374"
+        }
+      ],
+      "notes": "Production Compose success for a2e411c; not final-code evidence."
+    },
+    {
+      "id": 37741189335,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "a2e411cb1ecc9b42c7db3485665cdbcc855694e5",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37741189335",
+      "artifacts": [
+        {
+          "id": 11534211687,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:453e725fc97dbd797d97a5300b67cef82fcd4fa080e93097e503cd52793418ef",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37741189335/artifacts/11534211687"
+        }
+      ],
+      "notes": "Cancelled after APT libavcodec60 download stalled browser dependency installation. Added bounded install timeout; no product test reached, not a pass."
+    },
+    {
+      "id": 37742571965,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "a1bfae2a570f89f4307a7c15be729ef5c519340b",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37742571965",
+      "artifacts": [
+        {
+          "id": 11534712479,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:9f0a9fd6467a855b6383c005eb0ddcd8b00105d2932ed484b1005b53474ceabb",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37742571965/artifacts/11534712479"
+        }
+      ],
+      "notes": "Production Compose success for a1bfae2; not final-code evidence."
+    },
+    {
+      "id": 37742571967,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "a1bfae2a570f89f4307a7c15be729ef5c519340b",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37742571967",
+      "artifacts": [
+        {
+          "id": 11534722726,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:72ea9376aead0d24b20952ca770016827ed2fe7cbe36a8a220ba75f7e4807c71",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37742571967/artifacts/11534722726"
+        }
+      ],
+      "notes": "Original ten R8 tests passed; added navigation race tests stalled at unbounded response promises. Replaced with named bounded waits and real same-page navigation barriers, retaining cancellation and destination assertions."
+    },
+    {
+      "id": 37744075561,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "c66e4f5c7203643f9fc4ec9cc4cea7e135999bfc",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37744075561",
+      "artifacts": [
+        {
+          "id": 11536156282,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:be1b47562ac647db5a6b181774702e0bdcb10c8496ef0e2d33512b96f12a4ec3",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37744075561/artifacts/11536156282"
+        }
+      ],
+      "notes": "All product, SDK, performance and fault checks passed; strict backup preflight failed objects committed/end=31/32. Fixed KafkaJS hidden transactional control-record persistence in 0ffb32d; no relaxation of drain assertion."
+    },
+    {
+      "id": 37744075585,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "c66e4f5c7203643f9fc4ec9cc4cea7e135999bfc",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37744075585",
+      "artifacts": [
+        {
+          "id": 11535565764,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:d51e47019df1661489eaa46727f774c87ada596dd6481aa7770f7391220ba5bb",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37744075585/artifacts/11535565764"
+        }
+      ],
+      "notes": "Production Compose success for c66e4f5; does not certify later consumer offset change."
+    },
+    {
+      "id": 37748228593,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "0ffb32d3e7706bcd9c3fa868bf782b9cad308461",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37748228593",
+      "artifacts": [
+        {
+          "id": 11537487776,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:66473ae6aee52f032c958f9afe23e4eea76f153912bb6af80c2c473985dbf07d",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37748228593/artifacts/11537487776",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Workflow success; offset drain and actual schema restore passed. Independent ZIP inspection invalidated SDK sync performance: 2000 CUSTOM_NAME_INVALID drops. Success is not final acceptance; fixed in 8781418 and both workflows rerun.",
+      "evidenceAcceptedAsFullGate": false,
+      "invalidEvidence": ["r8-sdk-chromium.json", "r8-sdk-webkit.json"]
+    },
+    {
+      "id": 37748228666,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "0ffb32d3e7706bcd9c3fa868bf782b9cad308461",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37748228666",
+      "artifacts": [
+        {
+          "id": 11537570243,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:cc5116838cfd3f1c3bc90ad28bfb1c53bcb35f1395eb9a71b68ad735e6a72e90",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37748228666/artifacts/11537570243",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Final candidate production Compose passed: isolated destructive restore, complete logical rows, retained volumes, HTTPS Chromium/WebKit; downloaded ZIP SHA-256 independently matched Actions digest."
+    },
+    {
+      "id": 37751226251,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "8781418ceafea7f0ecc44bc2ce19595b1b65341f",
+      "status": "completed",
+      "conclusion": "failure",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37751226251",
+      "artifacts": [
+        {
+          "id": 11538324136,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:73d4a07fe1c9d84bd46ebb188169911589b43c605679b8a60b9594b69f56a967",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37751226251/artifacts/11538324136",
+          "digestIndependentlyVerified": false
+        }
+      ],
+      "notes": "Attempt 1 failed before products: Azure Ubuntu APT mirror downloaded libavcodec60 5851kB in ~4 minutes and exceeded unchanged 10-minute dependency install bound. Fixed CI-only mirror selection in 745308d; did not relax tests or rerun without a change."
+    },
+    {
+      "id": 37751226250,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "8781418ceafea7f0ecc44bc2ce19595b1b65341f",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37751226250",
+      "artifacts": [
+        {
+          "id": 11537414956,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:43ac2b4dc270183ab86f263d180587e9ec9ad9ea97c0d7058a940138932bdc75",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37751226250/artifacts/11537414956",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Final production Compose success: isolated destructive restore, complete logical rows, retained volumes, HTTPS Chromium/WebKit. ZIP independently downloaded and SHA-256 matched."
+    },
+    {
+      "id": 37752868714,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "745308d69d88856c0b37d0c108296dca359f33d4",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868714",
+      "artifacts": [
+        {
+          "id": 11539259366,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:0ca7da6c904c3a757aaea1887fcb923b0eb6c9be56239f0ea7c397cdb19ee00a",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868714/artifacts/11539259366",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Complete R1–R8 products, valid SDK enqueue performance, privacy, load, data-preserving migration, fault and actual schema restore all passed. Final ZIP independently downloaded and SHA-256 matched; JSON commits and SDK counts checked."
+    },
+    {
+      "id": 37752868903,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "745308d69d88856c0b37d0c108296dca359f33d4",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868903",
+      "artifacts": [
+        {
+          "id": 11538444511,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:7fec2350dbcaf5be85e2f6691e267f064adbb58c12be64df11f490ec05d47a1c",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868903/artifacts/11538444511",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Final production Compose success: isolated destructive restore, complete logical rows, retained volumes, HTTPS Chromium/WebKit. ZIP independently downloaded and SHA-256 matched."
+    }
+  ],
+  "inheritedR7": {
+    "testedCommit": "a5d741d0ce239cdbb07f513bf0c364352dbfc752",
+    "productionRun": 37726292902,
+    "fullRun": 37726292930,
+    "fullAttempt": 2,
+    "priorFailure": "ClickHouse 241 at 2GiB; same-code attempt2 passed; root cause not proven eliminated"
+  },
+  "externalPending": [
+    "R6 friend manual acceptance",
+    "R8 twelve-step macOS acceptance",
+    "R7 real management and security rule approval",
+    "multi_ip and permission_denied trusted facts"
+  ],
+  "target": {
+    "os": "Ubuntu 22.04 x86_64",
+    "vcpus": 8,
+    "nominalMemoryGB": 16,
+    "docker": "27.3.1",
+    "compose": "2.32.2",
+    "tested": false
+  },
+  "finalGates": {
+    "20.4": [
+      {
+        "condition": "唯一六模块",
+        "status": "Go (engineering evidence)",
+        "evidence": "R8 navigation + R2/R3 正式导航，旧 URL/API 拒绝",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "统一版本化指标服务",
+        "status": "Go (engineering evidence)",
+        "evidence": "R1B/C、R3、R4A/B、R6、R7 同源/版本/历史断言",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "规范 key 与真实实施状态",
+        "status": "Go (engineering evidence)",
+        "evidence": "contract v3、生成物、精确 allowlist 扫描及负向 fixture；缺事实保持 not_collected",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "独立分数与手算一致",
+        "status": "Go (engineering evidence)",
+        "evidence": "R1C、R5A 评分/gate/贡献 golden；不改 snapshot",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "工作流并发与耗时",
+        "status": "Go (engineering evidence)",
+        "evidence": "R4B 实际 SDK、reducer、并发/乱序/终态/历史 fixture",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "安全复现上下文",
+        "status": "Go (engineering evidence)",
+        "evidence": "R5B payload→Kafka→ClickHouse→API/UI/日志/死信隐私负向链路",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "默认关闭受控外部接口",
+        "status": "Go (engineering evidence)",
+        "evidence": "R7 hash token/scope/限流/轮换/撤销/审计；测试批准不是业务批准",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "清理后完整重建",
+        "status": "Go (engineering evidence)",
+        "evidence": "R8 空库 reset/bootstrap/smoke + 保留迁移 + 生产无 seed 初始化/恢复",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "Actions 全部通过",
+        "status": "Go (engineering evidence)",
+        "evidence": "最终代码全量与生产同 SHA；最终文档独立格式/规范检查",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "P0/P1 阻断为零",
+        "status": "No-Go",
+        "evidence": "工程自动化未发现待修复 P0/P1；手工/真实批准未完成，不能确认全局为零",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      }
+    ],
+    "26": [
+      {
+        "condition": "产品入口唯一",
+        "status": "Go (engineering evidence)",
+        "evidence": "登录→全部项目→五模块：R2/R8",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "页面职责清晰",
+        "status": "Go (engineering evidence)",
+        "evidence": "旧 views/API 已删；R3/R4/R5/R6/R7 产品流程；用户统一手工走查仍待签署",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "指标正确",
+        "status": "Go (engineering evidence)",
+        "evidence": "规范目录/AST/分母/血缘/趋势/fixture 门禁；multi_ip/permission_denied 未实现，不伪装可用",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "分数可信",
+        "status": "Go (engineering evidence)",
+        "evidence": "运营/质量独立、版本固定、目标/样本/gate/贡献 golden",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "工作流可靠",
+        "status": "Go (engineering evidence)",
+        "evidence": "R4B 并发/乱序/终态/超时/隐私；R8 durable offsets 故障与恢复",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "错误定位安全",
+        "status": "Go (engineering evidence)",
+        "evidence": "R5A/B 全链路隐私负向",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "外部接口受控",
+        "status": "Go (engineering evidence)",
+        "evidence": "R7 默认关闭、hash token、scope、限流和审计",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "查询可控",
+        "status": "Go (engineering evidence)",
+        "evidence": "20 项目与核心 HTTP p95≤2s；13 月窗口/90 天事实，非满保留期容量证明",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "宿主影响可接受",
+        "status": "Go (engineering evidence)",
+        "evidence": "SDK bundle、2ms 同步处理、异常隔离、Chromium/WebKit",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "重建可靠",
+        "status": "Go (engineering evidence)",
+        "evidence": "开发空库 reset/bootstrap/smoke/seed；生产禁止 seed，安全管理员初始化",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "回归完整",
+        "status": "Go (engineering evidence)",
+        "evidence": "六模块、真实链路、负载、三类故障、实际恢复及保留卷",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      },
+      {
+        "condition": "无阻断缺陷",
+        "status": "No-Go",
+        "evidence": "手工验收/真实异常规则审批与可信事实仍未闭环；最终 No-Go",
+        "code": "745308d69d88856c0b37d0c108296dca359f33d4"
+      }
+    ]
+  },
+  "indexFormatVersion": 1,
+  "inheritedIsolation": [
+    "C06 single cross-directory ratio remains isolated",
+    "Q07 and missing intermediate/optional steps not approved by R8",
+    "Projects without trusted directory/source/complete coverage remain unavailable or partial; no fabricated denominator",
+    "Deferred R4-C manual review is included in R8 unified review"
+  ],
+  "engineering": "complete",
+  "finalRuns": {
+    "full": {
+      "id": 37752868714,
+      "name": "v1.8 R8 cleanup and full regression",
+      "sha": "745308d69d88856c0b37d0c108296dca359f33d4",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868714",
+      "artifacts": [
+        {
+          "id": 11539259366,
+          "name": "r8-checkpoint-evidence",
+          "digest": "sha256:0ca7da6c904c3a757aaea1887fcb923b0eb6c9be56239f0ea7c397cdb19ee00a",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868714/artifacts/11539259366",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Complete R1–R8 products, valid SDK enqueue performance, privacy, load, data-preserving migration, fault and actual schema restore all passed. Final ZIP independently downloaded and SHA-256 matched; JSON commits and SDK counts checked."
+    },
+    "production": {
+      "id": 37752868903,
+      "name": "Production deployment Ubuntu 22.04",
+      "sha": "745308d69d88856c0b37d0c108296dca359f33d4",
+      "status": "completed",
+      "conclusion": "success",
+      "attempt": 1,
+      "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868903",
+      "artifacts": [
+        {
+          "id": 11538444511,
+          "name": "production-deployment-evidence",
+          "digest": "sha256:7fec2350dbcaf5be85e2f6691e267f064adbb58c12be64df11f490ec05d47a1c",
+          "url": "https://github.com/captainamari/frontend-insight/actions/runs/37752868903/artifacts/11538444511",
+          "digestIndependentlyVerified": true
+        }
+      ],
+      "notes": "Final production Compose success: isolated destructive restore, complete logical rows, retained volumes, HTTPS Chromium/WebKit. ZIP independently downloaded and SHA-256 matched."
+    }
+  },
+  "jsonEvidenceCounts": {
+    "full": 50,
+    "prod": 5
+  },
+  "runner": {
+    "os": "linux",
+    "arch": "x64",
+    "cpus": 4,
+    "memoryBytes": 16765374464,
+    "node": "v24.21.0",
+    "docker": "28.0.4",
+    "compose": "2.38.2",
+    "resources": "frontend-insight-m5-web-1 4.82MiB / 128MiB 0.00%\nfrontend-insight-m5-api-1 251.4MiB / 15.61GiB 21.24%\nfrontend-insight-m5-consumer-1 156.4MiB / 15.61GiB 3.13%\nfrontend-insight-m5-demo-1 5.176MiB / 128MiB 0.00%\nfrontend-insight-m5-kafka-1 355.2MiB / 1.5GiB 41.27%\nfrontend-insight-m5-mysql-1 603.8MiB / 768MiB 0.35%\nfrontend-insight-m5-clickhouse-1 871.2MiB / 2GiB 3.50%\n",
+    "cpuModel": "INTEL(R) XEON(R) PLATINUM 8573C",
+    "workflowOS": "ubuntu-24.04",
+    "configuredMemoryLimits": {
+      "mysql": "768MiB",
+      "clickhouse": "2GiB",
+      "kafka": "1.5GiB",
+      "web": "128MiB",
+      "demo": "128MiB",
+      "apiConsumer": "no container memory cap in development stack; host limit applies"
+    }
+  },
+  "measurements": {
+    "source": "Downloaded final workflow archives; all JSON testedCommit values verified",
+    "sdk": [
+      {
+        "browser": "chromium",
+        "p95Ms": 0.10000000009313226,
+        "samples": 2000,
+        "warmups": 0,
+        "enqueued": 2000,
+        "sent": 2000,
+        "dropped": 0
+      },
+      {
+        "browser": "webkit",
+        "p95Ms": 0,
+        "samples": 2000,
+        "warmups": 0,
+        "enqueued": 2000,
+        "sent": 2000,
+        "dropped": 0
+      }
+    ],
+    "load": {
+      "profiles": [
+        {
+          "httpSampleCount": 60,
+          "httpP95Ms": 14.799317000000883,
+          "eventsPerSecond": 20,
+          "seconds": 60,
+          "sentEvents": 1200,
+          "elapsedMs": 59014.764284
+        },
+        {
+          "httpSampleCount": 40,
+          "httpP95Ms": 73.63854400000127,
+          "eventsPerSecond": 200,
+          "seconds": 10,
+          "sentEvents": 2000,
+          "elapsedMs": 9059.226969000003
+        }
+      ],
+      "warmups": 0,
+      "sampleCount": 100,
+      "visibility": {
+        "method": "conservative event-weighted upper bound: batch request start until all 3200 unique events are queryable in the dedicated project",
+        "p95UpperBoundMs": 60721,
+        "eventSampleCount": 3200,
+        "allVisibleCount": 3200,
+        "pollIntervalMs": 250
+      },
+      "accepted": 3200,
+      "ingestionP95Ms": 51.40699499999755,
+      "queryP95Ms": 50.165251000013086,
+      "queryWarmups": 3,
+      "querySampleCount": 20
+    },
+    "projectSummary": {
+      "projects": 20,
+      "rawRows": 4000,
+      "method": "5 warmups then 40 sequential requests; nearest-rank p95",
+      "p95Ms": 21.925944999999956,
+      "maxRowsRead": 4000
+    },
+    "projectFirstUsable": [
+      {
+        "browser": "chromium",
+        "p95Ms": 181,
+        "samples": 20,
+        "method": "3 warmups + 20 full navigations, all 20 cards usable; nearest-rank p95"
+      },
+      {
+        "browser": "webkit",
+        "p95Ms": 225,
+        "samples": 20,
+        "method": "3 warmups + 20 full navigations, all 20 cards usable; nearest-rank p95"
+      }
+    ],
+    "overview": [
+      {
+        "range": "7d",
+        "p95Ms": 47.434177999999974,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "30d",
+        "p95Ms": 76.08823499999926,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "90d",
+        "p95Ms": 65.0010629999997,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "180d",
+        "p95Ms": 96.61940400000094,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "365d",
+        "p95Ms": 74.60642200000075,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "custom",
+        "p95Ms": 69.06004799999937,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-day",
+        "p95Ms": 1828.7801809999946,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-week",
+        "p95Ms": 111.60319500000332,
+        "warmups": 5,
+        "samples": 40
+      }
+    ],
+    "business": [
+      {
+        "range": "7d",
+        "pages": 2,
+        "p95Ms": 119.59605499999998,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "30d",
+        "pages": 2,
+        "p95Ms": 200.68371399999887,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "90d",
+        "pages": 2,
+        "p95Ms": 231.10615999999936,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "180d",
+        "pages": 2,
+        "p95Ms": 242.64318400000047,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "365d",
+        "pages": 2,
+        "p95Ms": 308.24207999999635,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "custom",
+        "pages": 2,
+        "p95Ms": 292.29072799999994,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-day",
+        "pages": 2,
+        "p95Ms": 437.19966399999976,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-week",
+        "pages": 2,
+        "p95Ms": 297.51877100000274,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "7d",
+        "pages": 24,
+        "p95Ms": 103.63447599999199,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "30d",
+        "pages": 24,
+        "p95Ms": 196.31945700000506,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "90d",
+        "pages": 24,
+        "p95Ms": 296.1307169999927,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "180d",
+        "pages": 24,
+        "p95Ms": 228.37807299999986,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "365d",
+        "pages": 24,
+        "p95Ms": 260.4403830000083,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "custom",
+        "pages": 24,
+        "p95Ms": 268.78926100001263,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-day",
+        "pages": 24,
+        "p95Ms": 395.38710100000026,
+        "warmups": 5,
+        "samples": 40
+      },
+      {
+        "range": "long-week",
+        "pages": 24,
+        "p95Ms": 292.6203690000111,
+        "warmups": 5,
+        "samples": 40
+      }
+    ],
+    "limit": "90 days of sparse facts and <=72006 synthetic rows; 13-month query window is not 13 months of full-capacity retained data; no three-day production capacity claim"
+  },
+  "recovery": {
+    "testedCommit": "745308d69d88856c0b37d0c108296dca359f33d4",
+    "runId": "37752868714",
+    "runAttempt": "1",
+    "faults": ["kafka", "clickhouse", "consumer"],
+    "restore": ["all MySQL tables", "raw_events", "repeated_operation_proofs"],
+    "shortReferences": "excluded and cleared per ADR-020",
+    "comparison": "MySQL exports identical; complete ordered ClickHouse JSONEachRow SHA-256 equal",
+    "business": "post-restore enqueue/query and formal HTTP reads passed"
+  },
+  "productionEvidence": {
+    "testedCommit": "745308d69d88856c0b37d0c108296dca359f33d4",
+    "runId": "37752868903",
+    "runAttempt": "1",
+    "docker": "28.0.4",
+    "compose": "2.38.2",
+    "os": "ubuntu-22.04",
+    "architecture": "amd64",
+    "profile": "production",
+    "secretAccess": "non-root tested, deny fixture tested",
+    "secretMigration": "values preserved",
+    "bootstrap": "one admin, zero fixture projects, repeat rejected",
+    "tls": "isolated self-signed edge; Chromium/WebKit Secure refresh",
+    "restart": "named volumes retained; login and events queryable",
+    "imageLayers": "all layers scanned for actual CI secrets",
+    "capacity": "15GiB daemon floor; no constrained-host override",
+    "limits": "CI only; target machine not deployed; production certificates and network remain operator tasks"
+  },
+  "productionRestore": {
+    "testedCommit": "745308d69d88856c0b37d0c108296dca359f33d4",
+    "runId": "37752868903",
+    "runAttempt": "1",
+    "archiveFormat": 2,
+    "destructiveTest": "isolated GitHub-hosted only",
+    "durableTables": ["raw_events", "repeated_operation_proofs"],
+    "nonEmptyProofFixture": true,
+    "logicalRows": "complete ordered JSONEachRow SHA-256 equal; Native archive checksum also verified",
+    "shortReferences": "not backed up, cleared on restore"
+  },
+  "documentationPolicy": "Final delivery is a docs-only child of testedCommit; document head is reported in the PR and handoff, not treated as a tested application SHA.",
+  "manualAcceptanceFollowup": {
+    "reportedOn": "2026-10-09",
+    "source": "User reported R8 manual acceptance performed; JS errors missing from page quality across environments.",
+    "record": "docs/progress/v1.8-r8-quality-refresh-fix.md",
+    "fixVerification": "passed",
+    "userRetest": "pending",
+    "previousAutomationBoundary": "testedCommit and existing archives below describe 745308d, not this follow-up repair.",
+    "verifiedCode": "4948ece1ef85f328a3d2275ffea7aa96d874b4b9",
+    "localChecks": {
+      "pnpmCheck": "passed",
+      "unitTests": 530,
+      "chromiumRefreshRegression": "failed_before_fix_passed_after_fix"
+    },
+    "workflows": [
+      {
+        "id": 37870342786,
+        "scope": "full_r8_including_real_demo_and_both_browsers",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342786"
+      },
+      {
+        "id": 37870342819,
+        "scope": "production_compose",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342819"
+      },
+      {
+        "id": 37870342785,
+        "scope": "code_commit_documentation",
+        "conclusion": "success",
+        "attempt": 1,
+        "url": "https://github.com/captainamari/frontend-insight/actions/runs/37870342785"
+      }
+    ],
+    "verificationBoundary": "Workflow results and named test logs verified; new run archives were not independently downloaded. Existing independently verified archive fields describe the earlier testedCommit."
+  }
+}

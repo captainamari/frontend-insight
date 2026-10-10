@@ -16,6 +16,7 @@ import "element-plus/es/components/skeleton/style/css";
 import "element-plus/es/components/switch/style/css";
 import "element-plus/es/components/table/style/css";
 import "element-plus/es/components/tag/style/css";
+import "element-plus/es/components/tabs/style/css";
 import "element-plus/es/components/tooltip/style/css";
 import "./styles.css";
 import {
@@ -38,6 +39,8 @@ import {
   ElTable,
   ElTableColumn,
   ElTag,
+  ElTabs,
+  ElTabPane,
   ElTooltip,
 } from "element-plus";
 import { createApp } from "vue";
@@ -65,6 +68,8 @@ for (const component of [
   ElTable,
   ElTableColumn,
   ElTag,
+  ElTabs,
+  ElTabPane,
   ElTooltip,
 ]) {
   app.component(component.name!, component);

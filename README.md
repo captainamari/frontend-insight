@@ -2,11 +2,11 @@
 
 内部 Web 产品运营分析系统。它回答页面和功能是否真正被看见、持续使用，关键任务是否完成，以及停留和操作耗时是否符合显式业务目标；同时明确区分账号、匿名浏览器和会话。
 
-M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 demo。M6 增加模块/页面/任务实体、operation lifecycle v2、固定运营指标、可查询血缘和可下钻的项目运营指数。M7/M8 进一步交付生产硬化工具，以及独立于运营指数 v1 的前端错误、Web Vitals、发布版本、影响范围和固定告警工作台。
+v1.8 使用 contract v3 和版本化指标服务。登录后进入全部项目，项目内只有项目概览、业务分析、页面分析、指标管理和设置五个正式模块。运营分数与质量分数独立，缺失事实与真实零值分开；SDK 当前部署版本 0.8.0。
 
-## M7/M8 快速开始
+## 本地快速开始
 
-目标环境：Apple Silicon M1、32 GB 内存、Docker Desktop + Compose v2。
+Apple Silicon Mac + Docker Desktop/Compose v2，使用可销毁测试环境：
 
 ```bash
 ./scripts/dev doctor
@@ -16,124 +16,37 @@ M0-M5 已完成基础设施、Web SDK、数据链路、管理后台与三场景 
 ./scripts/dev status
 ```
 
-- 管理后台：<http://localhost:4173>
-- 三场景 demo：<http://localhost:4174>
-- 管理员：`admin@example.invalid` / `LocalAdmin-1234`
-- viewer：`viewer@example.invalid` / `LocalViewer-1234`
+- 管理后台：<http://127.0.0.1:4173>
+- 受控 demo：<http://127.0.0.1:4174>
+- 测试管理员：`admin@example.invalid` / `LocalAdmin-1234`
+- 测试 viewer：`viewer@example.invalid` / `LocalViewer-1234`
 
-demo 覆盖数据/图表渲染、导出/导入/配置/指令结果、大屏持续可见，以及受控 JS/资源/API/Web Vital 事件。操作型场景使用 v2 operation handle；M8 场景在浏览器发送前裁剪凭据、邮箱、URL 参数与动态 ID。完整负载、故障、恢复、生产策略和产品走查见 [M7/M8 Mac 本地验收指引](docs/guides/m7-m8-local-acceptance-macos.md)。
+完整命令、十二步走查、失败排查见 [v1.8 Mac 验收指南](docs/guides/v1.8-local-acceptance-macos.md)。`./scripts/dev down` 保留卷；`./scripts/dev reset --confirm-local-data-loss` 只用于已确认可删除的本地测试数据。不要对生产运行 reset、seed 或故障注入。
 
-M7 正式负载与故障演练：
+## Ubuntu 22.04 生产部署
 
-```bash
-bash scripts/m7 load full
-bash scripts/m7 fault all --confirm-disruption
-bash scripts/m7 release-drill --confirm-disruption
-```
-
-Production Compose 使用文件型 Docker Secret，并提供 additive deploy、备份、恢复和保留镜像回滚：
+按 [生产指南](docs/guides/production-ubuntu-22.04.md) 配置容量、独立密钥、管理员及 HTTPS，不使用测试 seed 或演示账户，不要求宿主 Node 26。
 
 ```bash
-bash scripts/production init-secrets --confirm-create
-bash scripts/production doctor
-bash scripts/production deploy pilot-001
+sudo bash scripts/production init-secrets --confirm-create
+sudo bash scripts/production doctor
+sudo bash scripts/production deploy "r8-$(git rev-parse --short=12 HEAD)"
+sudo bash scripts/production bootstrap-admin
+sudo bash scripts/production verify
 ```
 
-这些自动化不替代目标环境演练、真实项目试点和 M8 三项目/处理人发布门。
+已有密钥只迁移权限、不改值；已有数据卷保留，升级前按指南备份。R8 备份格式包含原始事件及长期重复操作证明，短引用不备份。目标 Docker/Compose 与 CI 的版本差异及未实测项目在结果中明确记录。
 
-停止不会删除数据：
+## 产品和工程边界
 
-```bash
-./scripts/dev down
-```
+- 指标管理发布不可变运营/质量版本、受控公式、分数、绑定和血缘；正式分析页面复用同源读模型。
+- 工作流支持显式实例关联、并发、乱序、首个终态与近似超时；不使用业务敏感 ID。
+- 页面质量/运营分别保留安全复现上下文、真实分母、匿名兜底、时区/DST/会话及有效时长覆盖。
+- 设置收拢项目/成员/Origin、实际 SDK 接入、探针策略和受限外部凭证；第三方接口默认关闭，凭证仅一次明文。
+- 异常规则真实管理层/安全批准尚待完成，multi_ip 与 permission_denied 缺可信事实；保持关闭/不可计算，不以测试审批代替。
+- 旧功能采用、页面访问、运营概览和接入等入口已移除；历史验收记录保留在 docs，不作为当前操作说明。
 
-只有显式确认才会删除本地命名卷：
-
-```bash
-./scripts/dev reset --confirm-local-data-loss
-```
-
-## M6 已实现范围
-
-- module/page definition 管理、三类页面模板、核心页面和关键度；
-- feature 页面归属、关键任务、权重、超时和 v2 operation lifecycle；
-- 页面可见时长平均/p50/p75/覆盖率、会话页面深度和模块广度；
-- 任务达成、失败、取消、近似放弃和成功耗时；
-- 单一 `MetricCatalog`、definition version、固定公式与 lineage JSON；
-- 版本化业务目标、指标 profile、clone-on-write 和显式激活；
-- 30/25/30/15 四维项目运营指数、至少 3 维与 70% 权重覆盖 gate；
-- 运营概览、页面详情、雷达图与无障碍等价表格、配置 UI；
-- admin 写、viewer 只读，所有 M6 配置变更保留审计；
-- 无 M6 配置或只有 v1 数据的项目继续使用 M5 页面。
-
-项目运营指数用于确定调查和投入优先级，不替代技术 SLO，也不用于人员绩效。
-
-## M7/M8 已实现范围
-
-- 20 events/s 持续与 200 events/s 峰值固定负载工具、吞吐/延迟/追平报告；
-- Kafka、ClickHouse、consumer 故障注入及真实 readiness/恢复语义；
-- production Compose 的文件 Secret、只读文件系统、资源上限、优雅停止和日志轮转；
-- additive migration、保留镜像应用回滚、MySQL/ClickHouse 校验和备份与恢复；
-- SDK v0.3.0 opt-in JS/资源/API 错误和 LCP/CLS/INP/FCP/TTFB；
-- 浏览器端凭据/PII/URL 裁剪、粗粒度浏览器/OS/视口、显式 release/environment；
-- 稳定错误组、影响账号/浏览器/页面/版本、性能 p75 与固定只读告警；
-- 前端可观测性工作台、错误组下钻、发布证据和受控 demo；
-- M5/M6 回归与 M8 Chromium/WebKit E2E。
-
-项目运营指数 v1 保持不变；SourceMap、运营指数 v2、自定义告警和 AI 分析仍按独立阶段门执行。
-
-## M5 保留能力
-
-- Vue 3 + TypeScript + Element Plus + ECharts 管理端；
-- URL 可分享的项目/时间筛选、认证、全局错误与请求 ID；
-- 功能采用首页、功能详情、页面访问、项目接入与功能配置；
-- loading、empty、stale、error、forbidden 和链路状态；
-- admin/viewer 界面与服务端双重权限；
-- 三场景 demo、可见事件解释和模拟 token 泄露回归；
-- full Compose、幂等 seed、数据流 smoke、Chromium/WebKit E2E。
-
-M5 保留能力不包含 M6–M8 的指标、生产硬化和可观测性扩展。
-
-## M2-M4 数据与管理能力
-
-- npm ESM Web SDK：页面/SPA 生命周期、标签页会话、三类功能事件、长时可见心跳、隐私边界、批量与离开上报；
-- 接收链路：64 KiB/50 条边界、Origin/项目/限流/schema/时间/feature 校验、项目级账号 HMAC、Kafka 202 语义；
-- consumer：Kafka at-least-once、ClickHouse 批写、查询侧 `eventId` 去重、毒消息无 payload 死信；
-- 本地认证、admin/viewer、项目成员、审计、项目/功能/onboarding API；
-- overview、trend、pages、features、feature detail 固定口径查询，以及数据状态和健康接口。
-
-底层链路仍可独立验证：
-
-```bash
-./scripts/m2-m4 doctor
-./scripts/m2-m4 up
-./scripts/m2-m4 verify
-./scripts/m2-m4 status
-./scripts/m2-m4 down
-```
-
-详细步骤见 [M2-M4 Mac 验收指引](docs/guides/m2-m4-local-macos.md)。
-
-## M1 工程与迁移基线
-
-- pnpm/TypeScript monorepo 与统一 CI 检查；
-- 版本化事件 JSON Schema、生成类型、拒绝码和三类 golden fixtures；
-- MySQL 元数据表和 ClickHouse 原始事件表的版本化 migration；
-- Apple Silicon Mac 上可一键验证空库、升级、幂等、TTL 和固定事件查询。
-
-```bash
-./scripts/m1 doctor
-./scripts/m1 up
-./scripts/m1 verify
-./scripts/m1 status
-./scripts/m1 down
-```
-
-详细预期见 [M1 本地工程与迁移验收](docs/guides/m1-local-engineering-macos.md)。
-
-## M0 历史验证
-
-M0 证明 MySQL、ClickHouse、Kafka、浏览器 Beacon 和 ARM64 Compose 基线可行。独立 Compose 和结果文件仍保留作为技术决策证据；当前统一使用 M5 的 `./scripts/dev` 产品闭环命令。历史结果见 [M0 技术验证结果](docs/spikes/m0-results.md)。
+R6 朋友验收、R8 统一手工验收和 R7 真实业务批准仍须独立完成；不能因 CI 通过就宣布最终 Go。
 
 ## 开发者自检
 
@@ -146,12 +59,11 @@ pnpm exec playwright install chromium webkit
 pnpm test:browser
 ```
 
-启动 Compose 后可以执行 M5/M6 回归与 M8 页面验收：
+当前 v1.8 只提供“全部项目 → 项目概览、业务分析、页面分析、指标管理、设置”正式入口。旧页面路由与专用 API 已移除。
 
 ```bash
-pnpm test:m5:e2e
-pnpm test:m6:e2e
-pnpm test:m8:e2e
+pnpm check
+pnpm test:r8:e2e
 ```
 
-分支推送后，GitHub Actions 会执行静态/单元检查、两种浏览器 SDK 契约、完整 Compose 数据流、M7 负载/故障/恢复和 M5/M6/M8 产品闭环。Linux CI 不能替代 Apple Silicon 目标 Mac、部署环境和真实试点的最终人工验收。
+完整回归由 `.github/workflows/v1-8-r8.yml` 执行 R1–R7、真实 SDK/存储、双浏览器、性能、隐私、负载与故障恢复；Ubuntu 22.04 生产 Compose 独立验证。执行方法见 [v1.8 最终 Mac 验收](docs/guides/v1.8-local-acceptance-macos.md) 和 [Ubuntu 生产指南](docs/guides/production-ubuntu-22.04.md)。当前工程/自动化/手工验收/业务批准分别见 [R8 results](docs/progress/v1.8-r8-results.md)。Linux CI 不能替代目标 Mac、目标服务器或真实规则批准。

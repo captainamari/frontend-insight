@@ -63,7 +63,11 @@ else
   printf 'pnpm: not installed (not required by Docker deployment)\n'
 fi
 run git --version
-run git rev-parse HEAD
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  run git rev-parse HEAD
+else
+  printf 'git_commit=unavailable (run inside the repository to include it)\n'
+fi
 
 section "Selected Compose project: $project (maximum 30 containers)"
 if command -v docker >/dev/null 2>&1; then

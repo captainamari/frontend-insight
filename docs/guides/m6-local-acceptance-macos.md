@@ -1,5 +1,7 @@
 # M6 本地验收指引（Apple Silicon Mac）
 
+> 历史记录：以下命令、入口和代码链接仅适用文中固定基线；v1.8 当前操作请使用 [最终验收指南](v1.8-local-acceptance-macos.md)。保留原文用于追溯，不表示当前阶段已通过手工验收。
+
 > 适用分支：`agent/m6-operational-metrics-index`  
 > 产品基线：`docs/product/requirements-v1.6.md`  
 > 开发基线：`docs/planning/mvp-plan-v1.3.md`

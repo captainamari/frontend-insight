@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/lib/production-capacity.sh"
 BASE_COMPOSE_FILE="$ROOT_DIR/infra/compose/m2-m4.compose.yml"
 WEB_COMPOSE_FILE="$ROOT_DIR/infra/compose/m5.compose.yml"
 PRODUCTION_COMPOSE_FILE="$ROOT_DIR/infra/compose/production.compose.yml"
@@ -21,11 +22,15 @@ Usage: bash scripts/production <command>
 
 Commands:
   init-secrets --confirm-create       Generate six local Docker secret files once
+  secure-secrets --confirm-permissions Fix existing secret ownership without changing values
+  bootstrap-admin                     Prompt for first admin (empty database only)
+  bootstrap-admin --stdin-json         Read first-admin JSON from stdin, never command arguments
+  verify-secrets                      Check non-root secret reads using built images
   doctor                              Validate host, secrets and Compose policy
   deploy [release-id]                 Build, migrate and deploy an additive release
   verify                              Check public and internal readiness endpoints
   synthetic --confirm-synthetic-data  Seed fixtures and run full flow checks
-  backup [name]                       Export MySQL, ClickHouse raw events and checksums
+  backup [name]                       Export MySQL, durable ClickHouse facts and checksums
   restore <name> --confirm-replace-data
                                       Pre-backup, replace data and restart services
   rollback <release-id> --confirm-rollback
@@ -75,25 +80,49 @@ secret_files() {
     auth_token_secret
 }
 
+# A dedicated supplemental group grants read access to non-root application users.
+# The host directory remains root-only; Compose file secrets preserve host ownership.
+secret_gid=10001
+file_stat() {
+  if [[ "$(uname -s)" == Darwin ]]; then stat -f "$1" "$3"; else stat -c "$2" "$3"; fi
+}
+
 assert_secrets() {
-  local name value_size mode
+  local name value_size
+  [[ ! -L "$SECRETS_DIR" ]] || fail "Secret directory must not be a symlink"
+  [[ "$(file_stat '%u:%Lp' '%u:%a' "$SECRETS_DIR")" == "0:700" ]] ||
+    fail "Secret directory must be root-owned mode 700; use secure-secrets"
   while IFS= read -r name; do
-    [[ -f "$SECRETS_DIR/$name" ]] || fail "Missing secret file: $name"
+    [[ -f "$SECRETS_DIR/$name" && ! -L "$SECRETS_DIR/$name" ]] || fail "Missing or symlink secret file: $name"
     value_size="$(wc -c < "$SECRETS_DIR/$name" | tr -d ' ')"
     [[ "$value_size" -ge 32 ]] || fail "Secret file is unexpectedly short: $name"
-    if stat -f '%Lp' "$SECRETS_DIR/$name" >/dev/null 2>&1; then
-      mode="$(stat -f '%Lp' "$SECRETS_DIR/$name")"
-    else
-      mode="$(stat -c '%a' "$SECRETS_DIR/$name")"
-    fi
-    [[ "$mode" == "600" || "$mode" == "400" ]] || \
-      fail "Secret file $name must use mode 600 or 400; detected $mode"
+    [[ "$(file_stat '%u:%g:%Lp' '%u:%g:%a' "$SECRETS_DIR/$name")" == "0:$secret_gid:440" ]] ||
+      fail "Secret file $name must be root:$secret_gid mode 440; use secure-secrets"
   done < <(secret_files)
+}
+
+secure_secrets() {
+  [[ "${1:-}" == "--confirm-permissions" ]] || fail "Requires --confirm-permissions; values will be preserved"
+  [[ "$EUID" == 0 ]] || fail "Run secret setup with sudo; application containers still run as node"
+  [[ -d "$SECRETS_DIR" && ! -L "$SECRETS_DIR" ]] || fail "Secret directory missing or symlink"
+  local name
+  while IFS= read -r name; do
+    [[ -f "$SECRETS_DIR/$name" && ! -L "$SECRETS_DIR/$name" ]] || fail "Missing or symlink secret file: $name"
+  done < <(secret_files)
+  chown 0:0 "$SECRETS_DIR"
+  chmod 700 "$SECRETS_DIR"
+  while IFS= read -r name; do
+    chown "0:$secret_gid" "$SECRETS_DIR/$name"
+    chmod 440 "$SECRETS_DIR/$name"
+  done < <(secret_files)
+  assert_secrets
+  info "Secret access secured; values unchanged"
 }
 
 init_secrets() {
   [[ "${1:-}" == "--confirm-create" ]] || \
     fail "Secret generation requires --confirm-create"
+  [[ "$EUID" == 0 ]] || fail "Use sudo for init-secrets"
   require_command openssl
   mkdir -p "$SECRETS_DIR"
   chmod 700 "$SECRETS_DIR"
@@ -118,18 +147,9 @@ init_secrets() {
   printf '%s\n' "$clickhouse_password" > "$SECRETS_DIR/clickhouse_password"
   printf '%s\n' "$account_key" > "$SECRETS_DIR/account_hmac_key"
   printf '%s\n' "$token_secret" > "$SECRETS_DIR/auth_token_secret"
+  secure_secrets --confirm-permissions
   ensure_env
-  info "Created mode-600 secrets in $SECRETS_DIR; values were not printed"
-}
-
-host_memory_bytes() {
-  if [[ "$(uname -s)" == "Darwin" ]]; then
-    sysctl -n hw.memsize
-  elif [[ -r /proc/meminfo ]]; then
-    awk '/MemTotal/ { printf "%.0f\n", $2 * 1024 }' /proc/meminfo
-  else
-    printf '0\n'
-  fi
+  info "Created root-owned mode-440 secrets in $SECRETS_DIR; values were not printed"
 }
 
 doctor() {
@@ -137,22 +157,73 @@ doctor() {
   require_command docker
   docker compose version >/dev/null 2>&1 || fail "Docker Compose v2 is unavailable"
   docker info >/dev/null 2>&1 || fail "Docker engine is not running"
+  local endpoint
+  endpoint="${DOCKER_HOST:-$(docker context inspect --format '{{.Endpoints.docker.Host}}')}"
+  [[ "$endpoint" == unix://* ]] || fail "File secrets require a local Docker daemon; remote contexts are unsupported"
   assert_secrets
-  local memory_bytes free_kib
+  local canonical_secrets
+  canonical_secrets="$(cd "$SECRETS_DIR" && pwd -P)"
+  case "$canonical_secrets/" in
+    "$ROOT_DIR/.secrets/"*) ;;
+    "$ROOT_DIR/"*) fail "In-repository secrets must be under excluded .secrets/; prefer a directory outside the build context" ;;
+  esac
+  local memory_bytes free_kib docker_root available_kib
+  memory_bytes="$(docker info --format '{{.MemTotal}}')"
+  # 16 GiB-class hosts commonly expose less physical RAM after kernel reservations.
+  # Keep a 15 GiB usable-total floor, independent of swap, plus bounded service limits.
   if [[ "${FI_ALLOW_CONSTRAINED_HOST:-0}" != "1" ]]; then
-    memory_bytes="$(host_memory_bytes)"
-    [[ "$memory_bytes" -ge 17179869184 ]] || \
-      fail "At least 16 GiB host memory is required by the production Compose profile"
+    production_capacity_total_ok "$memory_bytes" ||
+      fail "Production requires at least 15 GiB Docker daemon RAM (16 GiB-class host); swap does not count"
     free_kib="$(df -Pk "$ROOT_DIR" | awk 'NR==2 { print $4 }')"
-    [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free disk is required"
+    [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free workspace disk is required"
+    docker_root="$(docker info --format '{{.DockerRootDir}}')"
+    if [[ -d "$docker_root" ]]; then
+      free_kib="$(df -Pk "$docker_root" | awk 'NR==2 { print $4 }')"
+      [[ "$free_kib" -ge 20971520 ]] || fail "At least 20 GiB free Docker data disk is required"
+    else
+      info "Docker data disk is not host-visible; check daemon disk capacity separately"
+    fi
   else
-    info "Constrained-host mode skips capacity gates and only validates policy; do not use it for a pilot"
+    info "Constrained-host mode skips capacity gates for CI only; not production approval"
+  fi
+  if [[ -r /proc/meminfo ]]; then
+    available_kib="$(awk '/MemAvailable:/ { print $2 }' /proc/meminfo)"
+    info "Host available RAM: $available_kib KiB; steady service limits total 9.875 GiB, excluding build/transient jobs"
+    if [[ "$available_kib" -lt 11534336 ]]; then
+      info "WARNING: under 11 GiB available; account for existing containers and avoid concurrent builds/load"
+    fi
   fi
   compose config --quiet
   if compose config | grep -q 'local-only'; then
     fail "Resolved production Compose still contains a local-only credential"
   fi
-  info "Doctor passed: secret files, resource policy, log rotation and Compose are valid"
+  info "Doctor passed: configuration preflight only; deploy verifies actual container secret access and readiness"
+}
+
+check_secret_access() {
+  local service
+  for service in migrate api consumer; do
+    compose run --rm --no-deps --entrypoint node "$service" -e '
+      const fs=require("node:fs");
+      if(process.getuid()===0) throw new Error("APPLICATION_MUST_BE_NON_ROOT");
+      for(const [key,path] of Object.entries(process.env)) if(key.endsWith("_FILE")) {
+        try { if(!fs.readFileSync(path,"utf8").trim()) throw Error(); }
+        catch { console.error("SECRET_UNREADABLE: "+key); process.exit(1); }
+      }
+      console.log("Non-root secret access verified");'
+  done
+}
+
+bootstrap_admin() {
+  ensure_env
+  assert_secrets
+  if [[ "${1:-}" == "--stdin-json" ]]; then
+    compose exec -T api node apps/api/dist/bootstrap-admin.js --stdin-json
+  elif [[ -z "${1:-}" && -t 0 && -t 1 ]]; then
+    compose exec api node apps/api/dist/bootstrap-admin.js --interactive
+  else
+    fail "Use an interactive terminal or bootstrap-admin --stdin-json (email, displayName, password)"
+  fi
 }
 
 resolved_release() {
@@ -185,6 +256,7 @@ deploy() {
   export FI_RELEASE_ID="$release"
   info "Building immutable local images for release $release"
   compose build migrate api consumer web
+  check_secret_access
   compose up --detach --wait --wait-timeout 300 mysql clickhouse kafka
   compose run --rm migrate
   compose up --detach --no-build --wait --wait-timeout 300 api consumer web
@@ -225,17 +297,16 @@ checksum() {
 }
 
 wait_for_zero_lag() {
-  local group
-  group="$(awk -F= '$1 == "FI_CONSUMER_GROUP_ID" { print $2; exit }' "$ENV_FILE")"
-  group="${group:-frontend-insight-production-v1}"
-  local attempt description lag
+  local attempt snapshot
   for attempt in {1..30}; do
-    description="$(compose exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh \
-      --bootstrap-server 127.0.0.1:9092 --describe --group "$group" 2>/dev/null || true)"
-    lag="$(awk 'NR > 1 && $6 ~ /^[0-9]+$/ { total += $6; found = 1 } END { if (found) print total; else print -1 }' <<< "$description")"
-    [[ "$lag" == "0" ]] && return
+    if snapshot="$(compose exec -T consumer node /app/tools/kafka-durable-offsets.mjs 2>/dev/null)"; then
+      info "Kafka durable offsets caught up: $snapshot"
+      return
+    fi
     sleep 2
   done
+  # This diagnostic contains only topic, partition and offsets, never event payload.
+  info "Last durable offset observation: ${snapshot:-unavailable}"
   fail "Consumer group did not reach zero lag before the backup window"
 }
 
@@ -258,18 +329,25 @@ backup() {
   wait_for_zero_lag
   compose stop consumer >/dev/null
   compose exec -T mysql bash -ec \
-    'exec mysqldump -uroot --password="$(cat /run/secrets/mysql_root_password)" --single-transaction --routines --events --add-drop-database --databases frontend_insight' \
+    'exec mysqldump -uroot --password="$(cat /run/secrets/mysql_root_password)" --single-transaction --routines --events --add-drop-database --databases frontend_insight --skip-comments --order-by-primary --hex-blob --set-gtid-purged=OFF' \
     > "$target/mysql.sql"
-  compose exec -T clickhouse bash -ec \
-    'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "SELECT * FROM raw_events FORMAT Native"' \
-    > "$target/raw_events.native"
+  # Durable projection proofs are required to preserve repeated-operation results.
+  # Never back up the short-lived object_operation_refs table (ADR-020).
+  for table in raw_events repeated_operation_proofs; do
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT Native" > "$target/$table.native"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "DESCRIBE TABLE $table FORMAT TSV" > "$target/$table.schema.tsv"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | checksum > "$target/$table.rows.sha256"
+  done
   local current_release="unknown"
   [[ -f "$STATE_DIR/current" ]] && current_release="$(< "$STATE_DIR/current")"
-  printf '{"createdAt":"%s","release":"%s","formatVersion":1}\n' \
+  printf '{"createdAt":"%s","release":"%s","formatVersion":2}\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     "$current_release" \
     > "$target/metadata.json"
-  (cd "$target" && checksum mysql.sql raw_events.native metadata.json > SHA256SUMS)
+  (cd "$target" && checksum mysql.sql *.native *.schema.tsv *.rows.sha256 metadata.json > SHA256SUMS)
   chmod 600 "$target"/*
   resume_after_backup
   trap - EXIT
@@ -285,15 +363,29 @@ restore() {
   [[ -f "$source/mysql.sql" && -f "$source/raw_events.native" && \
      -f "$source/SHA256SUMS" ]] || fail "Backup is incomplete: $name"
   (cd "$source" && checksum --check SHA256SUMS)
+  # Fail before mutation for pre-R8/incompatible archives; never invent missing proofs.
+  for table in raw_events repeated_operation_proofs; do
+    [[ -f "$source/$table.native" && -f "$source/$table.schema.tsv" && -f "$source/$table.rows.sha256" ]] || fail "Backup lacks durable facts/schema: $table"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "DESCRIBE TABLE $table FORMAT TSV" | cmp -s - "$source/$table.schema.tsv" || fail "Backup schema mismatch: $table; use the matching release before restore"
+  done
   local safety="pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
   backup "$safety"
   compose stop api consumer web
   compose exec -T mysql bash -ec \
     'exec mysql -uroot --password="$(cat /run/secrets/mysql_root_password)"' \
     < "$source/mysql.sql"
-  compose exec -T clickhouse bash -ec \
-    'clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "TRUNCATE TABLE raw_events"; exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "INSERT INTO raw_events FORMAT Native"' \
-    < "$source/raw_events.native"
+  for table in raw_events repeated_operation_proofs; do
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- "TRUNCATE TABLE $table"
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "INSERT INTO $table FORMAT Native" < "$source/$table.native"
+    # Native block boundaries/LowCardinality dictionaries are not logical data.
+    # Compare every ordered row, including duplicate rows, without exposing values.
+    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+      "SELECT * FROM $table ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | checksum | cmp -s - "$source/$table.rows.sha256" || fail "Restored logical rows differ: $table; services remain stopped"
+  done
+  # These references are deliberately not recoverable; do not retain facts from a later timeline.
+  compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "TRUNCATE TABLE object_operation_refs"'
   compose run --rm migrate
   compose up --detach --no-build --wait --wait-timeout 300 api consumer web
   verify
@@ -327,8 +419,8 @@ status() {
     docker stats --no-stream \
       --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}' $ids
   fi
-  [[ -f "$STATE_DIR/current" ]] && info "Current release: $(< "$STATE_DIR/current")"
-  [[ -f "$STATE_DIR/previous" ]] && info "Previous release: $(< "$STATE_DIR/previous")"
+  if [[ -f "$STATE_DIR/current" ]]; then info "Current release: $(< "$STATE_DIR/current")"; fi
+  if [[ -f "$STATE_DIR/previous" ]]; then info "Previous release: $(< "$STATE_DIR/previous")"; fi
 }
 
 logs() {
@@ -355,6 +447,9 @@ shift
 
 case "$command_name" in
   init-secrets) init_secrets "$@" ;;
+  secure-secrets) secure_secrets "$@" ;;
+  bootstrap-admin) bootstrap_admin "$@" ;;
+  verify-secrets) ensure_env; check_secret_access ;;
   doctor) doctor "$@" ;;
   deploy) deploy "$@" ;;
   verify) verify "$@" ;;

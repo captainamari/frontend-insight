@@ -1,5 +1,7 @@
 # Frontend Insight 项目学习指南（M0–M5）
 
+> 历史记录：以下命令、入口和代码链接仅适用文中固定基线；v1.8 当前操作请使用 [最终验收指南](../guides/v1.8-local-acceptance-macos.md)。保留原文用于追溯，不表示当前阶段已通过手工验收。
+
 > M0–M4 代码基线：`agent/m1-engineering-contract-migrations`，提交 `fd2f468`  
 > M5 代码基线：`agent/m5-management-ui-demo`，提交 `c1bbbf3`  
 > 学习资料分支：`agent/project-learning-guide-m0-m4`  

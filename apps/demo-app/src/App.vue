@@ -20,6 +20,8 @@ interface EventEntry {
 const tokenKey = "fi-demo.simulated-token";
 const analyticsRef = "demo-operator-001";
 const appId = import.meta.env.VITE_PROJECT_KEY ?? "fi_public_m1demo001";
+const telemetryEnv = "dev";
+const telemetryRelease = "2026.08.1-demo";
 const acceptanceFast =
   new URLSearchParams(window.location.search).get("acceptance") === "fast";
 const loginForm = reactive({ username: "demo.operator", password: "" });
@@ -56,10 +58,20 @@ function sceneFromPath(): Scene {
 
 function describe(event: Readonly<TrackerEvent>): string {
   const name = event.event === "custom" ? String(event.payload.name ?? "") : "";
+  // v3 custom business labels are nested; lifecycle controls remain at payload root.
+  const labels = event.payload.labels;
+  const duration =
+    labels && typeof labels === "object" && !Array.isArray(labels)
+      ? labels.visibleDurationMs
+      : undefined;
+  const durationText =
+    typeof duration === "number" && Number.isFinite(duration)
+      ? `${duration} ms`
+      : "时长未提供";
   if (name === "feature_started") return "只表示开始，不计入成功使用";
   if (name === "feature_succeeded") {
-    return event.payload.visibleDurationMs
-      ? `达到前台可见阈值，累计 ${event.payload.visibleDurationMs} ms`
+    return typeof duration === "number" && Number.isFinite(duration)
+      ? `达到前台可见阈值，累计 ${durationText}`
       : "业务成功条件已确认";
   }
   if (name === "feature_failed") {
@@ -69,10 +81,10 @@ function describe(event: Readonly<TrackerEvent>): string {
     return `用户明确取消，原因：${event.payload.reasonCode ?? "user_cancelled"}`;
   }
   if (name === "feature_long_view_heartbeat") {
-    return `前台可见心跳 ${event.payload.visibleDurationMs ?? 0} ms`;
+    return `前台可见心跳 ${durationText}`;
   }
   if (name === "feature_long_view_ended") {
-    return `持续展示结束，累计 ${event.payload.visibleDurationMs ?? 0} ms`;
+    return `持续展示结束，累计 ${durationText}`;
   }
   if (name === "feature_exposed") return "功能入口已实际呈现";
   if (event.event === "page_view") return "归一化页面访问";
@@ -107,8 +119,8 @@ function initializeTracker(): void {
   if (tracker) return;
   tracker = createTracker({
     appId,
-    env: "dev",
-    release: "2026.08.1-demo",
+    env: telemetryEnv,
+    release: telemetryRelease,
     endpoint: `${window.location.origin}/v1/events`,
     registeredFeatures: [
       "sales_dashboard",
@@ -580,8 +592,10 @@ onBeforeUnmount(() => {
           <div class="privacy-proof">
             <strong>发布边界</strong>
             <p>
-              所有事件显式关联 2026.08.1-demo / production；SourceMap 不上传，运营指数
-              v1 不受影响。
+              事件发送至 {{ appId }}，环境 {{ telemetryEnv }}，版本
+              {{ telemetryRelease }}。 请在对应项目的页面分析 → 质量分析中选择
+              {{ telemetryEnv }}，触发错误后点击刷新。 SourceMap 不上传，运营指数 v1
+              不受影响。
             </p>
           </div>
         </div>
