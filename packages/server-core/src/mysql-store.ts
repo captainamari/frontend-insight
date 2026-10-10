@@ -2280,10 +2280,6 @@ export class MySqlStore {
     };
   }
 
-  async onboardingStatus(projectId: string): Promise<DataStatusRecord> {
-    return this.getDataStatus(projectId);
-  }
-
   async audit(input: {
     projectId: string | null;
     actorUserId: string | null;

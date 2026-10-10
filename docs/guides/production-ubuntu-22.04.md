@@ -1,6 +1,6 @@
 # Ubuntu 22.04 单机生产部署
 
-适用分支：`agent/v1-8-r7-settings`。本次部署适配不表示 R6 已手工验收、R7 异常规则已获批准，或已经部署到真实服务器。真实环境启用前仍由 Owner 确认发布范围。
+适用分支：`agent/v1-8-r8-cleanup-acceptance`（继承 R7）。本次部署适配不表示 R6 已手工验收、R7 异常规则已获批准，或已经部署到真实服务器。真实环境启用前仍由 Owner 确认发布范围。
 
 ## 目标机器与容量
 
@@ -30,7 +30,7 @@ sudo bash scripts/production doctor
 检查自动生成的 `.env.production` 中端口、限流与 Kafka 保留期；不要放入密码。首次发布建议使用包含提交短 SHA 的唯一发布名，避免覆盖回滚镜像：
 
 ```bash
-sudo bash scripts/production deploy "r7-$(git rev-parse --short=12 HEAD)"
+sudo bash scripts/production deploy "r8-$(git rev-parse --short=12 HEAD)"
 sudo bash scripts/production bootstrap-admin
 sudo bash scripts/production verify
 sudo bash scripts/production status
@@ -100,3 +100,17 @@ sudo bash scripts/production status
 ```
 
 不要上传 `.env.production`、secret 文件、完整 inspect/config 或未审查的全部日志。`doctor` 仅为预检，完整部署成功仍需 `deploy`、`verify` 与浏览器链路验证。
+
+## R8 备份兼容边界
+
+备份格式 2 包含全部 MySQL 表、ClickHouse 原始事件及持久化重复操作证明；保留账户、项目配置、版本与审计。不备份 48 小时短引用。恢复时清除当前短引用，不能承诺恢复尚未形成长期证明的短期关联。不会改写已应用迁移或轮换密钥。
+
+```bash
+sudo bash scripts/production backup "before-r8"
+```
+
+恢复命令 `sudo bash scripts/production restore before-r8 --confirm-replace-data` 会替换数据，仅在 Owner 明确批准的维护窗口执行；本次未操作目标机。恢复前校验归档 checksum、完整有序逻辑行哈希和表结构，旧格式缺少证明或表结构不一致会在破坏前拒绝，须由 Owner 使用匹配版本制定迁移/恢复方案，不把缺失数据默认为零。恢复前自动创建安全备份；恢复后逐表重新导出完整有序 JSONEachRow 并比较 SHA-256（包括重复行），失败则保持业务服务停止。Native 分块/字典编码可能变化，不能以其导出字节相等替代逻辑数据校验。
+
+R8 的生产 CI 在隔离 runner 中真正删除测试事实、改变项目元数据后恢复，并比较持久化表、通过 HTTPS 重验账户、配置、SDK 事实及两浏览器。成功证据以 R8 results 的实际代码 SHA 为准；R7 历史链接不代表 R8 已通过。目标 Docker 27.3.1 / Compose 2.32.2 和真实服务器尚未实测。
+
+R8 最终已验证代码 `745308d69d88856c0b37d0c108296dca359f33d4`：[生产 Compose 37752868903](https://github.com/captainamari/frontend-insight/actions/runs/37752868903)、[完整回归 37752868714](https://github.com/captainamari/frontend-insight/actions/runs/37752868714) 均 attempt 1 成功，含实际备份恢复及恢复后双浏览器。证据与剩余验收边界见 [R8 results](../progress/v1.8-r8-results.md)。不代表已操作目标服务器。

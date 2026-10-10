@@ -5,7 +5,6 @@ import { api, ApiError } from "./api";
 import { projects } from "./projects";
 import type { Project } from "./types";
 import AppShell from "./components/AppShell.vue";
-import LegacyShell from "./components/LegacyShell.vue";
 import LoginView from "./views/LoginView.vue";
 
 export const router = createRouter({
@@ -62,53 +61,7 @@ export const router = createRouter({
         },
       ],
     },
-    {
-      path: "/",
-      component: LegacyShell,
-      children: [
-        { path: "", redirect: { name: "projects" } },
-        {
-          path: "features",
-          name: "features",
-          component: () => import("./views/FeaturesView.vue"),
-        },
-        {
-          path: "features/:featureId",
-          name: "feature-detail",
-          component: () => import("./views/FeatureDetailView.vue"),
-        },
-        {
-          path: "operational",
-          name: "operational-overview",
-          component: () => import("./views/OperationalOverviewView.vue"),
-        },
-        {
-          path: "pages",
-          name: "pages",
-          component: () => import("./views/PagesView.vue"),
-        },
-        {
-          path: "page-detail",
-          name: "page-detail",
-          component: () => import("./views/PageDetailView.vue"),
-        },
-        {
-          path: "observability",
-          name: "observability",
-          component: () => import("./views/ObservabilityView.vue"),
-        },
-        {
-          path: "operational-config",
-          name: "operational-config",
-          component: () => import("./views/OperationalConfigView.vue"),
-        },
-        {
-          path: "onboarding",
-          name: "onboarding",
-          component: () => import("./views/OnboardingView.vue"),
-        },
-      ],
-    },
+    { path: "/", redirect: { name: "projects" } },
     { path: "/:pathMatch(.*)*", redirect: "/" },
   ],
 });

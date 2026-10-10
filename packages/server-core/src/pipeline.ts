@@ -62,6 +62,7 @@ export interface IngestionMetricsSnapshot {
   kafkaFailures: number;
   rejectionCodes: Readonly<Record<string, number>>;
   latencyP95Ms: number;
+  recentTimings: ReadonlyArray<Readonly<Record<string, number>>>;
 }
 
 export class KafkaEnvelopePublisher implements EnvelopePublisher {
@@ -239,6 +240,7 @@ export class IngestionManager {
   private readonly cache = new Map<string, CachedProject>();
   private readonly limiter: IngestionRateLimiter;
   private readonly latencySamples: number[] = [];
+  private readonly recentTimings: Array<Record<string, number>> = [];
   private readonly metrics = {
     requests: 0,
     acceptedEvents: 0,
@@ -278,7 +280,8 @@ export class IngestionManager {
       rejectedEvents: this.metrics.rejectedEvents,
       kafkaFailures: this.metrics.kafkaFailures,
       rejectionCodes: Object.fromEntries(this.metrics.rejectionCodes),
-      latencyP95Ms: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
+      latencyP95Ms: sorted[Math.ceil(sorted.length * 0.95) - 1] ?? 0,
+      recentTimings: this.recentTimings.map((sample) => ({ ...sample })),
     };
   }
 
@@ -288,6 +291,14 @@ export class IngestionManager {
   ): Promise<IngestionAcceptance> {
     const startedAt = performance.now();
     this.metrics.requests += 1;
+    // Admin-only, bounded numeric diagnostics. No request/project/identity/payload labels.
+    const timings: Record<string, number> = { sequence: this.metrics.requests };
+    let stageStarted = startedAt;
+    const checkpoint = (stage: string) => {
+      const at = performance.now();
+      timings[stage] = at - stageStarted;
+      stageStarted = at;
+    };
     const nowMs = context.nowMs ?? (this.options.now ?? Date.now)();
     let project: ProjectIngestionConfig | null = null;
     let eventCount =
@@ -308,10 +319,12 @@ export class IngestionManager {
           path: validation.errors[0]?.path,
         });
       }
+      checkpoint("validationMs");
       const appId = validation.value.events[0]?.appId ?? "";
       project = await this.project(appId, nowMs);
       if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
       this.assertProject(project, context);
+      checkpoint("projectMs");
       try {
         await this.options.checkProbe?.(project.id, validation.value.sdk.version);
       } catch (e) {
@@ -322,6 +335,7 @@ export class IngestionManager {
           e instanceof Error && e.message === "PROBE_VERSION_BLOCKED" ? 403 : 503,
         );
       }
+      checkpoint("probePolicyMs");
       const rateKey = `${project.id}:${context.origin ?? "no-origin"}:${context.ip}`;
       if (!this.limiter.take(rateKey)) throw new IngestionError("RATE_LIMITED", 429);
       if (
@@ -352,13 +366,16 @@ export class IngestionManager {
           }
         }
       }
+      checkpoint("workflowMs");
       const directories = (await this.options.directories?.(project.id)) ?? [];
+      checkpoint("directoryMs");
       const { batch, enrichments, objects } = this.sanitize(
         project,
         validation.value,
         directories,
         nowMs,
       );
+      checkpoint("sanitizeMs");
       const requestId = randomUUID();
       const envelope: KafkaEventEnvelope = {
         envelopeVersion: 1,
@@ -379,6 +396,7 @@ export class IngestionManager {
         this.metrics.kafkaFailures += 1;
         throw new IngestionError("KAFKA_UNAVAILABLE", 503);
       }
+      checkpoint("kafkaMs");
       await this.store
         .markReceived({
           projectId: project.id,
@@ -387,6 +405,7 @@ export class IngestionManager {
           eventCount: batch.events.length,
         })
         .catch(() => {});
+      checkpoint("statusWriteMs");
       this.metrics.acceptedEvents += batch.events.length;
       return {
         requestId,
@@ -411,7 +430,10 @@ export class IngestionManager {
       }
       throw error;
     } finally {
-      this.latencySamples.push(performance.now() - startedAt);
+      timings.totalMs = performance.now() - startedAt;
+      this.recentTimings.push(timings);
+      if (this.recentTimings.length > 1000) this.recentTimings.shift();
+      this.latencySamples.push(timings.totalMs);
       if (this.latencySamples.length > 1_000) this.latencySamples.shift();
     }
   }

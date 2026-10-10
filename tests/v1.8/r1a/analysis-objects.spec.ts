@@ -10,8 +10,6 @@ async function login(page: Page, email: string, password: string): Promise<void>
   await expect(
     page.getByRole("heading", { name: "全部项目", exact: true }),
   ).toBeVisible();
-  await page.goto("/features");
-  await expect(page.getByRole("heading", { name: "功能采用" })).toBeVisible();
 }
 
 async function openSelect(container: Locator, label: string): Promise<void> {
@@ -116,7 +114,7 @@ test("admin completes the R1-A lifecycle, master-detail and workflow UX", async 
   await expect(page.getByRole("heading", { name: "页面定义" })).toBeVisible();
   await openSelect(page.locator(".page-master-controls"), "功能模块");
   await page.getByRole("option", { name: new RegExp(moduleName) }).click();
-  await expect(page.getByText("未归类 route 临时入口")).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看未归类页面" })).toBeVisible();
   await expect(page.getByText("R6 交付后迁移到")).not.toBeVisible();
 
   await page.getByRole("button", { name: "新建页面定义" }).click();

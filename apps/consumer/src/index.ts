@@ -155,7 +155,9 @@ export class EventConsumerRuntime {
     await this.consumer.subscribe({ topic: REPEATED_TOPIC, fromBeginning: true });
     this.metrics.ready = true;
     await this.consumer.run({
-      autoCommit: false,
+      // KafkaJS must persist hidden transactional control-only batches too.
+      autoCommit: true,
+      autoCommitThreshold: 1,
       eachBatchAutoResolve: false,
       eachBatch: (payload) => this.eachBatch(payload),
     });
@@ -208,20 +210,20 @@ export class EventConsumerRuntime {
               offset: message.offset,
               code: "OBJECT_ENVELOPE_INVALID_OR_EXPIRED",
             });
-            resolveOffset(message.offset);
           }
         }
         // Bounded batch writes/read; no per-object or per-user queries.
         if (objects.length > 50) throw new Error("OBJECT_BATCH_LIMIT");
         await projectRepeatedOperations(this.clickhouse, objects);
         for (const message of messages) resolveOffset(message.offset);
+        // Resolve only durable work. KafkaJS includes hidden control records when
+        // the last visible message is resolved, while preserving an unread suffix.
         await commitOffsetsIfNecessary();
         await heartbeat();
         return;
       }
       const envelopes: KafkaEventEnvelope[] = [];
       const rows: unknown[] = [];
-      const acceptedMessages: typeof messages = [];
       const parsedMessages: {
         message: (typeof messages)[number];
         envelope: KafkaEventEnvelope;
@@ -237,7 +239,6 @@ export class EventConsumerRuntime {
             offset: message.offset,
             code: errorCode(cause),
           });
-          resolveOffset(message.offset);
         }
       }
       const workflowProjectIds = [
@@ -356,7 +357,6 @@ export class EventConsumerRuntime {
             throw new Error("OBJECT_REFERENCE_IN_LONG_CHANNEL");
           rows.push(...this.rows(envelope));
           envelopes.push(envelope);
-          acceptedMessages.push(message);
         } catch (cause) {
           await this.deadLetter(message.value, {
             topic: batch.topic,
@@ -364,7 +364,6 @@ export class EventConsumerRuntime {
             offset: message.offset,
             code: errorCode(cause),
           });
-          resolveOffset(message.offset);
         }
       }
       if (rows.length) {
@@ -377,7 +376,9 @@ export class EventConsumerRuntime {
       for (const envelope of envelopes) {
         await this.mysql.markIngested(envelope.projectId, envelope.receivedAt);
       }
-      for (const message of acceptedMessages) resolveOffset(message.offset);
+      // Do not resolve a later dead-lettered message before earlier rows and
+      // their metadata are durable: auto-commit must never skip failed writes.
+      for (const message of messages) resolveOffset(message.offset);
       await commitOffsetsIfNecessary();
       await heartbeat();
       this.attempts.delete(attemptKey);

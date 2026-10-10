@@ -96,24 +96,18 @@ export class CoreService implements OnModuleDestroy {
     },
   );
   readonly auth = new AuthManager(this.mysql, this.environment.AUTH_TOKEN_SECRET);
-  readonly analytics = new AnalyticsStore(
-    {
-      url: this.environment.CLICKHOUSE_URL,
-      username: this.environment.CLICKHOUSE_USERNAME,
-      password: this.environment.CLICKHOUSE_PASSWORD,
-      database: this.environment.CLICKHOUSE_DATABASE,
-    },
-    this.mysql,
-  );
-  readonly observability = new ObservabilityStore(
-    {
-      url: this.environment.CLICKHOUSE_URL,
-      username: this.environment.CLICKHOUSE_USERNAME,
-      password: this.environment.CLICKHOUSE_PASSWORD,
-      database: this.environment.CLICKHOUSE_DATABASE,
-    },
-    this.mysql,
-  );
+  readonly analytics = new AnalyticsStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
+  readonly observability = new ObservabilityStore({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+  });
 
   readonly projectSummary = new ProjectSummaryService(
     this.mysql,

@@ -1,5 +1,7 @@
 # M7 + M8 Mac 本地验收指引
 
+> 历史记录：以下命令、入口和代码链接仅适用文中固定基线；v1.8 当前操作请使用 [最终验收指南](v1.8-local-acceptance-macos.md)。保留原文用于追溯，不表示当前阶段已通过手工验收。
+
 适用范围：requirements-v1.6 与 mvp-plan-v1.3 的 M7 生产硬化、M8 前端可观测性 v1。目标机仍为 Apple Silicon、32 GB 内存、Docker Desktop + Compose v2。
 
 本指引把三类证据分开：

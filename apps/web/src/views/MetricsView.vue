@@ -31,15 +31,6 @@ import type {
   WorkflowTriggerKind,
 } from "../types";
 
-interface UnclassifiedRoute {
-  pageRoute: string;
-  pageViews: number;
-  users: number;
-  browsers: number;
-  vv: number;
-  lastVisitAt: string | null;
-}
-
 interface OperationRegistryItem {
   operationKey: string;
   name: string;
@@ -70,7 +61,6 @@ interface AnalysisObjectsData {
   modules: ProjectModule[];
   pages: PageDefinition[];
   workflows: WorkflowDefinition[];
-  unclassified: UnclassifiedRoute[];
   operations: OperationRegistryItem[];
 }
 
@@ -250,40 +240,32 @@ async function load(): Promise<void> {
   const projectId = context.projectId.value;
   const archivedQuery = showArchived.value ? "?includeArchived=true" : "";
   const result = await resource.load(async () => {
-    const analytics = context.search.value
-      ? api.request<{ unclassified: UnclassifiedRoute[] }>(
-          `/api/projects/${projectId}/analytics/modules?${context.search.value}`,
-        )
-      : Promise.resolve({ unclassified: [] });
-    const [modules, pages, workflows, operations, moduleAnalytics, frozenWorkflow] =
-      await Promise.all([
-        api.request<ProjectModule[]>(
-          `/api/projects/${projectId}/modules${archivedQuery}`,
-        ),
-        api.request<PageDefinition[]>(
-          `/api/projects/${projectId}/page-definitions${archivedQuery}`,
-        ),
-        api.request<WorkflowDefinition[]>(
-          `/api/projects/${projectId}/workflow-definitions${archivedQuery}`,
-        ),
-        api.request<OperationRegistryItem[]>(
-          `/api/projects/${projectId}/operation-registry`,
-        ),
-        analytics,
-        typeof route.query.workflowId === "string" &&
-        typeof route.query.workflowDefinitionVersion === "string"
-          ? api.request<FrozenWorkflowVersion>(
-              `/api/projects/${projectId}/workflow-definitions/${encodeURIComponent(route.query.workflowId)}/versions/${encodeURIComponent(route.query.workflowDefinitionVersion)}`,
-            )
-          : Promise.resolve(null),
-      ]);
+    const [modules, pages, workflows, operations, frozenWorkflow] = await Promise.all([
+      api.request<ProjectModule[]>(
+        `/api/projects/${projectId}/modules${archivedQuery}`,
+      ),
+      api.request<PageDefinition[]>(
+        `/api/projects/${projectId}/page-definitions${archivedQuery}`,
+      ),
+      api.request<WorkflowDefinition[]>(
+        `/api/projects/${projectId}/workflow-definitions${archivedQuery}`,
+      ),
+      api.request<OperationRegistryItem[]>(
+        `/api/projects/${projectId}/operation-registry`,
+      ),
+      typeof route.query.workflowId === "string" &&
+      typeof route.query.workflowDefinitionVersion === "string"
+        ? api.request<FrozenWorkflowVersion>(
+            `/api/projects/${projectId}/workflow-definitions/${encodeURIComponent(route.query.workflowId)}/versions/${encodeURIComponent(route.query.workflowDefinitionVersion)}`,
+          )
+        : Promise.resolve(null),
+    ]);
     return {
       frozenWorkflow,
       modules,
       pages,
       workflows,
       operations,
-      unclassified: moduleAnalytics.unclassified,
     };
   });
   if (!result) return;
@@ -812,14 +794,23 @@ const currentCondition = computed(() =>
   currentStep.value ? workflowConditionContext(currentStep.value.triggerKind) : null,
 );
 
-function goToR6(): void {
-  void router.push({ name: "pages", query: { ...route.query, tab: "operations" } });
+function goToPageOperations(): void {
+  void router.push({
+    name: "project-pages",
+    params: { projectId: context.projectId.value },
+    query: {
+      env: route.query.env,
+      range: route.query.range,
+      from: route.query.from,
+      to: route.query.to,
+      tab: "operations",
+    },
+  });
 }
 
 watch(
   () => [
     context.projectId.value,
-    context.search.value,
     showArchived.value,
     route.query.workflowId,
     route.query.workflowDefinitionVersion,
@@ -1122,27 +1113,8 @@ watch(
                   >新增页面到当前模块</el-button
                 >
               </div>
-              <details class="unclassified-temporary">
-                <summary>
-                  未归类 route 临时入口
-                  <el-badge :value="resource.data.value.unclassified.length" />
-                </summary>
-                <p>R6 交付后迁移到“页面分析 → 运营分析”；这里不会长期展示大块空表。</p>
-                <el-button plain @click="goToR6"
-                  >前往 R6 页面运营入口（待交付）</el-button
-                >
-                <ul v-if="resource.data.value.unclassified.length">
-                  <li
-                    v-for="item in resource.data.value.unclassified"
-                    :key="item.pageRoute"
-                  >
-                    <code>{{ item.pageRoute }}</code> · {{ item.pageViews }} PV
-                    <el-button v-if="canWrite" link @click="openNewPage(item.pageRoute)"
-                      >预填页面</el-button
-                    >
-                  </li>
-                </ul>
-              </details>
+              <p>未归类页面与真实访问事实请在页面运营分析中查看。</p>
+              <el-button plain @click="goToPageOperations">查看未归类页面</el-button>
             </section>
 
             <section v-else role="tabpanel">
@@ -1819,19 +1791,6 @@ watch(
   display: flex;
   justify-content: flex-end;
   margin-top: 12px;
-}
-.unclassified-temporary {
-  margin-top: 24px;
-  padding: 14px 16px;
-  border: 1px dashed var(--border-color, #cbd5e1);
-  border-radius: 10px;
-}
-.unclassified-temporary summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-.unclassified-temporary li {
-  margin: 8px 0;
 }
 .route-preview {
   display: block;

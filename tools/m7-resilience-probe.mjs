@@ -90,22 +90,18 @@ async function verify() {
   const now = Date.now();
   const query = new URLSearchParams({
     from: new Date(now - 15 * 60_000).toISOString(),
-    to: new Date(now + 60_000).toISOString(),
-    timezone: "UTC",
-    granularity: "hour",
-    search: `/m7/fault/${marker}`,
-    page: "1",
-    pageSize: "20",
+    to: new Date(now).toISOString(),
+    env: "prod",
   });
   const deadline = Date.now() + 90_000;
   while (Date.now() < deadline) {
     const response = await fetch(
-      `${apiUrl}/api/projects/${projectId}/analytics/pages?${query}`,
+      `${apiUrl}/api/projects/${projectId}/page-operations?${query}`,
       { headers: { authorization: `Bearer ${token}` } },
     );
     if (response.ok) {
       const body = await response.json();
-      if (body.items?.some((item) => item.pageRoute === `/m7/fault/${marker}`)) {
+      if (body.routes?.includes(`/m7/fault/${marker}`)) {
         console.log(JSON.stringify({ command, marker, queryable: true, passed: true }));
         return;
       }
