@@ -1,3 +1,5 @@
+> **后续诊断开发计划 · 2026-10-10**：Jesse 明确要求有价值的诊断信息不脱敏、展示按角色控制。本次只补计划，代码待开发。合并 R8 后按 [运行时诊断 D0–D7](runtime-diagnostics-development-plan.md) 顺序实施；[ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 在诊断扩展内覆盖下文旧的脱敏、query/body 禁止和 SourceMap 非目标。其他指标、权限与业务批准边界不变。
+
 > **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
 
 > **R8 工程授权 · 2026-10-08**：用户明确授权清理、验证、推送与 Draft PR，可叠加尚未合并 R7；不代表 R6 手工验收或 R7 业务批准。当前 [R8 results](../progress/v1.8-r8-results.md)、[decisions](../progress/v1.8-r8-decisions.md) 与 [十二步指南](../guides/v1.8-local-acceptance-macos.md) 单独记录工程、自动化、手工和审批。历史阶段限制保留，不覆盖本次授权；不合并、不部署生产。
