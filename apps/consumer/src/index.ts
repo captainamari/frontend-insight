@@ -256,10 +256,18 @@ export class EventConsumerRuntime {
       const definitions = workflowProjectIds.length
         ? await readWorkflowFactDefinitions(this.mysql.pool, workflowProjectIds)
         : [];
-      const [projectRows] = workflowProjectIds.length
+      const contextProjectIds = [
+        ...new Set([
+          ...workflowProjectIds,
+          ...parsedMessages
+            .filter(({ envelope }) => envelope.batch.events.some((e) => e.diagnostic))
+            .map(({ envelope }) => envelope.projectId),
+        ]),
+      ];
+      const [projectRows] = contextProjectIds.length
         ? await this.mysql.pool.query(
             "SELECT id,app_id FROM projects WHERE id IN (?)",
-            [workflowProjectIds],
+            [contextProjectIds],
           )
         : [[]];
       const projects = projectRows as { id: string; app_id: string }[];
@@ -301,6 +309,14 @@ export class EventConsumerRuntime {
       }[];
       for (const { message, envelope } of parsedMessages) {
         try {
+          if (envelope.batch.events.some((e) => e.diagnostic)) {
+            const project = projects.find((p) => p.id === envelope.projectId);
+            if (
+              !project ||
+              envelope.batch.events.some((e) => e.appId !== project.app_id)
+            )
+              throw new Error("DIAGNOSTICS_PROJECT_CONTEXT_INVALID");
+          }
           if (envelope.batch.events.some((event) => event.payload.workflowInstanceId)) {
             const project = projects.find((p) => p.id === envelope.projectId);
             if (

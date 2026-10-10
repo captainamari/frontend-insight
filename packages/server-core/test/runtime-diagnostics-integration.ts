@@ -257,7 +257,10 @@ try {
   batch.events = Array.from({ length: 22 }, () => make().events[0]!);
   await call("/v1/events", "", "POST", batch, 202);
   const limitedPath = root + "/instances/" + batch.events.at(-1)!.eventId;
-  assert.equal((await call(limitedPath, token)).state, "rate_limited");
+  const limited = await call(limitedPath, token);
+  assert.equal(limited.state, "rate_limited");
+  assert.equal((limited.capture as { suppressed: number }).suppressed, 1);
+  assert(!JSON.stringify(limited).includes("FI_D0_SYNTHETIC"));
   const count = async () => {
     const response = await ch.query({
       query:
@@ -375,8 +378,16 @@ try {
     logLevel: logLevel.NOTHING,
   });
   const poison = JSON.stringify({
-    projectId: pid,
-    diagnostic: { raw: { message: "FI_D0_SYNTHETIC token=synthetic" } },
+    envelopeVersion: 1,
+    projectId: String(other.id),
+    requestId: randomUUID(),
+    receivedAt: new Date().toISOString(),
+    origin: "http://127.0.0.1:4174",
+    enrichments: [],
+    batch: {
+      ...b,
+      events: b.events.map((e) => ({ ...e, userId: null, deptId: null, roleId: null })),
+    },
   });
   const poisonHash = createHash("sha256").update(poison).digest("hex");
   const dead = kafka.consumer({ groupId: "d0-dlq-" + randomUUID() }),
@@ -392,6 +403,7 @@ try {
       const value = message.value?.toString() ?? "";
       if (value.includes(poisonHash)) {
         assert(!value.includes("FI_D0_SYNTHETIC"));
+        assert(value.includes("DIAGNOSTICS_PROJECT_CONTEXT_INVALID"));
         dlqSafe = true;
       }
     },

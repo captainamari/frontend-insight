@@ -42,7 +42,7 @@ try {
       )
     )[0],
   );
-  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [8]);
+  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [8, 9]);
   assert.equal(JSON.stringify((await pool.query("SELECT * FROM projects"))[0]), before);
   assert.equal(
     JSON.stringify(
@@ -59,19 +59,23 @@ try {
   // Old facts retain all columns and values; D0 only adds a separate table.
   await ch.command({
     query:
-      "INSERT INTO raw_events(event_id,project_id,request_id,event,app_id) VALUES('evt_d0_sentinel','99999999-9999-4999-8999-999999999992','99999999-9999-4999-8999-999999999993','error','d0_upgrade_sentinel')",
+      "INSERT INTO raw_events(event_id,project_id,request_id,event,app_id,timestamp,received_at) SELECT 'evt_d0_sentinel','99999999-9999-4999-8999-999999999992','99999999-9999-4999-8999-999999999993','error','d0_upgrade_sentinel',now64(3),now64(3)",
   });
   const snapshot = async () => {
-    const r = await ch.query({ query: "SELECT * FROM raw_events FORMAT JSONEachRow" });
+    const r = await ch.query({
+      query: "SELECT * FROM raw_events",
+      format: "JSONEachRow",
+    });
     return r.text();
   };
   const beforeCh = await snapshot();
+  assert(beforeCh.includes("evt_d0_sentinel"));
   assert.deepEqual((await runClickHouseMigrations(opts)).applied, [5]);
   assert.equal(await snapshot(), beforeCh);
   assert.deepEqual((await runClickHouseMigrations(opts)).applied, []);
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
-    mysql: "7→8",
+    mysql: "7→8→9",
     clickhouse: "4→5",
     existingData: "preserved",
     checksums: "unchanged",

@@ -23,5 +23,9 @@
 
 - 不删除历史脱敏/项目隔离/日志负向测试。旧采集器未迁移到新信封，现有测试继续适用。
 - 新诊断字段单独新增原文一致性正向测试；把原文放回普通 payload、冒充别的位置、改变元数据、跨 appId 仍拒绝。
-- 迁移清单由 MySQL 1–7 / ClickHouse 1–4 增加到 1–8 / 1–5；原升级脚本预期新增版本 8，不修改旧 SQL/checksum。
+- 迁移清单由 MySQL 1–7 / ClickHouse 1–4 增加到 1–9 / 1–5；原升级脚本预期新增版本 8、9，不修改旧 SQL/checksum。
 - 页面摘要仅新增公开关联 `eventId`，原文仍不进入列表；不会用详情缺失推断基础错误不存在。
+
+## D0 复核补充
+
+增加独立的 MySQL 009 迁移，receipt 保存不含 raw 的 capture_metadata，读取状态时同时返回 suppressed/omittedBytes/source/policyVersion/correlation。保持已提交 008 不变，避免重写迁移历史；空原文状态仍不需要保存诊断正文。

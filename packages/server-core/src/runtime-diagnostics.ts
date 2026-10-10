@@ -210,6 +210,12 @@ export class RuntimeDiagnostics {
             new Date(now),
           ],
         );
+        const { raw: _raw, ...captureMetadata } = event.diagnostic;
+        void _raw;
+        await c.execute(
+          "UPDATE diagnostic_receipts SET capture_metadata=? WHERE project_id=? AND event_id=?",
+          [JSON.stringify(captureMetadata), project, event.eventId],
+        );
       }
       await c.commit();
     } catch (e) {
@@ -272,7 +278,7 @@ export class RuntimeDiagnostics {
     await this.authorize(p, project, event, "diagnostics.read");
     try {
       const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
-        "SELECT state,expires_at FROM diagnostic_receipts WHERE project_id=? AND event_id=?",
+        "SELECT state,expires_at,capture_metadata FROM diagnostic_receipts WHERE project_id=? AND event_id=?",
         [project, event],
       );
       const r = rows[0];
@@ -295,7 +301,19 @@ export class RuntimeDiagnostics {
         else state = "unavailable";
       }
       await this.audit(p.userId, project, event, "diagnostics.read", state);
-      return { eventId: event, state, ...(diagnostic ? { diagnostic } : {}) };
+      return {
+        eventId: event,
+        state,
+        ...(r?.capture_metadata
+          ? {
+              capture:
+                typeof r.capture_metadata === "string"
+                  ? JSON.parse(r.capture_metadata)
+                  : r.capture_metadata,
+            }
+          : {}),
+        ...(diagnostic ? { diagnostic } : {}),
+      };
     } catch {
       await this.audit(p.userId, project, event, "diagnostics.read", "failed");
       throw new Error("DIAGNOSTICS_READ_FAILED");

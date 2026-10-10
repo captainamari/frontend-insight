@@ -34,19 +34,19 @@ await tracker.flush();
 
 使用平台登录 accessToken；appId 与外部接口 token 都无原文读取权。
 
-| API                                                           | 用法                                                                                                         |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `PUT /api/projects/:projectId/diagnostics/grants/:userId`     | admin；JSON `{ "read": true, "export": false }`。用户须已是项目成员。设置 false 撤权；移除成员时删除旧授权。 |
-| `PUT /api/projects/:projectId/diagnostics/policy`             | admin；JSON `{ "retentionDays": 14 }`；1–90，影响之后准入的详情，不回填历史。                                |
-| `GET /api/projects/:projectId/diagnostics/capabilities`       | 返回当前 read/export；没有导出产品接口。                                                                     |
-| `GET /api/projects/:projectId/diagnostics/instances/:eventId` | 原文受限读取；eventId 来自 SDK 发送或质量实例列表。返回 `state`，仅 ready 携带 `diagnostic`。                |
+| API                                                           | 用法                                                                                                                         |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `PUT /api/projects/:projectId/diagnostics/grants/:userId`     | admin；JSON `{ "read": true, "export": false }`。用户须已是项目成员。设置 false 撤权；移除成员时删除旧授权。                 |
+| `PUT /api/projects/:projectId/diagnostics/policy`             | admin；JSON `{ "retentionDays": 14 }`；1–90，影响之后准入的详情，不回填历史。                                                |
+| `GET /api/projects/:projectId/diagnostics/capabilities`       | 返回当前 read/export；没有导出产品接口。                                                                                     |
+| `GET /api/projects/:projectId/diagnostics/instances/:eventId` | 原文受限读取；eventId 来自 SDK 发送或质量实例列表。返回 `state` 与不含 raw 的 `capture` 元数据，仅 ready 携带 `diagnostic`。 |
 
 `pending` 是已准入尚未完成写入；`write_failed` 是写入失败正在重试；`rate_limited/too_large/unavailable` 表示详情缺失原因；`expired` 已到期；`not_enabled` 表示没有诊断接收记录（历史事件/未附带扩展），**不表示没有错误**。403 是没有当前项目原文权限，401 是登录无效。所有读取禁止共享缓存，审计不保存正文。策略管理不向 viewer 开放。
 
 ## 发布、备份与回滚
 
 1. 发布前备份 MySQL 和 ClickHouse，包括新增 grants/policies/receipts/audit 与 diagnostic_details。备份含原文，访问应限定运维账户；离线备份保留与删除由部署方设置，在线 TTL 不会擦除已有备份。
-2. 暂不启用 SDK 新入口，按现有迁移命令 `pnpm migrate` 执行 MySQL 008 / ClickHouse 005。只新增表，不改旧迁移，不 reset/seed。可重复执行；适用于已有数据。
+2. 暂不启用 SDK 新入口，按现有迁移命令 `pnpm migrate` 执行 MySQL 008–009 / ClickHouse 005。只新增表，不改旧迁移，不 reset/seed。可重复执行；适用于已有数据。
 3. 部署新 consumer，再部署 API 和代理，再启用新 SDK。旧 API/consumer 的 v3 schema 会拒绝新可选字段；不能先发新信封。滚动切换前要确认所有 consumer 实例升级。
 4. API/ingestion/代理 128 KiB，Kafka topic `max.message.bytes=262144`、broker 1 MiB；topic 原文队列保留 24 小时、segment 1 分钟。沿用部署 Compose 的 kafka-topics 初始化步骤更新已有 topic。**该队列调整同时缩短基础事件的故障重放窗口，必须保证消费延迟小于 24 小时**。详情默认保存 14 天，统计仍沿用 90 天。
 5. 逻辑 TTL 在读 API 即时生效；ClickHouse TTL 和 Kafka segment 清理是异步物理删除。缩短策略不追溯旧记录；D6 再补主动删除与完整运营 UI。备份恢复后仍由原 expires_at 决定是否可读，不能用恢复时间延长 TTL。
