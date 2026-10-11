@@ -282,6 +282,34 @@ export function createQualityCollectors(options: QualityOptions) {
   ) {
     safe(() => {
       if (!options.jsErrors || !state?.selected || state.closed) return;
+      let legacy = {};
+      if (!port?.rawErrors) {
+        const e = error instanceof Error ? error : new Error("Unhandled exception");
+        const name = [
+          "Error",
+          "TypeError",
+          "RangeError",
+          "ReferenceError",
+          "SyntaxError",
+          "URIError",
+          "EvalError",
+        ].includes(e.name)
+          ? e.name
+          : "Error";
+        const frame = (e.stack ?? "")
+          .split("\n")
+          .slice(1, 4)
+          .join(" ")
+          .match(/https?:\/\/[^\s)]+/);
+        legacy = {
+          errorName: name,
+          errorMessage: "JavaScript exception",
+          stackTopFrame:
+            frame && port
+              ? normalizeRequestPath(frame[0], port.runtime.window.location.href)
+              : "[unavailable]",
+        };
+      }
       port?.error(
         error,
         category === "js"
@@ -294,6 +322,7 @@ export function createQualityCollectors(options: QualityOptions) {
         occurrence,
         {
           ...meta(),
+          ...legacy,
           errorCategory: category,
           ...(options.breadcrumbs
             ? { breadcrumb: Object.fromEntries(crumbs.map((c, i) => [`b${i}`, c])) }

@@ -230,6 +230,7 @@ export class BrowserTracker implements Tracker {
       this.quality = config.quality?.({
         runtime,
         error: this.reportError,
+        rawErrors: !!config.errorDiagnostics,
         diagnostics: () => this.getDiagnostics(),
         capture: () => {
           const context = {
@@ -841,7 +842,7 @@ export class BrowserTracker implements Tracker {
       errorType: "js",
       errorCategory: "js",
       errorName: "Error",
-      errorMessage: "JavaScript exception",
+      errorMessage: "Error",
       stackTopFrame: "",
     },
   ): void {
@@ -892,13 +893,7 @@ export class BrowserTracker implements Tracker {
         this.emit("error", {
           errorType: "js",
           errorCategory: source === "promise" ? "promise" : "js",
-          ...(extra.qualityVersion
-            ? {
-                errorName: "Error",
-                errorMessage: "JavaScript exception",
-                stackTopFrame: "",
-              }
-            : errorDetails(value)),
+          ...errorDetails(value),
           ...extra,
         });
     });

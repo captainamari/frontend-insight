@@ -26,6 +26,7 @@ const logs = execFileSync(
   { encoding: "utf8", maxBuffer: 20 * 1024 * 1024 },
 );
 assert(!logs.includes("FI_D0_SYNTHETIC"), "D0_SERVICE_LOG_LEAK");
+assert(!logs.includes("FI_D1_SYNTHETIC"), "D1_SERVICE_LOG_LEAK");
 writeFileSync(
   "artifacts/d0-logs.json",
   JSON.stringify({ testedCommit: process.env.GITHUB_SHA, serviceLogs: "passed" }),

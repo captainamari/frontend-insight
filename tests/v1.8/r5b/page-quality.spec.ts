@@ -263,7 +263,7 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   await expect(button).toBeVisible();
   await button.focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "安全复现条件" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "错误诊断详情" })).toBeVisible();
   await expect(page.getByRole("dialog")).toContainText("r5b-browser");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();

@@ -8,6 +8,7 @@ export type QualityEmit = (
 export interface QualityPort {
   runtime: TrackerRuntime;
   error: ErrorReport;
+  rawErrors: boolean;
   capture(): QualityEmit;
   diagnostics(): Readonly<TrackerDiagnostics>;
 }

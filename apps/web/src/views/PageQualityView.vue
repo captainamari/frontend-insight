@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import DiagnosticDetail from "../components/DiagnosticDetail.vue";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useRoute, useRouter, type LocationQueryRaw } from "vue-router";
 import { ElDrawer } from "element-plus";
@@ -8,6 +9,7 @@ import { CANONICAL_RANGES } from "@frontend-insight/event-contract/canonical";
 import { resolveProjectCalendar } from "@frontend-insight/event-contract/project-range";
 import { projects } from "../projects";
 interface Occurrence {
+  eventId: string | null;
   occurrenceId: string;
   groupId: string;
   timestamp: string;
@@ -373,13 +375,19 @@ onBeforeUnmount(() => {
     </template>
     <ElDrawer
       v-model="open"
-      title="安全复现条件"
-      size="min(560px, 94vw)"
+      title="错误诊断详情"
+      size="min(840px, 94vw)"
       :close-on-press-escape="true"
       destroy-on-close
     >
       <template v-if="selected">
         <p>{{ time(selected.timestamp) }} · {{ selected.category }}</p>
+        <DiagnosticDetail
+          v-if="open"
+          :key="String(route.params.projectId) + selected.occurrenceId"
+          :project-id="String(route.params.projectId)"
+          :event-id="selected.eventId"
+        />
         <dl class="quality-context">
           <template v-for="(label, key) in contextLabels" :key="key"
             ><dt>{{ label }}</dt>
