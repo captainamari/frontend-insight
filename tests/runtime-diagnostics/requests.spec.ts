@@ -66,7 +66,7 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   await post(`/workflow-definitions/${workflow.id}/activate`, {
     versionId: workflow.latestVersion.id,
   });
-  const transportChecks: boolean[] = [];
+  const transportErrors: { code: string; path: string; message: string }[] = [];
   const receipts: Promise<{ status: number; code: unknown }>[] = [];
   page.on("response", (r) => {
     if (r.url().endsWith("/v1/events"))
@@ -94,7 +94,8 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   page.on("request", (r) => {
     if (r.url().endsWith("/v1/events") && r.postData()) {
       const batch = JSON.parse(r.postData()!);
-      transportChecks.push(validateTransportBatch(batch).ok);
+      const validation = validateTransportBatch(batch);
+      if (!validation.ok) transportErrors.push(...validation.errors);
       wire.push(...batch.events);
     }
   });
@@ -325,9 +326,9 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
     };
   }, project.appId);
   expect(
-    transportChecks.every(Boolean),
+    transportErrors,
     "D3 outgoing batches must satisfy the server contract",
-  ).toBe(true);
+  ).toEqual([]);
   const accepted = await Promise.all(receipts);
   expect(accepted.filter((r) => r.status !== 202)).toEqual([]);
   expect(evidence.opaqueType).toBe("opaque");

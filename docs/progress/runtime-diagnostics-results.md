@@ -273,7 +273,7 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 
 ### D3 第二轮真实CI
 
-代码 `eb6d16583b104466428b66a2b2d041dfd89d62af`，CI [38122434801](https://github.com/captainamari/frontend-insight/actions/runs/38122434801) 仍失败。真实HTTP、取消/网络/SSE/opaque、SDK原文字段和快照断言已通过；服务端详情等待返回not_enabled。测试创建了真实SDK工作流，却未在服务端注册/激活定义，现有工作流准入合同会拒绝该批次；补齐项目module/feature/workflow定义及激活，并增加每个出站批次的合同和ingestion202断言，避免把发送视为接收成功。保留D0–D2已通过8项，不把本轮当最终交付。
+代码 `eb6d16583b104466428b66a2b2d041dfd89d62af`，CI [38122434801](https://github.com/captainamari/frontend-insight/actions/runs/38122434801) 仍失败。真实HTTP、取消/网络/SSE/opaque、SDK原文字段和快照断言已通过；服务端详情等待返回not_enabled。测试创建了真实SDK工作流，却未在服务端注册/激活定义，这是已发现的fixture缺口，但当时尚未取得实际拒收字段，不能把它认定为唯一根因；补齐项目module/feature/workflow定义及激活，并增加每个出站批次的合同和ingestion202断言，避免把发送视为接收成功。保留D0–D2已通过8项，不把本轮当最终交付。
 
 ## D3 实现与验证矩阵
 
@@ -300,3 +300,5 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 第三轮 [38123203413](https://github.com/captainamari/frontend-insight/actions/runs/38123203413) 在检查通过后被后续提交按分支并发策略取消；不作为成功证据。复核补充了重复使用同一个Response时的关联淘汰保护，并将时钟粒度采样与冻结工作耗时分开，避免用工作耗时冒充计时分辨率。针对性15项请求测试通过。当前代码 `f98a2232a509f465829b3623bd7e572cb020c2eb`，正在等待 [38123327038](https://github.com/captainamari/frontend-insight/actions/runs/38123327038) 完整结果。
 
 第四轮 `38123327038` 完成完整检查、增量升级及D0服务回归后，在Playwright加载测试时失败：新增运行时validator使用了根package未声明的workspace包名。改为仓库已有E2E使用的相对源码入口，并在本地用 `playwright --list` 验证独立runner加载；类型导入本身不需要运行时解析。本轮没有执行浏览器用例，不将其记为通过。同步加入第三方非原生返回值保护及unit；最新本地完整75文件/599项通过。
+
+第五轮 [38123667731](https://github.com/captainamari/frontend-insight/actions/runs/38123667731) 完整检查和D0回归成功、继承双浏览器8项通过；D3在新加入的出站合同断言失败，尚未进入授权API/UI验证。完整SDK快照与tracker+quality+operation/workflow的本地合同回归已新增并通过；将布尔断言改为只输出合同错误code/path/message（不输出原文），继续定位实际浏览器差异。没有放宽合同、删除断言或把此轮记作通过。

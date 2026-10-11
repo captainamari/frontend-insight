@@ -1,3 +1,5 @@
+import { validBatches } from "@frontend-insight/test-fixtures";
+import { validateTransportBatch } from "@frontend-insight/event-contract";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRequestDiagnostics, type RequestRecord } from "../src/requests.js";
 import { headersEvidence, textEvidence } from "../src/request-evidence.js";
@@ -422,5 +424,42 @@ describe("D3 controlled request evidence", () => {
     expect(f.requests.bind().wrapFetch(original)("/custom")).toBe(token);
     expect(touched).toBe(0);
     expect(records(f)[0]!.result).toBe("pending");
+  });
+  it("validates the complete SDK request snapshot through the transport contract", async () => {
+    const batch = structuredClone(validBatches[0]!);
+    const base = batch.events[0]!;
+    const f = fixture({}, base.appId);
+    f.page(base.pageViewId);
+    const bound = f.requests.bind({
+      operationInstanceId: "op_synthetic",
+      workflowInstanceId: "wf_synthetic",
+      stepKey: "submit",
+      attemptId: "try1",
+    });
+    bound.action("submit report", "export-button", { token: "synthetic" });
+    const response = await bound.wrapFetch(
+      async () => new Response("text", { status: 503 }),
+    )("/failure?token=synthetic", {
+      method: "POST",
+      body: "token=synthetic",
+      headers: { "x-token": "synthetic" },
+    });
+    f.requests.responseText(response, "original text");
+    batch.events = [
+      {
+        ...base,
+        event: "error",
+        payload: {
+          errorType: "js",
+          errorCategory: "js",
+          errorName: "Error",
+          errorMessage: "Explicit diagnostic",
+          stackTopFrame: "",
+        },
+        diagnostic: f.freeze(),
+      },
+    ];
+    const result = validateTransportBatch(JSON.parse(JSON.stringify(batch)));
+    expect(result.ok, JSON.stringify(result.ok ? {} : result.errors)).toBe(true);
   });
 });
