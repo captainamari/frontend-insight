@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import {
-  createErrorDiagnostics,
   installVueErrorHandler,
   createReactErrorHandler,
 } from "@frontend-insight/web-tracker/errors";
+import { createConsoleDiagnostics } from "@frontend-insight/web-tracker/console";
 import EfficiencyDemo from "./EfficiencyDemo.vue";
 import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
@@ -146,7 +146,10 @@ function initializeTracker(): void {
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
-    errorDiagnostics: createErrorDiagnostics(),
+    errorDiagnostics: createConsoleDiagnostics({
+      scope: { appId },
+      levels: ["error", "warn", "log", "info", "debug"],
+    }),
     observability: {
       enabled: true,
       captureJsErrors: true,
@@ -218,10 +221,44 @@ function exposeScene(value: Scene): void {
   if (value === "wallboard") tracker.featureExposed("operations_wallboard");
 }
 
+async function consoleScene(stress = false) {
+  if (!tracker) return;
+  if (!stress) {
+    console.error("FI_D2_SYNTHETIC 只有日志，没有异常");
+    await tracker.flush();
+    return;
+  }
+  const value: Record<string, unknown> = { state: "修改前", bigint: 42n };
+  value.self = value;
+  for (let i = 0; i < 55; i++) console.debug("FI_D2_SYNTHETIC 缓冲淘汰", i);
+  console.warn("FI_D2_SYNTHETIC 对象快照", value);
+  value.state = "修改后";
+  const error = new Error("FI_D2_SYNTHETIC console Error 参数");
+  error.stack = "Error: console 参数\n at prepareChart (/assets/d2.js:15:6)";
+  console.error(error);
+  console.log("FI_D2_SYNTHETIC 超长参数", "中文\n".repeat(2000));
+  tracker.captureException(new Error("FI_D2_SYNTHETIC 快照与预算验收"));
+  await tracker.flush();
+}
+
 async function captureObservability(
   kind: "js" | "api" | "resource" | "vital" | "throw" | "promise" | "vue" | "react",
 ): Promise<void> {
   if (!tracker) return;
+  if (["js", "throw", "promise", "vue", "react"].includes(kind)) {
+    console.info("FI_D2_SYNTHETIC 开始加载图表", {
+      action: kind,
+      url: "https://fixture.invalid/?token=synthetic",
+    });
+    console.warn("FI_D2_SYNTHETIC 库存不足\n准备重新计算", {
+      available: 2,
+      requested: 3,
+    });
+    console.error("FI_D2_SYNTHETIC 绘图数据无效", {
+      nested: { token: "synthetic" },
+      html: "<b>仅文本</b>",
+    });
+  }
   if (kind === "throw") {
     setTimeout(function d1RealThrow() {
       throw new TypeError("FI_D1_SYNTHETIC token=throw\n真实抛错");
@@ -602,6 +639,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
+            <button @click="consoleScene(false)">只有 console.error</button>
+            <button @click="consoleScene(true)">console 快照与预算</button>
             <button type="button" @click="captureObservability('throw')">
               真实 throw
             </button>

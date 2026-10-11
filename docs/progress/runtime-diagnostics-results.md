@@ -153,3 +153,94 @@ D0 基础 gzip 12,252 bytes；D1 基础 12,276 bytes，增加 24 bytes，原上�
 D1 已完成实现与自动化交付，没有替用户填写手工验收通过；[Draft PR #30](https://github.com/captainamari/frontend-insight/pull/30) 指向 refactor，未自动合并。D1 仅代表错误诊断首个可试用闭环。
 
 合并后 D2 入口：核实 PR #30 的实际合入内容，从最新 refactor 新建 D2 分支，按开发计划“D2 — console 上下文”实现有界环形缓冲、包装/销毁恢复、错误时冻结快照和授权页面。继承本批原文权限/预算/计数，不提前实现 D3–D7。剩余限制见前述覆盖说明；基础包仅余 12 bytes，应继续采用显式可选入口。
+
+## D2 检查点 1：SDK（2026-10-11，进行中）
+
+- 实际基线 `69ad25ad0d68040067f5114ca709e2657676b85e`；已核对 PR #30 合并，且 refactor 内容与 D1 文档收尾 `fea2ea31dbfdbb08d0e0624344f50be14fa632ce` 一致。没有新增人工验收记录。工作区为新克隆，无原有修改；未发现适用 AGENTS.md。
+- 分支 `agent/runtime-diagnostics-d2-console`。已实现可选 console 入口、原调用语义、独立快照、生命周期与作用域、UTF-8/JSON 总预算；具体实现 `web-tracker/src/console.ts`、`console-snapshot.ts`、`error-port.ts`、`tracker.ts`。
+- 基础包门禁未调整：本检查点实测 12,258 bytes；errors 1,971；console 2,684；quality 5,239。基础+errors+console 16,913；再加 quality 22,152。console 的 errors 依赖作为独立公共下载计入，不重复内嵌。
+- SDK/合同针对性 29 项通过；此前完整检查到类型阶段通过，574 单测中一项 fixture 在 Vitest 自定义 stack formatter 下失败，已改成明确的数据属性 fixture 并通过针对性测试。完整门禁仍须重跑，不声称完成。
+- 本地没有 Docker，真实服务和浏览器全链路将由 D2 Actions 一次性环境运行。当前没有真实 CI 成功证据。
+- 下一步：提交 SDK 检查点；完成授权详情/实验室/专项浏览器测试，运行 `pnpm check` 后推送并核对 D2 CI。D2 尚未交付；D3–D7 未实施。
+
+## D2 检查点 2：授权详情与实验室（进行中）
+
+- SDK 远端提交 `70be050ff7f58a06d2d02e71d74242fed0e51c40`；命令行 Git 没有写入凭据，通过已授权 GitHub 连接器提交，已核对本地/远端源码 tree 完全一致并同步本地分支。不是推送失败后放弃交付。
+- 已实现 `DiagnosticDetail.vue` console 级别/时间/相对时间/参数/展开/过滤/复制与淘汰说明；复制沿用重新授权，原文仍由实例 API 返回。历史缺失和未启用分开，存储/采集/解析/权限层不合并。
+- 场景实验室所有错误入口增加业务日志；新增仅 console.error 与快照/BigInt/循环/长参数/淘汰场景。React 仍为显式适配器，Vue 是真实组件事件，未宣称真实 React 树。
+- 本地完整 `pnpm check` 已通过 74 文件 / 576 单测与构建；后续补充信封最终状态预算边界及实验室日志断言，将随同提交 CI 重新验证。
+- D2 workflow 继承真实 D0/D1、权限六身份、故障/TTL/重试、R5-A/B 与分母验证；新增 console 原文逐字段 API/UI 检查、复制时撤权、浏览器同步开销和持续有界容量测量。D0 真实 fixture 增加 console 原文，负向检查保留并扩展至原始事实/审计/DLQ/服务日志/Prometheus。
+- 尚未得到真实 CI 结果，不标记 D2 完成。下一步提交此检查点、创建 Draft PR、等待并修复实际 Actions；完成指南和最终证据。
+
+## D2 实现矩阵（最终代码和真实 CI 已通过，待用户验收/评审）
+
+| D2 任务                            | 实现位置                                                              | 已有验证 / 交付边界                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 可选五级 console 与默认 error/warn | `web-tracker/src/console.ts`、`package.json`                          | 默认/自定义级别、显式禁用、不可用级别；无独立网络请求或全局异常监听                                                                                            |
+| 调用时快照、异常前冻结、重试稳定   | `console-snapshot.ts`、`console.ts`、`tracker.ts`                     | 对象后改、后续日志、连续异常、异常发生在原 console 尚未返回时、重试 body 不变                                                                                  |
+| 有界序列化与预算                   | 同上、`event-contract/src/diagnostics.ts`                             | 50/24KiB/60s/整条2KiB，UTF-8/JSON转义、紧缩预算、总信封与状态/元数据；Error/cause/AggregateError、BigInt/循环/不可读；getter/toJSON 不执行                     |
+| 原 console 行为与恢复              | `console.ts`、`sdk-console.ts`                                        | 参数引用和顺序、this、返回、抛错；递归、重复安装、第三方前后包装/所有权、缺失/不可写；同前缀业务日志保留                                                       |
+| 页面/实例/项目隔离                 | `console.ts`、tracker lifecycle                                       | 独立 records/元数据、导航/pageView、destroy/reinitialize；同项目多实例；不同 scope 冲突停止采集；存活 tracker 的导航不被另一实例销毁破坏                       |
+| 计数、D1 去重与 D0 传输            | 原 `reportError/captureDiagnostic` 与 D2 模块                         | console.error 不计 JS；25 个独立错误全部计数、最多20份详情；双监听去重、旧 v3、重试/TTL/故障保持                                                               |
+| 按实例授权与原文隔离               | 原 RuntimeDiagnostics/DiagnosticsController、`error-stack.ts`         | 服务端 diagnostics.read/当前成员、admin审计、no-store；D0六身份及撤权/移除；普通列表/raw_events/审计/DLQ/Prometheus/服务日志负向断言保留并扩充 console fixture |
+| 详情页面与状态                     | `DiagnosticDetail.vue`、受限 console view                             | 级别/顺序/时间/相对毫秒、参数与Error栈、展开/过滤/复制再授权；legacy/not_enabled/empty/conflict，继承存储和访问状态；文本渲染不执行HTML                        |
+| 实验室                             | `demo-app/src/App.vue`                                                | 五种实际错误路径先记录 info/warn/error；仅console、对象后改/循环/BigInt/Error/长参数/缓冲淘汰；React为显式回调，不是React树                                    |
+| 双浏览器与性能                     | `tests/runtime-diagnostics/console.spec.ts`、errors.spec、D2 workflow | 最终同提交真实双浏览器完整链路已通过；参数/顺序/级别/相对时间、具体错误/帧、撤权与复制。普通1000/复杂1000/高频10000/冻结500采样；最终测量见下表                |
+| 体积与交接                         | build-bundle、D2指南、SDK README、用户指南、学习18                    | 基础12KiB不变，私有属性压缩白名单；各可选模块和组合计量；无新增迁移；Firefox仅fixture；D3–D7未完成                                                             |
+
+### D2 检查点 3（最终回归准备）
+
+首轮验证代码 `101095a2807ebabcbb49a51ee4438acef942b9cf`，CI [38118755398](https://github.com/captainamari/frontend-insight/actions/runs/38118755398)。已确认真实权限/故障/双浏览器链路通过，继承回归仍在执行，未提前填全部成功。
+
+复核追加：复制 console 的 limits/unavailableLevels，冻结配置所有者并只接受五个合法级别；避免可变元数据跨异常共享。增加总信封边界、配置/元数据变更、实际双 tracker 销毁后导航与 SDK warning 排除测试，18 项 D2 单测通过。console 模块现为 2,706 bytes，完整启用组合 22,174 bytes；最终 CI 会重新构建确认。指南已完成，接下来提交此批最终代码并等待同 SHA 的全部 Actions 完成，再追加最终证据。
+
+首轮 CI `38118755398` 已全步骤成功（代码仍为 `101095a...`，不冒充后续修订已验证），artifact `11693823421` 为 5,221 bytes，仅摘要 JSON。初步测量：Chromium 时钟约0.1ms，普通/复杂/高频/冻结 p95 约0.1/0.3/0.1/0.2ms；WebKit 时钟约1ms，对应 <分辨率/1/<分辨率/1ms。连续调用后保留50条、10,601 bytes。最终同提交测量将在下一轮完成后追加，不用此轮替代最终结果。
+
+## D2 最终交付证据（2026-10-11）
+
+- **实际基线**：`69ad25ad0d68040067f5114ca709e2657676b85e`，已含 D1 PR #30 代码与文档；内容与 D1 收尾树核对一致，不以人工验收已完成为前提。
+- **精确验证代码 SHA**：`f4cde46088c5525c7b33d1ec481ba043aff49172`；源码 tree `0afa801aad008859b846c90a132b4fad73cbc291`。
+- **最终真实 CI**：[38119220688](https://github.com/captainamari/frontend-insight/actions/runs/38119220688)，job `114410298385`。已核对 run.head_sha 和 artifact testedCommit 均为上述代码；全部步骤成功。
+- `pnpm check`：格式、workspace、合同生成/规范名、lint、类型、**74 文件 / 580 单测**、完整构建通过。
+- D0/D1/D2 **Chromium/WebKit 共8项**真实 SDK→ingestion→Kafka→consumer→存储→授权API→UI 通过。每浏览器D2三个异常逐字段往返；保留对象原值/嵌套token/query/换行/HTML文本、Error栈、级别/序号/时间与相对时间公式；D1具体消息/函数/文件/行列号继续断言。实际实验室显式/throw/Promise/Vue/React适配器的前置业务日志顺序通过。
+- D0实际增量升级、六身份、旧v3、限流保留计数、重试/冲突、TTL、部分写入失败恢复、详情原文与普通事实/审计/DLQ/Prometheus隔离通过；fixture含D2 console原文。撤权/移除成员的新请求立即拒绝；UI原文清除及复制过程重新授权通过。
+- R5-A **2项**、R5-B **2项**真实浏览器/质量指标/分母回归，storage privacy 和全部服务日志原文隔离通过。未删除继承负向测试。
+- [最终证据 artifact](https://github.com/captainamari/frontend-insight/actions/runs/38119220688/artifacts/11695030123)：**5,257 bytes**，保留7天；SHA-256 `c56d12cbbbf833b5fa057938801df9f7ae1657011b339d1f5faf075e4b4119ed`，已下载核对。仅必要摘要与测量JSON/包体，不上传trace、原文body、服务日志或重复中间附件。
+- [Draft PR #31](https://github.com/captainamari/frontend-insight/pull/31) 指向 refactor，保持Draft，未自动合并。SDK、授权页面/实验室、验证与指南三个检查点已提交远端。最后仅更新docs证据，不把文档收尾SHA冒充经过完整CI验证的代码SHA；文档SHA记录在PR和交付回复。
+
+### 最终 SDK 下载量（gzip bytes）
+
+| 模块 / 实际启用组合               |   字节 |
+| --------------------------------- | -----: |
+| 基础入口                          | 12,258 |
+| 可选 errors                       |  1,971 |
+| 可选 console（引用公共errors.js） |  2,706 |
+| 可选 quality                      |  5,239 |
+| 基础 + errors                     | 14,229 |
+| 基础 + errors + console           | 16,935 |
+| 基础 + errors + console + quality | 22,174 |
+
+基础门禁仍为12,288 bytes，余量30 bytes；比D1实测12,276少18 bytes。真实启用console要增加可选下载，不将模块成本记作零。方案比较见decisions；没有预算上调待决策项。
+
+### 最终同步测量（毫秒，p50 / p95）
+
+环境：GitHub Actions Ubuntu 24.04；Playwright Chromium **140.0.7339.16**、WebKit **26.0**。Desktop设备配置的UA包含模拟Windows/macOS标识，不代表runner运行这些系统。使用performance.now，实际检测分辨率Chromium约**0.1ms**、WebKit约**1ms**。
+
+| 场景           | 采样 / 对象规模                                    | Chromium p50 / p95 | WebKit p50 / p95 |
+| -------------- | -------------------------------------------------- | ------------------ | ---------------- |
+| 普通日志       | 1,000；两参数、单字段对象                          | 约0.1 / 0.2        | 低于分辨率 / 约1 |
+| 复杂对象       | 1,000；32项，每项嵌套100个中文字符，超预算明确裁剪 | 约0.4 / 0.7        | 低于分辨率 / 约1 |
+| 持续高频日志   | 10,000次；短字符串与数字                           | 低于分辨率 / 约0.1 | 低于分辨率 / 约1 |
+| 异常冻结与提取 | 500；已填满缓冲 + 两行Error栈                      | 约0.2 / 0.3        | 低于分辨率 / 约1 |
+
+所有原console方法在测量fixture中为no-op；报告同步采集/提取成本，不包括DevTools渲染、网络、API、UI，不作零开销或性能SLA承诺。两浏览器高频调用后均为**50条 / 10,651 bytes**，保持50条/24KiB上限；单测同时验证24KiB与单条2KiB的UTF-8/JSON边界。原始量化读数在artifact；与首轮不同是独立CI测量，不把首轮较小值替代最终值。本批不冒充D7长期压力、20/200 events/s、完整容量或备份恢复验证。
+
+### 升级、手工验收与剩余边界
+
+- 无新迁移；先有D0基础存储/consumer/API，再部署D2 API/UI，最后配套新版基础SDK和可选console。旧v3及D1合法信封保持兼容；旧console裸字符串的引号/转义计量边界收紧已说明。旧数据不回填。
+- [D2指南](../guides/runtime-diagnostics-d2.md) 给出完整启用示例、默认行为、作用域、预算、状态与可执行实验室验收。通过页面应看到具体错误和异常采集前的info→warn→error业务原文及参数；仅console.error不增JS计数。
+- 真实Firefox未运行，仅继承栈格式fixture；React是显式适配器回调，不是挂载React树；Vue为真实框架事件。剪贴板测试使用浏览器sink，不声称操作系统剪贴板集成。pending/write_failed/expired等故障层由真实服务验证，不宣称每一种状态都做过UI故障注入。
+- console无法可靠归属多项目；接入方必须声明realm所有者，冲突停止采集。来源未知保持unknown。不可读/未遍历字节标下界，无法中断宿主无限同步Proxy陷阱；不声称完整复制DevTools。
+- 当前服务端请求即时按最新权限拒绝；前端通过每秒轮询/失焦/卸载/切换清理，不承诺撤回已返回字节。原文仍只由按实例授权API读取。
+- 无新增待决策预算项；没有连接生产、自动合并或代填人工验收通过。D2完成只代表可用console上下文，**D3–D7仍未完成**。
+- 合并后D3入口：核实PR #31已合入最新origin/refactor，再从该实际基线实施“请求、操作与工作流关联”；沿用已验证的原文权限、日志快照、基础计数与预算，不从未合并D2自行叠加。

@@ -84,6 +84,15 @@ describe("D0 versioned raw slot", () => {
     b.events[0]!.ua = "a".repeat(9000);
     expect(validateTransportBatch(b).ok).toBe(false);
   });
+  it("counts console JSON quoting, escaping and metadata inside the 2 KiB record cap", () => {
+    const d = structuredClone(diagnostic);
+    d.raw.console = ["a".repeat(2046)];
+    expect(diagnosticBudgetError(d)).toBeNull();
+    d.raw.console = ["a".repeat(2047)];
+    expect(diagnosticBudgetError(d)).toBe("console_entry");
+    d.raw.console = [{ parameters: ["\0".repeat(400)], level: "warn" }];
+    expect(diagnosticBudgetError(d)).toBe("console_entry");
+  });
   it("bounds reserved stack, cause, console, body and header sections", () => {
     for (const raw of [
       { stack: "a".repeat(16385) },

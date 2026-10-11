@@ -1,3 +1,4 @@
+import { sdkWarn } from "./sdk-console.js";
 import { noopForm } from "./forms.js";
 import { noopWorkflow } from "./workflow.js";
 import type { Tracker, TrackerDiagnostics } from "./types.js";
@@ -15,7 +16,7 @@ export function createNoopTracker(code: string, development = false): Tracker {
     lastErrorCode: code,
     warnings: [code],
   };
-  if (development) console.warn(`[frontend-insight] tracker disabled: ${code}`);
+  if (development) sdkWarn(`tracker disabled: ${code}`);
   return {
     trackForm: noopForm,
     observeBusiness: (_key, execute) => execute(),

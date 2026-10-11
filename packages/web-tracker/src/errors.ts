@@ -153,7 +153,7 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
     omittedBytes: Math.min(2147483647, omittedBytes),
     suppressed: 0,
     correlation: {},
-    raw: { error, extraction: { issues } },
+    raw: { error, extraction: { issues }, consoleCapture: { state: "not_enabled" } },
   };
 }
 /** One instance per tracker. Event identity de-duplicates listeners; same-object

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from "vue";
+import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
@@ -16,6 +16,7 @@ interface Detail {
   view?: {
     error: Record<string, unknown>;
     extraction: unknown;
+    console?: { state: string; metadata: unknown; records: ConsoleRecord[] };
     stack: {
       state: string;
       unparsed: number;
@@ -32,6 +33,33 @@ interface Detail {
     };
   };
 }
+interface ConsoleRecord {
+  level?: string;
+  timestamp?: number;
+  relativeMs?: number;
+  sequence?: number;
+  pageViewId?: string;
+  source?: string;
+  parameters?: unknown[];
+  issues?: string[];
+  omittedBytes?: number;
+  omittedBytesExact?: boolean;
+}
+const consoleFilter = ref("all");
+const consoleLabels: Record<string, string> = {
+  not_enabled: "console 上下文未启用。",
+  empty: "回溯窗口内没有匹配配置级别的日志。",
+  legacy: "历史记录没有 console 采集状态，无法恢复未采集的日志。",
+  scope_conflict:
+    "多个项目声明拥有全局 console，已停止采集并清空缓冲。请明确页面归属。",
+  unavailable: "此环境的 console 不可访问或不可包装。",
+  captured: "已采集异常前的 console 上下文。",
+};
+const visibleLogs = computed(() =>
+  (result.value?.view?.console?.records ?? []).filter(
+    (record) => consoleFilter.value === "all" || record?.level === consoleFilter.value,
+  ),
+);
 const labels: Record<string, string> = {
   ready: "诊断详情已就绪",
   complete: "采集完整",
@@ -55,6 +83,17 @@ const result = ref<Detail | null>(null),
 let generation = 0,
   abort: AbortController | undefined,
   timer: ReturnType<typeof setTimeout> | undefined;
+const timestampText = (value: unknown) => {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    Math.abs(value) > 8640000000000000
+  )
+    return "时间未知";
+  return new Date(value).toISOString();
+};
+const issuesFor = (record: ConsoleRecord) =>
+  Array.isArray(record?.issues) ? record.issues : [];
 const show = (value: unknown) =>
   typeof value === "string"
     ? value
@@ -122,11 +161,23 @@ async function renew(id: number) {
     }
   }
 }
-async function copy(kind: "message" | "stack") {
+async function copy(kind: "message" | "stack" | "console") {
   await load(); // Reauthorize every copy, including after a revoke.
   if (!result.value?.view) return;
   try {
-    await navigator.clipboard.writeText(show(result.value.view.error[kind]));
+    await navigator.clipboard.writeText(
+      kind === "console"
+        ? JSON.stringify(
+            {
+              filter: consoleFilter.value,
+              records: visibleLogs.value,
+              metadata: result.value.view.console?.metadata,
+            },
+            null,
+            2,
+          )
+        : show(result.value.view.error[kind]),
+    );
     copied.value = "已复制";
   } catch {
     copied.value = "复制失败，请选择原文手动复制。";
@@ -218,6 +269,68 @@ onBeforeUnmount(() => {
         <pre>{{ show(result.view.error) }}</pre>
         <pre>{{ show(result.view.extraction) }}</pre>
       </details>
+      <section aria-label="console 上下文">
+        <h4>console 上下文</h4>
+        <p>
+          {{
+            consoleLabels[result.view.console?.state ?? "legacy"] ??
+            result.view.console?.state
+          }}
+        </p>
+        <label
+          >日志级别过滤
+          <select v-model="consoleFilter" aria-label="日志级别过滤">
+            <option value="all">全部已采集级别</option>
+            <option
+              v-for="level in ['error', 'warn', 'log', 'info', 'debug']"
+              :key="level"
+              :value="level"
+            >
+              {{ level }}
+            </option>
+          </select>
+        </label>
+        <p>
+          当前过滤：{{ consoleFilter === "all" ? "全部已采集级别" : consoleFilter }} ·
+          显示 {{ visibleLogs.length }} /
+          {{ result.view.console?.records.length ?? 0 }} 条
+        </p>
+        <p v-if="result.view.console?.records.length && !visibleLogs.length">
+          当前过滤条件下无结果；其他级别已有日志。
+        </p>
+        <button type="button" @click="copy('console')">重新授权并复制 console</button>
+        <details
+          v-for="(record, index) in visibleLogs"
+          :key="index"
+          open
+          data-testid="console-record"
+        >
+          <summary>
+            {{ record?.level ?? "unknown" }} · #{{ record?.sequence ?? index + 1 }} ·
+            {{ timestampText(record?.timestamp) }}
+            · 相对异常 {{ record?.relativeMs ?? "未知" }} ms
+          </summary>
+          <p>
+            页面：{{ record?.pageViewId ?? "unknown" }} · 来源：{{
+              record?.source ?? "unknown"
+            }}
+          </p>
+          <pre>{{ show(record?.parameters ?? record) }}</pre>
+          <p v-if="issuesFor(record).length">
+            截断 / 省略 / 不可读取：{{ issuesFor(record).join("、") }} · 已知省略字节{{
+              record.omittedBytesExact === false ? "下界" : ""
+            }}：{{ record.omittedBytes ?? "未知" }}
+          </p>
+        </details>
+        <details>
+          <summary>console 采集与窗口淘汰说明</summary>
+          <p>
+            window：窗口外淘汰；capacity：条数淘汰；bytes：总字节淘汰；scope：归属冲突清空；entry：记录预算不足；envelopeOmitted：信封容量不足。omittedBytesExact=false
+            表示仅有省略字节下界，未遍历内容不能精确计量。
+          </p>
+          <pre>{{ show(result.view.console?.metadata) }}</pre>
+        </details>
+      </section>
       <p role="status">{{ copied }}</p>
     </template>
   </section>

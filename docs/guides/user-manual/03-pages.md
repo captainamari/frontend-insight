@@ -69,3 +69,9 @@
 遇到“查询预算”提示时，优先缩短时间；页面筛选可以帮助定位，但质量查询的路径筛选不保证减少底层扫描量，不能承诺选单一路径就解除预算限制。不要无限重复“重试”。页面运营与质量分析均有查询保护预算，按各自提示缩小范围；实现限制由维护者参考 [开发排障学习文档](../../learning/17-v1.8-maintenance-labs-and-troubleshooting.md) 核对。错误页面不是业务零值，保留提示并交维护者。
 
 查阅依据：[质量分析](../../../apps/web/src/views/PageQualityView.vue)、[运营分析](../../../apps/web/src/views/PageOperationsView.vue)、[R6 使用边界](../v1.8-r6-acceptance.md)、[质量刷新修复](../../progress/v1.8-r8-quality-refresh-fix.md)。
+
+## D2：查看错误前的 console 上下文
+
+打开质量分析中的错误实例“复现条件”，在错误诊断详情下查看 console。记录按顺序展示级别、时间、相对异常毫秒、参数和 Error 编译栈；可以展开/收起、按级别过滤，复制会先重新检查权限。当前过滤无结果与“未启用”“窗口内无日志”“历史未采集”分开提示；截断/不可读/淘汰请看采集说明。
+
+默认 SDK 只采集 error/warn，实验室为了验收显式开启五个级别。只有 console.error 不会让 JS 错误次数增加。普通 viewer 无原文权限，需要管理员授予当前项目 diagnostics.read；撤权/移除成员后新请求立即拒绝，打开页面在下一次一秒权限轮询往返清空。详细接入与可执行步骤见 [D2 指南](../runtime-diagnostics-d2.md)。
