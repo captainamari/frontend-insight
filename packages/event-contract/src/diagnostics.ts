@@ -37,11 +37,47 @@ export function diagnosticBudgetError(d: DiagnosticEnvelope): string | null {
   if (raw.request !== undefined && raw.request && typeof raw.request === "object") {
     const request = raw.request as Record<string, unknown>;
     for (const key of ["requestBody", "responseBody"])
-      if (request[key] !== undefined && diagnosticBytes(request[key]) > L.bodyBytes)
+      if (request[key] !== undefined && diagnosticJsonBytes(request[key]) > L.bodyBytes)
         return "body";
     for (const key of ["requestHeaders", "responseHeaders"])
-      if (request[key] !== undefined && diagnosticBytes(request[key]) > L.headersBytes)
+      if (
+        request[key] !== undefined &&
+        diagnosticJsonBytes(request[key]) > L.headersBytes
+      )
         return "headers";
   }
+  if (raw.requests !== undefined) {
+    if (
+      !Array.isArray(raw.requests) ||
+      raw.requests.length > 20 ||
+      diagnosticJsonBytes(raw.requests) > 32768
+    )
+      return "requests";
+    for (const entry of raw.requests) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry))
+        return "request_shape";
+      const r = entry as Record<string, unknown>;
+      for (const key of ["requestBody", "responseBody"])
+        if (diagnosticJsonBytes(r[key] ?? null) > L.bodyBytes) return "body";
+      for (const key of ["requestHeaders", "responseHeaders", "url", "responseUrl"])
+        if (diagnosticJsonBytes(r[key] ?? null) > L.headersBytes) return "headers";
+      if (diagnosticJsonBytes(r) > 24576) return "request_entry";
+    }
+  }
+  if (raw.timeline !== undefined) {
+    if (
+      !Array.isArray(raw.timeline) ||
+      raw.timeline.length > 30 ||
+      diagnosticJsonBytes(raw.timeline) > 8192
+    )
+      return "timeline";
+    if (raw.timeline.some((r) => diagnosticJsonBytes(r) > 2048))
+      return "timeline_entry";
+  }
+  if (
+    raw.requestCapture !== undefined &&
+    diagnosticJsonBytes(raw.requestCapture) > 2048
+  )
+    return "request_metadata";
   return null;
 }

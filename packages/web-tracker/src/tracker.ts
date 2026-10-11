@@ -685,6 +685,7 @@ export class BrowserTracker implements Tracker {
         terminal("failed", terminalPayload, reasonCode),
       cancel: (terminalPayload: EventPayload = {}) =>
         terminal("canceled", terminalPayload),
+      getContext: () => Object.freeze({ operationInstanceId, ...association }),
       getState: () => state,
     });
   }

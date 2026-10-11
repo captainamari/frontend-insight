@@ -31,6 +31,7 @@ export interface WorkflowDefinition {
 export type WorkflowState =
   "pending" | "started" | "completed" | "failed" | "canceled" | "expired";
 export interface WorkflowHandle {
+  getContext?(): Readonly<{ workflowInstanceId: string }>;
   reachStep(stepKey: string): void;
   complete(): void;
   fail(): void;
@@ -324,6 +325,7 @@ export class WorkflowRuntime {
       if (!saved && state === "started")
         this.host.emit("workflow_started", association);
       const handle: WorkflowHandle = Object.freeze({
+        getContext: () => Object.freeze({ workflowInstanceId: instance }),
         reachStep: (key: string) => reach(key, "explicit_sdk"),
         complete: () => finish("completed"),
         fail: () => finish("failed"),

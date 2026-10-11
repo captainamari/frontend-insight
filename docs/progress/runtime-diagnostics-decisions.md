@@ -78,3 +78,15 @@
 ### D2 最终确认
 
 最终代码 `f4cde46088c5525c7b33d1ec481ba043aff49172` 的 [CI 38119220688](https://github.com/captainamari/frontend-insight/actions/runs/38119220688) 全部成功。基础12,258 bytes，errors/console/quality为1,971/2,706/5,239，完整组合22,174；不提高原12KiB基础门禁。最终同提交p50/p95与覆盖边界已写入results，不采用首轮更小读数替代最终测量。D2交付等待Jesse验收/评审，PR #31保持Draft，不把它等同于整条诊断路线完成。
+
+## D3 实施决定（2026-10-11，进行中）
+
+- 已核对 D2 PR #31 合并：refactor `e51b63523103597822df7acfa3dd1911e93109a5`，包含 `32678e1` 文档和 `f4cde46` 代码。合并不替代人工验收。
+- 采用可选 `./requests` 受控 fetch 适配器，每个 tracker 创建独立实例；没有新增全局 fetch/XHR 包装。保留原有第三方/质量包装。诊断模块不发 API 或 JS 基础事实；质量分母继续由一次 `quality.observeApi` 产生，不能重复嵌套质量入口。
+- **正文读取方案**：不对 Fetch 的 Request/Response body 建立 clone/tee。未知/不可信 Content-Length、超大 chunk、无结束/慢流下，tee 另一分支的排队不能仅靠截取最终文本保证有界。SDK 默认记录可读 headers 和请求字符串；响应正文由应用将业务自身已读取的文本通过 `responseText(response, text)` 提供，失败默认保存、成功仅精确路由 opt-in。SDK 不调用 text/json、不解析后重序列化冒充原文；不启动后台 reader（读取并发/排队均为 0）。未提供文本标 host_text_required；不是宣称所有 fetch 正文自动采集。XHR 自动包装未实现，本批支持受控 fetch。浏览器仅提供已解码可访问文本/headers，不提供线上原始字节或隐藏 header。
+- 异常即时冻结，不等待异步正文；记录请求开始、响应可用、应用提供正文和异常时间。pending 保留当时状态，不补传、不修改已排队/重试信封。跨页面和 destroy 后回调不回挂到新页面。
+- 请求最多20条/32KiB/60秒，单条24KiB，最多4个未完成请求记录；操作/导航最多30条/8KiB/单条2KiB；每字段仍受正文16KiB/headers4KiB和总信封64KiB上限。超大值仅处理预算内前缀，不为计量先构造完整 UTF-8 副本；未读取余量只报已知下界。响应观察闭包只持有本地 ID，容量淘汰释放大字段，晚回调查不到记录则忽略。
+- 关联来自显式 bind 参数和 operation/workflow 的只读 getContext 句柄；同名 step 不能单独证明因果，冲突实例 ID 不能标显式。未绑定异常只显示同页窗口时间邻近。local_ 标为本地观察 ID，不注入 headers，不改变 CORS。
+- SDK端点按 origin/path 排除，上传按明确 source 或 FormData/Blob/ArrayBuffer 类型排除，可配置精确路由排除；仅影响诊断，原有质量观察是否计数仍由接入方显式包裹决定。
+- 服务端维护生成源，新增 raw.requests/raw.timeline 结构及逐项预算/归属校验。原 raw.request 的字符串预算由裸文本改为 JSON UTF-8（引号/转义也计入）；边界有收紧，需先更新 API/consumer，再发布新 SDK。无新数据库迁移。
+- 基础SDK仍执行12KiB门禁；继续使用有范围的私有成员名压缩，不改公共API/事件字段、不删功能。不把可选模块当成零下载成本。

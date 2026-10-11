@@ -114,7 +114,542 @@
         },
         "raw": {
           "type": "object",
-          "maxProperties": 100
+          "maxProperties": 100,
+          "properties": {
+            "requests": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "localId",
+                  "sequence",
+                  "timestamp",
+                  "appId",
+                  "pageViewId",
+                  "method",
+                  "url",
+                  "result",
+                  "association",
+                  "basis",
+                  "requestBody",
+                  "responseBody",
+                  "requestHeaders",
+                  "responseHeaders"
+                ],
+                "properties": {
+                  "kind": {
+                    "const": "request"
+                  },
+                  "localId": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "sequence": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "timestamp": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8640000000000000
+                  },
+                  "endedAt": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8640000000000000
+                  },
+                  "bodyCapturedAt": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8640000000000000
+                  },
+                  "durationMs": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8640000000000000
+                  },
+                  "relativeMs": {
+                    "type": "number"
+                  },
+                  "appId": {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  "pageViewId": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "pageUrl": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "method": {
+                    "type": "string",
+                    "maxLength": 32
+                  },
+                  "url": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "responseUrl": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "redirected": {
+                    "type": "boolean"
+                  },
+                  "result": {
+                    "enum": [
+                      "pending",
+                      "success",
+                      "http",
+                      "network",
+                      "aborted",
+                      "timeout",
+                      "business",
+                      "opaque"
+                    ]
+                  },
+                  "status": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 599
+                  },
+                  "failureReason": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "association": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "requestId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "traceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "operationInstanceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "workflowInstanceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "stepKey": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "attemptId": {
+                        "type": "string",
+                        "maxLength": 128
+                      }
+                    }
+                  },
+                  "basis": {
+                    "enum": [
+                      "explicit",
+                      "temporal",
+                      "unassociated"
+                    ]
+                  },
+                  "requestBody": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "responseBody": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "requestHeaders": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "responseHeaders": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "timeline": {
+              "type": "array",
+              "maxItems": 30,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "sequence",
+                  "timestamp",
+                  "pageViewId",
+                  "name",
+                  "target",
+                  "association",
+                  "context"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "action",
+                      "navigation"
+                    ]
+                  },
+                  "sequence": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "timestamp": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 8640000000000000
+                  },
+                  "relativeMs": {
+                    "type": "number"
+                  },
+                  "pageViewId": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "name": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "target": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "state",
+                      "bytes"
+                    ],
+                    "properties": {
+                      "state": {
+                        "type": "string",
+                        "maxLength": 64
+                      },
+                      "value": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16384
+                      },
+                      "omittedBytes": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "omittedBytesExact": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  "association": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "requestId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "traceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "operationInstanceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "workflowInstanceId": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "stepKey": {
+                        "type": "string",
+                        "maxLength": 128
+                      },
+                      "attemptId": {
+                        "type": "string",
+                        "maxLength": 128
+                      }
+                    }
+                  },
+                  "context": {}
+                }
+              }
+            }
+          }
         }
       }
     },
