@@ -427,6 +427,20 @@ test("D1 shipped scenario laboratory emits real throw, Promise, Vue, capture and
     const stored = await (await request.get(url, { headers })).json();
     expect(stored.diagnostic).toEqual(e.diagnostic);
     expect(stored.view.error.message).toContain(fragment);
+    if (label !== "模拟资源失败") {
+      const logs = stored.view.console.records;
+      expect(logs.slice(-3).map((entry: { level: string }) => entry.level)).toEqual([
+        "info",
+        "warn",
+        "error",
+      ]);
+      expect(logs.at(-3).parameters[0]).toBe("FI_D2_SYNTHETIC 开始加载图表");
+      expect(logs.at(-2).parameters[0]).toBe("FI_D2_SYNTHETIC 库存不足\n准备重新计算");
+      expect(logs.at(-1).parameters[0]).toBe("FI_D2_SYNTHETIC 绘图数据无效");
+      expect(logs.every((entry: { relativeMs: number }) => entry.relativeMs <= 0)).toBe(
+        true,
+      );
+    }
   }
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(

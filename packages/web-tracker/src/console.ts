@@ -284,19 +284,15 @@ export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtracto
     d.raw.console = logs;
     d.raw.consoleCapture = meta;
     d.policyVersion = "d2-1";
+    if (logs.some((r) => r.issues.length) || Object.values(meta.removed).some(Boolean))
+      d.status = "truncated";
     while (jsonBytes(d) > 65536 && logs.length) {
       logs.shift();
       meta.envelopeOmitted++;
       meta.count = logs.length;
       meta.bytes = jsonBytes(logs);
-    }
-    if (
-      logs.some((r) => r.issues.length) ||
-      Object.values(meta.removed).some(Boolean) ||
-      meta.envelopeOmitted
-    )
       d.status = "truncated";
-    d.policyVersion = "d2-1";
+    }
     return result;
   };
   extractor.start = (runtime, page, scope) => {

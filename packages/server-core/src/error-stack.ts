@@ -78,5 +78,13 @@ export function diagnosticErrorView(raw: Record<string, unknown>) {
       ? { state: "not_applicable", frames: [] as StackFrame[], unparsed: 0 }
       : parseErrorStack(error.stack),
     extraction: raw.extraction ?? null,
+    console: {
+      state:
+        raw.consoleCapture && typeof raw.consoleCapture === "object"
+          ? String((raw.consoleCapture as Record<string, unknown>).state ?? "legacy")
+          : "legacy",
+      metadata: raw.consoleCapture ?? null,
+      records: Array.isArray(raw.console) ? raw.console : [],
+    },
   };
 }

@@ -32,6 +32,21 @@ const ch = createClient({
 });
 const diagnostics = new RuntimeDiagnostics(mysql);
 const raw = {
+  console: [
+    {
+      level: "warn",
+      timestamp: 1700000000000,
+      relativeMs: -10,
+      sequence: 1,
+      pageViewId: "pv_fixture",
+      source: "unknown",
+      parameters: [
+        "FI_D2_SYNTHETIC_CONSOLE token=synthetic\n日志原文",
+        { url: "https://fixture.invalid/?token=synthetic", html: "<b>文本</b>" },
+      ],
+    },
+  ],
+  consoleCapture: { state: "captured" },
   message: "token=FI_D0_SYNTHETIC\nsecond line",
   stack:
     "Error: synthetic\n at fixture (https://fixture.invalid/app.js?token=synthetic:1:2)",
@@ -192,6 +207,46 @@ try {
     randomUUID(),
   );
   await call(path, issued.token!, "GET", undefined, 401);
+  const prometheusScope = {
+    env: "dev" as const,
+    from: new Date(now - 3600000).toISOString(),
+    to: new Date(now).toISOString(),
+    maxRangeDays: 1,
+    expiresAt: new Date(now + 3600000).toISOString(),
+    rateLimit: 5,
+  };
+  const prom = await settings.createInterface(
+    pid,
+    actor.userId,
+    "prometheus",
+    prometheusScope,
+    randomUUID(),
+  );
+  const promIssued = await settings.changeInterface(
+    pid,
+    actor.userId,
+    prom.id,
+    "enable",
+    randomUUID(),
+  );
+  const promResponse = await fetch(
+    base +
+      `/api/external/projects/${pid}/prometheus?` +
+      new URLSearchParams({
+        env: "dev",
+        from: prometheusScope.from,
+        to: prometheusScope.to,
+      }),
+    { headers: { authorization: `Bearer ${promIssued.token}` } },
+  );
+  assert.equal(promResponse.status, 200);
+  assert(!/FI_D[02]_SYNTHETIC/.test(await promResponse.text()));
+  assert(
+    !/FI_D[02]_SYNTHETIC/.test(
+      JSON.stringify(await call("/api/system/metrics", token)),
+    ),
+  );
+
   await call(root + "/grants/" + viewerId, token, "PUT", { read: true, export: false });
   assert.deepEqual((await call(path, viewerToken)).diagnostic, d);
   assert.deepEqual(await call(root + "/capabilities", viewerToken), {
@@ -260,7 +315,7 @@ try {
   const limited = await call(limitedPath, token);
   assert.equal(limited.state, "rate_limited");
   assert.equal((limited.capture as { suppressed: number }).suppressed, 1);
-  assert(!JSON.stringify(limited).includes("FI_D0_SYNTHETIC"));
+  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(limited)));
   const count = async () => {
     const response = await ch.query({
       query:
@@ -281,14 +336,14 @@ try {
     viewerToken,
   );
   assert.equal(listed.totalOccurrences, 23);
-  assert(!JSON.stringify(listed).includes("FI_D0_SYNTHETIC"));
+  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(listed)));
   assert(!JSON.stringify(listed).includes('"diagnostic"'));
   const rawRows = await ch.query({
     query: "SELECT payload_json FROM raw_events WHERE project_id={p:UUID}",
     format: "JSONEachRow",
     query_params: { p: pid },
   });
-  assert(!(await rawRows.text()).includes("FI_D0_SYNTHETIC"));
+  assert(!/FI_D[02]_SYNTHETIC/.test(await rawRows.text()));
   // Old SDK remains accepted and has no detail without implying absence of an error.
   const old = make(undefined);
   delete old.events[0]!.diagnostic;
@@ -393,7 +448,7 @@ try {
       audits.some((a) => a.result === "unauthenticated") &&
       audits.some((a) => a.result === "ready"),
   );
-  assert(!JSON.stringify(audits).includes("FI_D0_SYNTHETIC"));
+  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(audits)));
   await diagnostics.cleanup();
   const kafka = new Kafka({
     brokers: (process.env.KAFKA_BROKERS ?? "kafka:9092").split(","),
@@ -425,7 +480,7 @@ try {
     eachMessage: async ({ message }) => {
       const value = message.value?.toString() ?? "";
       if (value.includes(poisonHash)) {
-        assert(!value.includes("FI_D0_SYNTHETIC"));
+        assert(!/FI_D[02]_SYNTHETIC/.test(value));
         assert(value.includes("DIAGNOSTICS_PROJECT_CONTEXT_INVALID"));
         dlqSafe = true;
       }

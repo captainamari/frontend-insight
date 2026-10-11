@@ -69,3 +69,20 @@ describe("D1 compiled stack projection (Firefox fixture, not real browser)", () 
     ).toBe("not_applicable");
   });
 });
+
+// Console metadata is projected only by the already-authorized diagnostic view.
+it("distinguishes legacy, disabled and collected console without fabricating history", () => {
+  expect(diagnosticErrorView({ error: { message: "old" } }).console).toEqual({
+    state: "legacy",
+    metadata: null,
+    records: [],
+  });
+  expect(
+    diagnosticErrorView({ consoleCapture: { state: "not_enabled" } }).console.state,
+  ).toBe("not_enabled");
+  const raw = {
+    console: [{ level: "warn", parameters: ["token=synthetic"] }],
+    consoleCapture: { state: "captured" },
+  };
+  expect(diagnosticErrorView(raw).console.records).toEqual(raw.console);
+});
