@@ -232,16 +232,30 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
     } catch (e) {
       aborted = e instanceof DOMException && e.name === "AbortError";
     }
+    const timeoutReason = new DOMException("fixture deadline", "TimeoutError");
+    const nativeTimeoutController = new AbortController();
+    const nativeTimed = window.fetch("/__diagnostic-fixture/slow", {
+      signal: nativeTimeoutController.signal,
+    });
+    nativeTimeoutController.abort(timeoutReason);
+    let nativeTimeoutName = "fulfilled";
+    try {
+      await nativeTimed;
+    } catch (e) {
+      nativeTimeoutName = (e as Error).name;
+    }
     const timeoutController = new AbortController();
-    const timed = wrapped("/__diagnostic-fixture/slow", {
+    const timed = wrapped("/__diagnostic-fixture/slow?kind=timeout", {
       signal: timeoutController.signal,
     });
-    timeoutController.abort(new DOMException("fixture deadline", "TimeoutError"));
-    let timedOut = false;
+    timeoutController.abort(timeoutReason);
+    let timeoutRejected = false,
+      timeoutName = "fulfilled";
     try {
       await timed;
     } catch (e) {
-      timedOut = e instanceof DOMException && e.name === "TimeoutError";
+      timeoutRejected = true;
+      timeoutName = (e as Error).name;
     }
     let network = false;
     try {
@@ -321,7 +335,9 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       requestBody,
       responseBody,
       aborted,
-      timedOut,
+      timeoutRejected,
+      timeoutName,
+      nativeTimeoutName,
       network,
       streamChunk: firstChunk.value?.length,
       binaryBytes: bytes.byteLength,
@@ -346,7 +362,8 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   expect(evidence.opaqueType).toBe("opaque");
   expect(evidence.beforeBodyUsed).toBe(false);
   expect(evidence.aborted).toBe(true);
-  expect(evidence.timedOut).toBe(true);
+  expect(evidence.timeoutRejected).toBe(true);
+  expect(evidence.timeoutName).toBe(evidence.nativeTimeoutName);
   expect(evidence.network).toBe(true);
   expect(evidence.streamChunk).toBeGreaterThan(0);
   expect(evidence.binaryBytes).toBe(3);
@@ -387,6 +404,16 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   ).toBe("success_body_disabled");
   expect((errors[3]!.diagnostic!.raw.requests as RequestRecord[]).at(-1)!.result).toBe(
     "business",
+  );
+  const timedRecord = (errors[5]!.diagnostic!.raw.requests as RequestRecord[]).find(
+    (r) => r.url.value?.includes("kind=timeout"),
+  );
+  expect(timedRecord?.result).toBe(
+    evidence.timeoutName === "TimeoutError"
+      ? "timeout"
+      : evidence.timeoutName === "AbortError"
+        ? "aborted"
+        : "network",
   );
   expect(errors[6]!.diagnostic!.raw.requests).toEqual([]);
   for (const e of errors) {

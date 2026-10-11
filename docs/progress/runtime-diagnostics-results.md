@@ -308,3 +308,5 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 本地运行构建后的SDK和完整场景回调（模拟HTTP，仅用于定位，不作为真实服务证据）复现：跨路由page_leave的公开字段 `usageSequence` / `usageClosed` 被压缩成私有短名，违反既有合同。此前“私有压缩白名单不碰公开字段”的审查不足；现已从白名单移除这两个名字，改用仅内部的fetch安装/Promise错误处理方法名，且构建时遍历事件schema，白名单与任何wire字段重名立即失败。没有改动公开合同或上调基础包预算。
 
 修复后同一完整回调合同复现通过；新增tracker+quality+operation/workflow测试也增加跨路由并通过。当前基础gzip12,273/12,288 bytes，requests4,913，全部组合27,111 bytes。第六轮 `38124331636` 属于修复前诊断提交，将由新提交按并发策略取代；最终仍以修复后完整真实CI为准。
+
+第七轮 [38124573740](https://github.com/captainamari/frontend-insight/actions/runs/38124573740)，代码 `f7faa9ed7fb43af61fd4c1c31032db107d320627`：D0检查/升级/故障回归成功；双浏览器10项中9项成功，Chromium D3完整原文→授权API/UI/复制/撤权闭环已通过。WebKit出站合同与ingestion202也通过，唯一失败为测试假定自定义abort reason一定以DOMException TimeoutError拒绝。改为在同一真实浏览器运行未包装fetch参照，断言受控包装保留原生拒绝名称并核对诊断分类；不重写业务拒绝对象，不把所有取消硬改为timeout。修复后的完整双浏览器和R5继承回归仍需下一轮确认。

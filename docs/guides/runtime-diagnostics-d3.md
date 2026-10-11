@@ -10,7 +10,7 @@ SDK 保存请求 URL/query、方法、开始/结束/耗时、可访问 headers�
 
 **响应正文必须由应用提供其业务本来就需要读取的原始文本**。SDK 不调用 response.text/json、不建立 clone/tee，也不在后台读取流。仅凭 Content-Length 不能保证 tee 的另一分支有界，因此没有把“全部读完后截断16KiB”包装成安全读取。默认保存应用已提供的失败响应文本；成功响应正文仅按精确路由 opt-in。若应用只调用 response.json()，应在接入层用原始 text 后自行 JSON.parse；不能用 JSON.stringify(已解析对象) 冒充线上文本，也不要为诊断读取业务不需要的文件/无限流。
 
-没有提供正文时显示 host_text_required；SSE/NDJSON、二进制、opaque 各有状态。没有自动文本抓取或 XHR 支持的承诺。浏览器提供的是解码后的可访问内容，headers 大小写/合并受浏览器影响，Set-Cookie 等隐藏头无法获得；只保留实际响应 URL/redirected，不重建完整重定向链。
+没有提供正文时显示 host_text_required；SSE/NDJSON、二进制、opaque 各有状态。没有自动文本抓取或 XHR 支持的承诺。超时分类依据实际拒绝名称：TimeoutError记录timeout，AbortError记录aborted；不同浏览器可能不保留自定义abort reason，SDK保持原生语义，不凭应用意图改写异常。真实测试同时运行原生fetch作为参照。浏览器提供的是解码后的可访问内容，headers 大小写/合并受浏览器影响，Set-Cookie 等隐藏头无法获得；只保留实际响应 URL/redirected，不重建完整重定向链。
 
 ```ts
 import { createTracker } from "@frontend-insight/web-tracker";
