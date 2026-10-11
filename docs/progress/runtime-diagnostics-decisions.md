@@ -74,3 +74,7 @@
 - 单条 console 为字符串时，合同字节函数现在也计算 JSON 引号/转义，而非裸字符串长度。这收紧了以前字符串条目的两字节/转义计量误差，符合已批准“整条 JSON 记录”口径；D2 对象记录与既有 D0/D1 合法数据保持兼容。明确增加边界测试，不删除旧安全测试。
 - 诊断 view 新增 console 字段。D1 新采集明确标记 not_enabled；历史没有 consoleCapture 的记录为 legacy，不能区分当时未采集与未保存，故不伪造原因。D0/D1 历史交付证据不改写。
 - UI 复制当前过滤结果及采集说明；不是批量导出，不新增 export 能力接口。仍逐次重新读取授权详情。
+
+### D2 最终确认
+
+最终代码 `f4cde46088c5525c7b33d1ec481ba043aff49172` 的 [CI 38119220688](https://github.com/captainamari/frontend-insight/actions/runs/38119220688) 全部成功。基础12,258 bytes，errors/console/quality为1,971/2,706/5,239，完整组合22,174；不提高原12KiB基础门禁。最终同提交p50/p95与覆盖边界已写入results，不采用首轮更小读数替代最终测量。D2交付等待Jesse验收/评审，PR #31保持Draft，不把它等同于整条诊断路线完成。

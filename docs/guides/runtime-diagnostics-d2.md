@@ -66,7 +66,7 @@ await tracker.flush();
 
 Proxy 的反射操作本身会调用宿主陷阱，普通 JS 不能抢占一个永不返回的同步 trap。实现限制反射/遍历次数、处理抛错和递归；不承诺能中断恶意无限循环或撤销业务 trap 自身副作用。
 
-`raw.consoleCapture` 保存 state、capturedAt、levels、limits、count、bytes、unavailableLevels、removed 和 envelopeOmitted。每条 `relativeMs = timestamp - capturedAt`，序号用于同毫秒内排序。参数按调用时取值，异常拥有独立副本。
+`raw.consoleCapture` 保存 state、capturedAt、levels、limits、count、bytes、unavailableLevels、removed 和 envelopeOmitted。每条 `relativeMs = timestamp - capturedAt`，以 SDK 进入异常采集入口的时刻为参照，序号用于同毫秒内排序；不冒充引擎内部最初抛出/Promise 拒绝时刻的精确测量。参数按调用时取值，异常拥有独立副本。
 
 - `bytes`/`count` 是实际保留数组的 JSON UTF-8 字节/条数。
 - removed.window/capacity/bytes/scope/entry 分别是窗口、条数、总字节、作用域冲突和记录预算导致的淘汰条数；不是字节数字。

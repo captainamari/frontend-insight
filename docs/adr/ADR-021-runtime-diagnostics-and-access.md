@@ -1,7 +1,7 @@
 # ADR-021：诊断原文与项目访问权限
 
 - 日期：2026-10-10
-- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 实施验证中，D3–D7 未完成
+- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 已实现且真实 CI 通过（待用户验收/评审），D3–D7 未完成
 - 来源：Jesse 本次明确要求“不需要脱敏，只要是有价值的诊断信息都收集了。但是可以考虑展示时什么角色的用户能看到”
 - 执行依据：[运行时诊断能力补齐计划](../planning/runtime-diagnostics-development-plan.md)
 
