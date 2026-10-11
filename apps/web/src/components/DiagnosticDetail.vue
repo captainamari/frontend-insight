@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
+import RequestTimeline from "./RequestTimeline.vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
@@ -14,6 +15,12 @@ interface Detail {
     policyVersion: string;
   };
   view?: {
+    requests?: {
+      state: string;
+      metadata: unknown;
+      records: Record<string, unknown>[];
+      actions: Record<string, unknown>[];
+    };
     error: Record<string, unknown>;
     extraction: unknown;
     console?: { state: string; metadata: unknown; records: ConsoleRecord[] };
@@ -161,22 +168,24 @@ async function renew(id: number) {
     }
   }
 }
-async function copy(kind: "message" | "stack" | "console") {
+async function copy(kind: "message" | "stack" | "console" | "requests") {
   await load(); // Reauthorize every copy, including after a revoke.
   if (!result.value?.view) return;
   try {
     await navigator.clipboard.writeText(
-      kind === "console"
-        ? JSON.stringify(
-            {
-              filter: consoleFilter.value,
-              records: visibleLogs.value,
-              metadata: result.value.view.console?.metadata,
-            },
-            null,
-            2,
-          )
-        : show(result.value.view.error[kind]),
+      kind === "requests"
+        ? JSON.stringify(result.value.view.requests, null, 2)
+        : kind === "console"
+          ? JSON.stringify(
+              {
+                filter: consoleFilter.value,
+                records: visibleLogs.value,
+                metadata: result.value.view.console?.metadata,
+              },
+              null,
+              2,
+            )
+          : show(result.value.view.error[kind]),
     );
     copied.value = "已复制";
   } catch {
@@ -331,6 +340,11 @@ onBeforeUnmount(() => {
           <pre>{{ show(result.view.console?.metadata) }}</pre>
         </details>
       </section>
+      <RequestTimeline
+        :data="result.view.requests"
+        :logs="result.view.console?.records ?? []"
+        @copy="copy('requests')"
+      />
       <p role="status">{{ copied }}</p>
     </template>
   </section>

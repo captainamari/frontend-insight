@@ -113,6 +113,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
     pageId = "",
     sequence = 0,
     alive = false;
+  let epoch = 0;
   let endpoint = "";
   let requests: RequestRecord[] = [],
     actions: ActionRecord[] = [];
@@ -162,6 +163,13 @@ export function createRequestDiagnostics(options: RequestOptions) {
           : field;
       }
     }
+    for (const action of actions) {
+      if (jsonBytes(action) > 2048) action.context = { state: "record_budget_omitted" };
+      if (jsonBytes(action) > 2048) {
+        action.name = textEvidence(action.name.value ?? "", 256);
+        action.target = textEvidence(action.target.value ?? "", 256);
+      }
+    }
     const r = keep(requests),
       a = keep(actions);
     removed.window += requests.length + actions.length - r.length - a.length;
@@ -198,6 +206,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
     source: string,
   ) => {
     if (!active() || !runtime) return;
+    prune();
     if (requests.filter((r) => r.result === "pending").length >= 4) {
       removed.capacity++;
       return;
@@ -250,12 +259,22 @@ export function createRequestDiagnostics(options: RequestOptions) {
       record.endedAt = runtime.now();
       record.durationMs = Math.max(0, record.endedAt - record.timestamp);
       if (!response) {
-        const name =
+        let name =
           data(error, "name") ??
           (error instanceof Error
             ? Object.getOwnPropertyDescriptor(Object.getPrototypeOf(error), "name")
                 ?.value
             : undefined);
+        if (!name && typeof DOMException !== "undefined") {
+          try {
+            name = Object.getOwnPropertyDescriptor(
+              DOMException.prototype,
+              "name",
+            )?.get?.call(error);
+          } catch {
+            /* non-native error */
+          }
+        }
         record.result =
           name === "AbortError"
             ? "aborted"
@@ -308,6 +327,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
     });
   function bind(context: RequestAssociation = {}) {
     const binding = association(context);
+    const boundEpoch = epoch;
     return {
       /** Pass exactly one metrics observer (e.g. quality.observeApi) outside this wrapper. */
       wrapFetch(
@@ -321,6 +341,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
         ) {
           let localId: string | undefined;
           safe(() => {
+            if (boundEpoch !== epoch) return;
             const [input, init] = args;
             let url: string,
               fallbackMethod = "GET",
@@ -390,7 +411,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
       },
       action(name: string, target = "", context: unknown = null) {
         safe(() => {
-          if (!active() || !runtime) return;
+          if (boundEpoch !== epoch || !active() || !runtime) return;
           actions.push({
             kind: "action",
             sequence: ++sequence,
@@ -523,6 +544,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
     // An adapter is a scope handle: reuse across trackers fails closed, never rebinds.
     if (alive && owner !== scope) return () => {};
     stop?.();
+    epoch++;
     owner = scope;
     runtime = rt;
     page = getPage;

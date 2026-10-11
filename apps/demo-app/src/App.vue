@@ -3,7 +3,7 @@ import {
   installVueErrorHandler,
   createReactErrorHandler,
 } from "@frontend-insight/web-tracker/errors";
-import { createConsoleDiagnostics } from "@frontend-insight/web-tracker/console";
+import { createRequestDiagnostics } from "@frontend-insight/web-tracker/requests";
 import EfficiencyDemo from "./EfficiencyDemo.vue";
 import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
@@ -126,8 +126,72 @@ function record(event: Readonly<TrackerEvent>): void {
   if (eventLog.value.length > 80) eventLog.value.pop();
 }
 
+let requestDiagnostics: ReturnType<typeof createRequestDiagnostics> | undefined;
+const requestSceneStatus = ref("");
+async function requestScene(kind = "failure", capture = true) {
+  if (!tracker || !requestDiagnostics) return;
+  const operation = tracker.startOperation("report_export");
+  const bound = requestDiagnostics.bind({
+    ...operation.getContext?.(),
+    stepKey: "submit",
+    attemptId: `attempt_${Date.now()}`,
+  });
+  bound.action("提交报表", "report-export", {
+    token: "FI_D3_SYNTHETIC",
+    report: "monthly",
+  });
+  console.info("FI_D3_SYNTHETIC 准备请求");
+  console.warn("FI_D3_SYNTHETIC 上游可能不可用");
+  const controller = new AbortController();
+  const request = bound.wrapFetch(window.fetch);
+  try {
+    const promise = request(
+      `/__diagnostic-fixture/${["abort", "timeout"].includes(kind) ? "slow" : kind}?token=FI_D3_SYNTHETIC`,
+      {
+        method: "POST",
+        headers: { "content-type": "text/plain", "x-request-token": "FI_D3_SYNTHETIC" },
+        body: 'token=FI_D3_SYNTHETIC\n{ "nested": [1, 2] }',
+        signal: controller.signal,
+      },
+    );
+    if (["abort", "timeout"].includes(kind))
+      controller.abort(
+        new DOMException(
+          "fixture canceled",
+          kind === "timeout" ? "TimeoutError" : "AbortError",
+        ),
+      );
+    const response = await promise;
+    // The business code needs this text; the SDK never starts a second reader.
+    if (!["stream", "binary"].includes(kind))
+      requestDiagnostics.responseText(
+        response,
+        await response.text(),
+        kind === "business",
+      );
+    else await response.body?.cancel();
+    if (response.status >= 400 || kind === "business")
+      operation.fail("technical_failure");
+    else operation.succeed();
+    if (capture) {
+      const error = new TypeError(`FI_D3_SYNTHETIC ${kind} 请求后渲染失败`);
+      bound.capture(tracker, error);
+    }
+    requestSceneStatus.value = `场景 ${kind} 完成；HTTP ${response.status}；${capture ? "已捕获真实 Error" : "未创建 JS 异常"}`;
+  } catch (error) {
+    operation.cancel();
+    if (capture) bound.capture(tracker, error);
+    requestSceneStatus.value = `场景 ${kind} 已取消或拒绝`;
+  }
+  await tracker.flush();
+}
 function initializeTracker(): void {
   if (tracker) return;
+  requestDiagnostics = createRequestDiagnostics({
+    scope: { appId },
+    console: { levels: ["error", "warn", "log", "info", "debug"] },
+    successBodyRoutes: ["/__diagnostic-fixture/success"],
+  });
   tracker = createTracker({
     appId,
     env: telemetryEnv,
@@ -146,10 +210,7 @@ function initializeTracker(): void {
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
-    errorDiagnostics: createConsoleDiagnostics({
-      scope: { appId },
-      levels: ["error", "warn", "log", "info", "debug"],
-    }),
+    errorDiagnostics: requestDiagnostics.errorDiagnostics,
     observability: {
       enabled: true,
       captureJsErrors: true,
@@ -639,6 +700,26 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
+            <button @click="requestScene('failure')">D3 请求 503 → 异常</button>
+            <button @click="requestScene('failure', false)">D3 仅请求失败</button>
+            <button
+              v-for="kind in [
+                'success',
+                'business',
+                'abort',
+                'timeout',
+                'network',
+                'large',
+                'binary',
+                'stream',
+                'redirect',
+              ]"
+              :key="kind"
+              @click="requestScene(kind)"
+            >
+              D3 {{ kind }}
+            </button>
+            <p role="status">{{ requestSceneStatus }}</p>
             <button @click="consoleScene(false)">只有 console.error</button>
             <button @click="consoleScene(true)">console 快照与预算</button>
             <button type="button" @click="captureObservability('throw')">

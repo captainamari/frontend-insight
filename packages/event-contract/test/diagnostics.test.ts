@@ -114,3 +114,72 @@ describe("D0 versioned raw slot", () => {
     expect(validateTransportBatch(b).ok).toBe(true);
   });
 });
+
+describe("D3 request collections", () => {
+  const evidence = (value = "token=synthetic") => ({
+    state: "captured",
+    value,
+    bytes: Buffer.byteLength(JSON.stringify(value)),
+  });
+  const entry = () => ({
+    kind: "request",
+    localId: "local_1",
+    sequence: 1,
+    timestamp: 100,
+    method: "POST",
+    appId: batch().events[0]!.appId,
+    pageViewId: batch().events[0]!.pageViewId,
+    url: evidence("https://fixture.invalid/?token=synthetic"),
+    result: "http",
+    status: 503,
+    association: {},
+    basis: "temporal",
+    requestBody: evidence(),
+    responseBody: evidence(),
+    requestHeaders: evidence(),
+    responseHeaders: evidence(),
+  });
+  it("validates reserved arrays and every nested field without exempting project/page ownership", () => {
+    const b = batch();
+    b.events[0]!.diagnostic!.raw.requests = [entry()];
+    expect(validateTransportBatch(b).ok).toBe(true);
+    for (const change of [
+      { appId: "fi_another" },
+      { pageViewId: "pv_wrong" },
+      { basis: "certain_cause" },
+      { responseBody: evidence("\0".repeat(3000)) },
+      { responseHeaders: evidence("中".repeat(1400)) },
+      { timeline: { requestBody: "hidden" } },
+    ]) {
+      b.events[0]!.diagnostic!.raw.requests = [{ ...entry(), ...change }];
+      expect(validateTransportBatch(b).ok).toBe(false);
+    }
+  });
+  it("caps request count, collection bytes and timeline records including JSON escaping", () => {
+    const d = structuredClone(diagnostic);
+    d.raw.requests = Array.from({ length: 21 }, entry);
+    expect(diagnosticBudgetError(d)).toBe("requests");
+    d.raw.requests = Array.from({ length: 10 }, () => ({
+      ...entry(),
+      responseBody: evidence("a".repeat(3500)),
+    }));
+    expect(diagnosticBudgetError(d)).toBe("requests");
+    d.raw.requests = [];
+    d.raw.timeline = [{ context: "\n".repeat(1100) }];
+    expect(diagnosticBudgetError(d)).toBe("timeline_entry");
+    d.raw.timeline = Array(31).fill({});
+    expect(diagnosticBudgetError(d)).toBe("timeline");
+    d.raw.timeline = [];
+    d.raw.requestCapture = { text: "x".repeat(2048) };
+    expect(diagnosticBudgetError(d)).toBe("request_metadata");
+  });
+  it("counts legacy request strings with quotes and escapes and keeps raw scoped", () => {
+    const d = structuredClone(diagnostic);
+    d.raw.request = { responseBody: "x".repeat(16382) };
+    expect(diagnosticBudgetError(d)).toBeNull();
+    d.raw.request = { responseBody: "x".repeat(16383) };
+    expect(diagnosticBudgetError(d)).toBe("body");
+    d.raw.request = { requestHeaders: "\n".repeat(2048) };
+    expect(diagnosticBudgetError(d)).toBe("headers");
+  });
+});
