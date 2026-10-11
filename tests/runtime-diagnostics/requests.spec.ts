@@ -232,6 +232,17 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
     } catch (e) {
       aborted = e instanceof DOMException && e.name === "AbortError";
     }
+    const timeoutController = new AbortController();
+    const timed = wrapped("/__diagnostic-fixture/slow", {
+      signal: timeoutController.signal,
+    });
+    timeoutController.abort(new DOMException("fixture deadline", "TimeoutError"));
+    let timedOut = false;
+    try {
+      await timed;
+    } catch (e) {
+      timedOut = e instanceof DOMException && e.name === "TimeoutError";
+    }
     let network = false;
     try {
       await wrapped("/__diagnostic-fixture/network");
@@ -310,6 +321,7 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       requestBody,
       responseBody,
       aborted,
+      timedOut,
       network,
       streamChunk: firstChunk.value?.length,
       binaryBytes: bytes.byteLength,
@@ -334,6 +346,7 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   expect(evidence.opaqueType).toBe("opaque");
   expect(evidence.beforeBodyUsed).toBe(false);
   expect(evidence.aborted).toBe(true);
+  expect(evidence.timedOut).toBe(true);
   expect(evidence.network).toBe(true);
   expect(evidence.streamChunk).toBeGreaterThan(0);
   expect(evidence.binaryBytes).toBe(3);

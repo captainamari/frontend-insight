@@ -90,6 +90,9 @@ it("keeps request evidence with operation/workflow and quality valid through act
       binding.capture(tracker, new Error("token=again"));
       await tracker.flush();
     }
+    window.history.pushState({}, "", "/request-transport-next");
+    binding.capture(tracker, new Error("after navigation"));
+    await tracker.flush();
     expect(batches.length).toBeGreaterThan(0);
     for (const batch of batches) {
       const v = validateTransportBatch(batch);

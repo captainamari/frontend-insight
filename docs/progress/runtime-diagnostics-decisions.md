@@ -96,3 +96,7 @@
 成功请求的调用时request body在有限环形缓冲内保留，用于应用随后明确判定业务失败；冻结普通成功请求时不发送该正文。它计入同一32KiB缓冲，禁止另建不计量的私有正文缓存。响应对象关联使用弱引用且随环形记录淘汰/销毁删除，关联表不强持有Response/body，不超过请求记录数。没有WeakRef的旧环境不建立正文关联，保留元数据；本次真实支持范围为指定Chromium/WebKit。
 
 容量淘汰优先移除成功请求，尽量保留失败证据；字段裁剪和整体省略状态分别记录。冻结前为relativeMs预留字节，总信封额外留出状态/计数变化余量，避免边界处因为添加元数据导致整条详情被D0降级too_large。
+
+### D3 构建压缩的合同保护补充
+
+实测发现仅凭TypeScript private声明不够：同名公开JSON字段也会被esbuild mangleProps重写。D3追加压缩中误含usageSequence/usageClosed，已删除；只使用内部方法名，并在每次build按生成schema的所有properties检查白名单交集，重名立即中止。跨路由page_leave仍使用原v3字段，不修改指标或为过门禁放宽schema。修复后12,273 bytes基础包仍低于12,288，完整组合27,111 bytes。
