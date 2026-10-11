@@ -1,6 +1,6 @@
 # 运行时诊断能力补齐计划
 
-日期：2026-10-10。状态：D0 已由用户合并；D1 已实现并通过真实 CI（PR #30 待用户验收/评审），详见 [结果](../progress/runtime-diagnostics-results.md)；D2–D7 待开发。
+日期：2026-10-10。状态：D0 已由用户合并；D1 已通过真实 CI 且 PR #30 已合并（不等于全部人工验收通过），详见 [结果](../progress/runtime-diagnostics-results.md)；D2 在 PR #31 实施与验证中；D3–D7 待开发。
 
 规划基线：`agent/v1-8-r8-cleanup-acceptance` @ `641e106252e7053ea9a306fddcbc1c80ad66592e`；已验证刷新修复代码为 `4948ece`。本次只提交计划和依据对齐，不表示下述功能已实现，也不启动部署或自动合并。
 

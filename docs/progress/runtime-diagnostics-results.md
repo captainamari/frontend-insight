@@ -171,3 +171,27 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 - 本地完整 `pnpm check` 已通过 74 文件 / 576 单测与构建；后续补充信封最终状态预算边界及实验室日志断言，将随同提交 CI 重新验证。
 - D2 workflow 继承真实 D0/D1、权限六身份、故障/TTL/重试、R5-A/B 与分母验证；新增 console 原文逐字段 API/UI 检查、复制时撤权、浏览器同步开销和持续有界容量测量。D0 真实 fixture 增加 console 原文，负向检查保留并扩展至原始事实/审计/DLQ/服务日志/Prometheus。
 - 尚未得到真实 CI 结果，不标记 D2 完成。下一步提交此检查点、创建 Draft PR、等待并修复实际 Actions；完成指南和最终证据。
+
+## D2 实现矩阵（代码完成，最终提交 CI 待核验）
+
+| D2 任务                            | 实现位置                                                              | 已有验证 / 交付边界                                                                                                                                            |
+| ---------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 可选五级 console 与默认 error/warn | `web-tracker/src/console.ts`、`package.json`                          | 默认/自定义级别、显式禁用、不可用级别；无独立网络请求或全局异常监听                                                                                            |
+| 调用时快照、异常前冻结、重试稳定   | `console-snapshot.ts`、`console.ts`、`tracker.ts`                     | 对象后改、后续日志、连续异常、异常发生在原 console 尚未返回时、重试 body 不变                                                                                  |
+| 有界序列化与预算                   | 同上、`event-contract/src/diagnostics.ts`                             | 50/24KiB/60s/整条2KiB，UTF-8/JSON转义、紧缩预算、总信封与状态/元数据；Error/cause/AggregateError、BigInt/循环/不可读；getter/toJSON 不执行                     |
+| 原 console 行为与恢复              | `console.ts`、`sdk-console.ts`                                        | 参数引用和顺序、this、返回、抛错；递归、重复安装、第三方前后包装/所有权、缺失/不可写；同前缀业务日志保留                                                       |
+| 页面/实例/项目隔离                 | `console.ts`、tracker lifecycle                                       | 独立 records/元数据、导航/pageView、destroy/reinitialize；同项目多实例；不同 scope 冲突停止采集；存活 tracker 的导航不被另一实例销毁破坏                       |
+| 计数、D1 去重与 D0 传输            | 原 `reportError/captureDiagnostic` 与 D2 模块                         | console.error 不计 JS；25 个独立错误全部计数、最多20份详情；双监听去重、旧 v3、重试/TTL/故障保持                                                               |
+| 按实例授权与原文隔离               | 原 RuntimeDiagnostics/DiagnosticsController、`error-stack.ts`         | 服务端 diagnostics.read/当前成员、admin审计、no-store；D0六身份及撤权/移除；普通列表/raw_events/审计/DLQ/Prometheus/服务日志负向断言保留并扩充 console fixture |
+| 详情页面与状态                     | `DiagnosticDetail.vue`、受限 console view                             | 级别/顺序/时间/相对毫秒、参数与Error栈、展开/过滤/复制再授权；legacy/not_enabled/empty/conflict，继承存储和访问状态；文本渲染不执行HTML                        |
+| 实验室                             | `demo-app/src/App.vue`                                                | 五种实际错误路径先记录 info/warn/error；仅console、对象后改/循环/BigInt/Error/长参数/缓冲淘汰；React为显式回调，不是React树                                    |
+| 双浏览器与性能                     | `tests/runtime-diagnostics/console.spec.ts`、errors.spec、D2 workflow | 首轮真实双浏览器完整链路已通过；参数/顺序/级别/相对时间、具体错误/帧、撤权与复制。普通1000/复杂1000/高频10000/冻结500采样；最终报告待同提交 artifact           |
+| 体积与交接                         | build-bundle、D2指南、SDK README、用户指南、学习18                    | 基础12KiB不变，私有属性压缩白名单；各可选模块和组合计量；无新增迁移；Firefox仅fixture；D3–D7未完成                                                             |
+
+### D2 检查点 3（最终回归准备）
+
+首轮验证代码 `101095a2807ebabcbb49a51ee4438acef942b9cf`，CI [38118755398](https://github.com/captainamari/frontend-insight/actions/runs/38118755398)。已确认真实权限/故障/双浏览器链路通过，继承回归仍在执行，未提前填全部成功。
+
+复核追加：复制 console 的 limits/unavailableLevels，冻结配置所有者并只接受五个合法级别；避免可变元数据跨异常共享。增加总信封边界、配置/元数据变更、实际双 tracker 销毁后导航与 SDK warning 排除测试，18 项 D2 单测通过。console 模块现为 2,706 bytes，完整启用组合 22,174 bytes；最终 CI 会重新构建确认。指南已完成，接下来提交此批最终代码并等待同 SHA 的全部 Actions 完成，再追加最终证据。
+
+首轮 CI `38118755398` 已全步骤成功（代码仍为 `101095a...`，不冒充后续修订已验证），artifact `11693823421` 为 5,221 bytes，仅摘要 JSON。初步测量：Chromium 时钟约0.1ms，普通/复杂/高频/冻结 p95 约0.1/0.3/0.1/0.2ms；WebKit 时钟约1ms，对应 <分辨率/1/<分辨率/1ms。连续调用后保留50条、10,601 bytes。最终同提交测量将在下一轮完成后追加，不用此轮替代最终结果。

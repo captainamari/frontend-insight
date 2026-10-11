@@ -52,8 +52,8 @@ function fixture(
     page: (p: string) => {
       page = p;
     },
-    freeze: () =>
-      extract.call(scope, new Error("token=exception"), "explicit")!.diagnostic,
+    freeze: (error: unknown = new Error("token=exception")) =>
+      extract.call(scope, error, "explicit")!.diagnostic,
   };
 }
 function logs(d: ReturnType<ReturnType<typeof fixture>["freeze"]>) {
@@ -90,6 +90,49 @@ describe("D2 console snapshots and bounded budgets", () => {
     logs(second)[0]!.parameters[0] = "mutated snapshot";
     expect(logs(first)[0]!.parameters[0]).toBe("first");
     expect(logs(f.freeze())[0]!.parameters[0]).toBe("first");
+  });
+  it("metadata and configuration cannot mutate another exception or instance", () => {
+    const options: ConsoleOptions = { scope: { appId: "fi_test" } };
+    const f = fixture(options);
+    options.scope.appId = "fi_changed";
+    f.host.warn("snapshot");
+    const first = f.freeze();
+    const meta = first.raw.consoleCapture as {
+      limits: { entries: number };
+      unavailableLevels: string[];
+    };
+    meta.limits.entries = 0;
+    meta.unavailableLevels.push("warn");
+    expect(f.freeze().raw.consoleCapture).toMatchObject({
+      scopeAppId: "fi_test",
+      limits: { entries: 50 },
+      unavailableLevels: [],
+    });
+    expect(logs(f.freeze())).toHaveLength(1);
+  });
+  it("keeps errors and newest logs within the total envelope after metadata/status changes", () => {
+    const f = fixture();
+    for (let i = 0; i < 50; i++) f.host.warn(i, "x".repeat(2000));
+    const error = new AggregateError(
+      Array.from({ length: 20 }, () => ({ message: "中".repeat(5000) })),
+      "essential message",
+    );
+    Object.defineProperty(error, "stack", {
+      value: "Error: essential\n at essential (/app.js:7:8)",
+      configurable: true,
+    });
+    const d = f.extract.call(f.scope, error, "explicit")!.diagnostic;
+    expect(diagnosticBudgetError(d)).toBeNull();
+    expect(d.raw.error).toMatchObject({
+      message: "essential message",
+      stack: "Error: essential\n at essential (/app.js:7:8)",
+    });
+    expect(jsonBytes(d)).toBeLessThanOrEqual(65536);
+    expect(logs(d).at(-1)!.parameters[0]).toBe(49);
+    expect(d.raw.consoleCapture).toMatchObject({
+      count: logs(d).length,
+      bytes: jsonBytes(logs(d)),
+    });
   });
   it("custom levels and explicit not-enabled/empty/unavailable states", () => {
     const f = fixture({ levels: ["log", "info", "debug"] });
@@ -354,7 +397,7 @@ describe("D2 wrapping, scopes and lifecycle", () => {
 });
 
 describe("D2 actual tracker wiring and inherited counts", () => {
-  function trackerFixture() {
+  function trackerFixture(development = false) {
     const appId = `fi_${crypto.randomUUID().slice(0, 8)}`;
     const bodies: string[] = [];
     const quality = createQualityCollectors({ jsErrors: true });
@@ -362,6 +405,7 @@ describe("D2 actual tracker wiring and inherited counts", () => {
       appId,
       env: "dev" as const,
       release: "d2",
+      development,
       endpoint: "https://collector.test/v1/events",
       errorDiagnostics: createConsoleDiagnostics({ scope: { appId } }),
       quality: quality.factory,
@@ -442,6 +486,35 @@ describe("D2 actual tracker wiring and inherited counts", () => {
     expect(logs(events[0]!.diagnostic!)[0]!.parameters).toEqual([{ value: "before" }]);
     expect(logs(events[0]!.diagnostic!)).toHaveLength(1);
     expect(logs(events[1]!.diagnostic!)).toHaveLength(2);
+  });
+  it("SDK warnings bypass capture while identical business prefixes are retained", async () => {
+    const f = trackerFixture(true);
+    f.tracker.track("invalid name");
+    createTracker({ ...f.config, appId: "INVALID" });
+    window.console.warn("[frontend-insight] CUSTOM_NAME_INVALID");
+    f.tracker.captureException(new Error("after warnings"));
+    await f.tracker.flush();
+    expect(logs(f.errors()[0]!.diagnostic!).map((l) => l.parameters)).toEqual([
+      ["[frontend-insight] CUSTOM_NAME_INVALID"],
+    ]);
+  });
+  it("destroying one actual tracker preserves another tracker after navigation", async () => {
+    const f = trackerFixture();
+    const second = createTracker({
+      ...f.config,
+      release: "d2-second",
+      quality: createQualityCollectors({ jsErrors: true }).factory,
+    });
+    cleanup.push(() => second.destroy());
+    window.console.warn("before first destroy");
+    f.tracker.destroy();
+    window.history.pushState({}, "", "/d2-two-active");
+    window.console.warn("second new page");
+    second.captureException(new Error("second"));
+    await second.flush();
+    expect(logs(f.errors().at(-1)!.diagnostic!).map((l) => l.parameters)).toEqual([
+      ["second new page"],
+    ]);
   });
   it("actual navigation/destroy/reinitialize clears captured page history", async () => {
     const f = trackerFixture();

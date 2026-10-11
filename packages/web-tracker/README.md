@@ -44,3 +44,9 @@ R6 duration queries require an observed page view plus contiguous settlements th
 ## D1 可选错误原文诊断
 
 通过 `@frontend-insight/web-tracker/errors` 导入 `createErrorDiagnostics`，在 createTracker 中配置 `errorDiagnostics: createErrorDiagnostics()`。全局/Promise/显式/Vue/React 错误共用有界提取器；基础计数不因详情限流减少。旧接入未启用时仍只发原摘要。框架适配器、预算、源格式、权限与可执行示例见 [D1 指南](../../docs/guides/runtime-diagnostics-d1.md)。基础包仍受原 12 KiB 门禁，启用后另计 errors 下载量，完整数据见构建报告。
+
+## D2 可选 console 上下文
+
+从 `@frontend-insight/web-tracker/console` 导入 `createConsoleDiagnostics`，配置 `errorDiagnostics: createConsoleDiagnostics({ scope: { appId } })`，替代 D1 的 `createErrorDiagnostics()`。默认 error/warn，log/info/debug 显式启用；本模块复用 errors 下载，不另加全局异常监听或上传通道。console.error 自身不计为 JS 异常。
+
+scope 是应用对全局 console 项目所有权的明确声明，多项目冲突停止采集；每 tracker/pageView 独立。最多 50 条/24 KiB/60 秒，单条连元数据不超过 2 KiB；配置只能收紧。参数调用时取值、异常时冻结、后续修改不回写。基础包仍受 12 KiB 门禁，下载量见 `dist/console-bundle-report.json`（含所有实际组合）。完整配置、能力边界、升级、权限和验收见 [D2 指南](../../docs/guides/runtime-diagnostics-d2.md)。

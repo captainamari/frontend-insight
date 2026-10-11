@@ -141,9 +141,13 @@ const cap = (value: number | undefined, maximum: number, minimum: number) =>
 
 /** Optional console + D1 error diagnostics. No new error listeners or upload channel. */
 export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtractor {
+  const ownerAppId = options.scope.appId;
+  const enabled = options.enabled !== false;
   const extract = createErrorDiagnostics();
   const states = new WeakMap<object, ReturnType<typeof start>>();
-  const enabledLevels = new Set(options.levels ?? ["error", "warn"]);
+  const enabledLevels = new Set(
+    levels.filter((level) => (options.levels ?? ["error", "warn"]).includes(level)),
+  );
   const limits = {
     entries: cap(options.maximumEntries, 50, 0),
     bytes: cap(options.maximumBytes, 24576, 2),
@@ -172,10 +176,10 @@ export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtracto
       records = kept;
     };
     const actualAppId = (scope as { appId?: string }).appId;
-    const active = options.enabled !== false && options.scope.appId === actualAppId;
+    const active = enabled && ownerAppId === actualAppId;
     let conflict = false;
     const sub: Subscriber = {
-      appId: options.scope.appId,
+      appId: ownerAppId,
       conflict() {
         reset();
         removed.scope += records.length;
@@ -252,11 +256,11 @@ export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtracto
                     ? "captured"
                     : "empty",
             capturedAt: now,
-            scopeAppId: options.scope.appId,
+            scopeAppId: actualAppId ?? "",
             levels: [...enabledLevels],
-            limits,
+            limits: { ...limits },
             removed: { ...removed },
-            unavailableLevels: connection?.unavailable ?? [...levels],
+            unavailableLevels: [...(connection?.unavailable ?? levels)],
             bytes: jsonBytes(frozen),
             count: frozen.length,
           },

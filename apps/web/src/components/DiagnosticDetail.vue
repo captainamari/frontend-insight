@@ -42,6 +42,8 @@ interface ConsoleRecord {
   source?: string;
   parameters?: unknown[];
   issues?: string[];
+  omittedBytes?: number;
+  omittedBytesExact?: boolean;
 }
 const consoleFilter = ref("all");
 const consoleLabels: Record<string, string> = {
@@ -315,7 +317,9 @@ onBeforeUnmount(() => {
           </p>
           <pre>{{ show(record?.parameters ?? record) }}</pre>
           <p v-if="issuesFor(record).length">
-            截断 / 省略 / 不可读取：{{ issuesFor(record).join("、") }}
+            截断 / 省略 / 不可读取：{{ issuesFor(record).join("、") }} · 已知省略字节{{
+              record.omittedBytesExact === false ? "下界" : ""
+            }}：{{ record.omittedBytes ?? "未知" }}
           </p>
         </details>
         <details>

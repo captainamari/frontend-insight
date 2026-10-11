@@ -5,6 +5,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 test("D2 console raw roundtrip, quality UI, permissions and bounded browser measurements", async ({
   page,
   request,
+  browser,
 }, info) => {
   test.setTimeout(180000);
   const auth = await (
@@ -50,7 +51,7 @@ test("D2 console raw roundtrip, quality UI, permissions and bounded browser meas
           timestamp: number;
           sequence: number;
         }[];
-        consoleCapture: { count: number; bytes: number };
+        consoleCapture: { count: number; bytes: number; capturedAt: number };
         error: { message: string; stack: string };
       };
     };
@@ -191,6 +192,11 @@ test("D2 console raw roundtrip, quality UI, permissions and bounded browser meas
   ]);
   expect(firstLogs.map((l) => l.sequence)).toEqual([1, 2, 3, 4]);
   expect(firstLogs.every((l) => l.relativeMs <= 0)).toBe(true);
+  expect(
+    firstLogs.every(
+      (l) => l.relativeMs === l.timestamp - first.raw.consoleCapture.capturedAt,
+    ),
+  ).toBe(true);
   expect(
     firstLogs.every((l, i) => i === 0 || l.relativeMs >= firstLogs[i - 1]!.relativeMs),
   ).toBe(true);
@@ -334,6 +340,7 @@ test("D2 console raw roundtrip, quality UI, permissions and bounded browser meas
     JSON.stringify({
       testedCommit: process.env.GITHUB_SHA,
       browser: info.project.name,
+      browserVersion: browser.version(),
       rawRoundTrips: sent.length,
       consoleUi: "passed",
       revokeAndCopy: "passed",
