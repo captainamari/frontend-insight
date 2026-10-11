@@ -1,15 +1,17 @@
+import { diagnosticBudgetError } from "./diagnostics.js";
 import { Ajv2020, type ErrorObject } from "ajv/dist/2020.js";
 import * as addFormatsModule from "ajv-formats";
 import type { FormatsPlugin } from "ajv-formats";
 import schemaV3 from "../schema/event-batch-v3.schema.json" with { type: "json" };
 import {
   CONTRACT_LIMITS,
+  DIAGNOSTIC_LIMITS,
   REJECTION_CODES,
   SUPPORTED_SCHEMA_VERSIONS,
   type RejectionCode,
 } from "./constants.js";
 import type { FrontendInsightEventBatchV3 } from "./generated/event-batch-v3.js";
-import { findCredentialLeak } from "./security.js";
+import { findCredentialLeak, findEventCredentialLeak } from "./security.js";
 
 export type FrontendInsightEventBatch = FrontendInsightEventBatchV3;
 
@@ -102,7 +104,16 @@ export function validateTransportBatch(
     );
   }
 
-  const credentialLeak = findCredentialLeak(input);
+  const { events: inputEvents, ...batchMetadata } = input;
+  const credentialLeak =
+    findCredentialLeak(batchMetadata) ||
+    (Array.isArray(inputEvents)
+      ? inputEvents
+          .map((e) =>
+            isRecord(e) ? findEventCredentialLeak(e) : findCredentialLeak(e),
+          )
+          .find(Boolean)
+      : findCredentialLeak(inputEvents));
   if (credentialLeak) {
     return error(
       REJECTION_CODES.credentialDataRejected,
@@ -226,7 +237,34 @@ export function validateTransportBatch(
           "invalid business outcome relationship",
         );
     }
-    if (byteLength(event) > CONTRACT_LIMITS.maximumEventBytes) {
+    const { diagnostic, ...baseEvent } = event;
+    if (diagnostic) {
+      if (event.event !== "error" && event.event !== "api")
+        return error(
+          REJECTION_CODES.schemaInvalid,
+          path,
+          "diagnostic requires error or api event",
+        );
+      if (
+        byteLength(diagnostic) > DIAGNOSTIC_LIMITS.maximumEnvelopeBytes ||
+        diagnosticBudgetError(diagnostic)
+      )
+        return error(
+          REJECTION_CODES.eventTooLarge,
+          path,
+          "diagnostic exceeds 65536 bytes",
+        );
+      if (
+        ["rate_limited", "too_large", "unavailable"].includes(diagnostic.status) &&
+        Object.keys(diagnostic.raw).length
+      )
+        return error(
+          REJECTION_CODES.schemaInvalid,
+          path,
+          "unavailable diagnostic must not carry raw content",
+        );
+    }
+    if (byteLength(baseEvent) > CONTRACT_LIMITS.maximumEventBytes) {
       return error(
         REJECTION_CODES.eventTooLarge,
         path,

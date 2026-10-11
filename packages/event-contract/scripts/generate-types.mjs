@@ -37,6 +37,7 @@ if (manifest.contractVersion !== 3) {
 }
 
 const commonEventProperties = {
+  diagnostic: { $ref: "#/$defs/diagnostic" },
   eventId: { type: "string", pattern: "^evt_[A-Za-z0-9_-]{8,64}$" },
   appId: { type: "string", pattern: "^[a-z][a-z0-9_-]{2,63}$" },
   env: { enum: manifest.environments },
@@ -145,6 +146,49 @@ const schema = {
     },
   },
   $defs: {
+    diagnostic: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "diagnosticVersion",
+        "contentType",
+        "source",
+        "policyVersion",
+        "status",
+        "omittedBytes",
+        "suppressed",
+        "correlation",
+        "raw",
+      ],
+      properties: {
+        diagnosticVersion: { const: 1 },
+        contentType: { const: "application/json" },
+        source: { enum: ["explicit", "global", "promise", "vue", "react", "unknown"] },
+        policyVersion: { type: "string", pattern: "^[A-Za-z0-9._-]{1,64}$" },
+        status: {
+          enum: ["complete", "truncated", "rate_limited", "too_large", "unavailable"],
+        },
+        omittedBytes: { type: "integer", minimum: 0, maximum: 2147483647 },
+        suppressed: { type: "integer", minimum: 0, maximum: 2147483647 },
+        correlation: {
+          type: "object",
+          additionalProperties: false,
+          properties: Object.fromEntries(
+            [
+              "requestId",
+              "traceId",
+              "operationInstanceId",
+              "workflowInstanceId",
+              "stepKey",
+            ].map((key) => [
+              key,
+              { type: "string", pattern: "^[A-Za-z0-9_-]{1,128}$" },
+            ]),
+          ),
+        },
+        raw: { type: "object", maxProperties: 100 },
+      },
+    },
     sdk: {
       type: "object",
       additionalProperties: false,
@@ -566,7 +610,20 @@ export interface FrontendInsightSdk {
   collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
+export interface DiagnosticEnvelope {
+  diagnosticVersion: 1;
+  contentType: "application/json";
+  source: "explicit" | "global" | "promise" | "vue" | "react" | "unknown";
+  policyVersion: string;
+  status: "complete" | "truncated" | "rate_limited" | "too_large" | "unavailable";
+  omittedBytes: number;
+  suppressed: number;
+  correlation: { requestId?: string; traceId?: string; operationInstanceId?: string; workflowInstanceId?: string; stepKey?: string };
+  raw: Record<string, unknown>;
+}
+
 export interface FrontendInsightEventV3 {
+  diagnostic?: DiagnosticEnvelope;
   eventId: string;
   event: FrontendInsightEventName;
   appId: string;

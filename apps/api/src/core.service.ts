@@ -1,5 +1,8 @@
+import { createClient } from "@clickhouse/client";
 import {
   SettingsService,
+  RuntimeDiagnostics,
+  SafeClickHouseLogger,
   SettingsFactStore,
   QualityFactStore,
   PageQualityStore,
@@ -34,6 +37,15 @@ import type { OnModuleDestroy } from "@nestjs/common";
 export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
+  readonly diagnostics = new RuntimeDiagnostics(this.mysql);
+  readonly diagnosticClient = createClient({
+    url: this.environment.CLICKHOUSE_URL,
+    username: this.environment.CLICKHOUSE_USERNAME,
+    password: this.environment.CLICKHOUSE_PASSWORD,
+    database: this.environment.CLICKHOUSE_DATABASE,
+    log: { LoggerClass: SafeClickHouseLogger },
+    clickhouse_settings: { date_time_input_format: "best_effort" },
+  });
   readonly settings = new SettingsService(this.mysql);
   readonly settingsFacts = new SettingsFactStore({
     url: this.environment.CLICKHOUSE_URL,
@@ -159,6 +171,7 @@ export class CoreService implements OnModuleDestroy {
       this.workflowFacts.close(),
       this.qualityFacts.close(),
       this.pageQuality.close(),
+      this.diagnosticClient.close(),
       this.pageUsage.close(),
       this.settingsFacts.close(),
       this.observability.close(),

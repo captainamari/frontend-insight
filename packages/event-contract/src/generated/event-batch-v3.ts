@@ -13,7 +13,20 @@ export interface FrontendInsightSdk {
   collectors?: ("forms" | "business_results" | "repeated_operations")[];
 }
 
+export interface DiagnosticEnvelope {
+  diagnosticVersion: 1;
+  contentType: "application/json";
+  source: "explicit" | "global" | "promise" | "vue" | "react" | "unknown";
+  policyVersion: string;
+  status: "complete" | "truncated" | "rate_limited" | "too_large" | "unavailable";
+  omittedBytes: number;
+  suppressed: number;
+  correlation: { requestId?: string; traceId?: string; operationInstanceId?: string; workflowInstanceId?: string; stepKey?: string };
+  raw: Record<string, unknown>;
+}
+
 export interface FrontendInsightEventV3 {
+  diagnostic?: DiagnosticEnvelope;
   eventId: string;
   event: FrontendInsightEventName;
   appId: string;

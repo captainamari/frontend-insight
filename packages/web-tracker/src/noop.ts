@@ -34,6 +34,7 @@ export function createNoopTracker(code: string, development = false): Tracker {
       getState: () => "started",
     }),
     startLongView: () => () => {},
+    captureDiagnostic() {},
     captureException() {},
     captureApiError() {},
     captureResourceError() {},

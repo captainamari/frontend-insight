@@ -77,6 +77,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_MESSAGE_MAX_BYTES: "1048576"
       KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
       KAFKA_HEAP_OPTS: -Xms512m -Xmx512m
     volumes: [kafka-data:/tmp/kraft-combined-logs]
@@ -105,7 +106,10 @@ services:
     command:
       - >-
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
-        --topic frontend-insight.events.v1 --partitions 3 --replication-factor 1 &&
+        --topic frontend-insight.events.v1 --partitions 3 --replication-factor 1
+        --config max.message.bytes=262144 --config retention.ms=86400000 --config segment.ms=60000 &&
+        /opt/kafka/bin/kafka-configs.sh --bootstrap-server kafka:9092 --alter --entity-type topics
+        --entity-name frontend-insight.events.v1 --add-config max.message.bytes=262144,retention.ms=86400000,segment.ms=60000 &&
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists
         --topic frontend-insight.events.dlq.v1 --partitions 1 --replication-factor 1 &&
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists

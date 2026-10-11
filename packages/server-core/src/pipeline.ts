@@ -1,3 +1,4 @@
+import { RuntimeDiagnostics } from "./runtime-diagnostics.js";
 import {
   REPEATED_TOPIC,
   verifyObjectOperation,
@@ -310,7 +311,7 @@ export class IngestionManager {
     try {
       const serialized = JSON.stringify(input);
       const rawBytes = new TextEncoder().encode(serialized).byteLength;
-      if ((context.contentLength ?? rawBytes) > 64 * 1024 || rawBytes > 64 * 1024) {
+      if ((context.contentLength ?? rawBytes) > 128 * 1024 || rawBytes > 128 * 1024) {
         throw new IngestionError("BATCH_TOO_LARGE", 413);
       }
       const validation = validateForIngestion(input, { nowMs });
@@ -375,6 +376,24 @@ export class IngestionManager {
         directories,
         nowMs,
       );
+      if (batch.events.some((e) => e.diagnostic)) {
+        try {
+          await new RuntimeDiagnostics(this.store).admit(
+            project.id,
+            batch.events,
+            nowMs,
+          );
+        } catch (e) {
+          throw new IngestionError(
+            e instanceof Error && e.message === "DIAGNOSTICS_EVENT_CONFLICT"
+              ? "DIAGNOSTICS_EVENT_CONFLICT"
+              : "DIAGNOSTICS_ADMISSION_UNAVAILABLE",
+            e instanceof Error && e.message === "DIAGNOSTICS_EVENT_CONFLICT"
+              ? 409
+              : 503,
+          );
+        }
+      }
       checkpoint("sanitizeMs");
       const requestId = randomUUID();
       const envelope: KafkaEventEnvelope = {

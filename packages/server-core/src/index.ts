@@ -54,3 +54,5 @@ export type { RowDataPacket } from "mysql2/promise";
 
 export * from "./settings.js";
 export * from "./settings-facts.js";
+
+export * from "./runtime-diagnostics.js";
