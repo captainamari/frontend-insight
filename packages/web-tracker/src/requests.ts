@@ -434,26 +434,32 @@ export function createRequestDiagnostics(options: RequestOptions) {
           if (!localId) return result;
           // A derived native Promise preserves the Response/error identities and keeps
           // rejection observable at the application boundary without an orphan observer.
-          return Promise.prototype.then.call(
-            result,
-            (response: Response) => {
-              finish(localId, response);
-              safe(() => {
-                if (
-                  typeof WeakRef !== "undefined" &&
-                  requests.some((r) => r.localId === localId)
-                ) {
-                  responseRecords.set(response, localId!);
-                  responseRefs.set(localId!, new WeakRef(response));
-                }
-              });
-              return response;
-            },
-            (error: unknown) => {
-              finish(localId, undefined, error);
-              throw error;
-            },
-          ) as Promise<Response>;
+          try {
+            return Promise.prototype.then.call(
+              result,
+              (response: Response) => {
+                finish(localId, response);
+                safe(() => {
+                  if (
+                    typeof WeakRef !== "undefined" &&
+                    requests.some((r) => r.localId === localId)
+                  ) {
+                    responseRecords.set(response, localId!);
+                    responseRefs.set(localId!, new WeakRef(response));
+                  }
+                });
+                return response;
+              },
+              (error: unknown) => {
+                finish(localId, undefined, error);
+                throw error;
+              },
+            ) as Promise<Response>;
+          } catch {
+            // A third-party adapter may return a non-native thenable/object.
+            // Do not invoke its then getter or let observation change the return.
+            return result;
+          }
         };
         controlledFetches.set(wrapped, { binding, source, original });
         if (!wrappers.has(original)) wrappers.set(original, new Map());

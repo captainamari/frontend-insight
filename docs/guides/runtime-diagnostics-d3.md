@@ -79,11 +79,11 @@ void data;
 
 ## 宿主行为、生命周期与归属
 
-- 调用原 fetch 时保留 this、参数顺序/引用、AbortSignal；响应对象/拒绝原因身份保持，原函数同步抛错原样抛出。观察中的 native Promise 会返回派生 Promise，以保留应用边界的拒绝语义；不承诺 Promise 对象引用与原函数返回完全相同。诊断不等待正文、不引入孤立 observer rejection。
-- 本模块不替换全局方法，因此不需要在 destroy 覆盖宿主/第三方方法。重复包装已知受控函数不叠加；每个绑定对同一原函数/来源缓存 wrapper。第三方修改 window.fetch 后，已经拿到的 wrapper 仍指向原先函数；应显式重新取得 wrapper，不能假装自动追踪任意拦截器替换。
+- 调用原 fetch 时保留 this、参数顺序/引用、AbortSignal；响应对象/拒绝原因身份保持，原函数同步抛错原样抛出。观察中的 native Promise 会返回派生 Promise，以保留应用边界的拒绝语义；不承诺 Promise 对象引用与原函数返回完全相同。非原生 thenable/自定义返回对象原样返回，不调用其 then getter，结果证据保持 pending。诊断不等待正文、不引入孤立 observer rejection。
+- 本模块不替换全局方法，因此不需要在 destroy 覆盖宿主/第三方方法。重复包装已知受控函数不叠加；跨绑定/项目显式重新包装时移除本模块原观察层，仅归属新绑定；每个绑定对同一原函数/来源缓存 wrapper。第三方修改 window.fetch 后，已经拿到的 wrapper 仍指向原先函数；应显式重新取得 wrapper，不能假装自动追踪任意拦截器替换。
 - 同一 realm 多项目分别创建 diagnostics 并通过自己的 bound 发请求；不将一个请求正文广播给所有 tracker。不能把同一个 diagnostics 配给多个 tracker；后续实例不接管原实例缓冲。console 仍遵循 D2 realm 所有者冲突规则。
 - 请求归属于发起页面。新页面第一次采集/冻结/查看 stats 时清空旧缓冲；不会把晚到结果挂新页。页面边界识别复用 tracker 的 pageViewId。没有额外轮询计时器；闲置缓冲最多既定容量，下一次访问按时间窗口淘汰，destroy立即清空。已发业务请求不被 SDK 取消。
-- scope.enabled=false 只关闭请求/操作诊断，console 的开关在 console.enabled；quality/基本错误统计仍独立。
+- enabled=false 只关闭请求/操作诊断，console 的开关在 console.enabled；quality/基本错误统计仍独立。
 - SDK ingestion 端点按 origin/path 排除；文件上传按显式 source="upload"、已知路由、FormData/Blob/ArrayBuffer 类型排除。`bound.wrapFetch(fetch, "sdk")` 明确排除 SDK 来源。排除只影响诊断；是否计入质量分母由既有质量观察决定。
 
 ## 时间模型和预算
@@ -142,7 +142,8 @@ node tools/d0-log-check.mjs
 2. 详情应看到 `FI_D3_SYNTHETIC failure 请求后渲染失败`、前置console、POST完整query、`x-request-token`/`x-fixture-token`、原始请求换行和响应JSON空格/嵌套/HTML文本；标记显式operation关联、本地ID和HTTP503。
 3. “D3 仅请求失败”不增加JS错误数。success启用正文；business为应用显式业务失败；abort/timeout/network不伪造HTTP状态。large有明确截断；binary/stream无伪造正文；redirect只显示最终URL/redirected。
 4. 展开/收起请求、切换过滤、复制请求上下文，确认HTML只显示文字；普通viewer不能读。授权viewer打开后撤权/移除成员，下一次请求403，页面在续验后清空，复制须再次授权。
-5. 自动化补充 pending/晚到正文冻结、跨路由、真实SSE业务reader取消、opaque、真实工作流句柄、API分母单计及完整原文往返；unit覆盖并发乱序/多实例绑定、边界/访问器/零读取。Firefox只有继承栈fixture；React为D1显式适配器，未新增React渲染树。
+5. 在“D3 仅请求失败”后依次使用实验室既有 Promise、显式 capture、Vue 和 React 适配器按钮，查看同页时间邻近请求；没有显式 bound.capture 关联时不要把它标成因果。React 仍为显式接入回调。
+6. 自动化补充 pending/晚到正文冻结、跨路由、真实SSE业务reader取消、opaque、真实工作流句柄、API分母单计及完整原文往返；unit覆盖并发乱序/多实例绑定、边界/访问器/零读取。Firefox只有继承栈fixture；React为D1显式适配器，未新增React渲染树。
 
 ## 发布与回滚
 

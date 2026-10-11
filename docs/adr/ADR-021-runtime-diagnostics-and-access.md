@@ -1,7 +1,7 @@
 # ADR-021：诊断原文与项目访问权限
 
 - 日期：2026-10-10
-- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 已实现且真实 CI 通过（待用户验收/评审），D3–D7 未完成
+- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 PR #31 已合并代码与文档；D3 已实现、真实CI收尾中，D4–D7 未完成
 - 来源：Jesse 本次明确要求“不需要脱敏，只要是有价值的诊断信息都收集了。但是可以考虑展示时什么角色的用户能看到”
 - 执行依据：[运行时诊断能力补齐计划](../planning/runtime-diagnostics-development-plan.md)
 
@@ -17,7 +17,7 @@ R8 手工验收发现错误已入库，但原始消息不展示、SDK 首帧与 
 4. 展示权限在服务端实施，复用项目成员关系，新增诊断 read/export 能力；平台 admin 沿用管理权限，普通 viewer 默认只有统计摘要，获授权的项目成员可读原文。不通过隐藏按钮代替访问校验。
 5. 详情、原文搜索、导出和 SourceMap 统一授权与审计；SDK 公共 appId 和旧外部 token 不获得原文读取权。运行日志/Prometheus 保存诊断元数据，不旁路复制原文。
 6. SourceMap 与源码定位纳入 D5；浏览器能力限制、对象不可序列化、无栈和解析失败分别呈现。原始栈不能因解析失败丢弃。
-7. 原计划提交授权已由 Jesse 的 D0 实施授权扩展。本批合同、权限、容量、兼容与故障一致性决定详见 [D0 决策记录](../progress/runtime-diagnostics-decisions.md)，实施证据详见 [结果](../progress/runtime-diagnostics-results.md)。D1 已由后续授权实施并验证，D2–D7 仍未完成，不将 D0/D1 描述为全路线交付。
+7. 原计划提交授权已由 Jesse 的 D0 实施授权扩展。本批合同、权限、容量、兼容与故障一致性决定详见 [D0 决策记录](../progress/runtime-diagnostics-decisions.md)，实施证据详见 [结果](../progress/runtime-diagnostics-results.md)。D1 已由后续授权实施并验证，D2 也已实施、验证并合并；D3 当前范围为受控请求证据与显式关联，交付证据以结果文档为准。D4–D7 仍未完成，不将前序批次描述为全路线交付。
 
 ## 与历史文件的关系
 

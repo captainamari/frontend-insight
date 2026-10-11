@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { validateTransportBatch } from "@frontend-insight/event-contract";
+import { validateTransportBatch } from "../../packages/event-contract/src/index.js";
 import type { DiagnosticEnvelope } from "@frontend-insight/event-contract";
 import type { RequestRecord } from "../../packages/web-tracker/src/requests";
 

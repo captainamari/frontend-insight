@@ -274,3 +274,29 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 ### D3 第二轮真实CI
 
 代码 `eb6d16583b104466428b66a2b2d041dfd89d62af`，CI [38122434801](https://github.com/captainamari/frontend-insight/actions/runs/38122434801) 仍失败。真实HTTP、取消/网络/SSE/opaque、SDK原文字段和快照断言已通过；服务端详情等待返回not_enabled。测试创建了真实SDK工作流，却未在服务端注册/激活定义，现有工作流准入合同会拒绝该批次；补齐项目module/feature/workflow定义及激活，并增加每个出站批次的合同和ingestion202断言，避免把发送视为接收成功。保留D0–D2已通过8项，不把本轮当最终交付。
+
+## D3 实现与验证矩阵
+
+本表描述实现位置和验证范围；最终同提交 CI 结论见本节后的交付证据。此前失败/取消记录保留，不将提交或发送成功当作闭环通过。
+
+| D3任务              | 当前实现 / 实现位置                                                                               | 验证与边界                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 继承基线与统一链路  | `web-tracker/src/requests.ts` 组合 `console.ts`、`errors.ts`，原 tracker 传输；D2 #31 已合并      | 基线e51b635；D0–D2原有测试继续执行；无旁路上传                                                                                                     |
+| 请求入口及指标      | `bind().wrapFetch()`；`quality.observeApi` 保持唯一API事实所有者                                  | HTTP503 fulfilled；单一真实请求1条API事实；7个真实捕获错误7条JS事实；XHR不纳入支持                                                                 |
+| 原文字段与独立状态  | `request-evidence.ts` / `requests.ts`；URL/query、时点、headers、正文、结果/原因、页面/项目、关联 | 合成token、换行、嵌套JSON空格、HTML逐字段传输/API/UI比对；不脱敏、不读取环境秘密                                                                   |
+| 正文与宿主行为      | 调用时字符串请求体；应用 `responseText` 交付业务已读原文                                          | 无clone/tee/reader/后台读取；不以全部读完再截断实现SDK有界读取；Response身份/this/参数/同步抛错/拒绝/AbortSignal测试；派生Promise不保留Promise引用 |
+| 成功/失败及排除     | `successBodyRoutes`、`excludeRoutes`、enabled、source                                             | 成功正文默认关闭，失败已提供文本默认保留；业务失败须显式；SDK端点与文件上传排除只影响诊断，不改变质量观察配置                                      |
+| 有界缓存与冻结      | 20条/32KiB/60s，单条24KiB，最多4个pending；action30条/8KiB                                        | 请求正文/响应正文16KiB、头4KiB、整个JSON含元数据；未读字节不编精确值；错误立即冻结，晚到响应不补传/改队列                                          |
+| 操作/工作流和多项目 | `OperationHandle/WorkflowHandle.getContext()`、显式bind、action、原pageViewId                     | 真实服务注册/激活工作流；实际实例ID、step/attempt；unit并发乱序/重试/多项目/重绑/销毁代际；无全局当前操作、无注入追踪头                            |
+| 关联依据与生命周期  | instance/request/trace显式匹配；其余同页限定窗口temporal                                          | 本地观察ID有local前缀；跨页晚到结果丢弃；destroy清空；全局方法不由D3替换，第三方不会被销毁覆盖                                                     |
+| 合同与兼容          | `event-contract/scripts/generate-types.mjs`、diagnostics/validator及生成schema                    | 集合/逐项/字段/归属/64KiB服务端校验；旧raw.request按JSON字节收紧已记录；旧v3与D0–D2回归；无数据库迁移                                              |
+| 授权页面            | `server-core/src/error-stack.ts`、`DiagnosticDetail.vue`、`RequestTimeline.vue`                   | 异常/console/导航/action/请求时间线，状态、展开、过滤数量、复制重新授权、文本渲染；每秒续验/失焦清除，不能收回已返回字节                           |
+| 权限与原文隔离      | 原D0诊断服务/API，D3 fixture扩充 `runtime-diagnostics-integration.ts`、`d0-log-check.mjs`         | 六身份、撤权/移除成员、no-store/admin审计；列表、事实、日志、Prometheus、DLQ不泄漏；负向断言继续存在                                               |
+| 实验室与双浏览器    | `demo-app/src/App.vue`、request-fixture、demo隔离HTTP服务、`requests.spec.ts`                     | 503、业务200、成功正文、pending、abort/timeout/network、opaque、redirect、超长多字节、二进制、真实SSE reader；Firefox仅原栈fixture                 |
+| 性能/包体/交接      | build-bundle、requests.spec、D3指南、SDK README、用户指南、learning18                             | 独立模块全下载计量；1000包装/正文/冻结、5000并发调用；计时粒度单独采样；不冒充D7完整压测；未代填人工验收                                           |
+
+### D3 测量复核检查点
+
+第三轮 [38123203413](https://github.com/captainamari/frontend-insight/actions/runs/38123203413) 在检查通过后被后续提交按分支并发策略取消；不作为成功证据。复核补充了重复使用同一个Response时的关联淘汰保护，并将时钟粒度采样与冻结工作耗时分开，避免用工作耗时冒充计时分辨率。针对性15项请求测试通过。当前代码 `f98a2232a509f465829b3623bd7e572cb020c2eb`，正在等待 [38123327038](https://github.com/captainamari/frontend-insight/actions/runs/38123327038) 完整结果。
+
+第四轮 `38123327038` 完成完整检查、增量升级及D0服务回归后，在Playwright加载测试时失败：新增运行时validator使用了根package未声明的workspace包名。改为仓库已有E2E使用的相对源码入口，并在本地用 `playwright --list` 验证独立runner加载；类型导入本身不需要运行时解析。本轮没有执行浏览器用例，不将其记为通过。同步加入第三方非原生返回值保护及unit；最新本地完整75文件/599项通过。

@@ -409,4 +409,18 @@ describe("D3 controlled request evidence", () => {
     expect(records(f).at(-1)!.responseBody.value).toBe("latest text");
     expect(f.requests.stats().responseAssociations).toBeLessThanOrEqual(2);
   });
+  it("preserves non-native adapter returns without invoking their then getter", () => {
+    const f = fixture();
+    let touched = 0;
+    const token = {
+      get then() {
+        touched++;
+        throw new Error("host getter");
+      },
+    };
+    const original = (() => token) as unknown as typeof fetch;
+    expect(f.requests.bind().wrapFetch(original)("/custom")).toBe(token);
+    expect(touched).toBe(0);
+    expect(records(f)[0]!.result).toBe("pending");
+  });
 });
