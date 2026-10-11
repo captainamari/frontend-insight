@@ -94,3 +94,62 @@ D0 五项清单均有实际证据，D1–D7 保持未完成。当前只有最小
 - 最近完整本地 pnpm check 已通过（73 文件 / 559 测试）；最后 Vue 重复安装补丁额外受影响测试/构建通过，最终完整门禁仍以最终 CI 为准。
 
 - 第二轮 `94251be550ad9e21fc5fd18f29146da85ac2faf4` / CI `38114399686` 的 pnpm check 已成功。静态复核发现新增“切换项目”浏览器 fixture 错误地传了空 origins（合同要求至少一个），并补上非字符串 name/message 的对象 rejection 回归；修复后推送替代轮次，由工作流 concurrency 取消旧轮次，避免继续运行已知有缺陷的 fixture。没有放宽项目合同或删除断言。
+
+## D1 逐项完成矩阵（已通过最终 CI，待用户手工验收/评审）
+
+| D1 项目                                   | 实现位置                                                                                      | 验证与边界                                                                                                                                       |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 两条 SDK 错误路径统一；原文与派生字段分离 | `web-tracker/src/{tracker,quality,observability,errors,error-port}.ts`                        | 全局 JS、Promise（Error/字符串/对象/null）、显式、cause、AggregateError；raw 与基础 payload 分离；重复监听/同任务传播去重、独立错误不漏计        |
+| 框架显式接入、保留已有处理行为            | `errors.ts`、`demo-app/src/App.vue`、D1 指南                                                  | Vue 重复安装/卸载、receiver/参数/返回/抛错；真实 Vue 事件；React 显式回调及可执行 ErrorBoundary 示例                                             |
+| 有界提取和容量                            | `errors.ts`、继承 D0 diagnosticBudgetError/captureDiagnostic                                  | 不执行自定义 getter/toJSON；循环/BigInt/不可读取/JSON转义/对象字段有界；64 KiB 信封、16 KiB/32 帧、cause 4层；限流仍保留基础错误数               |
+| 编译栈与解析失败                          | `server-core/src/error-stack.ts`、`page-quality.ts`                                           | HTTP/HTTPS/相对路径、函数包裹、Chrome/WebKit/Firefox fixture、eval/native/async/anonymous、无栈；原文保留，结构化 file/function/line/column 分离 |
+| 受限 API 与历史字段                       | `runtime-diagnostics.ts`、D0 DiagnosticsController                                            | diagnostics.read、当前成员、admin审计、no-store、expiresAt；历史已存字段在授权后返回 legacy，不伪造丢失信息                                      |
+| 可用质量详情页面                          | `web/src/components/DiagnosticDetail.vue`、`views/PageQualityView.vue`                        | 消息/栈文本渲染、帧表、cause/子错误展开、复制前重新授权；服务端即时撤权，页面一秒轮询往返清空；切项目/实例/关闭/失焦/到期清理                    |
+| 完整状态中文说明                          | 同上与 D1 指南                                                                                | 存储 state、采集 capture.status、解析 view.stack.state、访问401/403分层；保留 write_failed/rate_limited/too_large 等元数据                       |
+| 资源失败                                  | `observability.ts`、实验室、详情组件                                                          | 真实资源加载失败，受限显示完整 resourceUrl，说明“不适用 JS 调用栈”；无 SourceMap                                                                 |
+| 真实业务链路与负向回归                    | `tests/runtime-diagnostics/{errors,transport}.spec.ts`、D0 integration、R5-A/B、专项 workflow | SDK→ingestion→Kafka→consumer→存储→授权API→UI 原文一致；不只断言一条记录；普通列表/日志/DLQ及真实分母继承验证                                     |
+| 交接与兼容                                | D1 指南、用户指南、学习文档18、SDK README、results/decisions                                  | 无新迁移；先 D0 存储/consumer/API，再 D1 API/UI/SDK；可选启用原文；D2–D7 保持未完成                                                              |
+
+### 最终包体方案与影响
+
+D0 基础 gzip 12,252 bytes；D1 基础 12,276 bytes，增加 24 bytes，原上限 12,288 不变、余量 12 bytes。去除重复转发/包装，统一基础错误报告；没有为过门禁删除 D1 必需功能。
+
+| 实际下载组合            | gzip bytes |
+| ----------------------- | ---------: |
+| 基础入口                |     12,276 |
+| 可选 errors 单独        |      1,948 |
+| 基础 + errors           |     14,224 |
+| 可选 quality 单独       |      5,239 |
+| 基础 + errors + quality |     19,463 |
+
+将完整提取器无条件加入基础包会超出现有预算；显式可选入口保留基础门禁并披露真实组合体积。没有需要用户批准的预算上调。余量仍小，D2 不应把 console 功能直接挤入基础包。
+
+### 覆盖的解释与未覆盖项
+
+- Chromium/WebKit：真实 SDK、服务、存储、授权 API、页面。HTTP fixture 仅提供合成业务页/错误/SDK文件；后端没有用 mock 代替真实链路。
+- Firefox：仅栈格式 fixture。React：真实浏览器显式适配器回调，未挂载 React 渲染树；Vue 则覆盖实际实验室组件事件处理器。
+- 剪贴板：验证按钮重新授权和准确文本，浏览器测试使用 clipboard sink；未宣称操作系统剪贴板集成。
+- 页面覆盖正常消息/栈、cause/AggregateError、解析失败、截断、无栈、资源不适用、撤权/移除成员及项目切换。pending/write_failed/expired/限流/容量等后端状态沿用 D0 真实服务测试；完整状态文案均已实现，不把每种故障状态都描述成做过页面故障注入。
+- 本地无 Docker；真实环境证据来自 Actions 的 Ubuntu 24.04 一次性容器。没有连接或操作生产，没有替用户完成手工验收。
+- D7 完整压力、长期容量、备份恢复未执行；console、请求正文、SourceMap、导出、完整策略 UI 未实现。
+
+## D1 最终交付证据（2026-10-11）
+
+- **精确验证代码 SHA**：`c98f322c0ee078f88a8aa9124a586830e76045bf`；源码 tree `a6e0e325788e17acf0ed716be2af8f1b94d0ea8c`。
+- **成功 CI**：[38114551404](https://github.com/captainamari/frontend-insight/actions/runs/38114551404)，job `114396788473`。核对 head_sha 与上述代码相同，全部步骤成功，不以“已触发”代替验证。
+- `pnpm check`：格式、workspace/合同/规范名、lint、类型、73 文件 / 560 项单测、完整构建全部成功。基础 SDK 12,276 bytes，可选 errors 1,948 bytes，quality 5,239 bytes；组合数值与上表一致。
+- 真实 D0/D1 Chromium/WebKit 专项 **6 项通过**：D0 transport 各一项；D1 原文→API→质量 UI 各一项；实际实验室（throw、Promise、显式、Vue、React适配器、资源）各一项。
+- D1 每浏览器 11 个合成错误实例逐一比对出站 diagnostic 与受限存储/API结果；具体消息、函数、文件、行列和原始编译栈断言通过。展开 cause/子错误、失败/无栈/截断/资源提示、纯文本安全、复制再授权、撤权/移除成员及项目切换通过。
+- D0 实际增量升级、原文往返、六类身份、跨项目/外部token/未登录、即时撤权/移除、限流保留计数、重试冲突、TTL、详情表故障恢复、DLQ元数据与日志隔离通过；旧 v3 smoke 通过。
+- 继承 R5-A **2 项**、R5-B **2 项**真实浏览器/统计/分母回归及 storage privacy 通过。没有整套删除旧负向断言。
+- 同步 `extractError` 普通合成消息/双帧 fixture，各浏览器 300 次：Chromium p95 **约 0.1 ms**；WebKit p95 读数 **0 ms（低于本次计时分辨率，不表示没有耗时）**。不包含网络/UI/整条 SDK flush，也不是最大信封/高频 console 压测；完整 D7 性能校准未执行。
+- [最终小型证据 artifact](https://github.com/captainamari/frontend-insight/actions/runs/38114551404/artifacts/11692947316)：**3,496 bytes**，保留 7 天，SHA-256 `35026741cb6d7e9b9ff09284fb625d520e6cd12075301c78f2b229898b0ad4c2`；仅必要 JSON 摘要/包体，不上传 trace、原文 body 或服务日志中间产物。
+- 最后收尾仅修改 `docs/` 的状态和证据，不把文档 SHA 冒充完整 CI 已验证的代码 SHA；精确文档提交 SHA 同步记录在 PR #30 与交付回复中。
+
+### 手工验收、合并与下一阶段
+
+[可执行 D1 指南](../guides/runtime-diagnostics-d1.md) 包含原生 JS/Vue/React 接入、升级顺序、角色授权、实验室按钮、具体消息/栈和状态预期；[学习文档18](../learning/18-runtime-error-diagnostics.md) 解释维护路径。
+
+D1 已完成实现与自动化交付，没有替用户填写手工验收通过；[Draft PR #30](https://github.com/captainamari/frontend-insight/pull/30) 指向 refactor，未自动合并。D1 仅代表错误诊断首个可试用闭环。
+
+合并后 D2 入口：核实 PR #30 的实际合入内容，从最新 refactor 新建 D2 分支，按开发计划“D2 — console 上下文”实现有界环形缓冲、包装/销毁恢复、错误时冻结快照和授权页面。继承本批原文权限/预算/计数，不提前实现 D3–D7。剩余限制见前述覆盖说明；基础包仅余 12 bytes，应继续采用显式可选入口。
