@@ -270,3 +270,7 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 - pnpm check、真实服务、D0增量升级/六身份/限流/TTL/故障恢复均成功；D0–D2双浏览器8项成功。D3两浏览器在网络失败断言处失败：Vite fixture在Nginx静态演示部署中未运行，路径落到index.html，实际不是预期HTTP场景。
 - 修复为隔离m5 Compose内的demo-fixtures服务与demo专用Nginx路由；真实断网使用Nginx444，不把代理502当network rejection。生产web/API不开放fixture。保留所有断言并重新运行真实CI。
 - 同时补充页面/销毁代际隔离、重复wrapper缓存、原生DOMException分类、冻结后预算余量、D3请求原文的六身份/日志/审计/DLQ负向fixture，以及5000次并发调用容量测量。当前本地75文件/595项测试成功；最终代码需新的同提交CI验证。
+
+### D3 第二轮真实CI
+
+代码 `eb6d16583b104466428b66a2b2d041dfd89d62af`，CI [38122434801](https://github.com/captainamari/frontend-insight/actions/runs/38122434801) 仍失败。真实HTTP、取消/网络/SSE/opaque、SDK原文字段和快照断言已通过；服务端详情等待返回not_enabled。测试创建了真实SDK工作流，却未在服务端注册/激活定义，现有工作流准入合同会拒绝该批次；补齐项目module/feature/workflow定义及激活，并增加每个出站批次的合同和ingestion202断言，避免把发送视为接收成功。保留D0–D2已通过8项，不把本轮当最终交付。

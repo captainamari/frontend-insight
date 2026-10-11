@@ -66,7 +66,10 @@ interface ActionRecord {
   context: unknown;
   relativeMs?: number;
 }
-const controlledFetches = new WeakSet<object>();
+const controlledFetches = new WeakMap<
+  object,
+  { binding: object; source: string; original: typeof fetch }
+>();
 const requestStream = Symbol("request_stream");
 const bounded = (n: number | undefined, max: number) =>
   Number.isFinite(n) ? Math.max(0, Math.min(max, Math.floor(n!))) : max;
@@ -180,13 +183,24 @@ export function createRequestDiagnostics(options: RequestOptions) {
     removed.window += requests.length + actions.length - r.length - a.length;
     requests = r;
     actions = a;
+    const evictRequest = () => {
+      const index = requests.findIndex((r) => r.result === "success");
+      requests.splice(index < 0 ? 0 : index, 1);
+    };
     while (requests.length > limits.entries) {
-      requests.shift();
+      evictRequest();
       removed.capacity++;
     }
     while (jsonBytes(requests) > limits.bytes && requests.length) {
-      requests.shift();
+      evictRequest();
       removed.bytes++;
+    }
+    for (const [id, ref] of responseRefs) {
+      if (!requests.some((r) => r.localId === id)) {
+        const response = ref.deref();
+        if (response) responseRecords.delete(response);
+        responseRefs.delete(id);
+      }
     }
     while (
       (actions.length > limits.actions || jsonBytes(actions) > limits.actionBytes) &&
@@ -307,31 +321,31 @@ export function createRequestDiagnostics(options: RequestOptions) {
         record.status = native("status") as number;
         record.result =
           record.status === 0 ? "opaque" : record.status >= 400 ? "http" : "success";
-        record.responseHeaders = headersEvidence(native("headers"));
-        record.responseUrl = textEvidence(native("url") as string, 4096);
+        record.responseHeaders =
+          record.result === "opaque"
+            ? unavailable("opaque_cors")
+            : headersEvidence(native("headers"));
+        record.responseUrl =
+          record.result === "opaque"
+            ? unavailable("opaque_cors")
+            : textEvidence(native("url") as string, 4096);
         record.redirected = native("redirected") as boolean;
         const route = new URL(record.url.value!, runtime.window.location.href).pathname;
         const collect = record.result !== "success" || successRoutes.has(route);
-        if (!collect) {
-          originalBodies.set(record, record.requestBody);
-          record.requestBody = unavailable("success_body_disabled");
-        }
         // Fetch exposes a tee-able stream, not a bounded immutable byte buffer. Even a
         // small/untrusted Content-Length cannot bound tee buffering. Never clone/read it.
         const contentType =
           Headers.prototype.get.call(native("headers"), "content-type") ?? "";
         record.responseBody = unavailable(
-          !collect
-            ? "success_body_disabled"
-            : record.result === "opaque"
-              ? "opaque_cors"
-              : /text\/event-stream|ndjson/i.test(contentType)
-                ? "stream_not_read"
-                : contentType &&
-                    !/text\/|json|xml|javascript|x-www-form-urlencoded/i.test(
-                      contentType,
-                    )
-                  ? "binary_not_read"
+          record.result === "opaque"
+            ? "opaque_cors"
+            : /text\/event-stream|ndjson/i.test(contentType)
+              ? "stream_not_read"
+              : contentType &&
+                  !/text\/|json|xml|javascript|x-www-form-urlencoded/i.test(contentType)
+                ? "binary_not_read"
+                : !collect
+                  ? "success_body_disabled"
                   : "host_text_required",
         );
       }
@@ -347,7 +361,11 @@ export function createRequestDiagnostics(options: RequestOptions) {
         original: typeof fetch,
         source: "application" | "upload" | "sdk" = "application",
       ): typeof fetch {
-        if (controlledFetches.has(original)) return original;
+        const prior = controlledFetches.get(original);
+        if (prior?.binding === binding && prior.source === source) return original;
+        // Rebinding a known controlled adapter explicitly changes the owner. Unwrap
+        // our observation layer so another project's body cannot be copied twice.
+        if (prior) original = prior.original;
         const cached = wrappers.get(original)?.get(source);
         if (cached) return cached;
         const wrapped: typeof fetch = function (
@@ -419,7 +437,15 @@ export function createRequestDiagnostics(options: RequestOptions) {
             result,
             (response: Response) => {
               finish(localId, response);
-              safe(() => responseRecords.set(response, localId!));
+              safe(() => {
+                if (
+                  typeof WeakRef !== "undefined" &&
+                  requests.some((r) => r.localId === localId)
+                ) {
+                  responseRecords.set(response, localId!);
+                  responseRefs.set(localId!, new WeakRef(response));
+                }
+              });
               return response;
             },
             (error: unknown) => {
@@ -428,7 +454,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
             },
           ) as Promise<Response>;
         };
-        controlledFetches.add(wrapped);
+        controlledFetches.set(wrapped, { binding, source, original });
         if (!wrappers.has(original)) wrappers.set(original, new Map());
         wrappers.get(original)!.set(source, wrapped);
         return wrapped;
@@ -460,8 +486,8 @@ export function createRequestDiagnostics(options: RequestOptions) {
       },
     };
   }
-  const originalBodies = new WeakMap<RequestRecord, Evidence>();
   const responseRecords = new WeakMap<Response, string>();
+  const responseRefs = new Map<string, WeakRef<Response>>();
   /** Supply text the application already read for its own purpose. No extra stream
    * reads, clone, JSON stringify or unbounded background work is performed by SDK. */
   const responseText = (response: Response, text: string, businessFailure = false) =>
@@ -470,14 +496,18 @@ export function createRequestDiagnostics(options: RequestOptions) {
       if (!record || !current(record) || typeof text !== "string" || !runtime) return;
       if (businessFailure) {
         record.result = "business";
-        record.requestBody = originalBodies.get(record) ?? record.requestBody;
       }
       const collect =
         record.result !== "success" ||
         successRoutes.has(
           new URL(record.url.value!, runtime.window.location.href).pathname,
         );
-      if (collect) {
+      if (
+        collect &&
+        !["opaque_cors", "stream_not_read", "binary_not_read"].includes(
+          record.responseBody.state,
+        )
+      ) {
         record.responseBody = textEvidence(text);
         record.bodyCapturedAt = runtime.now();
       }
@@ -505,6 +535,13 @@ export function createRequestDiagnostics(options: RequestOptions) {
     const records = frozen.requests.map((r) => ({
       ...r,
       relativeMs: r.timestamp - at,
+      requestBody:
+        r.result === "success" &&
+        !successRoutes.has(
+          new URL(r.url.value!, runtime!.window.location.href).pathname,
+        )
+          ? unavailable("success_body_disabled")
+          : r.requestBody,
       basis:
         binding &&
         ["requestId", "traceId", "operationInstanceId", "workflowInstanceId"].some(
@@ -594,6 +631,11 @@ export function createRequestDiagnostics(options: RequestOptions) {
     const consoleStop = extract.start?.(rt, getPage, scope);
     stop = () => {
       alive = false;
+      for (const ref of responseRefs.values()) {
+        const response = ref.deref();
+        if (response) responseRecords.delete(response);
+      }
+      responseRefs.clear();
       requests = [];
       actions = [];
       consoleStop?.();
@@ -613,6 +655,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
         bytes: jsonBytes(requests),
         actions: actions.length,
         actionBytes: jsonBytes(actions),
+        responseAssociations: responseRefs.size,
         activeReads: 0,
         pendingReads: 0,
         removed: { ...removed },

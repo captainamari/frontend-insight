@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { validateTransportBatch } from "@frontend-insight/event-contract";
 import type { DiagnosticEnvelope } from "@frontend-insight/event-contract";
 import type { RequestRecord } from "../../packages/web-tracker/src/requests";
 
@@ -27,6 +28,52 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
   expect(made.status()).toBe(201);
   const project = await made.json(),
     root = `/api/projects/${project.id}`;
+  async function post(path: string, data: unknown) {
+    const response = await request.post(root + path, { headers, data });
+    expect(response.status(), path).toBe(201);
+    return response.json();
+  }
+  const module = await post("/modules", {
+    moduleKey: "diagnostics",
+    name: "Diagnostic fixtures",
+  });
+  await post("/features", {
+    featureKey: "report_export",
+    name: "Report export",
+    featureType: "action",
+    operationLifecycleEnabled: true,
+  });
+  const workflow = await post("/workflow-definitions", {
+    moduleId: module.id,
+    workflowKey: "report",
+    name: "Diagnostic report",
+    startPolicy: "explicit_sdk",
+    timeoutSeconds: 30,
+    terminalPolicy: {
+      completedStepKey: "done",
+      failedStepKey: null,
+      canceledStepKey: null,
+      timeoutState: "approximate_abandoned",
+    },
+    steps: ["submit", "done"].map((stepKey, i) => ({
+      stepKey,
+      name: stepKey,
+      stepOrder: i + 1,
+      triggerKind: "explicit_sdk",
+      triggerConfig: {},
+    })),
+  });
+  await post(`/workflow-definitions/${workflow.id}/activate`, {
+    versionId: workflow.latestVersion.id,
+  });
+  const transportChecks: boolean[] = [];
+  const receipts: Promise<{ status: number; code: unknown }>[] = [];
+  page.on("response", (r) => {
+    if (r.url().endsWith("/v1/events"))
+      receipts.push(
+        r.json().then((body) => ({ status: r.status(), code: body.code ?? null })),
+      );
+  });
   for (const file of ["index", "errors", "quality", "console", "requests"])
     await page.route(`**/d3/${file}.js`, (r) =>
       r.fulfill({
@@ -45,8 +92,11 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
     diagnostic?: DiagnosticEnvelope;
   }[] = [];
   page.on("request", (r) => {
-    if (r.url().endsWith("/v1/events") && r.postData())
-      wire.push(...JSON.parse(r.postData()!).events);
+    if (r.url().endsWith("/v1/events") && r.postData()) {
+      const batch = JSON.parse(r.postData()!);
+      transportChecks.push(validateTransportBatch(batch).ok);
+      wire.push(...batch.events);
+    }
   });
   const from = new Date(Date.now() - 1000).toISOString();
   await page.goto("http://127.0.0.1:4174/d3/fixture");
@@ -271,6 +321,12 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       userAgent: navigator.userAgent,
     };
   }, project.appId);
+  expect(
+    transportChecks.every(Boolean),
+    "D3 outgoing batches must satisfy the server contract",
+  ).toBe(true);
+  const accepted = await Promise.all(receipts);
+  expect(accepted.filter((r) => r.status !== 202)).toEqual([]);
   expect(evidence.opaqueType).toBe("opaque");
   expect(evidence.beforeBodyUsed).toBe(false);
   expect(evidence.aborted).toBe(true);

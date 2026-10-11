@@ -8,15 +8,16 @@ const stops: (() => void)[] = [];
 afterEach(() => stops.splice(0).forEach((f) => f()));
 function fixture(
   options: Partial<Parameters<typeof createRequestDiagnostics>[0]> = {},
+  appId = "fi_test",
 ) {
   let now = 100000,
     page = "pv_first";
   const host = { warn() {}, error() {}, info() {}, log() {}, debug() {} };
   const requests = createRequestDiagnostics({
-    scope: { appId: "fi_test" },
+    scope: { appId },
     ...options,
   });
-  const scope = { appId: "fi_test", endpoint: "https://fixture.invalid/v1/events" };
+  const scope = { appId, endpoint: "https://fixture.invalid/v1/events" };
   const runtime = {
     window: {
       console: host,
@@ -206,7 +207,8 @@ describe("D3 controlled request evidence", () => {
     const f = fixture();
     let resolve!: (r: Response) => void;
     const original = vi.fn(() => new Promise<Response>((r) => (resolve = r)));
-    const wrapped = f.requests.bind().wrapFetch(original);
+    const bound = f.requests.bind();
+    const wrapped = bound.wrapFetch(original);
     const promise = wrapped("/old");
     f.page("pv_next");
     f.freeze();
@@ -217,7 +219,7 @@ describe("D3 controlled request evidence", () => {
     f.stop();
     expect(f.requests.stats().requests).toBe(0);
     // A returned wrapper is not installed on the host and remains a pass-through after destroy.
-    expect(f.requests.bind().wrapFetch(wrapped)).toBe(wrapped);
+    expect(bound.wrapFetch(wrapped)).toBe(wrapped);
   });
   it("captures successful bodies only on exact opted-in routes; business failure requires explicit evidence", async () => {
     const f = fixture({ successBodyRoutes: ["/enabled"] });
@@ -358,5 +360,42 @@ describe("D3 controlled request evidence", () => {
       },
     );
     expect(headersEvidence(input).state).toContain("unreadable");
+  });
+  it("retains failed evidence ahead of successes and budgets call-time bodies kept for explicit business classification", async () => {
+    const f = fixture({ maximumEntries: 2 });
+    const b = f.requests.bind();
+    await b.wrapFetch(async () => new Response("failed", { status: 503 }))("/failure");
+    await b.wrapFetch(async () => new Response("ok"))("/ok1", { body: "first" });
+    const response = await b.wrapFetch(async () => new Response("business"))("/ok2", {
+      body: "token=original",
+    });
+    expect(records(f).map((r) => r.url.value)).toEqual([
+      "https://fixture.invalid/failure",
+      "https://fixture.invalid/ok2",
+    ]);
+    expect(records(f)[1]!.requestBody.state).toBe("success_body_disabled");
+    f.requests.responseText(response, "business", true);
+    expect(records(f)[1]!.requestBody.value).toBe("token=original");
+    for (let i = 0; i < 20; i++)
+      await b.wrapFetch(async () => new Response("ok"))("/large-success", {
+        body: "中".repeat(20000),
+      });
+    expect(f.requests.stats().bytes).toBeLessThanOrEqual(32768);
+  });
+  it("rebinding a controlled wrapper switches explicit ownership without duplicate/cross-project evidence", async () => {
+    const a = fixture(),
+      b = fixture({}, "fi_other");
+    const native = vi.fn(async () => new Response("text", { status: 503 }));
+    const wa = a.requests.bind({ operationInstanceId: "op_a" }).wrapFetch(native);
+    const wb = b.requests.bind({ operationInstanceId: "op_b" }).wrapFetch(wa);
+    const response = await wb("/owned-b", { body: "token=only-b" });
+    b.requests.responseText(response, await response.text());
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(records(a)).toHaveLength(0);
+    expect(records(b)[0]).toMatchObject({
+      appId: "fi_other",
+      association: { operationInstanceId: "op_b" },
+      requestBody: { value: "token=only-b" },
+    });
   });
 });
