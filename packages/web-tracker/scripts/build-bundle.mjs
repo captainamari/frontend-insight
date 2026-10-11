@@ -61,3 +61,35 @@ if (process.env.GITHUB_SHA) {
     ),
   );
 }
+
+await build({
+  entryPoints: ["src/errors.ts"],
+  outfile: "dist/errors.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  legalComments: "none",
+});
+const errorsBytes = gzipSync(await readFile("dist/errors.js")).byteLength;
+await writeFile(
+  "dist/diagnostics-bundle-report.json",
+  JSON.stringify(
+    {
+      baseGzipBytes: report.gzipBytes,
+      diagnosticsGzipBytes: errorsBytes,
+      combinedGzipBytes: report.gzipBytes + errorsBytes,
+      withQualityGzipBytes: report.gzipBytes + errorsBytes + qualityBytes,
+      note: "Optional errors and quality are separate explicit downloads; base cap unchanged.",
+    },
+    null,
+    2,
+  ),
+);
+console.log(
+  JSON.stringify({
+    diagnosticsGzipBytes: errorsBytes,
+    combinedGzipBytes: report.gzipBytes + errorsBytes,
+  }),
+);

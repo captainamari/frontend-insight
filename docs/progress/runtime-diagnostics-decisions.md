@@ -29,3 +29,11 @@
 ## D0 复核补充
 
 增加独立的 MySQL 009 迁移，receipt 保存不含 raw 的 capture_metadata，读取状态时同时返回 suppressed/omittedBytes/source/policyVersion/correlation。保持已提交 008 不变，避免重写迁移历史；空原文状态仍不需要保存诊断正文。
+
+## D1 实施决定（2026-10-11，进行中）
+
+- 继承已合并 D0；原文只放 diagnostic.raw。D1 提取器通过显式 `errorDiagnostics: createErrorDiagnostics()` 加载，`./errors` 为可选入口；未启用时保留旧摘要采集。两条 SDK 路径通过同一个 tracker reportError 汇合。
+- 独立错误不能因消息相同被丢弃：删除 quality 原有五次指纹上限。开启诊断后，使用事件对象身份消除多个监听入口的重复；同一 Error 的跨来源传播只在当前任务内合并。重复显式调用和下一任务再次抛错保留计数。
+- 原文结构采用 raw.error 与 raw.extraction.issues；保留 name/message/stack/cause/errors、自有对象数据。自定义访问器不执行；运行时原生 Error.stack 访问器单独识别，失败仍标记 unreadable。循环、函数、BigInt、深度/数量/字节限制均有明确标记。
+- 历史质量 collector 的脱敏负向断言保留（未启用原文模式）；基础错误数原来的 5/10 断言改为 10/10，理由是 D1 禁止详情控制减少计数。新增原文模式正向一致性与基础 payload 无原文的负向断言，不删除整个测试组。
+- 受限详情分别返回存储 state、capture.status、view.stack.state；历史摘要明确标识 legacy，无法还原此前删除或脱敏的信息。

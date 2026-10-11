@@ -11,6 +11,10 @@
     "./quality": {
       "types": "./src/quality.ts",
       "import": "./dist/quality.js"
+    },
+    "./errors": {
+      "types": "./src/errors.ts",
+      "import": "./dist/errors.js"
     }
   },
   "scripts": {

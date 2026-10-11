@@ -146,13 +146,13 @@ describe("R5-A SDK collector isolation and privacy", () => {
       events.filter((e) => e.event !== "error").every((e) => !e.payload.breadcrumb),
     ).toBe(true);
   });
-  it("rate limits fingerprints while disclosing suppression instead of pretending zero errors", async () => {
+  it("counts independent same-message errors; only diagnostic details may be rate limited", async () => {
     const f = fixture();
     for (let i = 0; i < 10; i++) f.quality.captureException(new Error("same"));
     const events = await f.finish();
-    expect(events.filter((e) => e.event === "error")).toHaveLength(5);
+    expect(events.filter((e) => e.event === "error")).toHaveLength(10);
     expect(events.find((e) => e.event === "page_leave").payload.qualitySuppressed).toBe(
-      5,
+      0,
     );
   });
   it("first screen is once per page and list completion is idempotent with exact bucket edges", async () => {

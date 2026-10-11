@@ -57,7 +57,6 @@ export function createQualityCollectors(options: QualityOptions) {
   const drains: (() => void)[] = [];
   let crumbs: string[] = [],
     timer: ReturnType<typeof setTimeout> | undefined;
-  let fingerprints = new Map<string, number>();
   let dispose = () => {};
   let unwatch = () => {};
   const safe = (f: () => void) => {
@@ -136,10 +135,10 @@ export function createQualityCollectors(options: QualityOptions) {
         if (!options.jsErrors || !state?.selected || e.target !== p.runtime.window)
           return;
         const v = e as ErrorEvent;
-        captureException(v.error ?? new Error(v.message));
+        captureException(v.error ?? { name: "Error", message: v.message }, "js", e);
       });
     const onRejection = (e: PromiseRejectionEvent) =>
-      captureException(e.reason, "promise");
+      captureException(e.reason, "promise", e);
     p.runtime.window.addEventListener("error", onError, true);
     p.runtime.window.addEventListener("unhandledrejection", onRejection);
     dispose = () => {
@@ -160,7 +159,6 @@ export function createQualityCollectors(options: QualityOptions) {
         observers.splice(0).forEach((o) => o.disconnect());
         drains.length = 0;
         if (timer) p.runtime.clearTimeout(timer);
-        fingerprints = new Map();
         crumbs = [];
         crumb("navigation");
         let mask = Object.entries(bits).reduce(
@@ -280,51 +278,28 @@ export function createQualityCollectors(options: QualityOptions) {
   function captureException(
     error: unknown,
     category: "js" | "promise" | "vue" | "react" | "other" = "js",
+    occurrence?: object,
   ) {
     safe(() => {
       if (!options.jsErrors || !state?.selected || state.closed) return;
-      const e = error instanceof Error ? error : new Error("Unhandled exception");
-      const name = [
-        "Error",
-        "TypeError",
-        "RangeError",
-        "ReferenceError",
-        "SyntaxError",
-        "URIError",
-        "EvalError",
-      ].includes(e.name)
-        ? e.name
-        : "Error";
-      const message = "JavaScript exception";
-      const frame = (e.stack ?? "")
-        .split("\n")
-        .slice(1, 4)
-        .join(" ")
-        .match(/https?:\/\/[^\s)]+/);
-      const stack =
-        frame && port
-          ? normalizeRequestPath(frame[0], port.runtime.window.location.href)
-          : "[unavailable]";
-      const key = category + name + message + stack,
-        count = fingerprints.get(key) ?? 0;
-      if (count >= 5 || (!fingerprints.has(key) && fingerprints.size >= 100)) {
-        state.suppressed++;
-        return;
-      }
-      fingerprints.set(key, count + 1);
-      state.emit("error", {
-        ...meta(),
-        errorType: "js",
-        errorCategory: ["js", "promise", "vue", "react", "other"].includes(category)
-          ? category
-          : "other",
-        errorName: name || "Error",
-        errorMessage: message || "Error",
-        stackTopFrame: stack,
-        ...(options.breadcrumbs
-          ? { breadcrumb: Object.fromEntries(crumbs.map((c, i) => [`b${i}`, c])) }
-          : {}),
-      });
+      port?.error(
+        error,
+        category === "js"
+          ? occurrence
+            ? "global"
+            : "explicit"
+          : category === "other"
+            ? "unknown"
+            : category,
+        occurrence,
+        {
+          ...meta(),
+          errorCategory: category,
+          ...(options.breadcrumbs
+            ? { breadcrumb: Object.fromEntries(crumbs.map((c, i) => [`b${i}`, c])) }
+            : {}),
+        },
+      );
     });
   }
   return {

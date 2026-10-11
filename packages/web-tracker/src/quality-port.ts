@@ -1,3 +1,4 @@
+import type { ErrorReport } from "./error-port.js";
 import type { TrackerEvent, TrackerRuntime, TrackerDiagnostics } from "./types.js";
 /** Optional quality entrypoint. No optional collector code is loaded by the base SDK. */
 export type QualityEmit = (
@@ -6,6 +7,7 @@ export type QualityEmit = (
 ) => void;
 export interface QualityPort {
   runtime: TrackerRuntime;
+  error: ErrorReport;
   capture(): QualityEmit;
   diagnostics(): Readonly<TrackerDiagnostics>;
 }

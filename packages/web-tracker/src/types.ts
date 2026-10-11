@@ -1,3 +1,4 @@
+import type { ErrorExtractor, ErrorSource } from "./error-port.js";
 import type { QualityFactory } from "./quality-port.js";
 import type { FormCollectorConfig, FormHandle } from "./forms.js";
 import type { WorkflowDefinition, WorkflowHandle } from "./workflow.js";
@@ -74,6 +75,7 @@ export type BusinessResult =
 
 export interface TrackerConfig {
   quality?: QualityFactory;
+  errorDiagnostics?: ErrorExtractor;
   initialUserId?: string;
   usageCoverage?: { enabled: boolean };
   forms?: FormCollectorConfig;
@@ -142,7 +144,7 @@ export interface Tracker {
   ): OperationHandle;
   startLongView(featureKey: string): () => void;
   captureDiagnostic(diagnostic: DiagnosticEnvelope): void;
-  captureException(error: unknown): void;
+  captureException(error: unknown, source?: ErrorSource): void;
   captureApiError(details: ApiErrorDetails): void;
   captureResourceError(details: ResourceErrorDetails): void;
   captureWebVital(details: WebVitalDetails): void;
