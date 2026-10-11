@@ -198,7 +198,8 @@ export function createRequestDiagnostics(options: RequestOptions) {
     for (const [id, ref] of responseRefs) {
       if (!requests.some((r) => r.localId === id)) {
         const response = ref.deref();
-        if (response) responseRecords.delete(response);
+        if (response && responseRecords.get(response) === id)
+          responseRecords.delete(response);
         responseRefs.delete(id);
       }
     }

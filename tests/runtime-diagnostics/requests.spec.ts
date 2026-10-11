@@ -266,6 +266,12 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       freezes: number[] = [],
       bodies: number[] = [];
     let resolution = Infinity;
+    // Measure clock ticks separately; work duration is not clock resolution.
+    for (let i = 0; i < 10000; i++) {
+      const a = performance.now(),
+        b = performance.now();
+      if (b > a) resolution = Math.min(resolution, b - a);
+    }
     for (let i = 0; i < 1000; i++) {
       const a = performance.now();
       const result = immediate("/sample", { method: "POST", body: "synthetic" });
@@ -277,9 +283,6 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       const c = performance.now();
       benchmark.errorDiagnostics.call(scope, error, "explicit");
       freezes.push(performance.now() - c);
-      let d = performance.now();
-      for (let j = 0; j < 1000 && d === c; j++) d = performance.now();
-      if (d > c) resolution = Math.min(resolution, d - c);
     }
     const percentile = (v: number[]) => {
       v.sort((a, b) => a - b);
@@ -317,7 +320,7 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       sync: percentile(times),
       bodySnapshot: percentile(bodies),
       freeze: percentile(freezes),
-      timingResolutionMs: resolution,
+      timingResolutionMs: Number.isFinite(resolution) ? resolution : null,
       userAgent: navigator.userAgent,
     };
   }, project.appId);

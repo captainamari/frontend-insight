@@ -398,4 +398,15 @@ describe("D3 controlled request evidence", () => {
       requestBody: { value: "token=only-b" },
     });
   });
+  it("keeps the latest association when an adapter reuses a Response across evicted records", async () => {
+    const f = fixture({ maximumEntries: 2 });
+    const response = new Response("text", { status: 503 });
+    const wrapped = f.requests.bind().wrapFetch(async () => response);
+    await wrapped("/first");
+    await wrapped("/second");
+    await wrapped("/third");
+    f.requests.responseText(response, "latest text");
+    expect(records(f).at(-1)!.responseBody.value).toBe("latest text");
+    expect(f.requests.stats().responseAssociations).toBeLessThanOrEqual(2);
+  });
 });
