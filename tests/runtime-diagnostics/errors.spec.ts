@@ -315,12 +315,16 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   await request.put(grantUrl, { headers, data: { read: true, export: false } });
   await page.getByRole("button", { name: "重新授权并读取" }).click();
   await expect(page.getByTestId("diagnostic-message")).toBeVisible();
-  const other = await (
-    await request.post("/api/projects", {
-      headers,
-      data: { name: `D1 switch ${randomUUID()}`, timezone: "UTC", origins: [] },
-    })
-  ).json();
+  const otherMade = await request.post("/api/projects", {
+    headers,
+    data: {
+      name: `D1 switch ${randomUUID()}`,
+      timezone: "UTC",
+      origins: ["http://127.0.0.1:4174"],
+    },
+  });
+  expect(otherMade.status()).toBe(201);
+  const other = await otherMade.json();
   await request.put(`/api/projects/${other.id}/members/${viewer.user.userId}`, {
     headers,
     data: { role: "viewer" },

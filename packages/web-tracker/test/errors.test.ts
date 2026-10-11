@@ -235,6 +235,20 @@ describe("D1 shared collection and lifecycle", () => {
       f.batches.flatMap((b) => b.events).filter((e) => e.event === "error"),
     ).toHaveLength(3);
   });
+  it("non-string error-like names/messages never invoke conversion hooks or lose counts", async () => {
+    const f = fixture();
+    f.tracker.captureException({
+      name: { nested: true },
+      message: { token: "synthetic" },
+    });
+    const events = await f.events();
+    expect(events).toHaveLength(1);
+    expect(events[0]?.diagnostic?.raw.error).toMatchObject({
+      name: { nested: true },
+      message: { token: "synthetic" },
+    });
+    for (const batch of f.batches) expect(validateForIngestion(batch).ok).toBe(true);
+  });
   it("null Promise reason stays null through shared listeners", async () => {
     const f = fixture();
     const event = new Event("unhandledrejection");

@@ -203,6 +203,7 @@ export function createErrorDiagnostics(): ErrorExtractor {
     let hash = 2166136261;
     for (const char of JSON.stringify([raw.name, raw.message, raw.stack]))
       hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+    const rawName = typeof raw.name === "string" ? raw.name : "Error";
     const name = [
       "Error",
       "TypeError",
@@ -212,8 +213,8 @@ export function createErrorDiagnostics(): ErrorExtractor {
       "URIError",
       "EvalError",
       "AggregateError",
-    ].includes(String(raw.name))
-      ? String(raw.name)
+    ].includes(rawName)
+      ? rawName
       : "Error";
     return {
       diagnostic,
