@@ -129,6 +129,20 @@ describe("D1 bounded raw extraction", () => {
     ).not.toThrow();
     expect(diagnosticBudgetError(d)).toBeNull();
   });
+  it("budgets JSON escaping and long unreadable property paths", () => {
+    const d = extractError("\0".repeat(50000), "promise");
+    expect(d.status).toBe("truncated");
+    expect(diagnosticBudgetError(d)).toBeNull();
+    const o = Object.create(null);
+    for (let i = 0; i < 70; i++)
+      Object.defineProperty(o, "x".repeat(2000) + i, {
+        enumerable: true,
+        get() {
+          throw new Error("must not run");
+        },
+      });
+    expect(diagnosticBudgetError(extractError(o, "explicit"))).toBeNull();
+  });
   it("bounds UTF-8 stack bytes, 32 frames and four cause edges with explicit metadata", () => {
     let cause = new Error("leaf");
     for (let i = 0; i < 9; i++) cause = new Error("中".repeat(10000), { cause });
@@ -197,6 +211,30 @@ describe("D1 shared collection and lifecycle", () => {
       f.batches.flatMap((b) => b.events).filter((e) => e.event === "error"),
     ).toHaveLength(1);
   });
+  it("reused extractor isolates projects and destroy/reinit even in the same task", async () => {
+    const f = fixture();
+    const second = createTracker({
+      ...f.config,
+      appId: `fi_${crypto.randomUUID().slice(0, 8)}`,
+      quality: createQualityCollectors({ jsErrors: false }).factory,
+    });
+    trackers.push(second);
+    const e = new Error("same task across projects");
+    f.tracker.captureException(e, "vue");
+    second.captureException(e, "global");
+    f.tracker.destroy();
+    const next = createTracker({
+      ...f.config,
+      quality: createQualityCollectors({ jsErrors: false }).factory,
+    });
+    trackers.push(next);
+    next.captureException(e, "global");
+    await second.flush();
+    await next.flush();
+    expect(
+      f.batches.flatMap((b) => b.events).filter((e) => e.event === "error"),
+    ).toHaveLength(3);
+  });
   it("null Promise reason stays null through shared listeners", async () => {
     const f = fixture();
     const event = new Event("unhandledrejection");
@@ -216,6 +254,7 @@ describe("D1 shared collection and lifecycle", () => {
       });
     const app = { config: { errorHandler: previous } },
       restore = installVueErrorHandler(app, capture);
+    expect(installVueErrorHandler(app, capture)).toBe(restore);
     const e = new Error("framework");
     expect(app.config.errorHandler.call(app, e, "component")).toEqual([
       app,

@@ -326,6 +326,7 @@ export class RuntimeDiagnostics {
       return {
         eventId: event,
         state,
+        expiresAt: r ? new Date(r.expires_at).toISOString() : null,
         ...(r?.capture_metadata
           ? {
               capture:

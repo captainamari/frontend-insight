@@ -12,7 +12,8 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
   const issues: string[] = [],
     seen = new WeakSet<object>();
   const issue = (s: string) => {
-    if (issues.length < 64) issues.push(s);
+    if (issues.length < 64)
+      issues.push(s.length > 180 ? `${s.slice(0, 120)}…${s.slice(-50)}` : s);
   };
   const text = (s: string, cap: number, path: string) => {
     const length = bytes(s);
@@ -141,7 +142,7 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
       : {
           name: "NonError",
           message: typeof value === "string" ? captured : JSON.stringify(captured),
-          reason: captured,
+          ...(typeof value === "string" ? {} : { reason: captured }),
         };
   return {
     diagnosticVersion: 1,
@@ -158,26 +159,41 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
 /** One instance per tracker. Event identity de-duplicates listeners; same-object
  * cross-source propagation is scoped to one task, never a message fingerprint cap. */
 export function createErrorDiagnostics(): ErrorExtractor {
-  const events = new WeakSet<object>();
-  let propagation = new WeakMap<object, ErrorSource>();
-  let pending = false;
-  return (value, source, occurrence) => {
+  const scopes = new WeakMap<
+    object,
+    {
+      events: WeakSet<object>;
+      propagation: WeakMap<object, ErrorSource>;
+      pending: boolean;
+    }
+  >();
+  const standalone = {};
+  return function (this: object | void, value, source, occurrence) {
+    // BrowserTracker invokes the extractor on its own normalized config object.
+    // This also isolates reuse of one extractor by two projects or after destroy.
+    const scope = this ?? standalone;
+    let state = scopes.get(scope);
+    if (!state) {
+      state = { events: new WeakSet(), propagation: new WeakMap(), pending: false };
+      scopes.set(scope, state);
+    }
     if (occurrence) {
-      if (events.has(occurrence)) return null;
-      events.add(occurrence);
+      if (state.events.has(occurrence)) return null;
+      state.events.add(occurrence);
     }
     if (value && typeof value === "object") {
-      const previous = propagation.get(value);
+      const previous = state.propagation.get(value);
       if (previous && previous !== source) {
-        propagation.delete(value);
+        state.propagation.delete(value);
         return null;
       }
-      propagation.set(value, source);
-      if (!pending) {
-        pending = true;
+      state.propagation.set(value, source);
+      if (!state.pending) {
+        state.pending = true;
+        const current = state;
         setTimeout(() => {
-          propagation = new WeakMap();
-          pending = false;
+          current.propagation = new WeakMap();
+          current.pending = false;
         }, 0);
       }
     }
@@ -211,11 +227,15 @@ export function createErrorDiagnostics(): ErrorExtractor {
     };
   };
 }
+const vueHandlers = new WeakMap<object, { handler: unknown; restore: () => void }>();
 /** Vue's existing handler is called with its original receiver/arguments. */
 export function installVueErrorHandler<Args extends unknown[]>(
   app: { config: { errorHandler?: ((...args: Args) => unknown) | undefined } },
   capture: (error: unknown, source: "vue") => void,
 ) {
+  const installed = vueHandlers.get(app);
+  if (installed && app.config.errorHandler === installed.handler)
+    return installed.restore;
   const previous = app.config.errorHandler;
   function handler(this: unknown, ...args: Args) {
     try {
@@ -227,9 +247,14 @@ export function installVueErrorHandler<Args extends unknown[]>(
     console.error(args[0]);
   }
   app.config.errorHandler = handler;
-  return () => {
-    if (app.config.errorHandler === handler) app.config.errorHandler = previous;
+  const restore = () => {
+    if (app.config.errorHandler === handler) {
+      app.config.errorHandler = previous;
+      vueHandlers.delete(app);
+    }
   };
+  vueHandlers.set(app, { handler, restore });
+  return restore;
 }
 /** Compose with React ErrorBoundary.componentDidCatch or root error callbacks. */
 export function createReactErrorHandler(

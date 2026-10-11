@@ -35,25 +35,28 @@ export function parseErrorStack(stack: unknown) {
         unparsed++;
       continue;
     }
+    const async = /^async\b/.test(fn ?? value);
+    if (!fn && value.startsWith("async ")) value = value.slice(6);
+    const anonymous = value === "<anonymous>";
     const isEval = /\beval\b/.test(value) || /\beval\b/.test(fn ?? "");
     // Chrome eval location: eval at foo (asset:1:2), <anonymous>:3:4.
     if (isEval && value.includes(", "))
       value = value.slice(value.lastIndexOf(", ") + 2);
     const location = value.match(/^(.*?):(\d+):(\d+)$/) ?? value.match(/^(.*?):(\d+)$/);
     const native = /^(?:native|\[native code\])$/.test(value);
-    if (!location && !native) {
+    if (!location && !native && !anonymous) {
       unparsed++;
       continue;
     }
     frames.push({
       raw,
       function: fn,
-      file: location?.[1] ?? null,
+      file: location?.[1] ?? (anonymous ? "<anonymous>" : null),
       line: location ? Number(location[2]) : null,
       column: location?.[3] ? Number(location[3]) : null,
       native,
       eval: isEval,
-      async: /^async\b/.test(fn ?? value),
+      async,
     });
     if (frames.length >= 32) break;
   }

@@ -41,6 +41,19 @@ describe("D1 compiled stack projection (Firefox fixture, not real browser)", () 
       column,
     });
   });
+  it("parses async anonymous locations and anonymous-only frames", () => {
+    expect(parseErrorStack(" at async /app.js:2:3").frames[0]).toMatchObject({
+      file: "/app.js",
+      line: 2,
+      column: 3,
+      async: true,
+    });
+    expect(parseErrorStack(" at <anonymous>").frames[0]).toMatchObject({
+      file: "<anonymous>",
+      line: null,
+      column: null,
+    });
+  });
   it("preserves native frames, no-stack and failed/partial parse states", () => {
     expect(parseErrorStack("map@[native code]").frames[0]?.native).toBe(true);
     expect(parseErrorStack("").state).toBe("unavailable");

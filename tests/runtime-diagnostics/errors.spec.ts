@@ -145,6 +145,7 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
       samples: samples.length,
     };
   }, project.appId);
+  console.log(JSON.stringify({ browser: info.project.name, ...measurement }));
   const sent = wire.filter((e) => e.diagnostic);
   expect(sent).toHaveLength(11);
   expect(JSON.stringify(sent.map((e) => e.payload))).not.toContain("FI_D1_SYNTHETIC");
@@ -263,6 +264,48 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { copied: string }).copied))
     .toBe("FI_D1_SYNTHETIC token=explicit\n<svg onload=alert(1)>纯文本");
+  async function openEvent(eventId: string) {
+    await page.keyboard.press("Escape");
+    const row = rows.items.find((i: { eventId: string }) => i.eventId === eventId);
+    await page
+      .getByRole("button", {
+        name: `打开复现条件 ${row.occurrenceId.slice(0, 8)}`,
+        exact: true,
+      })
+      .click();
+  }
+  const aggregate = sent.find(
+    (e) =>
+      (e.diagnostic!.raw.error as Record<string, unknown>).name === "AggregateError",
+  )!;
+  await openEvent(aggregate.eventId);
+  await page.getByText("cause 原因链（有界）", { exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("token=cause");
+  await page.getByText("AggregateError 子错误（有界）", { exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("token=child");
+  for (const [fragment, message] of [
+    ["parse failure", "无法解析栈格式"],
+    ["truncated", "诊断已截断"],
+    ["without stack", "未获得可用详情或调用栈"],
+  ]) {
+    const event = sent.find((e) =>
+      String((e.diagnostic!.raw.error as Record<string, unknown>).message).includes(
+        fragment!,
+      ),
+    )!;
+    await openEvent(event.eventId);
+    await expect(page.getByRole("dialog")).toContainText(message!);
+  }
+  const resource = sent.find(
+    (e) => (e.diagnostic!.raw.error as Record<string, unknown>).resourceUrl,
+  )!;
+  await openEvent(resource.eventId);
+  await expect(page.getByRole("dialog")).toContainText("不适用 JS 调用栈");
+  await expect(page.getByRole("dialog")).toContainText(
+    "d1-missing.png?token=FI_D1_SYNTHETIC",
+  );
+  await openEvent(explicit.eventId);
+  await expect(page.getByTestId("diagnostic-message")).toBeVisible();
   await request.put(grantUrl, { headers, data: { read: false, export: false } });
   expect((await request.get(detailUrl, { headers: vh })).status()).toBe(403);
   await expect(page.getByTestId("diagnostic-message")).toHaveCount(0, {
@@ -271,6 +314,37 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   await expect(page.getByRole("dialog")).toContainText("无诊断详情权限");
   await request.put(grantUrl, { headers, data: { read: true, export: false } });
   await page.getByRole("button", { name: "重新授权并读取" }).click();
+  await expect(page.getByTestId("diagnostic-message")).toBeVisible();
+  const other = await (
+    await request.post("/api/projects", {
+      headers,
+      data: { name: `D1 switch ${randomUUID()}`, timezone: "UTC", origins: [] },
+    })
+  ).json();
+  await request.put(`/api/projects/${other.id}/members/${viewer.user.userId}`, {
+    headers,
+    data: { role: "viewer" },
+  });
+  await page.goto(`/projects/${other.id}/pages?env=dev&range=7d`);
+  await expect(page.getByTestId("diagnostic-message")).toHaveCount(0);
+  expect(
+    (
+      await request.get(
+        `/api/projects/${other.id}/diagnostics/instances/${explicit.eventId}`,
+        { headers: vh },
+      )
+    ).status(),
+  ).toBe(403);
+  await page.goto(
+    `/projects/${project.id}/pages?` +
+      new URLSearchParams({ env: "dev", range: "custom", from, to, mode: "all" }),
+  );
+  await page
+    .getByRole("button", {
+      name: `打开复现条件 ${item.occurrenceId.slice(0, 8)}`,
+      exact: true,
+    })
+    .click();
   await expect(page.getByTestId("diagnostic-message")).toBeVisible();
   await request.delete(root + `/members/${viewer.user.userId}`, { headers });
   expect((await request.get(detailUrl, { headers: vh })).status()).toBe(403);
@@ -287,6 +361,77 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
       revoke: "passed",
       memberRemoval: "passed",
       ...measurement,
+    }),
+  );
+});
+
+test("D1 shipped scenario laboratory emits real throw, Promise, Vue, capture and resource failures", async ({
+  page,
+  request,
+}, info) => {
+  const auth = await (
+    await request.post("/api/auth/login", {
+      data: { email: "admin@example.invalid", password: "LocalAdmin-1234" },
+    })
+  ).json();
+  const headers = { authorization: `Bearer ${auth.accessToken}` };
+  await page.goto("http://127.0.0.1:4174/observability?acceptance=fast");
+  await page.getByLabel("模拟密码").fill("d1-fixture");
+  await page.getByRole("button", { name: "进入场景实验室" }).click();
+  for (const [label, source, fragment] of [
+    ["模拟 JS 异常", "explicit", "Chart render failed"],
+    ["真实 throw", "global", "真实抛错"],
+    ["未处理 Promise", "promise", "token=promise"],
+    ["Vue 框架捕获", "vue", "token=vue"],
+    ["React 适配器捕获", "react", "token=react"],
+    ["模拟资源失败", "global", "Resource load failed"],
+  ]) {
+    const received = page.waitForResponse(
+      (r) =>
+        r.url().endsWith("/v1/events") &&
+        r.request().method() === "POST" &&
+        r
+          .request()
+          .postDataJSON()
+          .events.some(
+            (e: {
+              diagnostic?: { source: string; raw: { error?: { message?: string } } };
+            }) =>
+              e.diagnostic?.source === source &&
+              e.diagnostic.raw.error?.message?.includes(fragment!),
+          ),
+    );
+    await page.getByRole("button", { name: label!, exact: false }).click();
+    const response = await received;
+    expect(response.status()).toBe(202);
+    const e = response
+      .request()
+      .postDataJSON()
+      .events.find(
+        (e: {
+          diagnostic?: { source: string; raw: { error?: { message?: string } } };
+        }) =>
+          e.diagnostic?.source === source &&
+          e.diagnostic.raw.error?.message?.includes(fragment!),
+      );
+    const url = `/api/projects/11111111-1111-4111-8111-111111111111/diagnostics/instances/${e.eventId}`;
+    await expect
+      .poll(async () => (await (await request.get(url, { headers })).json()).state, {
+        timeout: 30000,
+      })
+      .toBe("ready");
+    const stored = await (await request.get(url, { headers })).json();
+    expect(stored.diagnostic).toEqual(e.diagnostic);
+    expect(stored.view.error.message).toContain(fragment);
+  }
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync(
+    `artifacts/d1-lab-${info.project.name}.json`,
+    JSON.stringify({
+      testedCommit: process.env.GITHUB_SHA,
+      shippedLab: "passed",
+      realVueHandler: true,
+      react: "explicit adapter callback; no mounted React application",
     }),
   );
 });

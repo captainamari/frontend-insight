@@ -54,3 +54,7 @@ await tracker.flush();
 7. 执行恢复演练时恢复 MySQL receipt 与 ClickHouse detail 的同一备份时间点；只恢复一侧会出现 unavailable/pending，不伪造成完整详情。D7 再做完整备份恢复验收，本批不声称已经执行。
 
 专项验证只用合成 fixture，详见 results。本路线真实浏览器固定 Chromium/WebKit，不加入真实 Firefox CI；Firefox 在 D1 加栈格式 fixture。
+
+## D1 后续入口
+
+D1 为两条错误采集路径增加可选共用提取器和授权详情页面，使用方式见 [D1 指南](runtime-diagnostics-d1.md)。本文保留 D0 原始交付边界与升级证据，不将 D1 功能倒写成 D0 已实现。D1 的 captureDiagnostic 通用派生摘要使用 Error，信封 raw 保持不变。

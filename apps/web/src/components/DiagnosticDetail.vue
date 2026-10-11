@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
   state: string;
+  expiresAt: string | null;
   legacy?: boolean;
   capture?: {
     status: string;
@@ -98,6 +99,10 @@ async function load() {
   }
 }
 async function renew(id: number) {
+  if (result.value?.expiresAt && Date.parse(result.value.expiresAt) <= Date.now()) {
+    await load();
+    return;
+  }
   try {
     const access = await api.request<{ read: boolean }>(
       `/api/projects/${encodeURIComponent(props.projectId)}/diagnostics/capabilities`,

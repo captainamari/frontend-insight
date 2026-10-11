@@ -84,3 +84,11 @@ D0 五项清单均有实际证据，D1–D7 保持未完成。当前只有最小
 - 全量本地 73 文件 / 556 测试通过；完整门禁曾因基础包超限 1 byte 阻断，已消除重复摘要常量，正在复验完整门禁。
 - 新专项 `.github/workflows/runtime-diagnostics-d1.yml` 继承 D0 真实升级、六身份/撤权/TTL/故障/日志/DLQ 和 R5-A/B；新增 D1 双浏览器字段/API/UI一致性、权限撤销、同步提取 p95。该检查点尚无真实 CI 成功证据。
 - 下一步：检查本提交 CI，修复失败；补齐手工接入/验收、学习与最终矩阵，不提前结束。
+
+### D1 检查点三：真实回归与交接收尾
+
+- 第一轮代码 `cd14ad210b7307fd875f571eec291a5846271cc4`：[CI 38113912856](https://github.com/captainamari/frontend-insight/actions/runs/38113912856) 全部成功，job `114394890065`。包括 pnpm check、真实服务与增量升级、D0 六身份/撤权/重试/TTL/部分写入/DLQ、D1 SDK→API→质量详情双浏览器、继承 R5-A/B 和日志检查。小型证据 artifact 2,915 bytes，保留 7 天。
+- [Draft PR #30](https://github.com/captainamari/frontend-insight/pull/30) 已创建，目标 refactor，未合并。
+- 本次收尾修复 JSON 转义预算、提取器复用时的项目/生命周期隔离、无函数名 async/anonymous 帧、已打开详情过期清理；Vue 适配器重复安装返回同一卸载句柄。新增 cause/子错误展开、失败状态、项目切换、实际场景实验室/真实 Vue handler 浏览器断言。
+- 增补 D1 接入/手工验收指南、用户入口、SDK说明、学习文档 18。最终代码需重跑 CI，不能引用第一轮成功作为本次收尾代码的最终证据。
+- 最近完整本地 pnpm check 已通过（73 文件 / 559 测试）；最后 Vue 重复安装补丁额外受影响测试/构建通过，最终完整门禁仍以最终 CI 为准。
