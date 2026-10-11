@@ -6,6 +6,10 @@ const maximumGzipBytes = 12 * 1024;
 await mkdir("dist", { recursive: true });
 await build({
   entryPoints: ["src/index.ts"],
+  // These identifiers are private BrowserTracker lifecycle members only; never public
+  // config, event keys, collector ports or string-indexed methods. Keep the allowlist narrow.
+  mangleProps:
+    /^(installedHistory|originalHistory|errorCleanup|handlePageRouteChange|handleVisibilityChange|handlePageHide|handlePageShow|installLifecycle|uninstallLifecycle|diagnosticWindow)$/,
   outfile: "dist/index.js",
   bundle: true,
   minify: true,
@@ -93,3 +97,32 @@ console.log(
     combinedGzipBytes: report.gzipBytes + errorsBytes,
   }),
 );
+
+await build({
+  entryPoints: ["src/console.ts"],
+  outfile: "dist/console.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  external: ["./errors.js"],
+  legalComments: "none",
+});
+const consoleBytes = gzipSync(await readFile("dist/console.js")).byteLength;
+const consoleReport = {
+  baseGzipBytes: report.gzipBytes,
+  errorsGzipBytes: errorsBytes,
+  consoleGzipBytes: consoleBytes,
+  qualityGzipBytes: qualityBytes,
+  baseAndErrors: report.gzipBytes + errorsBytes,
+  baseErrorsConsole: report.gzipBytes + errorsBytes + consoleBytes,
+  baseErrorsConsoleQuality:
+    report.gzipBytes + errorsBytes + consoleBytes + qualityBytes,
+  note: "console imports shared errors.js; all downloaded modules are counted once. Base 12KiB cap unchanged.",
+};
+await writeFile(
+  "dist/console-bundle-report.json",
+  JSON.stringify(consoleReport, null, 2),
+);
+console.log(JSON.stringify(consoleReport));

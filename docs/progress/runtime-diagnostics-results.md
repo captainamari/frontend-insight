@@ -153,3 +153,12 @@ D0 基础 gzip 12,252 bytes；D1 基础 12,276 bytes，增加 24 bytes，原上�
 D1 已完成实现与自动化交付，没有替用户填写手工验收通过；[Draft PR #30](https://github.com/captainamari/frontend-insight/pull/30) 指向 refactor，未自动合并。D1 仅代表错误诊断首个可试用闭环。
 
 合并后 D2 入口：核实 PR #30 的实际合入内容，从最新 refactor 新建 D2 分支，按开发计划“D2 — console 上下文”实现有界环形缓冲、包装/销毁恢复、错误时冻结快照和授权页面。继承本批原文权限/预算/计数，不提前实现 D3–D7。剩余限制见前述覆盖说明；基础包仅余 12 bytes，应继续采用显式可选入口。
+
+## D2 检查点 1：SDK（2026-10-11，进行中）
+
+- 实际基线 `69ad25ad0d68040067f5114ca709e2657676b85e`；已核对 PR #30 合并，且 refactor 内容与 D1 文档收尾 `fea2ea31dbfdbb08d0e0624344f50be14fa632ce` 一致。没有新增人工验收记录。工作区为新克隆，无原有修改；未发现适用 AGENTS.md。
+- 分支 `agent/runtime-diagnostics-d2-console`。已实现可选 console 入口、原调用语义、独立快照、生命周期与作用域、UTF-8/JSON 总预算；具体实现 `web-tracker/src/console.ts`、`console-snapshot.ts`、`error-port.ts`、`tracker.ts`。
+- 基础包门禁未调整：本检查点实测 12,258 bytes；errors 1,971；console 2,684；quality 5,239。基础+errors+console 16,913；再加 quality 22,152。console 的 errors 依赖作为独立公共下载计入，不重复内嵌。
+- SDK/合同针对性 29 项通过；此前完整检查到类型阶段通过，574 单测中一项 fixture 在 Vitest 自定义 stack formatter 下失败，已改成明确的数据属性 fixture 并通过针对性测试。完整门禁仍须重跑，不声称完成。
+- 本地没有 Docker，真实服务和浏览器全链路将由 D2 Actions 一次性环境运行。当前没有真实 CI 成功证据。
+- 下一步：提交 SDK 检查点；完成授权详情/实验室/专项浏览器测试，运行 `pnpm check` 后推送并核对 D2 CI。D2 尚未交付；D3–D7 未实施。

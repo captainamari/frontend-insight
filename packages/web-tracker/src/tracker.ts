@@ -1,5 +1,10 @@
+import { sdkWarn } from "./sdk-console.js";
 import type { ErrorSource, ErrorReport } from "./error-port.js";
-import { diagnosticBudgetError } from "@frontend-insight/event-contract/diagnostics";
+import {
+  diagnosticBudgetError,
+  diagnosticJsonBytes as byteLength,
+  diagnosticBytes,
+} from "@frontend-insight/event-contract/diagnostics";
 import type { DiagnosticEnvelope } from "@frontend-insight/event-contract";
 import { DIAGNOSTIC_LIMITS } from "@frontend-insight/event-contract/constants";
 import type { QualityHooks } from "./quality-port.js";
@@ -55,10 +60,6 @@ function id(
   return `${prefix}_${runtime.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
-function byteLength(value: unknown): number {
-  return new TextEncoder().encode(JSON.stringify(value)).byteLength;
-}
-
 function currentUrl(runtime: TrackerRuntime): URL {
   return new URL(runtime.window.location.href);
 }
@@ -104,9 +105,12 @@ export class BrowserTracker implements Tracker {
   private readonly queue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
   private quality: QualityHooks | undefined;
+  private errorCleanup?: (() => void) | undefined;
   private readonly observability: BrowserObservability | null;
-  private readonly originalPushState: History["pushState"];
-  private readonly originalReplaceState: History["replaceState"];
+  private readonly installedHistory: Partial<
+    Pick<History, "pushState" | "replaceState">
+  > = {};
+  private readonly originalHistory: Pick<History, "pushState" | "replaceState">;
   private deviceId: string;
   private sessionId: string;
   private usageSequence = 0;
@@ -177,12 +181,11 @@ export class BrowserTracker implements Tracker {
     }
     this.visibleStartedAt = this.isVisible() ? this.lastActivityAt : null;
     this.pageRoute = this.resolvePageRoute();
-    this.originalPushState = runtime.window.history.pushState.bind(
-      runtime.window.history,
-    );
-    this.originalReplaceState = runtime.window.history.replaceState.bind(
-      runtime.window.history,
-    );
+    const history = runtime.window.history;
+    this.originalHistory = {
+      pushState: history.pushState.bind(history),
+      replaceState: history.replaceState.bind(history),
+    };
     this.observability = config.observability
       ? new BrowserObservability(
           runtime,
@@ -245,6 +248,13 @@ export class BrowserTracker implements Tracker {
         },
       });
     });
+    this.safe(() => {
+      this.errorCleanup = config.errorDiagnostics?.start?.(
+        runtime,
+        () => this.pageViewId,
+        config,
+      );
+    });
     this.emit("page_view", this.qualityPayload("enter"));
     this.observability?.start();
     this.installLifecycle();
@@ -273,38 +283,36 @@ export class BrowserTracker implements Tracker {
 
   private installLifecycle(): void {
     const history = this.runtime.window.history;
-    history.pushState = (...args: Parameters<History["pushState"]>) => {
-      this.originalPushState(...args);
-      this.handlePageRouteChange();
-    };
-    history.replaceState = (...args: Parameters<History["replaceState"]>) => {
-      this.originalReplaceState(...args);
-      this.handlePageRouteChange();
-    };
-    this.runtime.window.addEventListener("popstate", this.handlePageRouteChange);
-    this.runtime.window.addEventListener("hashchange", this.handlePageRouteChange);
-    this.runtime.window.addEventListener("pagehide", this.handlePageHide);
-    this.runtime.window.addEventListener("pageshow", this.handlePageShow);
-    this.runtime.document.addEventListener(
-      "visibilitychange",
-      this.handleVisibilityChange,
-    );
+    for (const method of ["pushState", "replaceState"] as const) {
+      history[method] = this.installedHistory[method] = (
+        ...args: Parameters<History["pushState"]>
+      ) => {
+        this.originalHistory[method](...args);
+        this.handlePageRouteChange();
+      };
+    }
+    this.listen("addEventListener");
   }
 
   private uninstallLifecycle(): void {
-    this.runtime.window.history.pushState = this.originalPushState;
-    this.runtime.window.history.replaceState = this.originalReplaceState;
-    this.runtime.window.removeEventListener("popstate", this.handlePageRouteChange);
-    this.runtime.window.removeEventListener("hashchange", this.handlePageRouteChange);
-    this.runtime.window.removeEventListener("pagehide", this.handlePageHide);
-    this.runtime.window.removeEventListener("pageshow", this.handlePageShow);
-    this.runtime.document.removeEventListener(
-      "visibilitychange",
-      this.handleVisibilityChange,
-    );
+    const history = this.runtime.window.history;
+    for (const method of ["pushState", "replaceState"] as const)
+      if (history[method] === this.installedHistory[method])
+        history[method] = this.originalHistory[method];
+    this.listen("removeEventListener");
+  }
+
+  private listen(method: "addEventListener" | "removeEventListener") {
+    const window = this.runtime.window;
+    window[method]("popstate", this.handlePageRouteChange);
+    window[method]("hashchange", this.handlePageRouteChange);
+    window[method]("pagehide", this.handlePageHide);
+    window[method]("pageshow", this.handlePageShow as EventListener);
+    this.runtime.document[method]("visibilitychange", this.handleVisibilityChange);
   }
 
   private readonly handlePageRouteChange = (): void => {
+    if (this.destroyed) return;
     this.safe(() => {
       const nextPageRoute = this.resolvePageRoute();
       const now = this.runtime.now();
@@ -995,7 +1003,8 @@ export class BrowserTracker implements Tracker {
   }
 
   private async send(body: string, reason: "normal" | "lifecycle"): Promise<boolean> {
-    if (reason === "lifecycle" && byteLength(JSON.parse(body)) <= 60 * 1024) {
+    const keepalive = reason === "lifecycle" && diagnosticBytes(body) <= 60 * 1024;
+    if (keepalive) {
       const queued = this.runtime.navigator.sendBeacon(
         this.config.endpoint,
         new Blob([body], { type: "application/json" }),
@@ -1009,8 +1018,7 @@ export class BrowserTracker implements Tracker {
           method: "POST",
           headers: { "content-type": "application/json" },
           body,
-          keepalive:
-            reason === "lifecycle" && byteLength(JSON.parse(body)) <= 60 * 1024,
+          keepalive,
           credentials: "omit",
         });
         if (response.ok) return true;
@@ -1037,6 +1045,7 @@ export class BrowserTracker implements Tracker {
     this.runtime.clearInterval(this.flushTimer);
     this.settleVisiblePage(true);
     this.safe(() => this.quality?.destroy());
+    this.safe(() => this.errorCleanup?.());
     void this.flush("lifecycle");
     this.uninstallLifecycle();
     this.destroyed = true;
@@ -1071,6 +1080,6 @@ export class BrowserTracker implements Tracker {
 
   private warn(code: string): void {
     if (!this.diagnostics.warnings.includes(code)) this.diagnostics.warnings.push(code);
-    if (this.config.development) console.warn(`[frontend-insight] ${code}`);
+    if (this.config.development) sdkWarn(code);
   }
 }

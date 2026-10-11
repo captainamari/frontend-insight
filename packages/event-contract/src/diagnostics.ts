@@ -1,17 +1,19 @@
 import { DIAGNOSTIC_LIMITS as L } from "./constants.js";
 import type { DiagnosticEnvelope } from "./generated/event-batch-v3.js";
-const bytes = (v: unknown) =>
+export const diagnosticBytes = (v: unknown) =>
   new TextEncoder().encode(typeof v === "string" ? v : JSON.stringify(v)).length;
+export const diagnosticJsonBytes = (value: unknown) =>
+  diagnosticBytes(JSON.stringify(value));
 /** D0 budgets for reserved raw sections. Collectors/serialization arrive in D1–D3. */
 export function diagnosticBudgetError(d: DiagnosticEnvelope): string | null {
-  if (bytes(JSON.stringify(d)) > L.maximumEnvelopeBytes) return "envelope";
+  if (diagnosticJsonBytes(d) > L.maximumEnvelopeBytes) return "envelope";
   const raw = d.raw;
   const error = (
     raw.error && typeof raw.error === "object" ? raw.error : raw
   ) as Record<string, unknown>;
   if (
     typeof error.stack === "string" &&
-    (bytes(error.stack) > L.stackBytes ||
+    (diagnosticBytes(error.stack) > L.stackBytes ||
       error.stack.split("\n").filter((l) => /^\s*at\s|@/.test(l)).length >
         L.stackFrames)
   )
@@ -26,18 +28,19 @@ export function diagnosticBudgetError(d: DiagnosticEnvelope): string | null {
     if (
       !Array.isArray(raw.console) ||
       raw.console.length > L.consoleEntries ||
-      bytes(raw.console) > L.consoleBytes
+      diagnosticJsonBytes(raw.console) > L.consoleBytes
     )
       return "console";
-    if (raw.console.some((v) => bytes(v) > L.consoleEntryBytes)) return "console_entry";
+    if (raw.console.some((v) => diagnosticJsonBytes(v) > L.consoleEntryBytes))
+      return "console_entry";
   }
   if (raw.request !== undefined && raw.request && typeof raw.request === "object") {
     const request = raw.request as Record<string, unknown>;
     for (const key of ["requestBody", "responseBody"])
-      if (request[key] !== undefined && bytes(request[key]) > L.bodyBytes)
+      if (request[key] !== undefined && diagnosticBytes(request[key]) > L.bodyBytes)
         return "body";
     for (const key of ["requestHeaders", "responseHeaders"])
-      if (request[key] !== undefined && bytes(request[key]) > L.headersBytes)
+      if (request[key] !== undefined && diagnosticBytes(request[key]) > L.headersBytes)
         return "headers";
   }
   return null;

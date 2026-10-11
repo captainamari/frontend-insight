@@ -15,6 +15,10 @@
     "./errors": {
       "types": "./src/errors.ts",
       "import": "./dist/errors.js"
+    },
+    "./console": {
+      "types": "./src/console.ts",
+      "import": "./dist/console.js"
     }
   },
   "scripts": {
