@@ -310,3 +310,61 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 修复后同一完整回调合同复现通过；新增tracker+quality+operation/workflow测试也增加跨路由并通过。当前基础gzip12,273/12,288 bytes，requests4,913，全部组合27,111 bytes。第六轮 `38124331636` 属于修复前诊断提交，将由新提交按并发策略取代；最终仍以修复后完整真实CI为准。
 
 第七轮 [38124573740](https://github.com/captainamari/frontend-insight/actions/runs/38124573740)，代码 `f7faa9ed7fb43af61fd4c1c31032db107d320627`：D0检查/升级/故障回归成功；双浏览器10项中9项成功，Chromium D3完整原文→授权API/UI/复制/撤权闭环已通过。WebKit出站合同与ingestion202也通过，唯一失败为测试假定自定义abort reason一定以DOMException TimeoutError拒绝。改为在同一真实浏览器运行未包装fetch参照，断言受控包装保留原生拒绝名称并核对诊断分类；不重写业务拒绝对象，不把所有取消硬改为timeout。修复后的完整双浏览器和R5继承回归仍需下一轮确认。
+
+## D3 最终交付证据（2026-10-11）
+
+D3实现与自动化交付完成，待用户手工验收/评审。上面的逐项矩阵已经由本节同提交证据收尾；D4–D7仍未完成，没有连接生产或自动合并。
+
+- 实际基线：`e51b63523103597822df7acfa3dd1911e93109a5`，D2 PR #31合并代码和文档已核实；未新增未经执行的人工验收。
+- **精确验证代码SHA：`857b5c0a221b59c03e9558e5212774b4b1b46624`**，源码tree `11fa8035bd979050c2e30ed0a16c556fd468c77a`。
+- **最终真实CI：[38125100719](https://github.com/captainamari/frontend-insight/actions/runs/38125100719)**，job `114427711437`，已核对head_sha，上述代码全部步骤成功。
+- `pnpm check`：格式、workspace边界、生成合同、规范名、lint、类型、**76文件/601单测**及所有构建通过；构建增加私有压缩名称与公开schema字段的冲突门禁，基础包上限未调整。
+- D0/D1/D2/D3 **Chromium/WebKit共10项**真实浏览器用例通过。D3两浏览器均完成真实HTTP→SDK→ingestion202→Kafka→consumer→存储→按实例授权API→UI，7个错误分别比对完整原文信封；HTTP/URL/query/headers/原文正文、开始/结束/耗时/相对时间、operation/workflow/step/attempt和显式/时间邻近有断言。具体错误栈 `renderReport`、`/assets/d3.js?token=synthetic`、40:7与前置console保留。
+- 真实pending即时冻结、晚到正文、跨页清空、成功正文默认关闭/路由启用、显式业务失败、HTTP503、取消/超时reason、网络拒绝、opaque、重定向、二进制3bytes、真实SSE业务reader读取23bytes并取消、超长多字节文本通过。业务Response开始未消费，未被SDK锁住；SDK reader/待读任务均为0。
+- D3质量组合仅1个受观察的真实请求产生1条API事实，7个显式JS异常产生7条错误事实；原D1去重、D2 console不新增错误与原限流基础计数回归继续成立。
+- 授权viewer的原文展开、过滤、HTML文本渲染、复制前再授权、撤权后服务端拒绝和页面清空通过。原D0真实六身份/跨项目/未登录/外部token、撤权/移除成员、admin审计/no-store、旧v3、限流基础26个错误、TTL、幂等重试、部分写入恢复均通过；fixture扩充D3合成请求原文，普通列表/事实/审计/DLQ/Prometheus负向断言保留。
+- D0增量升级验证保留既有数据与migration checksum、重复执行幂等。R5-A **2项**、R5-B **2项**真实浏览器质量/分母回归，storage privacy和服务日志原文隔离全部通过。
+- [最终artifact](https://github.com/captainamari/frontend-insight/actions/runs/38125100719/artifacts/11696951687)：**7,387 bytes / 18份必要摘要JSON**，保留7天；SHA-256 `3821120669ce85615575cbb71cea092f383d365e337b2179087e20d4ed5798c4` 已下载校验，所有testedCommit一致。没有上传trace、原文body或服务日志附件。
+- [Draft PR #32](https://github.com/captainamari/frontend-insight/pull/32) 指向refactor，保持Draft。之后只补docs证据；文档收尾SHA记录在PR/交付回复，不把它冒充重新运行全部CI的代码SHA。
+
+### D3 最终下载体积（gzip bytes）
+
+| 模块/实际启用组合                            |   字节 |
+| -------------------------------------------- | -----: |
+| 基础SDK                                      | 12,273 |
+| errors                                       |  1,980 |
+| console（共享errors.js）                     |  2,706 |
+| quality                                      |  5,239 |
+| requests（共享console/errors.js）            |  4,913 |
+| 基础 + errors                                | 14,253 |
+| 基础 + errors + console                      | 16,959 |
+| 基础 + errors + console + quality            | 22,198 |
+| 基础 + errors + console + requests           | 21,872 |
+| 基础 + errors + console + quality + requests | 27,111 |
+
+全部实际下载依赖计入，未把requests当作零成本；基础仍低于12,288 bytes，上限未改、仅余15 bytes。比D2基础12,258增加15 bytes，完整组合比D2的22,174增加4,937 bytes。没有预算上调待决策项。
+
+### D3 最终同步测量（毫秒，p50 / p95）
+
+环境为GitHub Actions Ubuntu24.04，Chromium **140.0.7339.16**、WebKit **26.0**。Desktop设备UA中的Windows/macOS只是浏览器模拟配置，不是宿主OS。时钟最小正tick分别约0.1ms与1ms。
+
+| 测量              | 样本与数据                                                                                   |  Chromium | WebKit |
+| ----------------- | -------------------------------------------------------------------------------------------- | --------: | -----: |
+| 普通同步受控调用  | 1000次；预先创建的Response、短字符串请求                                                     | 0.4 / 0.8 | <1 / 1 |
+| 正文快照与裁剪    | 1000次；`中\n`重复8000，即16000字符，32,000 bytes（31.25KiB）UTF-8未计JSON转义；含字符串构造 | 1.4 / 2.8 |  1 / 2 |
+| 异常冻结与组装    | 1000次；已有请求缓冲与16KiB字段限制                                                          | 0.7 / 1.5 |  1 / 1 |
+| 高频/并发受控调用 | 连续5000次；只保留4个新pending观察记录                                                       | 0.2 / 0.3 | <1 / 1 |
+
+计时只包含同步受控调用/快照/组装，排除网络和业务异步读取；普通调用含原业务函数的Promise.resolve，不是扣除裸fetch基线后的纯增量。WebKit原始0表示低于1ms分辨率，不能写成零开销；已按实际精度取整。SDK没有异步正文读取，读取耗时不适用，不用0ms冒充网络或业务耗时。
+
+并发期间缓冲为5条/20,020 JSON bytes（1条既有完成请求+4条pending），超并发观察淘汰计数4,996，业务5000个Promise照常完成。完成后Chromium5条/21,112 bytes、WebKit5条/21,108 bytes；response association5条，activeReads=0、pendingReads=0。1000次长正文过程中按字节淘汰999次，集合始终低于32KiB。导航后旧请求0，destroy后请求/action/响应关联均0；空数组JSON为2bytes，不代表残留请求。条数20、时间窗60秒等上限另有单测覆盖；这里没有声称完成heap分析或D7压测。
+
+### 浏览器差异、交接与剩余边界
+
+- 最终原生参照：Chromium自定义超时reason拒绝为TimeoutError，WebKit为AbortError；受控包装与各自原生一致，诊断分别记录timeout/aborted。未篡改请求或拒绝对象，也不猜测服务端状态。
+- 请求入口为明确项目/实例绑定的受控fetch；**无自动XHR、无自动响应正文读取**。应用应提供业务本来已读的原始text；只调用json()时不能重新序列化冒充原文。文件/二进制/SSE/opaque给出状态，不克隆/tee业务流；浏览器不可见headers/原始网络字节/完整重定向链不在承诺内。
+- 真实业务HTTP、双浏览器全链路与权限/UI已通过；并发乱序/多项目/第三方/销毁代际与异常对象细节主要由unit覆盖。Firefox仅继承栈格式fixture；React仅D1显式适配器，未新增React渲染树。没有把本批验收当作所有浏览器或D7完整压测。
+- 页面通过下一次采集/冻结/stats识别pageViewId变化并清旧buffer，闲置缓存有界；destroy立即清空。授权撤销服务端即时生效，前端每秒续验及失焦/卸载/切换清理，不能收回已返回客户端的字节。
+- 无数据库迁移；先发布新API/consumer/UI，再发布配套SDK。旧raw.request预算按JSON UTF-8计量收紧，边界重报可能被拒，详见[D3指南](../guides/runtime-diagnostics-d3.md)。回滚先关新SDK、排空新信封，再回滚服务。
+- 可执行手工步骤和默认配置见[D3指南](../guides/runtime-diagnostics-d3.md#可执行验收)：实验室 `/observability?acceptance=fast` → “D3 请求503→异常” → 管理端dev/当前范围 → 错误实例授权详情，检查具体错误/前置console/失败请求原文/显式operation关联，随后过滤、复制、撤权。此处提供步骤，**未代填用户人工验收通过**。
+- D3合并后再核实最新origin/refactor，从已合并基线开始D4“排障产品流程与协作”。D4全文搜索/导出/稳定实例链接、D5 SourceMap、D6完整策略UI、D7全量验收仍未完成；不因D3解除R6/R7业务授权和个人行为分析边界。
