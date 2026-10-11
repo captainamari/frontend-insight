@@ -1,9 +1,20 @@
 <script setup lang="ts">
+import {
+  createErrorDiagnostics,
+  installVueErrorHandler,
+  createReactErrorHandler,
+} from "@frontend-insight/web-tracker/errors";
 import EfficiencyDemo from "./EfficiencyDemo.vue";
 import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
 import type { Tracker, TrackerEvent } from "@frontend-insight/web-tracker";
-import { computed, onBeforeUnmount, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, reactive, ref, getCurrentInstance } from "vue";
+
+const vueApp = getCurrentInstance()!.appContext.app;
+const restoreVue = installVueErrorHandler(vueApp, (error, source) =>
+  tracker?.captureException(error, source),
+);
+onBeforeUnmount(restoreVue);
 
 type Scene = "data" | "action" | "wallboard" | "observability";
 type ResultKind = "success" | "cancel" | "failure";
@@ -135,6 +146,7 @@ function initializeTracker(): void {
     longViewHeartbeatMs: acceptanceFast ? 1_000 : 60_000,
     flushIntervalMs: 2_000,
     development: true,
+    errorDiagnostics: createErrorDiagnostics(),
     observability: {
       enabled: true,
       captureJsErrors: true,
@@ -207,15 +219,33 @@ function exposeScene(value: Scene): void {
 }
 
 async function captureObservability(
-  kind: "js" | "api" | "resource" | "vital",
+  kind: "js" | "api" | "resource" | "vital" | "throw" | "promise" | "vue" | "react",
 ): Promise<void> {
   if (!tracker) return;
+  if (kind === "throw") {
+    setTimeout(function d1RealThrow() {
+      throw new TypeError("FI_D1_SYNTHETIC token=throw\n真实抛错");
+    }, 0);
+    return;
+  }
+  if (kind === "promise") {
+    void Promise.reject({
+      message: "FI_D1_SYNTHETIC token=promise",
+      nested: { url: "https://fixture.invalid/?token=synthetic" },
+    });
+    return;
+  }
+  if (kind === "vue") throw new Error("FI_D1_SYNTHETIC token=vue");
+  if (kind === "react")
+    createReactErrorHandler((e, source) => tracker?.captureException(e, source))(
+      new Error("FI_D1_SYNTHETIC token=react"),
+    );
   if (kind === "js") {
     const error = new TypeError(
-      "Chart render failed for operator@example.invalid with Bearer private-token",
+      "Chart render failed token=FI_D1_SYNTHETIC\n图表渲染失败",
     );
     error.stack =
-      "TypeError: chart render failed\n    at renderChart (https://park.invalid/assets/app.js:10:20?token=secret)";
+      "TypeError: chart render failed\n    at renderChart (https://park.invalid/assets/app.js?token=FI_D1_SYNTHETIC:10:20)";
     tracker.captureException(error);
   }
   if (kind === "api") {
@@ -227,10 +257,10 @@ async function captureObservability(
     });
   }
   if (kind === "resource") {
-    tracker.captureResourceError({
-      resourceType: "script",
-      url: "https://park.invalid/assets/energy-chunk.js?signature=secret",
-    });
+    const image = new Image();
+    image.src = "/missing-d1-resource.png?token=FI_D1_SYNTHETIC";
+    document.body.append(image);
+    image.addEventListener("error", () => image.remove(), { once: true });
   }
   if (kind === "vital") {
     tracker.captureWebVital({ name: "lcp", value: 4_200, navigationType: "navigate" });
@@ -572,6 +602,18 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
+            <button type="button" @click="captureObservability('throw')">
+              真实 throw
+            </button>
+            <button type="button" @click="captureObservability('promise')">
+              未处理 Promise
+            </button>
+            <button type="button" @click="captureObservability('vue')">
+              Vue 框架捕获
+            </button>
+            <button type="button" @click="captureObservability('react')">
+              React 适配器捕获
+            </button>
             <button type="button" @click="captureObservability('js')">
               <strong>模拟 JS 异常</strong>
               <small>error/js · TypeError + 脱敏首帧</small>

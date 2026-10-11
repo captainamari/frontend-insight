@@ -40,3 +40,7 @@ C07 接入流程：管理员发布完整组织目录，登记所有业务页面/
 The default SDK emits controlled `usageVersion: "r6-1"` on page views and leaves. Each visible segment has `usageSequence`; route exit, pagehide and destroy mark `usageClosed: true`. A visibility hide alone is not a terminal settlement. Duplicate terminal callbacks are suppressed, and BFCache restoration opens a fresh page view. These fields are immutable under `beforeSend`; no content or identity fields are added.
 
 R6 duration queries require an observed page view plus contiguous settlements through a terminal. Legacy or incomplete facts remain unavailable, with sample/coverage diagnostics; they are not backfilled as zero. Exactly 30 minutes idle starts a new session on the next active event, while a leave retains the previous session. Anonymous UV uses deviceId fallback and is reported separately from identified users.
+
+## D1 可选错误原文诊断
+
+通过 `@frontend-insight/web-tracker/errors` 导入 `createErrorDiagnostics`，在 createTracker 中配置 `errorDiagnostics: createErrorDiagnostics()`。全局/Promise/显式/Vue/React 错误共用有界提取器；基础计数不因详情限流减少。旧接入未启用时仍只发原摘要。框架适配器、预算、源格式、权限与可执行示例见 [D1 指南](../../docs/guides/runtime-diagnostics-d1.md)。基础包仍受原 12 KiB 门禁，启用后另计 errors 下载量，完整数据见构建报告。

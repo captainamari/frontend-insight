@@ -1,3 +1,4 @@
+import type { ErrorSource, ErrorReport } from "./error-port.js";
 import { diagnosticBudgetError } from "@frontend-insight/event-contract/diagnostics";
 import type { DiagnosticEnvelope } from "@frontend-insight/event-contract";
 import { DIAGNOSTIC_LIMITS } from "@frontend-insight/event-contract/constants";
@@ -17,6 +18,7 @@ import {
 import { findEventCredentialLeak } from "@frontend-insight/event-contract/security";
 import {
   BrowserObservability,
+  errorDetails,
   type NormalizedObservabilityConfig,
 } from "./observability.js";
 import {
@@ -137,15 +139,16 @@ export class BrowserTracker implements Tracker {
         | "development"
       >
     > & {
-      normalizePageRoute: TrackerConfig["normalizePageRoute"] | undefined;
-      beforeSend: TrackerConfig["beforeSend"] | undefined;
-      quality: TrackerConfig["quality"];
+      normalizePageRoute?: TrackerConfig["normalizePageRoute"] | undefined;
+      beforeSend?: TrackerConfig["beforeSend"] | undefined;
+      quality?: TrackerConfig["quality"];
+      errorDiagnostics?: TrackerConfig["errorDiagnostics"];
       observability: NormalizedObservabilityConfig | null;
-      initialUserId: TrackerConfig["initialUserId"];
-      usageCoverage: TrackerConfig["usageCoverage"];
-      forms: TrackerConfig["forms"];
-      businessOperations: TrackerConfig["businessOperations"];
-      repeatedOperations: TrackerConfig["repeatedOperations"];
+      initialUserId?: TrackerConfig["initialUserId"];
+      usageCoverage?: TrackerConfig["usageCoverage"];
+      forms?: TrackerConfig["forms"];
+      businessOperations?: TrackerConfig["businessOperations"];
+      repeatedOperations?: TrackerConfig["repeatedOperations"];
     },
     private readonly runtime: TrackerRuntime,
     registeredFeatures?: readonly string[],
@@ -186,6 +189,7 @@ export class BrowserTracker implements Tracker {
           config.observability,
           config.endpoint,
           (event, payload) => this.emit(event, payload),
+          this.reportError,
         )
       : null;
     this.workflows = new WorkflowRuntime(
@@ -225,6 +229,8 @@ export class BrowserTracker implements Tracker {
     this.safe(() => {
       this.quality = config.quality?.({
         runtime,
+        error: this.reportError,
+        rawErrors: !!config.errorDiagnostics,
         diagnostics: () => this.getDiagnostics(),
         capture: () => {
           const context = {
@@ -830,7 +836,16 @@ export class BrowserTracker implements Tracker {
   private diagnosticWindow = { page: "", started: 0, count: 0, suppressed: 0 };
 
   /** Explicit D0 entry: one base error plus optional raw evidence. No collector installed. */
-  captureDiagnostic(diagnostic: DiagnosticEnvelope): void {
+  captureDiagnostic(
+    diagnostic: DiagnosticEnvelope,
+    payload: TrackerEvent["payload"] = {
+      errorType: "js",
+      errorCategory: "js",
+      errorName: "Error",
+      errorMessage: "Error",
+      stackTopFrame: "",
+    },
+  ): void {
     this.safe(() => {
       const now = this.runtime.now();
       if (
@@ -859,23 +874,33 @@ export class BrowserTracker implements Tracker {
           suppressed: ++this.diagnosticWindow.suppressed,
         };
       } else this.diagnosticWindow.count++;
-      this.emit(
-        "error",
-        {
-          errorType: "js",
-          errorCategory: "js",
-          errorName: "Error",
-          errorMessage: "Explicit diagnostic",
-          stackTopFrame: "",
-        },
-        {},
-        value,
-      );
+      this.emit("error", payload, {}, value);
     });
   }
 
-  captureException(error: unknown): void {
-    this.safe(() => this.observability?.captureException(error));
+  private readonly reportError: ErrorReport = (
+    value,
+    source,
+    occurrence,
+    extra = {},
+  ) => {
+    this.safe(() => {
+      if (this.config.errorDiagnostics) {
+        const result = this.config.errorDiagnostics(value, source, occurrence);
+        if (result)
+          this.captureDiagnostic(result.diagnostic, { ...result.payload, ...extra });
+      } else
+        this.emit("error", {
+          errorType: "js",
+          errorCategory: source === "promise" ? "promise" : "js",
+          ...errorDetails(value),
+          ...extra,
+        });
+    });
+  };
+
+  captureException(error: unknown, source: ErrorSource = "explicit"): void {
+    this.reportError(error, source);
   }
 
   captureApiError(details: ApiErrorDetails): void {

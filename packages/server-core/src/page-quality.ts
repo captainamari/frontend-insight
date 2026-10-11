@@ -1,3 +1,4 @@
+import { parseErrorStack } from "./error-stack.js";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { createClient, type ClickHouseClient } from "@clickhouse/client";
 import { findCredentialLeak } from "@frontend-insight/event-contract/security";
@@ -65,6 +66,7 @@ export function projectOccurrence(row: Record<string, unknown>) {
   const rawFrame = String(row.error_stack_frame ?? "");
   const frame =
     safeQualityPath(rawFrame) ??
+    safeQualityPath(parseErrorStack(rawFrame).frames[0]?.file) ??
     (() => {
       const match = rawFrame.match(/https?:\/\/[^\s)]+/);
       try {

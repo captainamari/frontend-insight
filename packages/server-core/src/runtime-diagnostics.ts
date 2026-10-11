@@ -1,3 +1,4 @@
+import { diagnosticErrorView } from "./error-stack.js";
 import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
 import type {
@@ -300,10 +301,32 @@ export class RuntimeDiagnostics {
           diagnostic = JSON.parse(details[0].envelope_json) as DiagnosticEnvelope;
         else state = "unavailable";
       }
+      let legacy: Record<string, unknown> | undefined;
+      if (!r) {
+        const response = await ch.query({
+          query:
+            "SELECT payload_json FROM raw_events WHERE project_id={project:UUID} AND event_id={event:String} AND event='error' ORDER BY received_at DESC LIMIT 1",
+          format: "JSONEachRow",
+          query_params: { project, event },
+        });
+        const rows = await response.json<{ payload_json: string }>();
+        if (rows[0]) {
+          const payload = JSON.parse(rows[0].payload_json);
+          legacy = {
+            name: payload.errorName,
+            message: payload.errorMessage,
+            stack: payload.stackTopFrame,
+            ...(payload.errorType === "resource"
+              ? { resourceUrl: payload.requestPath }
+              : {}),
+          };
+        }
+      }
       await this.audit(p.userId, project, event, "diagnostics.read", state);
       return {
         eventId: event,
         state,
+        expiresAt: r ? new Date(r.expires_at).toISOString() : null,
         ...(r?.capture_metadata
           ? {
               capture:
@@ -312,7 +335,10 @@ export class RuntimeDiagnostics {
                   : r.capture_metadata,
             }
           : {}),
-        ...(diagnostic ? { diagnostic } : {}),
+        ...(diagnostic
+          ? { diagnostic, view: diagnosticErrorView(diagnostic.raw) }
+          : {}),
+        ...(legacy ? { legacy: true, view: diagnosticErrorView(legacy) } : {}),
       };
     } catch {
       await this.audit(p.userId, project, event, "diagnostics.read", "failed");

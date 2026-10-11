@@ -38,10 +38,7 @@ export function createTracker(config: TrackerConfig): Tracker {
     if (existing?.getDiagnostics().state === "active") return existing;
     const tracker = new BrowserTracker(
       {
-        quality: config.quality,
-        appId: config.appId,
-        env: config.env,
-        release: config.release,
+        ...config,
         endpoint: endpoint.toString(),
         deptId: null,
         roleId: null,
@@ -52,14 +49,7 @@ export function createTracker(config: TrackerConfig): Tracker {
         longViewHeartbeatMs: config.longViewHeartbeatMs ?? 60_000,
         staticPayload,
         development,
-        normalizePageRoute: config.normalizePageRoute,
-        beforeSend: config.beforeSend,
         observability: normalizeObservabilityConfig(config.observability),
-        initialUserId: config.initialUserId,
-        usageCoverage: config.usageCoverage,
-        forms: config.forms,
-        businessOperations: config.businessOperations,
-        repeatedOperations: config.repeatedOperations,
       },
       config.runtime ?? browserRuntime(),
       config.registeredFeatures,

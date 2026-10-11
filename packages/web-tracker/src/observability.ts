@@ -1,3 +1,4 @@
+import type { ErrorReport } from "./error-port.js";
 import type {
   ApiErrorDetails,
   NavigationType,
@@ -44,10 +45,6 @@ export function normalizeObservabilityConfig(
   };
 }
 
-function trim(value: string, maximum: number): string {
-  return value.trim().slice(0, maximum);
-}
-
 function sanitizeUrl(value: string): string {
   try {
     const parsed = new URL(value);
@@ -58,15 +55,14 @@ function sanitizeUrl(value: string): string {
 }
 
 export function sanitizeTelemetryText(value: string, maximum = 256): string {
-  return trim(
-    value
-      .replace(bearer, "[redacted-credential]")
-      .replace(jwt, "[redacted-credential]")
-      .replace(credentialAssignment, "[redacted-credential]")
-      .replace(email, "[redacted-email]")
-      .replace(url, (candidate) => sanitizeUrl(candidate)),
-    maximum,
-  );
+  return value
+    .replace(bearer, "[redacted-credential]")
+    .replace(jwt, "[redacted-credential]")
+    .replace(credentialAssignment, "[redacted-credential]")
+    .replace(email, "[redacted-email]")
+    .replace(url, sanitizeUrl)
+    .trim()
+    .slice(0, maximum);
 }
 
 function normalizePath(pathname: string): string {
@@ -134,23 +130,21 @@ function resourceUrl(target: EventTarget | null): string {
   return candidate?.src ?? candidate?.href ?? "/unknown-resource";
 }
 
-function errorDetails(error: unknown): {
+export function errorDetails(error: unknown): {
   errorName: string;
   errorMessage: string;
   stackTopFrame: string;
 } {
   const candidate = error instanceof Error ? error : null;
-  const rawMessage = candidate?.message ?? String(error ?? "Unknown error");
-  const stackLines = String(candidate?.stack ?? "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const topFrame = stackLines.find((line) => /\bat\b|https?:\/\//i.test(line)) ?? "";
+  const rawMessage = candidate?.message ?? String(error ?? "Error");
+  const topFrame =
+    String(candidate?.stack ?? "")
+      .split("\n")
+      .find((line) => /\bat\b|https?:\/\//i.test(line)) ?? "";
   return {
     errorName: sanitizeTelemetryText(candidate?.name || "Error", 120) || "Error",
-    errorMessage:
-      sanitizeTelemetryText(rawMessage, 256) || "Sanitized error without message",
-    stackTopFrame: sanitizeTelemetryText(topFrame, 256),
+    errorMessage: sanitizeTelemetryText(rawMessage) || "Error",
+    stackTopFrame: sanitizeTelemetryText(topFrame),
   };
 }
 
@@ -169,6 +163,7 @@ export class BrowserObservability {
     private readonly config: NormalizedObservabilityConfig,
     private readonly collectorEndpoint: string,
     private readonly emit: Emit,
+    private readonly report: ErrorReport,
   ) {}
 
   start(): void {
@@ -205,14 +200,6 @@ export class BrowserObservability {
     this.instrumentedFetch = null;
   }
 
-  captureException(error: unknown, category: "js" | "promise" = "js"): void {
-    this.emit("error", {
-      errorType: "js",
-      errorCategory: category,
-      ...errorDetails(error),
-    });
-  }
-
   captureApiError(details: ApiErrorDetails): void {
     if (
       details.failureType === "business" ||
@@ -230,12 +217,22 @@ export class BrowserObservability {
   }
 
   captureResourceError(details: ResourceErrorDetails): void {
-    this.emit("error", {
+    const payload = {
       errorType: "resource",
       errorCategory: "resource",
       resourceType: details.resourceType,
       requestPath: normalizeRequestPath(details.url, this.runtime.window.location.href),
-    });
+    };
+    this.report(
+      {
+        name: "ResourceError",
+        message: "Resource load failed",
+        resourceUrl: String(details.url),
+      },
+      "global",
+      undefined,
+      payload,
+    );
   }
 
   captureWebVital(details: WebVitalDetails): void {
@@ -261,11 +258,21 @@ export class BrowserObservability {
     }
     if (!this.config.captureJsErrors) return;
     const candidate = event as ErrorEvent;
-    this.captureException(candidate.error ?? candidate.message ?? "Window error");
+    this.report(
+      candidate.error ?? {
+        name: "Error",
+        message: candidate.message,
+        filename: candidate.filename,
+        lineno: candidate.lineno,
+        colno: candidate.colno,
+      },
+      "global",
+      event,
+    );
   };
 
   private readonly handleUnhandledRejection = (event: PromiseRejectionEvent): void => {
-    this.captureException(event.reason ?? "Unhandled promise rejection", "promise");
+    this.report(event.reason, "promise", event);
   };
 
   private installFetchInstrumentation(): void {

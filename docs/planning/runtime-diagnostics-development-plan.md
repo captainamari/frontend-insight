@@ -1,6 +1,6 @@
 # 运行时诊断能力补齐计划
 
-日期：2026-10-10。状态：D0 已实现并通过真实 CI，待用户评审/合并，详见 [结果](../progress/runtime-diagnostics-results.md)；D1–D7 待开发。
+日期：2026-10-10。状态：D0 已由用户合并；D1 已实现并通过真实 CI（PR #30 待用户验收/评审），详见 [结果](../progress/runtime-diagnostics-results.md)；D2–D7 待开发。
 
 规划基线：`agent/v1-8-r8-cleanup-acceptance` @ `641e106252e7053ea9a306fddcbc1c80ad66592e`；已验证刷新修复代码为 `4948ece`。本次只提交计划和依据对齐，不表示下述功能已实现，也不启动部署或自动合并。
 
@@ -81,7 +81,7 @@ D0 冻结诊断信封 `diagnosticVersion`、内容类型、来源、采集策略
 
 ## 5. 顺序工作包与完成标准
 
-D0 状态以结果文档与实际证据为准，D1–D7 仍待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
+D0/D1 状态以结果文档与实际证据为准，D2–D7 仍待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
 
 ### D0 — 合同、存储与访问控制基础（P0）
 
@@ -95,11 +95,11 @@ D0 状态以结果文档与实际证据为准，D1–D7 仍待开发。每批必
 
 ### D1 — 错误消息、堆栈与采集路径统一（P0，依赖 D0）
 
-- [ ] 两条 SDK 错误路径共用提取器，保留原始 name/message/stack/cause；处理非 Error rejection、AggregateError、Vue/React 显式适配器，并防止重复监听导致双计数。
-- [ ] 修复函数包裹相对路径解析；覆盖 HTTP/相对路径、Chrome/WebKit/Firefox、eval、native、async 和无栈；原文不因解析失败丢弃。
-- [ ] API/列表授权详情与抽屉展示错误消息和编译栈，结构化文件/函数/行列号；复制与展开有效。兼容读取历史已存字段，不能恢复历史已脱敏/删除的信息。
-- [ ] 缺失状态区分 not_enabled、not_applicable、unavailable、parse_failed、truncated、pending、expired、forbidden；每种状态都有中文说明。
-- [ ] 更新实验室：至少包含真实 throw、未处理 Promise、显式 capture 和框架捕获；自动化断言具体消息、具体栈帧/行列号和角色访问，不只断言出现一条记录。
+- [x] 两条 SDK 错误路径共用提取器，保留原始 name/message/stack/cause；处理非 Error rejection、AggregateError、Vue/React 显式适配器，并防止重复监听导致双计数。
+- [x] 修复函数包裹相对路径解析；覆盖 HTTP/相对路径、Chrome/WebKit/Firefox、eval、native、async 和无栈；原文不因解析失败丢弃。
+- [x] API/列表授权详情与抽屉展示错误消息和编译栈，结构化文件/函数/行列号；复制与展开有效。兼容读取历史已存字段，不能恢复历史已脱敏/删除的信息。
+- [x] 缺失状态区分 not_enabled、not_applicable、unavailable、parse_failed、truncated、pending、expired、forbidden；每种状态都有中文说明。
+- [x] 更新实验室：至少包含真实 throw、未处理 Promise、显式 capture 和框架捕获；自动化断言具体消息、具体栈帧/行列号和角色访问，不只断言出现一条记录。
 
 主要位置：`observability.ts`、`quality.ts`、新共用提取器、`page-quality.ts`、`PageQualityView.vue`、demo。完成标准：截图中的 JS 案例能看到有意义的消息与栈；资源失败显示“不适用 JS 调用栈”及资源地址；两浏览器真实链路通过。
 
