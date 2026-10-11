@@ -67,6 +67,7 @@ interface ActionRecord {
   relativeMs?: number;
 }
 const controlledFetches = new WeakSet<object>();
+const requestStream = Symbol("request_stream");
 const bounded = (n: number | undefined, max: number) =>
   Number.isFinite(n) ? Math.max(0, Math.min(max, Math.floor(n!))) : max;
 const assocKeys = [
@@ -130,6 +131,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
         kind: "navigation",
         sequence: ++sequence,
         timestamp: runtime.now(),
+        relativeMs: -60000,
         pageViewId: next,
         name: textEvidence("page_enter", 512),
         target: textEvidence(runtime.window.location.href, 2048),
@@ -158,6 +160,9 @@ export function createRequestDiagnostics(options: RequestOptions) {
               ...textEvidence(field.value, 2048),
               state: "truncated",
               reason: "record_budget",
+              omittedBytes:
+                (field.omittedBytes ?? 0) +
+                (textEvidence(field.value, 2048).omittedBytes ?? 0),
               omittedBytesExact: false,
             }
           : field;
@@ -225,6 +230,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
     // Files/FormData/streams are never read. Explicit source=upload excludes the whole record.
     const record: RequestRecord = {
       kind: "request",
+      relativeMs: -60000,
       localId: `local_${++sequence}`,
       sequence,
       timestamp: runtime.now(),
@@ -239,7 +245,13 @@ export function createRequestDiagnostics(options: RequestOptions) {
       requestBody:
         typeof body === "string"
           ? textEvidence(body)
-          : unavailable(body == null ? "not_provided" : "binary_file_form_or_stream"),
+          : unavailable(
+              body === requestStream
+                ? "request_stream_not_read"
+                : body == null
+                  ? "not_provided"
+                  : "binary_file_form_or_stream",
+            ),
       requestHeaders: headersEvidence(headers),
       responseBody: unavailable("pending"),
       responseHeaders: unavailable("pending"),
@@ -328,6 +340,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
   function bind(context: RequestAssociation = {}) {
     const binding = association(context);
     const boundEpoch = epoch;
+    const wrappers = new WeakMap<typeof fetch, Map<string, typeof fetch>>();
     return {
       /** Pass exactly one metrics observer (e.g. quality.observeApi) outside this wrapper. */
       wrapFetch(
@@ -335,6 +348,8 @@ export function createRequestDiagnostics(options: RequestOptions) {
         source: "application" | "upload" | "sdk" = "application",
       ): typeof fetch {
         if (controlledFetches.has(original)) return original;
+        const cached = wrappers.get(original)?.get(source);
+        if (cached) return cached;
         const wrapped: typeof fetch = function (
           this: unknown,
           ...args: Parameters<typeof fetch>
@@ -345,7 +360,8 @@ export function createRequestDiagnostics(options: RequestOptions) {
             const [input, init] = args;
             let url: string,
               fallbackMethod = "GET",
-              fallbackHeaders: unknown;
+              fallbackHeaders: unknown,
+              fallbackBody: unknown;
             if (typeof input === "string") url = input;
             else if (Object.getPrototypeOf(input) === URL.prototype)
               url = Object.getOwnPropertyDescriptor(URL.prototype, "href")!.get!.call(
@@ -361,13 +377,19 @@ export function createRequestDiagnostics(options: RequestOptions) {
                 Request.prototype,
                 "method",
               )!.get!.call(input);
+              fallbackBody =
+                Object.getOwnPropertyDescriptor(Request.prototype, "body")!.get!.call(
+                  input,
+                ) === null
+                  ? undefined
+                  : requestStream;
               fallbackHeaders = Object.getOwnPropertyDescriptor(
                 Request.prototype,
                 "headers",
               )!.get!.call(input);
             }
             const method = data(init, "method"),
-              body = data(init, "body");
+              body = data(init, "body") ?? fallbackBody;
             const proto =
               body && typeof body === "object" ? Object.getPrototypeOf(body) : null;
             const file =
@@ -397,7 +419,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
             result,
             (response: Response) => {
               finish(localId, response);
-              responseRecords.set(response, localId!);
+              safe(() => responseRecords.set(response, localId!));
               return response;
             },
             (error: unknown) => {
@@ -407,6 +429,8 @@ export function createRequestDiagnostics(options: RequestOptions) {
           ) as Promise<Response>;
         };
         controlledFetches.add(wrapped);
+        if (!wrappers.has(original)) wrappers.set(original, new Map());
+        wrappers.get(original)!.set(source, wrapped);
         return wrapped;
       },
       action(name: string, target = "", context: unknown = null) {
@@ -414,6 +438,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
           if (boundEpoch !== epoch || !active() || !runtime) return;
           actions.push({
             kind: "action",
+            relativeMs: -60000,
             sequence: ++sequence,
             timestamp: runtime.now(),
             pageViewId: pageId,
@@ -515,15 +540,15 @@ export function createRequestDiagnostics(options: RequestOptions) {
     d.policyVersion = "d3-1";
     // Reserve core error/compiled stack first, then failures, then recent console.
     const logs = d.raw.console as unknown[] | undefined;
-    while (jsonBytes(d) > 65536 && logs?.length) {
+    while (jsonBytes(d) > 65024 && logs?.length) {
       logs.shift();
       meta.envelopeOmitted++;
     }
-    while (jsonBytes(d) > 65536 && timeline.length) {
+    while (jsonBytes(d) > 65024 && timeline.length) {
       timeline.shift();
       meta.envelopeOmitted++;
     }
-    while (jsonBytes(d) > 65536 && records.length) {
+    while (jsonBytes(d) > 65024 && records.length) {
       const i = records.findIndex((r) => r.result === "success");
       records.splice(i < 0 ? 0 : i, 1);
       meta.envelopeOmitted++;
@@ -535,7 +560,19 @@ export function createRequestDiagnostics(options: RequestOptions) {
       cm.count = logs.length;
       cm.bytes = jsonBytes(logs);
     }
-    if (meta.envelopeOmitted || Object.values(meta.removed).some(Boolean))
+    if (
+      records.some((r) =>
+        [
+          r.requestBody,
+          r.responseBody,
+          r.requestHeaders,
+          r.responseHeaders,
+          r.url,
+        ].some((f) => f.state === "truncated"),
+      ) ||
+      meta.envelopeOmitted ||
+      Object.values(meta.removed).some(Boolean)
+    )
       d.status = "truncated";
     return result;
   };

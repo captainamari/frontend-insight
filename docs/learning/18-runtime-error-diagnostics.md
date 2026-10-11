@@ -60,3 +60,16 @@ D2 已新增 console 实现（最终验证状态以 results 为准）。接入�
 排错时依次看：接入是否启用 → scope 是否冲突 → 配置级别/页面/窗口 → 实际 records/预算说明 → 信封采集状态 → 存储状态 → 当前访问权限 → UI 过滤条件。不要把“debug 没有显示”直接解释为采集故障。
 
 验证：`pnpm exec vitest run packages/web-tracker/test/console.test.ts`；真实链路 `pnpm exec playwright test -c playwright.diagnostics.config.ts`。D0 真实权限/TTL/故障 fixture 也含 console 原文，继承的负向检查不删除。性能数据是同步局部测量，D3 请求关联、D5 SourceMap、D7 完整发布验收仍需分别实施。
+
+## D3：请求证据与显式关联
+
+阅读顺序：`web-tracker/src/request-evidence.ts` → `requests.ts` → event-contract生成源/diagnostics/validator → server-core/error-stack → `RequestTimeline.vue` → requests.test/spec。接入见 [D3指南](../guides/runtime-diagnostics-d3.md)，实测状态以results为准。
+
+- 请求证据不产生第二份API分母或JS错误；quality观察、operation/workflow事实继续各自原合同。503仍是fulfilled；200业务失败必须应用提供依据。
+- 不通过clone/tee后台读取正文，避免无限流/不可信长度和另一分支缓冲风险；应用提供已读取原始文本，SDK只做有限前缀快照，不能以重新序列化JSON伪装原文。零读取任务不等于应用自身没有读取开销。
+- 区分发起/响应/正文/异常四个时点。异常即时冻结，pending是当时事实，晚回调按本地ID查找仍在同页缓冲的记录，不回写历史信封。
+- getContext只暴露SDK真实operation/workflow实例ID，bind固化显式参数。同名step不足以说明因果；没有明确依据显示时间邻近，本地观察ID不是服务端requestId。
+- 同时检查字段、单条、集合、总信封和raw归属。服务端验证生成源和预算函数必须一起维护，不能换一个数组名绕过raw.request旧预算。
+- 单测关注Promise/响应/错误身份、this、原参数、访问器不执行、并发/跨页/销毁、JSON转义与容量；真实浏览器再验证HTTP/opaque/SSE取消与全服务链路。普通响应、日志、审计、DLQ仍不含原文。
+
+D3不包含D4产品检索导出、D5源码映射或D7长期压力。上一节D2的后续说明保留为历史交接，当前进度以结果记录为准。

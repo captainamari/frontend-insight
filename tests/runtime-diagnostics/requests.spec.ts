@@ -239,6 +239,15 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
         p95Ms: v[Math.floor(v.length * 0.95)],
       };
     };
+    const highFrequency: number[] = [];
+    const parallel: Promise<Response>[] = [];
+    for (let i = 0; i < 5000; i++) {
+      const a = performance.now();
+      parallel.push(immediate("/concurrent"));
+      highFrequency.push(performance.now() - a);
+    }
+    const duringConcurrency = benchmark.stats();
+    await Promise.all(parallel);
     const measuredCapacity = benchmark.stats();
     stop();
     return {
@@ -253,6 +262,8 @@ test("D3 real HTTP, frozen request evidence, permissions, UI and bounded capture
       capacity,
       destroyed,
       measuredCapacity,
+      duringConcurrency,
+      highFrequency: percentile(highFrequency),
       sync: percentile(times),
       bodySnapshot: percentile(bodies),
       freeze: percentile(freezes),

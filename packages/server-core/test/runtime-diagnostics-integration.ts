@@ -32,6 +32,15 @@ const ch = createClient({
 });
 const diagnostics = new RuntimeDiagnostics(mysql);
 const raw = {
+  request: {
+    method: "POST",
+    url: "https://fixture.invalid/?token=FI_D3_SYNTHETIC",
+    requestHeaders: { authorization: "Bearer FI_D3_SYNTHETIC" },
+    responseHeaders: { "x-token": "FI_D3_SYNTHETIC" },
+    requestBody: "token=FI_D3_SYNTHETIC\n请求",
+    responseBody:
+      '{ "nested": [1, 2], "token": "FI_D3_SYNTHETIC", "html": "<b>text</b>" }\n',
+  },
   console: [
     {
       level: "warn",
@@ -240,9 +249,9 @@ try {
     { headers: { authorization: `Bearer ${promIssued.token}` } },
   );
   assert.equal(promResponse.status, 200);
-  assert(!/FI_D[02]_SYNTHETIC/.test(await promResponse.text()));
+  assert(!/FI_D[023]_SYNTHETIC/.test(await promResponse.text()));
   assert(
-    !/FI_D[02]_SYNTHETIC/.test(
+    !/FI_D[023]_SYNTHETIC/.test(
       JSON.stringify(await call("/api/system/metrics", token)),
     ),
   );
@@ -315,7 +324,7 @@ try {
   const limited = await call(limitedPath, token);
   assert.equal(limited.state, "rate_limited");
   assert.equal((limited.capture as { suppressed: number }).suppressed, 1);
-  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(limited)));
+  assert(!/FI_D[023]_SYNTHETIC/.test(JSON.stringify(limited)));
   const count = async () => {
     const response = await ch.query({
       query:
@@ -336,14 +345,14 @@ try {
     viewerToken,
   );
   assert.equal(listed.totalOccurrences, 23);
-  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(listed)));
+  assert(!/FI_D[023]_SYNTHETIC/.test(JSON.stringify(listed)));
   assert(!JSON.stringify(listed).includes('"diagnostic"'));
   const rawRows = await ch.query({
     query: "SELECT payload_json FROM raw_events WHERE project_id={p:UUID}",
     format: "JSONEachRow",
     query_params: { p: pid },
   });
-  assert(!/FI_D[02]_SYNTHETIC/.test(await rawRows.text()));
+  assert(!/FI_D[023]_SYNTHETIC/.test(await rawRows.text()));
   // Old SDK remains accepted and has no detail without implying absence of an error.
   const old = make(undefined);
   delete old.events[0]!.diagnostic;
@@ -448,7 +457,7 @@ try {
       audits.some((a) => a.result === "unauthenticated") &&
       audits.some((a) => a.result === "ready"),
   );
-  assert(!/FI_D[02]_SYNTHETIC/.test(JSON.stringify(audits)));
+  assert(!/FI_D[023]_SYNTHETIC/.test(JSON.stringify(audits)));
   await diagnostics.cleanup();
   const kafka = new Kafka({
     brokers: (process.env.KAFKA_BROKERS ?? "kafka:9092").split(","),
@@ -480,7 +489,7 @@ try {
     eachMessage: async ({ message }) => {
       const value = message.value?.toString() ?? "";
       if (value.includes(poisonHash)) {
-        assert(!/FI_D[02]_SYNTHETIC/.test(value));
+        assert(!/FI_D[023]_SYNTHETIC/.test(value));
         assert(value.includes("DIAGNOSTICS_PROJECT_CONTEXT_INVALID"));
         dlqSafe = true;
       }

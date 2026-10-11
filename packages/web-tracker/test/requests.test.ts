@@ -302,4 +302,61 @@ describe("D3 controlled request evidence", () => {
     expect(records(g)).toHaveLength(0);
     expect(g.requests.stats().removed.excluded).toBe(3);
   });
+  it("keeps multiple scoped adapters isolated, duplicate wrappers stable and old generations inert", async () => {
+    const a = fixture(),
+      b = fixture();
+    const native = async () => new Response("x", { status: 503 });
+    const bound = a.requests.bind();
+    const wrapped = bound.wrapFetch(native);
+    expect(bound.wrapFetch(native)).toBe(wrapped);
+    await wrapped("/only-a");
+    expect(records(a)).toHaveLength(1);
+    expect(records(b)).toHaveLength(0);
+    const before = a.freeze();
+    a.stop();
+    const stop = a.requests.errorDiagnostics.start!(
+      a.runtime,
+      () => "pv_restarted",
+      a.scope,
+    );
+    stops.push(stop);
+    await wrapped("/stale");
+    bound.action("stale");
+    expect(records(a)).toHaveLength(0);
+    await a.requests.bind().wrapFetch(native)("/current");
+    expect(records(a)).toHaveLength(1);
+    expect((before.raw.requests as RequestRecord[])[0]!.url.value).toContain("only-a");
+    // Destruction does not replace a host function installed later by another library.
+    const replacement = async () => new Response("third-party");
+    (a.runtime.window as unknown as { fetch: typeof fetch }).fetch = replacement;
+    stop();
+    expect(a.runtime.window.fetch).toBe(replacement);
+    expect(records(b)).toHaveLength(0);
+  });
+  it("handles actual native DOMException aborts and leaves malformed/custom headers safely unavailable", async () => {
+    const f = fixture();
+    const abort = new DOMException("aborted", "AbortError");
+    await expect(
+      f.requests.bind().wrapFetch(() => Promise.reject(abort))("/abort"),
+    ).rejects.toBe(abort);
+    expect(records(f)[0]!.result).toBe("aborted");
+    const hostile = new Proxy(
+      {},
+      {
+        getOwnPropertyDescriptor() {
+          throw new Error("trap");
+        },
+      },
+    );
+    expect(headersEvidence(hostile).state).toBe("captured"); // Empty own-key set, no access or fabricated values.
+    const input = new Proxy(
+      { authorization: "x" },
+      {
+        getOwnPropertyDescriptor() {
+          throw new Error("trap");
+        },
+      },
+    );
+    expect(headersEvidence(input).state).toContain("unreadable");
+  });
 });

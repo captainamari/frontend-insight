@@ -263,3 +263,10 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 - 当前基础gzip为12,269/12,288 bytes，errors1,980、console2,706、quality5,239、requests4,413；完整组合26,607 bytes。后续代码调整以最终报告为准。
 - D3 workflow继承D0六身份/升级/故障/TTL/重试、D1/D2双浏览器与R5-A/B；新增真实HTTP→SDK→ingestion→Kafka→consumer→存储→授权API→UI逐字段验证，pending/跨页冻结、统计不双计、原文复制与撤权，以及无后台读取/持续容量测量。
 - **尚无真实CI成功记录，D3仍在实施。** 下一步推送此检查点、创建Draft PR、核对并修复真实Actions，再交付最终指南/证据。
+
+### D3 首轮真实CI与修复
+
+- 代码 `c7a2e18083c1f89223d32c4e2826630cf62023bd`，CI [38121823939](https://github.com/captainamari/frontend-insight/actions/runs/38121823939) **失败，不作为交付成功证据**。
+- pnpm check、真实服务、D0增量升级/六身份/限流/TTL/故障恢复均成功；D0–D2双浏览器8项成功。D3两浏览器在网络失败断言处失败：Vite fixture在Nginx静态演示部署中未运行，路径落到index.html，实际不是预期HTTP场景。
+- 修复为隔离m5 Compose内的demo-fixtures服务与demo专用Nginx路由；真实断网使用Nginx444，不把代理502当network rejection。生产web/API不开放fixture。保留所有断言并重新运行真实CI。
+- 同时补充页面/销毁代际隔离、重复wrapper缓存、原生DOMException分类、冻结后预算余量、D3请求原文的六身份/日志/审计/DLQ负向fixture，以及5000次并发调用容量测量。当前本地75文件/595项测试成功；最终代码需新的同提交CI验证。
