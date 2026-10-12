@@ -16,7 +16,7 @@
     "test:r1a:e2e": "playwright test --config tests/config/playwright.r1a.config.ts",
     "test:r1b:e2e": "playwright test --config tests/config/playwright.r1b.config.ts",
     "lint": "eslint .",
-    "typecheck": "pnpm -r --if-present typecheck",
+    "typecheck": "pnpm -r --if-present typecheck && tsc -p examples/diagnostics/tsconfig.json",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check:workspace": "node tools/check-workspace-boundaries.mjs",

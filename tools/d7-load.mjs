@@ -141,6 +141,7 @@ for (const kind of ["normal", "error"])
           source: "explicit",
           policyVersion: "d0-1",
           status: "complete",
+          correlation: {},
           omittedBytes: 0,
           suppressed: 0,
           raw: { message: "FI_D7_SYNTHETIC " + key, padding: "a".repeat(rawSize) },

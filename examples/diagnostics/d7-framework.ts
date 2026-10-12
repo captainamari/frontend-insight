@@ -67,6 +67,7 @@ function benchmark() {
     source: "explicit" as const,
     policyVersion: "d0-1",
     status: "complete" as const,
+    correlation: {},
     omittedBytes: 0,
     suppressed: 0,
     raw: { padding: "" },
