@@ -122,3 +122,7 @@ D5增量迁移010、API私有命名卷、上传凭证与CLI按[专门指南](run
 现有备份格式升级为3，包含MySQL（含权限/凭证/SourceMap元数据）、raw_events、repeated_operation_proofs、diagnostic_details和sourcemaps.tar；新增私有归档与全部文件校验和。旧备份缺这些资料时不能宣称完整恢复D5。恢复前停写并保留安全备份；恢复后核对凭证撤销/轮换，防止旧备份恢复了后来撤销的凭证。测试不操作生产。
 
 D5同代码`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`的[Ubuntu22回归](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)已在GitHub隔离环境完成部署、HTTPS双浏览器、保留卷重启与格式3实际恢复；非空map/元数据/诊断原文及权限的破坏恢复由[D5专项](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)验证。合法空Native快照只TRUNCATE、不执行空INSERT，逻辑行SHA256仍校验。没有操作目标生产服务器。
+
+## D6增量升级与恢复边界
+
+新增MySQL 011，先备份再迁移并部署consumer/API/UI，最后启用可选SDK。完整dump自动包含策略、授权、健康和删除墓碑。恢复旧备份后需重新核对后续撤权/删除/凭证轮换，再开放服务。回滚保留所有新增表和私有卷；旧诊断API不识别墓碑，不能直接恢复原文访问。实际恢复证据与步骤见[D6指南](runtime-diagnostics-d6.md)和诊断results，D7仍单独验收。

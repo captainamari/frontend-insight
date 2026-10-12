@@ -23,6 +23,10 @@
     "./requests": {
       "types": "./src/requests.ts",
       "import": "./dist/requests.js"
+    },
+    "./policy": {
+      "types": "./src/policy.ts",
+      "import": "./dist/policy.js"
     }
   },
   "scripts": {

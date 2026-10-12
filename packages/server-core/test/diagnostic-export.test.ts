@@ -7,6 +7,7 @@ const p = { userId: "synthetic" } as Principal;
 const ch = {} as ClickHouseClient;
 function fixture() {
   const diagnostics = new RuntimeDiagnostics({} as MySqlStore);
+  vi.spyOn(diagnostics.operations, "isDeleted").mockResolvedValue(false);
   const allowed = vi.spyOn(diagnostics, "allowed").mockResolvedValue(true);
   const audit = vi.spyOn(diagnostics, "audit").mockResolvedValue(undefined);
   const read = vi.spyOn(diagnostics, "read").mockResolvedValue({

@@ -231,3 +231,11 @@ SDK 修改了全局 History 方法并安装多个 listener/timer。`destroy` 必
 - SDK 只提供原子 API，不自动推断“请求成功”“图表渲染完成”；这是正确的责任边界，不应为了少写接入代码而破坏。
 
 本章实验见 [代码精读实验](07-code-reading-labs.md) 的实验 2、3 和 4。
+
+## D6：诊断策略可选入口
+
+`@frontend-insight/web-tracker/policy`复用既有workflow-config传输，按本地授权、远端配置、合同硬上限取交集。`createDiagnosticPolicy().errorDiagnostics`交给唯一tracker；`sync/status/destroy`管理同步和生命周期，`bind().wrapFetch/responseText`沿用受控请求能力。它不属于基础12KiB入口，可选模块及组合下载成本单独测量。
+
+状态区分not_installed、locally_disabled、policy_suppressed和xhr:unsupported。无有效配置时按兼容默认，失败或超时保留最后有效配置；排队原文不会因切换策略而重写。关闭释放上下文资源，只保留质量事实分组与去重所需顶层处理，开启不会增加第二条API事实。配置发布不等于全量客户端同步，服务端仍做最新准入和即时授权。
+
+从设置到SDK、准入、存储、健康快照与维护页面的阅读顺序见[第18章](18-runtime-error-diagnostics.md)；可执行JS/Vue/React/fetch/XHR、关闭/恢复和部署实验室见[D6指南](../guides/runtime-diagnostics-d6.md)。

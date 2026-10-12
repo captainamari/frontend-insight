@@ -44,7 +44,16 @@ export class CoreService implements OnModuleDestroy {
   constructor() {
     this.diagnostics.sourceMaps = this.sourceMaps;
     // No raw exceptions in logs; retry at next interval. Initial cleanup also retries.
-    const cleanup = () => void this.sourceMaps.cleanup().catch(() => {});
+    const cleanup = () => {
+      void this.sourceMaps
+        .cleanup()
+        .then(
+          () => this.diagnostics.operations.recordCleanup("sourcemaps", true),
+          () => this.diagnostics.operations.recordCleanup("sourcemaps", false),
+        )
+        .catch(() => {});
+      void this.diagnostics.operations.cleanup(this.diagnosticClient).catch(() => {});
+    };
     cleanup();
     this.sourceMapTimer = setInterval(cleanup, 300000);
     this.sourceMapTimer.unref();

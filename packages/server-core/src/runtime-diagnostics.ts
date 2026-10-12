@@ -1,3 +1,9 @@
+import { DiagnosticOperations } from "./diagnostic-operations.js";
+import {
+  DEFAULT_DIAGNOSTIC_POLICY,
+  type DiagnosticPolicy,
+  diagnosticRouteMatches,
+} from "@frontend-insight/event-contract/diagnostic-policy";
 import type { SourceMaps } from "./sourcemaps.js";
 import { projectOccurrence } from "./page-quality.js";
 import {
@@ -22,16 +28,54 @@ export type DiagnosticCapability = "diagnostics.read" | "diagnostics.export";
 export class DiagnosticAccessError extends Error {}
 const digest = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
-const absent = (d: DiagnosticEnvelope, status: "rate_limited") => ({
+const absent = (
+  d: DiagnosticEnvelope,
+  status: "rate_limited" | "unavailable" | "too_large",
+) => ({
   ...d,
   status,
   raw: {},
   suppressed: Math.max(1, d.suppressed),
 });
 
+/** Both the legacy explicit request and D3 records obey the same admission rules. */
+export function diagnosticRequestsSuppressed(
+  raw: Record<string, unknown>,
+  policy: DiagnosticPolicy,
+) {
+  const requests = Array.isArray(raw.requests) ? [...raw.requests] : [];
+  if (raw.request !== undefined) requests.push(raw.request);
+  return requests.some((value: unknown) => {
+    if (!value || typeof value !== "object") return true;
+    const r = value as {
+      url?: string | { value?: string };
+      result?: string;
+      requestBody?: unknown;
+      responseBody?: unknown;
+      status?: number;
+    };
+    try {
+      const path = new URL(typeof r.url === "string" ? r.url : (r.url?.value ?? ""))
+        .pathname;
+      return (
+        !diagnosticRouteMatches(path, policy.requestRoutes) ||
+        ((r.result === "success" ||
+          (typeof r.status === "number" && r.status >= 200 && r.status < 400)) &&
+          (r.requestBody !== undefined || r.responseBody !== undefined) &&
+          !diagnosticRouteMatches(path, policy.successBodyRoutes))
+      );
+    } catch {
+      return true;
+    }
+  });
+}
+
 export class RuntimeDiagnostics {
   sourceMaps?: SourceMaps;
-  constructor(private readonly mysql: MySqlStore) {}
+  readonly operations: DiagnosticOperations;
+  constructor(private readonly mysql: MySqlStore) {
+    this.operations = new DiagnosticOperations(mysql, this);
+  }
 
   async audit(
     actor: string | null,
@@ -130,28 +174,11 @@ export class RuntimeDiagnostics {
   }
 
   async policy(p: Principal, project: string, retentionDays: number) {
-    await this.manage(p, project, project);
-    if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 90)
-      throw new Error("DIAGNOSTICS_RETENTION_INVALID");
-    const c = await this.mysql.pool.getConnection();
-    try {
-      await c.beginTransaction();
-      await c.execute(
-        "INSERT INTO diagnostic_policies(project_id,version,retention_days) VALUES(?,?,?) ON DUPLICATE KEY UPDATE version=VALUES(version),retention_days=VALUES(retention_days)",
-        [project, `d0-${Date.now()}`, retentionDays],
-      );
-      await c.execute(
-        "INSERT INTO diagnostic_audit(actor_user_id,project_id,object_id,action,result) VALUES(?,?,?,'diagnostics.policy','success')",
-        [p.userId, project, project],
-      );
-      await c.commit();
-    } catch (e) {
-      await c.rollback();
-      throw e;
-    } finally {
-      c.release();
-    }
-    return { retentionDays };
+    const current = await this.operations.published(project);
+    return this.operations.publish(p, project, current.revision, {
+      ...current.policy,
+      retentionDays,
+    });
   }
 
   /** Durable rate admission and receipt. Retried IDs retain first expiry/admission.
@@ -164,9 +191,15 @@ export class RuntimeDiagnostics {
         project,
       ]);
       const [policies] = await c.query<RowDataPacket[]>(
-        "SELECT retention_days FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
+        "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
         [project],
       );
+      const config = policies[0]?.config;
+      const policy = config
+        ? typeof config === "string"
+          ? JSON.parse(config)
+          : config
+        : DEFAULT_DIAGNOSTIC_POLICY;
       for (const event of events) {
         if (!event.diagnostic) continue;
         const inputDigest = digest(event);
@@ -178,14 +211,61 @@ export class RuntimeDiagnostics {
           if (existing[0].input_digest !== inputDigest)
             throw new Error("DIAGNOSTICS_EVENT_CONFLICT");
           if (
-            existing[0].state === "rate_limited" &&
+            [
+              "rate_limited",
+              "too_large",
+              "disabled",
+              "deleted",
+              "policy_suppressed",
+            ].includes(existing[0].state) &&
             existing[0].storage_digest !== digest(event.diagnostic)
           )
-            event.diagnostic = absent(event.diagnostic, "rate_limited");
+            event.diagnostic = absent(
+              event.diagnostic,
+              existing[0].state === "rate_limited"
+                ? "rate_limited"
+                : existing[0].state === "too_large"
+                  ? "too_large"
+                  : "unavailable",
+            );
           continue;
         }
+        const [deleted] = await c.query<RowDataPacket[]>(
+          "SELECT id FROM diagnostic_deletions WHERE project_id=? AND event_id=?",
+          [project, event.eventId],
+        );
         let state = "pending";
-        if (
+        if (deleted.length || !policy.enabled) {
+          state = deleted.length ? "deleted" : "disabled";
+          event.diagnostic = absent(event.diagnostic, "unavailable");
+        } else if (
+          Buffer.byteLength(JSON.stringify(event.diagnostic)) > policy.envelopeBytes
+        ) {
+          state = "too_large";
+          event.diagnostic = absent(event.diagnostic, "too_large");
+        } else if (
+          policy.level === "errors" &&
+          (event.diagnostic.raw.console ||
+            event.diagnostic.raw.requests ||
+            event.diagnostic.raw.request)
+        ) {
+          state = "policy_suppressed";
+          event.diagnostic = absent(event.diagnostic, "unavailable");
+        } else if (
+          (Array.isArray(event.diagnostic.raw.console) &&
+            event.diagnostic.raw.console.some(
+              (r: unknown) =>
+                !policy.consoleLevels.includes((r as { level?: string })?.level),
+            )) ||
+          diagnosticRequestsSuppressed(event.diagnostic.raw, policy)
+        ) {
+          state = "policy_suppressed";
+          event.diagnostic = absent(event.diagnostic, "unavailable");
+        }
+
+        if (state !== "pending") {
+          /* server policy already decided; keep its precise receipt reason */
+        } else if (
           ["rate_limited", "too_large", "unavailable"].includes(event.diagnostic.status)
         )
           state = event.diagnostic.status;
@@ -199,7 +279,10 @@ export class RuntimeDiagnostics {
             "SELECT admitted FROM diagnostic_rate_windows WHERE project_id=? AND page_view_id=? AND window_start=? FOR UPDATE",
             [project, event.pageViewId, window],
           );
-          if (Number(rates[0]!.admitted) >= DIAGNOSTIC_LIMITS.envelopesPerMinute) {
+          if (
+            Number(rates[0]!.admitted) >=
+            Math.min(policy.envelopesPerMinute, DIAGNOSTIC_LIMITS.envelopesPerMinute)
+          ) {
             event.diagnostic = absent(event.diagnostic, "rate_limited");
             state = "rate_limited";
           } else
@@ -223,8 +306,13 @@ export class RuntimeDiagnostics {
         const { raw: _raw, ...captureMetadata } = event.diagnostic;
         void _raw;
         await c.execute(
-          "UPDATE diagnostic_receipts SET capture_metadata=? WHERE project_id=? AND event_id=?",
-          [JSON.stringify(captureMetadata), project, event.eventId],
+          "UPDATE diagnostic_receipts SET capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
+          [
+            JSON.stringify(captureMetadata),
+            Buffer.byteLength(JSON.stringify(event.diagnostic)),
+            project,
+            event.eventId,
+          ],
         );
       }
       await c.commit();
@@ -244,12 +332,19 @@ export class RuntimeDiagnostics {
         [envelope.projectId, event.eventId],
       );
       const r = rows[0];
+      if (await this.operations.isDeleted(envelope.projectId, event.eventId)) continue;
       if (!r || r.storage_digest !== digest(event.diagnostic))
         throw new Error("DIAGNOSTICS_RECEIPT_MISMATCH");
       if (
-        ["ready", "rate_limited", "too_large", "unavailable"].includes(
-          String(r.state),
-        ) ||
+        [
+          "ready",
+          "rate_limited",
+          "too_large",
+          "unavailable",
+          "disabled",
+          "deleted",
+          "policy_suppressed",
+        ].includes(String(r.state)) ||
         new Date(r.expires_at).getTime() <= Date.now()
       )
         continue;
@@ -271,12 +366,12 @@ export class RuntimeDiagnostics {
           ],
         });
         await this.mysql.pool.execute(
-          "UPDATE diagnostic_receipts SET state='ready' WHERE project_id=? AND event_id=?",
+          "UPDATE diagnostic_receipts SET state='ready',persisted_at=NOW(3) WHERE project_id=? AND event_id=? AND state IN ('pending','write_failed')",
           [envelope.projectId, event.eventId],
         );
       } catch {
         await this.mysql.pool.execute(
-          "UPDATE diagnostic_receipts SET state='write_failed' WHERE project_id=? AND event_id=?",
+          "UPDATE diagnostic_receipts SET state='write_failed' WHERE project_id=? AND event_id=? AND state IN ('pending','write_failed')",
           [envelope.projectId, event.eventId],
         );
         throw new Error("DIAGNOSTICS_WRITE_FAILED");
@@ -312,11 +407,12 @@ export class RuntimeDiagnostics {
       const base = (await baseResponse.json<Record<string, unknown>>())[0];
       let state = !r
         ? base
-          ? "not_enabled"
+          ? "unknown"
           : "not_found"
         : new Date(r.expires_at).getTime() <= Date.now()
           ? "expired"
           : String(r.state);
+      if (await this.operations.isDeleted(project, event)) state = "deleted";
       let diagnostic: DiagnosticEnvelope | undefined;
       let storedEnvelopeJson: string | undefined;
       if (state === "ready") {
@@ -333,7 +429,7 @@ export class RuntimeDiagnostics {
         } else state = "unavailable";
       }
       let legacy: Record<string, unknown> | undefined;
-      if (!r && base) {
+      if (!r && base && state !== "deleted") {
         const payload = JSON.parse(String(base.payload_json ?? "{}"));
         legacy = {
           name: payload.errorName,
@@ -355,8 +451,10 @@ export class RuntimeDiagnostics {
             )
           : undefined;
       await this.authorize(p, project, event, "diagnostics.read");
-      if (r && new Date(r.expires_at).getTime() <= Date.now()) {
-        state = "expired";
+      const deletedNow = await this.operations.isDeleted(project, event);
+      if (deletedNow || (r && new Date(r.expires_at).getTime() <= Date.now())) {
+        state = deletedNow ? "deleted" : "expired";
+        legacy = undefined;
         diagnostic = undefined;
         storedEnvelopeJson = undefined;
       }
@@ -364,7 +462,9 @@ export class RuntimeDiagnostics {
       return {
         eventId: event,
         projectId: project,
-        ...(sourceMapping && state !== "expired" ? { sourceMapping } : {}),
+        ...(sourceMapping && !["expired", "deleted"].includes(state)
+          ? { sourceMapping }
+          : {}),
         occurrence: base ? projectOccurrence(base) : null,
         state,
         expiresAt: r ? new Date(r.expires_at).toISOString() : null,
@@ -439,6 +539,11 @@ export class RuntimeDiagnostics {
       const evidence = await this.read(ch, p, project, event);
       if (evidence.state === "not_found")
         throw new DiagnosticQueryError("DIAGNOSTICS_INSTANCE_NOT_FOUND");
+      if (
+        evidence.state === "deleted" ||
+        (await this.operations.isDeleted(project, event))
+      )
+        throw new DiagnosticQueryError("DIAGNOSTICS_DELETED");
       if (evidence.state === "expired")
         throw new DiagnosticQueryError("DIAGNOSTICS_EXPIRED");
       const document = {
@@ -454,6 +559,8 @@ export class RuntimeDiagnostics {
       if (Buffer.byteLength(body) > DIAGNOSTIC_QUERY_LIMITS.exportBytes)
         throw new DiagnosticQueryError("DIAGNOSTICS_EXPORT_BYTE_BUDGET");
       await this.authorize(p, project, event, "diagnostics.export");
+      if (await this.operations.isDeleted(project, event))
+        throw new DiagnosticQueryError("DIAGNOSTICS_DELETED");
       if (evidence.expiresAt && Date.parse(evidence.expiresAt) <= Date.now())
         throw new DiagnosticQueryError("DIAGNOSTICS_EXPIRED");
       await this.audit(p.userId, project, event, action, "success");

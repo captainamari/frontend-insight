@@ -21,10 +21,14 @@ export interface RequestAssociation {
 export interface RequestOptions {
   scope: { appId: string };
   enabled?: boolean;
+  onCollectorError?: () => void;
   console?: Omit<ConsoleOptions, "scope">;
   /** Exact URL pathnames, never body inspection or heuristics. */
   successBodyRoutes?: readonly string[];
   excludeRoutes?: readonly string[];
+  /** Optional D6 intersection; local authorization remains authoritative. */
+  routeAllowed?: (pathname: string) => boolean;
+  successBodyAllowed?: (pathname: string) => boolean;
   maximumEntries?: number;
   maximumBytes?: number;
   windowMs?: number;
@@ -89,18 +93,26 @@ function association(value: RequestAssociation): RequestAssociation {
   }
   return result;
 }
-const safe = (f: () => void) => {
-  try {
-    f();
-  } catch {
-    /* evidence never changes host behavior */
-  }
-};
 
 /** Scoped controlled adapter. Does not patch fetch/XHR or emit API/error facts. */
 export function createRequestDiagnostics(options: RequestOptions) {
+  const safe = (f: () => void) => {
+    try {
+      f();
+    } catch {
+      try {
+        options.onCollectorError?.();
+      } catch {
+        /* health callbacks cannot change host behavior */
+      }
+    }
+  };
   const appId = options.scope.appId;
-  const extract = createConsoleDiagnostics({ ...options.console, scope: { appId } });
+  const extract = createConsoleDiagnostics({
+    ...options.console,
+    scope: { appId },
+    onCollectorError: options.onCollectorError,
+  });
   const limits = {
     entries: bounded(options.maximumEntries, 20),
     bytes: bounded(options.maximumBytes, 32768),
@@ -109,7 +121,12 @@ export function createRequestDiagnostics(options: RequestOptions) {
     actionBytes: 8192,
   };
   const enabled = options.enabled !== false;
-  const successRoutes = new Set(options.successBodyRoutes ?? []);
+  const localSuccessRoutes = new Set(options.successBodyRoutes ?? []);
+  const successRoutes = {
+    has: (path: string) =>
+      localSuccessRoutes.has(path) &&
+      (!options.successBodyAllowed || options.successBodyAllowed(path)),
+  };
   const excluded = new Set(options.excludeRoutes ?? []);
   const errorAssociations = new WeakMap<object, RequestAssociation>();
   let runtime: TrackerRuntime | undefined, page: (() => string) | undefined;
@@ -237,6 +254,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
         absolute.origin + absolute.pathname ===
           new URL(endpoint).origin + new URL(endpoint).pathname) ||
       excluded.has(absolute.pathname) ||
+      (options.routeAllowed && !options.routeAllowed(absolute.pathname)) ||
       source !== "application"
     ) {
       removed.excluded++;

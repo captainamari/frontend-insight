@@ -5,6 +5,7 @@ import { api } from "../api";
 import { auth } from "../auth";
 import { projects } from "../projects";
 import { useDashboardContext } from "../context";
+import DiagnosticSettings from "../components/DiagnosticSettings.vue";
 import DataStatusBanner from "../components/DataStatusBanner.vue";
 import type { DataStatus, Project } from "../types";
 const location = window.location,
@@ -20,7 +21,7 @@ const canWrite = computed(
     ["owner", "admin"].includes(context.project.value?.role ?? ""),
 );
 const tab = computed(() =>
-  ["integration", "probes", "interfaces", "abnormal", "audit"].includes(
+  ["integration", "probes", "interfaces", "abnormal", "audit", "diagnostics"].includes(
     String(route.query.tab),
   )
     ? String(route.query.tab)
@@ -421,6 +422,13 @@ onBeforeUnmount(() => {
       <DataStatusBanner :status="integration.status" />
       <p v-if="!canWrite">当前账号只读，配置修改、测试事件和凭证签发仅限项目管理员。</p>
       <el-tabs :model-value="tab" @update:model-value="changeTab">
+        <el-tab-pane name="diagnostics" label="诊断策略与维护"
+          ><DiagnosticSettings
+            v-if="tab === 'diagnostics'"
+            :key="projectId"
+            :project-id="projectId"
+            :can-write="canWrite"
+        /></el-tab-pane>
         <el-tab-pane name="integration" label="接入指南">
           <h2>最小接入代码</h2>
           <p>

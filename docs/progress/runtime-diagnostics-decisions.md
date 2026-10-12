@@ -130,3 +130,18 @@ D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有
 D5验证补充：Chromium与WebKit同一异常分别定位第4行第9/13列（new表达式/构造调用），保留各浏览器原始列；Map无名称时不猜当前函数，具名调用段另外断言。清理用跨批目录游标，上传CLI签发不自动重试、异常只输出安全码；源代码结果输出前再次授权，删除与异步映射竞态不给过期片段。
 
 D5最终代码 `8d7a8f3dd5e40db3e662e226cfe7b1698fea7470` 的[D5完整CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[Ubuntu22隔离生产配置CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)均成功，所有证据摘要testedCommit已核对。实际破坏/恢复、失败写入回收、过期/容量与撤权均完成；空Native快照恢复按TRUNCATE语义处理并继续校验完整逻辑行。基础包12,273/12,288 bytes、623单测，D0–D4与R5-A/B回归通过。手工验收/评审仍待Jesse，D6/D7未完成；文档收尾SHA与运行代码SHA分别记录在PR及交付回复。
+
+## D6 实施决定（2026-10-12）
+
+- 沿用当前设置权限、诊断grants和事务发布；revision冲突409，不另建配置中心。复用workflow-config同步传输，策略为独立可选SDK入口，不挤占基础12KiB预算。
+- 字段仅收紧本地授权，URL pathname精确/斜杠子树匹配，无正则。兼容默认不改变旧项目本地collector；旧SDK继续由服务端强制准入。
+- 保留期只作用新receipt；主动删除首版选择明确单eventId，持久墓碑阻止重试复活，不增加通用任务平台。恢复旧备份后的撤权/删除必须运维核对，回滚旧服务不能继续开放不识别墓碑的诊断端点。
+- 容量是有界7天receipt样本与SourceMap配额账面值，共享磁盘未知；健康是客户端最新累计快照，缺记录不伪装零。真实浏览器与破坏恢复必须跑过后才能交付，D7仍保留。
+
+### D6最终验证及交付边界
+
+运行代码`a3d6754fdf379b9efe391839856c3a217ec446a6`的[D6完整CI](https://github.com/captainamari/frontend-insight/actions/runs/38215534859)与[Ubuntu22实际隔离部署/恢复](https://github.com/captainamari/frontend-insight/actions/runs/38215534939)均成功；635单测、双浏览器策略和原文链路、真实破坏恢复、D0–D5及R5必要回归均已核对。证据包testedCommit全匹配，原文/源码/map不进入artifact。
+
+原生定时器须绑定globalThis；否则实验室注入runtime会在真实浏览器初始化失败，不能用happy-dom通过替代浏览器。关闭采集保留基础分组/去重所需顶层处理，停止cause/子错误和任意扩展字段遍历。disabled明确区分本地关闭、未安装和策略抑制；超时保留最后有效版本。恢复验证的依赖从声明它的server-core包解析，未提高预算或放宽权限。
+
+基础gzip仍12273/12288；可选errors2305、console2741、requests4976、policy2667，完整诊断组合24962，带quality30201 bytes。完整字段/状态/时间窗口、恢复旧权限边界及发布回滚见D6指南。D6四项已交付自动化证据，Draft PR #35待评审与Jesse手工验收；D7完整负载及发布验收仍单独保留。最终文档收尾SHA与上述运行代码分别记录。
