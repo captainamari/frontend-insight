@@ -129,7 +129,7 @@ async function main() {
       "node",
       "--input-type=module",
       "-e",
-      `import {MySqlStore,RuntimeDiagnostics} from './packages/server-core/dist/src/index.js';import {createClient} from '@clickhouse/client';const db=new MySqlStore(process.env.MYSQL_URL);const ch=createClient({url:process.env.CLICKHOUSE_URL,username:process.env.CLICKHOUSE_USERNAME,password:process.env.CLICKHOUSE_PASSWORD,database:'frontend_insight'});try{await new RuntimeDiagnostics(db).operations.cleanup(ch);}finally{await ch.close();await db.close();}`,
+      `import {MySqlStore,RuntimeDiagnostics} from './packages/server-core/dist/src/index.js';import {createRequire} from 'node:module';const {createClient}=createRequire(new URL('./packages/server-core/package.json',import.meta.url))('@clickhouse/client');const db=new MySqlStore(process.env.MYSQL_URL);const ch=createClient({url:process.env.CLICKHOUSE_URL,username:process.env.CLICKHOUSE_USERNAME,password:process.env.CLICKHOUSE_PASSWORD,database:'frontend_insight'});try{await new RuntimeDiagnostics(db).operations.cleanup(ch);}finally{await ch.close();await db.close();}`,
     ]);
     assert.equal(
       ch(

@@ -134,20 +134,25 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     })
   ).json();
   const vh = { authorization: `Bearer ${viewer.accessToken}` };
-  await request.put(`/api/projects/${project.id}/members/${viewer.user.id}`, {
-    headers,
-    data: { role: "viewer" },
-  });
+  const memberAdded = await request.put(
+    `/api/projects/${project.id}/members/${viewer.user.userId}`,
+    {
+      headers,
+      data: { role: "viewer" },
+    },
+  );
+  expect(memberAdded.status()).toBe(200);
   expect((await request.get(root + "/settings", { headers: vh })).status()).toBe(403);
   expect(
     (
       await request.delete(root + `/instances/${first.eventId}`, { headers: vh })
     ).status(),
   ).toBe(403);
-  await request.put(root + `/grants/${viewer.user.id}`, {
+  const granted = await request.put(root + `/grants/${viewer.user.userId}`, {
     headers,
     data: { read: true, export: false },
   });
+  expect(granted.status()).toBe(200);
   expect(
     (await request.get(root + `/instances/${first.eventId}`, { headers: vh })).status(),
   ).toBe(200);
@@ -159,7 +164,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       })
     ).status(),
   ).toBe(403);
-  await request.put(root + `/grants/${viewer.user.id}`, {
+  await request.put(root + `/grants/${viewer.user.userId}`, {
     headers,
     data: { read: false, export: false },
   });
@@ -229,7 +234,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
         projectId: project.id,
         deletedEvent: first.eventId,
         readyEvent: restored.eventId,
-        viewerId: viewer.user.id,
+        viewerId: viewer.user.userId,
         policyRevision: 3,
         actualBrowser: info.project.name,
         publication: true,

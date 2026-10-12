@@ -129,6 +129,10 @@ it("applies policy, freezes queued raw, disables wrappers and keeps one base fac
   });
   await f.adapter.sync();
   expect(window.console.warn).toBe(original);
+  expect(f.adapter.status().disabled).toContainEqual({
+    collector: "console",
+    reason: "policy_suppressed",
+  });
   const inspectCause = vi.fn(() => []);
   const disabled = new Error("disabled", {
     cause: new Proxy({}, { ownKeys: inspectCause }),
@@ -175,6 +179,29 @@ it("keeps last valid policy on failures, rejects stale/out-of-order and post-des
   expect(f.adapter.status()).toMatchObject({ version: "d6-4", sync: "last_valid" });
   f.tracker.destroy();
   expect(f.adapter.status().sync).toBe("destroyed");
+});
+
+it("aborts a timed-out config request and retains its last applied version", async () => {
+  const f = fixture();
+  await f.adapter.sync();
+  vi.useFakeTimers();
+  vi.mocked(f.fetcher).mockImplementation(
+    (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("aborted", "AbortError")),
+          { once: true },
+        );
+      }),
+  );
+  const pending = f.adapter.sync();
+  await vi.advanceTimersByTimeAsync(5000);
+  await pending;
+  expect(f.adapter.status().version).toBe("d6-1");
+  expect(f.adapter.status().sync).toBe("last_valid");
+  expect(f.adapter.status().counters.syncFailures).toBe(1);
+  expect(f.events.filter((e) => e.event === "error")).toHaveLength(0);
 });
 it("remote cannot install or authorize missing context modules", async () => {
   const original = window.console.warn;

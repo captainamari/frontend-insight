@@ -129,6 +129,18 @@ export function createDiagnosticPolicy(options: {
       lastSuccessAt,
       sync: syncState,
       enabled: enabled(),
+      disabled: ["errors", "console", "requests"].flatMap((collector) => {
+        if (enabled().includes(collector)) return [];
+        const option = collector === "console" ? local.console : local.requests;
+        const reason = !alive
+          ? "not_started"
+          : collector !== "errors" && !option
+            ? "not_installed"
+            : collector !== "errors" && option?.enabled === false
+              ? "locally_disabled"
+              : "policy_suppressed";
+        return [{ collector, reason }];
+      }),
       unavailable: [
         !local.console && "console:not_installed",
         !local.requests && "requests:not_installed",
