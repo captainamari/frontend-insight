@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && cp src/sourcemap-worker.mjs dist/src/sourcemap-worker.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed:m5": "tsx scripts/seed-m5.ts",
     "seed:m6": "tsx scripts/seed-m6.ts",
@@ -29,6 +29,7 @@
   "dependencies": {
     "@clickhouse/client": "1.23.1",
     "@frontend-insight/event-contract": "workspace:*",
+    "@jridgewell/trace-mapping": "0.3.31",
     "bcryptjs": "3.0.3",
     "jose": "6.2.3",
     "kafkajs": "2.2.4",

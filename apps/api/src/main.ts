@@ -27,6 +27,11 @@ export async function bootstrap(): Promise<NestFastifyApplication> {
       response.header("Cache-Control", "private, no-store");
     done();
   });
+  fastify.addHook("onRoute", (options) => {
+    // Only the independently authenticated upload route gets a larger body budget.
+    if (options.url.endsWith("/diagnostics/sourcemaps/upload"))
+      options.bodyLimit = 4500000;
+  });
   app.enableShutdownHooks();
   await app.listen(environment.API_PORT, "0.0.0.0");
   return app;

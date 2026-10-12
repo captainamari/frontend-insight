@@ -17,3 +17,7 @@ playwright-report/
 test-results/
 
 artifacts/
+
+# Build-generated synthetic JS/manifest only; maps stay private.
+apps/demo-app/public/d5/
+*.sourcemap-credential.json

@@ -1,3 +1,4 @@
+import { SourceMapsController } from "./sourcemaps.controller.js";
 import { DiagnosticsController } from "./diagnostics.controller.js";
 import {
   SettingsController,
@@ -27,6 +28,7 @@ import { ScorePreflightController } from "./score-preflight.controller.js";
 @Module({
   controllers: [
     DiagnosticsController,
+    SourceMapsController,
     SettingsController,
     ExternalSettingsController,
     SdkDistributionController,

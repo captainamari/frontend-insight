@@ -4,6 +4,23 @@ import RequestTimeline from "./RequestTimeline.vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
+  sourceMapping?: {
+    state: string;
+    coordinateBase: string;
+    artifacts: unknown[];
+    frames: {
+      state: string;
+      errorPath: string;
+      artifactId?: string;
+      original?: {
+        file: string;
+        function: string | null;
+        line: number;
+        column: number;
+      };
+      snippet?: { line: number; text: string }[];
+    }[];
+  };
   diagnostic?: { raw: Record<string, unknown>; correlation: unknown };
   occurrence?: {
     timestamp: string;
@@ -73,6 +90,34 @@ const visibleLogs = computed(() =>
     (record) => consoleFilter.value === "all" || record?.level === consoleFilter.value,
   ),
 );
+const mappingLabels: Record<string, string> = {
+  success: "全部可映射帧已定位",
+  partial: "部分帧已定位，请逐帧核对",
+  failed: "未能定位源码，原始编译栈仍保留",
+  no_frames: "无可映射栈帧",
+  mapped: "源码已定位",
+  identity_missing: "缺少 release/build/资源校验和",
+  version_mismatch: "事件 release 与制品身份不符",
+  asset_mismatch: "清单中没有此资源",
+  checksum_mismatch: "编译 JS 校验和不符",
+  ambiguous_asset: "资源身份存在歧义",
+  not_found: "此版本资源尚未上传 map",
+  unsupported_format: "不支持的 map 格式",
+  parse_failed: "map 解析失败",
+  mapping_not_found: "编译位置无映射",
+  no_sources_content: "位置已映射；源码片段不可用",
+  output_budget: "源码输出超过预算",
+  parse_budget: "解析超过时间/内存/复杂度预算",
+  frame_budget: "错误树超过32帧映射预算",
+  busy: "解析并发已满，请重试",
+  expired: "map 已过期",
+  deleted: "map 已删除",
+  storage_missing: "map 文件缺失",
+  storage_corrupt: "map 文件损坏",
+  storage_unavailable: "制品存储不可用",
+  invalid_asset: "资源路径不支持或缺少绝对基准",
+  unmappable_frame: "native/eval或缺少编译行列号",
+};
 const labels: Record<string, string> = {
   not_found: "此项目中实例不存在，或基础事实已超过保留期。",
   ready: "诊断详情已就绪",
@@ -176,6 +221,14 @@ async function renew(id: number) {
       status.value = "forbidden";
       return;
     }
+    if (result.value?.sourceMapping) {
+      const fresh = await api.request<Detail>(
+        `/api/projects/${props.projectId}/diagnostics/instances/${props.eventId}`,
+        { cache: "no-store", ...(abort ? { signal: abort.signal } : {}) },
+      );
+      if (id !== generation) return;
+      result.value = fresh;
+    }
     canExport.value = access.export;
     if (!access.export) downloadAbort?.abort();
     timer = setTimeout(() => void renew(id), 1000);
@@ -264,24 +317,28 @@ async function download(format: "json" | "text") {
         : "下载失败：实例不存在、已过期或超过预算，请核对状态。";
   }
 }
-async function copy(kind: "message" | "stack" | "console" | "requests") {
+async function copy(
+  kind: "message" | "stack" | "console" | "requests" | "sourceMapping",
+) {
   const id = await load(); // Reauthorize every copy, including after a revoke.
   if (id !== generation || !result.value?.view) return;
   try {
     await navigator.clipboard.writeText(
-      kind === "requests"
-        ? JSON.stringify(result.value.view.requests, null, 2)
-        : kind === "console"
-          ? JSON.stringify(
-              {
-                filter: consoleFilter.value,
-                records: visibleLogs.value,
-                metadata: result.value.view.console?.metadata,
-              },
-              null,
-              2,
-            )
-          : show(result.value.view.error[kind]),
+      kind === "sourceMapping"
+        ? JSON.stringify(result.value.sourceMapping, null, 2)
+        : kind === "requests"
+          ? JSON.stringify(result.value.view.requests, null, 2)
+          : kind === "console"
+            ? JSON.stringify(
+                {
+                  filter: consoleFilter.value,
+                  records: visibleLogs.value,
+                  metadata: result.value.view.console?.metadata,
+                },
+                null,
+                2,
+              )
+            : show(result.value.view.error[kind]),
     );
     if (id === generation) copied.value = "已复制";
   } catch {
@@ -387,6 +444,36 @@ onBeforeUnmount(() => {
           </tr>
         </tbody>
       </table>
+      <section
+        v-if="result.sourceMapping"
+        aria-label="源码定位"
+        data-testid="source-mapping"
+      >
+        <h4>源码定位（服务端派生视图）</h4>
+        <p>
+          {{ mappingLabels[result.sourceMapping.state] ?? result.sourceMapping.state }}
+        </p>
+        <p>{{ result.sourceMapping.coordinateBase }}</p>
+        <button @click="copy('sourceMapping')">重新授权并复制源码定位</button>
+        <div v-for="(frame, index) in result.sourceMapping.frames" :key="index">
+          <p>
+            {{ frame.errorPath }} · #{{ index + 1 }} ·
+            {{ mappingLabels[frame.state] ?? frame.state }}
+          </p>
+          <p v-if="frame.original">
+            {{ frame.original.file }} ·
+            {{ frame.original.function ?? "未提供函数名" }} ·
+            {{ frame.original.line }}:{{ frame.original.column }}
+          </p>
+          <pre v-if="frame.snippet">{{
+            frame.snippet.map((line) => `${line.line}: ${line.text}`).join("\n")
+          }}</pre>
+        </div>
+        <details>
+          <summary>匹配制品身份</summary>
+          <pre>{{ show(result.sourceMapping.artifacts) }}</pre>
+        </details>
+      </section>
       <details v-if="result.view.error.cause !== undefined">
         <summary>cause 原因链（有界）</summary>
         <pre>{{ show(result.view.error.cause) }}</pre>

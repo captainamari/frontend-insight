@@ -431,3 +431,17 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 本轮此前三次失败及具体修复保留在上方检查点，未删除断言、放宽权限或降低门禁。完整CI已完成，无剩余工程阻塞；下一步是按[D4指南](../guides/runtime-diagnostics-d4.md#可执行手工验收)由用户验收/评审Draft PR。最短路径：部署实验室“D3请求503→异常” → 管理端dev/近7天刷新 → 错误组/实例 → 搜索 `FI_D3_SYNTHETIC` → 诊断上下文 → 稳定链接与JSON/文本下载 → 分别撤销export/read验证。
 
 之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
+
+## D5 开发检查点（2026-10-12，尚未交付）
+
+基线 `b69125b1d35e8bf27fe2e5afb02a52003e0996a2`，已核实 D4 PR #33 合并代码及文档。分支 `agent/runtime-diagnostics-d5-sourcemaps`。
+
+| D5 原任务                | 当前实现                                                            | 验证/剩余工作                                          |
+| ------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------ |
+| 身份、上传接口和 CLI     | `sourcemaps.ts`、`sourcemaps.controller.ts`、`tools/sourcemaps.mjs` | 本地检查通过；真实 CLI/角色矩阵待 CI                   |
+| 映射与源码片段           | 私有文件→受限 worker→现有详情/稳定页/导出                           | 单测已验证 Unicode/CRLF/列基准/无源码；真实浏览器待 CI |
+| 失败状态与版本匹配       | 精确 URL/query+project/release/build+JS checksum，逐帧状态          | 格式/路径/复杂度单测通过；版本变体真实链路待 CI        |
+| 持久化、凭证、清理、恢复 | 增量 010、私有卷、5分钟清理、生产备份包含诊断原文与 map             | 重启/损坏/到期/实际恢复脚本已编写，待真实执行          |
+| 压缩构建与双浏览器       | esbuild 自有固定源码，部署实验室按钮，Chromium/WebKit 专项          | 测试已编写，未冒充真实通过                             |
+
+检查点命令：`pnpm check`；基础SDK12,273/12,288 bytes。首轮曾因把额外身份预算放进共享SDK路径导致12,298超限；已移除该冗余检查，身份由生成schema与原有64KiB信封限制，不上调门禁。恢复脚本 `node tools/d5-storage-verify.mjs` 只允许固定隔离Compose项目。下一步：读取D5 Actions失败步骤、修复并完成最终同代码验证；补齐中文操作指南/ADR/计划和最终证据。没有代填手工验收，D6/D7未实施。

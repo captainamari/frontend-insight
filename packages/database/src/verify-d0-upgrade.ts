@@ -42,7 +42,7 @@ try {
       )
     )[0],
   );
-  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [8, 9]);
+  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [8, 9, 10]);
   assert.equal(JSON.stringify((await pool.query("SELECT * FROM projects"))[0]), before);
   assert.equal(
     JSON.stringify(
@@ -75,7 +75,7 @@ try {
   assert.deepEqual((await runClickHouseMigrations(opts)).applied, []);
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
-    mysql: "7→8→9",
+    mysql: "7→8→9→10",
     clickhouse: "4→5",
     existingData: "preserved",
     checksums: "unchanged",

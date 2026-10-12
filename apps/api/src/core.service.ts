@@ -1,5 +1,6 @@
 import { createClient } from "@clickhouse/client";
 import {
+  SourceMaps,
   SettingsService,
   RuntimeDiagnostics,
   SafeClickHouseLogger,
@@ -38,6 +39,16 @@ export class CoreService implements OnModuleDestroy {
   readonly environment: ApiEnvironment = loadApiEnvironment();
   readonly mysql = new MySqlStore(this.environment.MYSQL_URL);
   readonly diagnostics = new RuntimeDiagnostics(this.mysql);
+  readonly sourceMaps = new SourceMaps(this.mysql, this.diagnostics);
+  private sourceMapTimer?: ReturnType<typeof setInterval>;
+  constructor() {
+    this.diagnostics.sourceMaps = this.sourceMaps;
+    // No raw exceptions in logs; retry at next interval. Initial cleanup also retries.
+    const cleanup = () => void this.sourceMaps.cleanup().catch(() => {});
+    cleanup();
+    this.sourceMapTimer = setInterval(cleanup, 300000);
+    this.sourceMapTimer.unref();
+  }
   readonly diagnosticClient = createClient({
     url: this.environment.CLICKHOUSE_URL,
     username: this.environment.CLICKHOUSE_USERNAME,
@@ -162,6 +173,7 @@ export class CoreService implements OnModuleDestroy {
   );
 
   async onModuleDestroy(): Promise<void> {
+    clearInterval(this.sourceMapTimer);
     await Promise.allSettled([
       this.publisher.disconnect(),
       this.analytics.close(),
