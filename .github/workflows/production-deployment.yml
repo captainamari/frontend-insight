@@ -7,6 +7,7 @@ on:
         "agent/v1-8-r8-*",
         "agent/runtime-diagnostics-d5-*",
         "agent/runtime-diagnostics-d6-*",
+        "agent/runtime-diagnostics-d7-*",
       ]
     paths-ignore: ["docs/**", "README.md"]
   workflow_dispatch:
