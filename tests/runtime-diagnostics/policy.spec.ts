@@ -70,6 +70,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   });
   await demo.goto(`http://127.0.0.1:4174/observability?d6AppId=${project.appId}`);
   await demo.getByRole("button", { name: "初始化 D6 SDK" }).click();
+  await expect(demo.getByTestId("d6-policy-state")).toContainText('"state": "active"');
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
   await expect(demo.getByTestId("d6-policy-state")).toContainText('"version": "d6-1"');
   const send = async () => {

@@ -13,6 +13,7 @@ function snapshot() {
 }
 function install() {
   tracker?.destroy();
+  policy?.destroy();
   events.value = [];
   policy = createDiagnosticPolicy({
     appId: appId.value,
@@ -37,10 +38,10 @@ function install() {
       },
       crypto: globalThis.crypto,
       now: Date.now,
-      setTimeout,
-      clearTimeout,
-      setInterval,
-      clearInterval,
+      setTimeout: globalThis.setTimeout.bind(globalThis),
+      clearTimeout: globalThis.clearTimeout.bind(globalThis),
+      setInterval: globalThis.setInterval.bind(globalThis),
+      clearInterval: globalThis.clearInterval.bind(globalThis),
       fetch: async (input, init) => {
         if (offline.value && String(input).endsWith("/workflow-config"))
           throw new Error("SYNTHETIC_CONFIG_OFFLINE");
@@ -52,6 +53,7 @@ function install() {
       return event;
     },
   });
+  if (tracker.getDiagnostics().state !== "active") policy.destroy();
   state.value = snapshot();
 }
 async function sync() {
@@ -68,7 +70,10 @@ async function capture(stress = false) {
   await tracker.flush();
   state.value = snapshot();
 }
-onBeforeUnmount(() => tracker?.destroy());
+onBeforeUnmount(() => {
+  tracker?.destroy();
+  policy?.destroy();
+});
 </script>
 <template>
   <section class="panel" aria-label="D6 策略实验室">
@@ -91,6 +96,7 @@ onBeforeUnmount(() => tracker?.destroy());
     ><button
       @click="
         tracker?.destroy();
+        policy?.destroy();
         state = snapshot();
       "
     >
