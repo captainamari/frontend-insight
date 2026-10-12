@@ -1,4 +1,4 @@
-> **后续诊断开发计划 · 2026-10-10**：Jesse 明确要求有价值的诊断信息不脱敏、展示按角色控制。最初只补计划；后续D0–D4已实现并合并，D5在Draft PR #34实现与验证中，状态见[诊断结果](../progress/runtime-diagnostics-results.md)。D6–D7待开发。合并 R8 后按 [运行时诊断 D0–D7](runtime-diagnostics-development-plan.md) 顺序实施；[ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 在诊断扩展内覆盖下文旧的脱敏、query/body 禁止和 SourceMap 非目标。其他指标、权限与业务批准边界不变。
+> **后续诊断开发计划 · 2026-10-10**：Jesse 明确要求有价值的诊断信息不脱敏、展示按角色控制。最初只补计划；后续D0–D4已实现并合并，D5在Draft PR #34已实现并通过自动化验证（待手工/评审），状态见[诊断结果](../progress/runtime-diagnostics-results.md)。D6–D7待开发。合并 R8 后按 [运行时诊断 D0–D7](runtime-diagnostics-development-plan.md) 顺序实施；[ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 在诊断扩展内覆盖下文旧的脱敏、query/body 禁止和 SourceMap 非目标。其他指标、权限与业务批准边界不变。
 
 > **R5-B授权 · 2026-10-04**：Jesse明确要求继续完成R5-B，继承已验证R5-A提交7534590。范围§17；进度见[results](../progress/v1.8-r5b-results.md)，不将此前禁止进入R5-B的历史记录作为新授权后的阻断，不自动合并。
 

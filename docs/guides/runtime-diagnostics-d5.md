@@ -1,6 +1,6 @@
 # D5：SourceMap 与源码定位
 
-本页说明D5实现；最终验证状态以[结果](../progress/runtime-diagnostics-results.md)和Draft PR #34为准。D6完整设置UI、D7全路线验收未实施，自动化不代替Jesse手工验收。
+本页说明已实现并通过自动化验证的D5；精确代码`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`，成功[D5 CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[Ubuntu22隔离部署/恢复CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)。完成矩阵与证据见[结果](../progress/runtime-diagnostics-results.md)，[Draft PR #34](https://github.com/captainamari/frontend-insight/pull/34)待手工验收/评审。D6完整设置UI、D7全路线验收未实施，自动化不代替Jesse手工验收。
 
 ## 1. 产品入口与匹配合同
 
@@ -122,7 +122,7 @@ API启动及每5分钟执行受限清理；重复执行幂等。处理过期/删
 
 顺序：备份 → 配置私有持久卷 → 增量迁移010 → 部署API/consumer/UI → 构建并上传业务制品 → 发布带匹配manifest的应用。Map上传成功不等于已部署JS一致，流水线须保证上传和部署用同一产物。构建输出中的map只交受限上传接口，勿复制到公开CDN。
 
-最短隔离路径：
+最短隔离路径（只想自动复验时，bootstrap/up/smoke后直接运行末尾Playwright与恢复命令；测试会自行创建项目并通过正式CLI上传，不需人工注入上传凭证）：
 
 ```bash
 pnpm install --frozen-lockfile

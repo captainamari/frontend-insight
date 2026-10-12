@@ -118,7 +118,7 @@ D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有
 
 最终新增两种浏览器的实际文件下载/文本内容、分页外搜索、稳定链接登录/刷新/新标签、仅export撤销和环境切换竞态均通过；继承十项浏览器与R5-A/B、TTL/故障/升级/原文隔离也通过。文档收尾提交仅维护证据，以PR记录的文档SHA区分完整CI验证代码。D5须待用户合并D4后核实最新refactor再启动；SourceMap、D6设置UI、D7容量与全路线验收仍未实施。
 
-## D5 实施决定（2026-10-12，验证进行中）
+## D5 实施决定（2026-10-12，自动化验证完成）
 
 - 使用 `@jridgewell/trace-mapping@0.3.31`，核对[官方说明](https://github.com/jridgewell/trace-mapping)：内部行从1/列从0；浏览器编译栈和UI行列均从1。仅支持普通v3 encoded mappings；indexed/sections明确拒绝。独立worker，1.5秒/64MiB old+8MiB young/2MiB stack，最多2个，不抓取任何远端或磁盘源码。
 - 通过构建清单在可选errors入口withSourceMapIdentity为诊断raw增加可选sourceMap身份（beforeSend保持不可改写证据）；不改变基础SDK，不伪造历史build/checksum。绝对HTTP(S)资源URL保留origin/path/query、去fragment；相对资源必须给baseUrl，不剥CDN前缀、不按basename猜测。Map sources/sourceRoot只是输出标识，不作为读取路径。
@@ -128,3 +128,5 @@ D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有
 - 私有命名卷与MySQL元数据独立，文件只用服务端哈希命名、0600、O_NOFOLLOW；先fsync临时文件再原子rename，再提交元数据。墓碑先阻止访问再删除文件；每5分钟重试过期/删除与1小时以上孤儿清理。生产备份增加diagnostic_details和私有map；恢复证据必须真实运行后才标完成。
 
 D5验证补充：Chromium与WebKit同一异常分别定位第4行第9/13列（new表达式/构造调用），保留各浏览器原始列；Map无名称时不猜当前函数，具名调用段另外断言。清理用跨批目录游标，上传CLI签发不自动重试、异常只输出安全码；源代码结果输出前再次授权，删除与异步映射竞态不给过期片段。
+
+D5最终代码 `8d7a8f3dd5e40db3e662e226cfe7b1698fea7470` 的[D5完整CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[Ubuntu22隔离生产配置CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)均成功，所有证据摘要testedCommit已核对。实际破坏/恢复、失败写入回收、过期/容量与撤权均完成；空Native快照恢复按TRUNCATE语义处理并继续校验完整逻辑行。基础包12,273/12,288 bytes、623单测，D0–D4与R5-A/B回归通过。手工验收/评审仍待Jesse，D6/D7未完成；文档收尾SHA与运行代码SHA分别记录在PR及交付回复。
