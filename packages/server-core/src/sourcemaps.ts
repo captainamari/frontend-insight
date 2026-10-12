@@ -104,7 +104,10 @@ export class SourceMaps {
       assetSha256: r.asset_sha256,
       mapSha256: r.map_sha256,
       bytes: r.byte_size,
-      state: r.state,
+      state:
+        r.state === "ready" && new Date(r.expires_at).getTime() <= Date.now()
+          ? "expired"
+          : r.state,
       expiresAt: new Date(r.expires_at).toISOString(),
     };
   }
@@ -285,7 +288,7 @@ export class SourceMaps {
           [
             project,
             `${credential}:${id}`,
-            "sourcemap.upload",
+            "sourcemap.upload.v3",
             existing ? "idempotent" : "created",
           ],
         );
@@ -391,7 +394,7 @@ export class SourceMaps {
       p.userId,
       project,
       id,
-      "sourcemap.download",
+      "sourcemap.download.v3",
       "success",
     );
     return bytes;
@@ -568,6 +571,15 @@ export class SourceMaps {
       "sourcemap.map",
       result.state,
     );
+    for (const id of groups.keys())
+      await this.diagnostics.audit(
+        p.userId,
+        project,
+        id,
+        "sourcemap.map.v3",
+        result.state,
+      );
+    await this.diagnostics.authorize(p, project, event, "diagnostics.read");
     return result;
   }
   async cleanup() {

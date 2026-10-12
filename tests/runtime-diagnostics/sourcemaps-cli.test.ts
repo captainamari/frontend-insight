@@ -1,7 +1,7 @@
 import { it, expect } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, mkdir, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
 const exec = promisify(execFile);
@@ -107,6 +107,36 @@ it("CLI retries the identical upload body on transient failure and prints safe r
     expect(stderr).toBe("");
   } finally {
     await new Promise<void>((r) => server.close(() => r()));
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("backup preflight accepts only regular hash-named map files", async () => {
+  const dir = await mkdtemp(tmpdir() + "/fi-map-archive-");
+  await mkdir(dir + "/files");
+  const filename = "a".repeat(64) + ".map";
+  const validate = () =>
+    exec("bash", [
+      "-c",
+      'source scripts/lib/sourcemap-backup.sh; sourcemap_validate "$1"',
+      "--",
+      dir,
+    ]);
+  const archive = () =>
+    exec("tar", ["-C", dir + "/files", "-cf", dir + "/sourcemaps.tar", "."]);
+  try {
+    await writeFile(dir + "/files/" + filename, "synthetic");
+    await archive();
+    await validate();
+    await writeFile(dir + "/files/invalid.map", "synthetic");
+    await archive();
+    await expect(validate()).rejects.toMatchObject({ code: 1 });
+    await rm(dir + "/files/invalid.map");
+    await rm(dir + "/files/" + filename);
+    await symlink("/etc/passwd", dir + "/files/" + filename);
+    await archive();
+    await expect(validate()).rejects.toMatchObject({ code: 1 });
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });

@@ -57,7 +57,7 @@ node tools/sourcemaps.mjs revoke --api https://insight.example.invalid --project
 
 上传成功输出`id/assetSha256/mapSha256/bytes/state/idempotent`；失败退出非0。上传的网络/429/502/503/504最多尝试3次，每次15秒超时，短暂退避；409不盲目重试。签发不自动重试，先保留0600目标文件；输入/IO异常只输出固定错误码，避免原生JSON错误夹带凭证内容。单次只上传一个JS/map对，不递归遍历或处理压缩包。一个发布有多个文件时由流水线逐个调用，任一失败阻止发布。
 
-相应接口均在`/api/projects/:projectId/diagnostics/sourcemaps`：POST `/credentials`、DELETE `/credentials/:id`、POST `/upload`、GET根路径、DELETE `/:id`、POST `/:id/download`。管理操作要求当前有效admin；整map下载要求项目成员read+export（admin沿既有权限）。普通read可查看有界片段，但不能下载整份map。全路径private/no-store；审计只有操作者/上传凭证ID、项目、制品ID、行为、格式/结果，不写正文。
+相应接口均在`/api/projects/:projectId/diagnostics/sourcemaps`：POST `/credentials`、DELETE `/credentials/:id`、POST `/upload`、GET根路径、DELETE `/:id`、POST `/:id/download`。管理操作要求当前有效admin；整map下载要求项目成员read+export（admin沿既有权限）。普通read可查看有界片段，但不能下载整份map。全路径private/no-store；审计只有操作者/上传凭证ID、项目、制品ID、行为、格式/结果，不写正文。实际读取制品另记sourcemap.map.v3/upload.v3/download.v3及制品ID；拒绝格式的请求保留原失败状态。
 
 ## 3. 采集身份接入
 
@@ -114,7 +114,7 @@ MySQL增量`010_diagnostic_sourcemaps.sql`新增元数据和凭证；不修改�
 
 API启动及每5分钟执行受限清理；重复执行幂等。处理过期/删除文件、1小时以上孤儿和临时文件、到期后90天墓碑及过期凭证；失败下次重试；每批最多1000条元数据/1000个目录条目，保留续扫游标，不会长期只扫描目录头部。没有派生映射缓存，删除/到期每次读均查当前元数据。维护不能通过公共采集凭证调用。
 
-生产既有`./scripts/production backup NAME` / `restore NAME --confirm-replace-data`增加私有map归档、diagnostic_details与MySQL中的凭证/权限，使用同一停写窗口与校验和。备份本身含敏感原文，沿用0700目录/0600文件，不能上传普通CI artifact。新恢复要求D5完整归档；旧备份不可凭空恢复缺失源码资料。恢复旧凭证状态可能撤回备份之后的撤销记录，维护者应在恢复后、开放上传前核对并重新撤销/轮换受影响凭证。
+生产既有`./scripts/production backup NAME` / `restore NAME --confirm-replace-data`增加私有map归档、diagnostic_details与MySQL中的凭证/权限，使用同一停写窗口与校验和。备份本身含敏感原文，沿用0700目录/0600文件，不能上传普通CI artifact。恢复前检查归档仅包含64位hash命名的普通map文件，拒绝链接及异常路径。新恢复要求D5完整归档；旧备份不可凭空恢复缺失源码资料。恢复旧凭证状态可能撤回备份之后的撤销记录，维护者应在恢复后、开放上传前核对并重新撤销/轮换受影响凭证。
 
 隔离恢复测试`node tools/d5-storage-verify.mjs`只操作固定的frontend-insight-m5栈：浏览器先产出合成事件，重启API仍可映射；备份文件/元数据/权限/原始信封，实际删除后观察详情不可用，再恢复并断言第4行第9列与片段；另测缺失、损坏、凭证到期、项目容量、元数据写入失败及临时/孤儿文件清理；恢复后核对凭证撤销与成员移除仍生效。共享生产源码归档函数，备份不作为CI artifact。执行结果必须查看results，不能因脚本存在就声称成功。
 

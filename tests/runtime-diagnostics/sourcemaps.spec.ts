@@ -121,7 +121,15 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
     function: "renderSourceMapScenario",
   });
   expect(mapped.original.function).toBeNull(); // esbuild has no name at the constructor location
-  expect(mapped.compiled.function).toContain("renderSourceMapScenario");
+  // WebKit keeps the minified binding name despite esbuild keepNames; V8 uses
+  // the function.name property. Both are compiled evidence, never original names.
+  const minifiedName = js
+    .toString()
+    .match(/\b([A-Za-z_$]\w*) as renderSourceMapScenario/)?.[1];
+  expect(minifiedName).toBeTruthy();
+  expect(mapped.compiled.function).toBe(
+    info.project.name === "webkit" ? minifiedName : "renderSourceMapScenario",
+  );
   expect(detail.view.error.stack).toContain("/d5/fixture.js:1:");
   expect(detail.sourceMapping.state).toBe("partial"); // caller Vue/bundle frames absent from upload manifest
   const list = await request.get(sm, { headers });

@@ -374,6 +374,7 @@ restore() {
       "DESCRIBE TABLE $table FORMAT TSV" | cmp -s - "$source/$table.schema.tsv" || fail "Backup schema mismatch: $table; use the matching release before restore"
   done
   [[ -f "$source/sourcemaps.tar" ]] || fail "Backup lacks D5 private sourcemaps"
+  sourcemap_validate "$source" || fail "Invalid private sourcemap archive; no restore performed"
   local safety="pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
   backup "$safety"
   compose stop api consumer web
