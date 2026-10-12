@@ -167,8 +167,18 @@ export async function searchDiagnostics(
   } catch (e) {
     if (e instanceof DiagnosticQueryError) throw e;
     // Driver errors can include SQL/values. Stable code only.
-    throw new DiagnosticQueryError(
-      "DIAGNOSTICS_SEARCH_EXECUTION_BUDGET_OR_UNAVAILABLE",
-    );
+    const type = e && typeof e === "object" && "type" in e ? e.type : undefined;
+    if (type === "TIMEOUT_EXCEEDED" || type === "SOCKET_TIMEOUT" || type === "TOO_SLOW")
+      throw new DiagnosticQueryError("DIAGNOSTICS_SEARCH_TIMEOUT");
+    if (
+      [
+        "TOO_MANY_ROWS",
+        "TOO_MANY_BYTES",
+        "TOO_MANY_ROWS_OR_BYTES",
+        "MEMORY_LIMIT_EXCEEDED",
+      ].includes(String(type))
+    )
+      throw new DiagnosticQueryError("DIAGNOSTICS_SEARCH_SCAN_BUDGET");
+    throw new DiagnosticQueryError("DIAGNOSTICS_SEARCH_UNAVAILABLE");
   }
 }

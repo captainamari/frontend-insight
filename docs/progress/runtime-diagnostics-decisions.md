@@ -109,3 +109,5 @@
 - 单实例导出 JSON/text，最大512KiB UTF-8（信封64KiB之外包含JSON转义、原始信封、派生解析和说明）。同时 read/export，先查后再授权；不存在404、过期410，其他缺失状态以证据说明保留。无公开文件或持久下载token，只提供即时POST；每次审计操作者、项目、实例、格式、结果，不存正文。前端blob用后销毁，失焦/切换/关闭清理；已下载字节无法远程收回。
 - 稳定链接只含 projectId/eventId，单独实例路由复用已有详情；不受列表时间分页限制。访问和复制均重新授权。原文不存 localStorage/sessionStorage。
 - 版本影响复用 raw_events/eventId 去重及原 observability 的 user_id/device_id/page_route 去重口径，不回写计数或改变分母。所选 release 的统计与同窗口所有 release 比较分别标明；未知release独立。历史标为当前系统保留90天范围，绝不称永久历史首次。单次版本最多100，统计每次5秒/100万行/64MiB扫描/128MiB内存，超限显式失败。D7全量压力测试仍未完成。
+
+D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有error_group/release bloom_filter；当前projectId过滤不保证只扫描单项目，因此扫描行/字节门禁仍强制，CI只证明本批有界数据的实际行为，不宣称大规模查询性能。详情复用(project_id,event_id)排序；未新增索引迁移。候选/字节/扫描超限、已识别ClickHouse超时和存储不可用返回不同稳定错误码，页面分别提示，不把失败当空结果。

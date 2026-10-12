@@ -40,8 +40,10 @@ jobs:
         run: ./scripts/dev verify-d0-upgrade
       - name: Real role matrix, rate limits, retries, TTL and partial write recovery
         run: ./scripts/dev verify-d0
-      - name: Real SDK transport in Chromium and WebKit
-        run: pnpm exec playwright test -c playwright.diagnostics.config.ts
+      - name: D4 troubleshooting in Chromium and WebKit
+        run: pnpm exec playwright test -c playwright.diagnostics.config.ts troubleshooting.spec.ts --max-failures=1
+      - name: Inherited SDK transport in Chromium and WebKit
+        run: pnpm exec playwright test -c playwright.diagnostics.config.ts console.spec.ts errors.spec.ts requests.spec.ts transport.spec.ts --max-failures=1
       - name: Inherited quality and denominator regressions
         run: |
           pnpm test:r5a:e2e

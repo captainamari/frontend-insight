@@ -88,7 +88,18 @@ describe("D4 bounded authorized search primitive", () => {
       query: vi.fn().mockRejectedValue(new Error("SQL WITH PRIVATE TEXT")),
     } as unknown as ClickHouseClient;
     await expect(searchDiagnostics(failed, "p", q)).rejects.toThrow(
-      "EXECUTION_BUDGET_OR_UNAVAILABLE",
+      "SEARCH_UNAVAILABLE",
     );
+  });
+  it("distinguishes known storage timeout and scan budgets without exposing driver text", async () => {
+    for (const [type, expected] of [
+      ["TIMEOUT_EXCEEDED", "SEARCH_TIMEOUT"],
+      ["TOO_MANY_ROWS", "SEARCH_SCAN_BUDGET"],
+    ]) {
+      const ch = {
+        query: vi.fn().mockRejectedValue({ type, message: "PRIVATE SQL" }),
+      } as unknown as ClickHouseClient;
+      await expect(searchDiagnostics(ch, "p", q)).rejects.toThrow(expected);
+    }
   });
 });

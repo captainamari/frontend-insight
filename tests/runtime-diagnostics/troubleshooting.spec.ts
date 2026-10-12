@@ -265,9 +265,9 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await request.put(grant, { headers, data: { read: true, export: true } });
   await page.getByRole("button", { name: "重新授权并读取", exact: true }).click();
   await expect(page.getByRole("button", { name: "下载 JSON 证据" })).toBeEnabled();
-  for (const format of ["JSON", "文本"]) {
-    const downloaded = page.waitForEvent("download");
-    await page.getByRole("button", { name: `下载 ${format} 证据` }).click();
+  for (const name of ["下载 JSON 证据", "下载文本证据"]) {
+    const downloaded = page.waitForEvent("download", { timeout: 20000 });
+    await page.getByRole("button", { name, exact: true }).click({ timeout: 10000 });
     const file = await downloaded;
     const path = await file.path();
     expect(readFileSync(path!, "utf8")).toContain("FI_D4_SYNTHETIC");

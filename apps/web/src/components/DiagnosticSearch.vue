@@ -98,7 +98,11 @@ async function search(offset = 0) {
     error.value =
       e instanceof ApiError && [401, 403].includes(e.status)
         ? "无诊断原文搜索权限；请联系项目管理员。"
-        : "搜索失败：限7天、2–128字符、500候选实例、32MiB原文；扫描或执行超限时请缩短范围。";
+        : e instanceof ApiError && e.code === "DIAGNOSTICS_SEARCH_TIMEOUT"
+          ? "搜索执行超时，请缩短范围后重试。"
+          : e instanceof ApiError && e.code === "DIAGNOSTICS_SEARCH_UNAVAILABLE"
+            ? "搜索存储暂不可用，请稍后重试；这不是空结果。"
+            : "搜索超出预算：限7天、2–128字符、500候选实例、32MiB原文；扫描超限时请缩短范围。";
     if (e instanceof ApiError && [401, 403].includes(e.status)) {
       term.value = "";
       allowed.value = false;
