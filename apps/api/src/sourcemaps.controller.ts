@@ -57,7 +57,11 @@ export class SourceMapsController {
               ? 410
               : e.state === "identity_conflict"
                 ? 409
-                : 422,
+                : e.state === "busy"
+                  ? 429
+                  : e.state === "storage_unavailable"
+                    ? 503
+                    : 422,
         );
       if (e instanceof HttpException) throw e;
       throw new HttpException("SOURCEMAP_STORAGE_UNAVAILABLE", 503);

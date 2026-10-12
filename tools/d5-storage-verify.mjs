@@ -162,6 +162,81 @@ async function main() {
   assert.equal((await detail()).sourceMapping.frames[0].state, "storage_corrupt");
   run(["exec", "-T", "api", "sh", "-c", 'cat > "$1"', "--", file], saved);
   await mapped();
+  phase = "failed-write-recovery";
+  const issued = await (
+    await fetch(root + "/diagnostics/sourcemaps/credentials", {
+      method: "POST",
+      headers,
+      body: '{"days":1}',
+    })
+  ).json();
+  const manifest = JSON.parse(readFileSync("artifacts/d5-build/manifest.json", "utf8"));
+  const compiled = readFileSync("artifacts/d5-build/fixture.js");
+  const digestBytes = (b) => createHash("sha256").update(b).digest("hex");
+  const uploadBody = {
+    release: manifest.release,
+    build: "failed-write",
+    asset: "http://127.0.0.1:4174/d5/fixture.js",
+    assetSha256: digestBytes(compiled),
+    mapSha256: digestBytes(saved),
+    javascript: compiled.toString("base64"),
+    map: saved.toString("base64"),
+    retentionDays: 1,
+  };
+  const send = () =>
+    fetch(root + "/diagnostics/sourcemaps/upload", {
+      method: "POST",
+      headers: { ...headers, authorization: `Bearer ${issued.token}` },
+      body: JSON.stringify(uploadBody),
+    });
+  sql(
+    "CREATE TRIGGER d5_fail_map BEFORE INSERT ON diagnostic_sourcemaps FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='D5_SYNTHETIC_WRITE_FAILURE'",
+  );
+  try {
+    assert.equal((await send()).status, 503);
+  } finally {
+    sql("DROP TRIGGER d5_fail_map");
+  }
+  const failedId = digestBytes(
+    JSON.stringify([
+      proof.projectId,
+      manifest.release,
+      "failed-write",
+      uploadBody.asset,
+    ]),
+  );
+  assert.equal(
+    sql(`SELECT COUNT(*) FROM diagnostic_sourcemaps WHERE id='${failedId}'`),
+    "0",
+  );
+  assert.equal(
+    run([
+      "exec",
+      "-T",
+      "api",
+      "sh",
+      "-c",
+      'test ! -f "$1" && printf removed',
+      "--",
+      "/var/lib/frontend-insight/sourcemaps/" + failedId + ".map",
+    ]).toString(),
+    "removed",
+  );
+  assert.equal((await send()).status, 201);
+  // Simulate interrupted .tmp and pre-transaction crash orphans; real cleaner reclaims both.
+  const orphan = "0".repeat(64) + ".map",
+    temporary = "1".repeat(64) + ".map.11111111-1111-4111-8111-111111111111.tmp";
+  run([
+    "exec",
+    "-T",
+    "api",
+    "node",
+    "--input-type=module",
+    "-e",
+    `import {writeFile,utimes} from 'node:fs/promises'; for(const name of process.argv.slice(1)){const path='/var/lib/frontend-insight/sourcemaps/'+name;await writeFile(path,'synthetic interrupted write');await utimes(path,new Date(0),new Date(0));}`,
+    orphan,
+    temporary,
+  ]);
   phase = "credential-expiry";
   const cred = await (
     await fetch(root + "/diagnostics/sourcemaps/credentials", {
@@ -215,6 +290,20 @@ async function main() {
     "removed",
   );
   phase = "final-restore";
+  for (const name of [orphan, temporary])
+    assert.equal(
+      run([
+        "exec",
+        "-T",
+        "api",
+        "sh",
+        "-c",
+        'test ! -f "$1" && printf removed',
+        "--",
+        "/var/lib/frontend-insight/sourcemaps/" + name,
+      ]).toString(),
+      "removed",
+    );
   // Restore the consistent snapshot a second time, including credential revocation.
   run(["stop", "api", "consumer"]);
   run(
@@ -237,6 +326,8 @@ async function main() {
       rawEnvelopes: true,
       privateFiles: true,
       missingAndCorrupt: true,
+      metadataWriteFailureRecovery: true,
+      interruptedOrphanCleanup: true,
       expiry: true,
       credentialExpiry: true,
       mapSha256: digest,

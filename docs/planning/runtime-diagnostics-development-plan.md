@@ -1,6 +1,6 @@
 # 运行时诊断能力补齐计划
 
-日期：2026-10-10。状态：D0 已由用户合并；D1 已通过真实 CI 且 PR #30 已合并（不等于全部人工验收通过），详见 [结果](../progress/runtime-diagnostics-results.md)；D2 PR #31 已于 2026-10-11 合入 refactor，包含代码与文档（不等于全部人工验收通过）；D3 PR #32 已于2026-10-12合入refactor（代码与文档）；D4五项已实现并通过同代码完整真实CI，Draft PR #33待用户手工验收/评审；D5–D7待开发。
+日期：2026-10-10。状态：D0 已由用户合并；D1 已通过真实 CI 且 PR #30 已合并（不等于全部人工验收通过），详见 [结果](../progress/runtime-diagnostics-results.md)；D2 PR #31 已于 2026-10-11 合入 refactor，包含代码与文档（不等于全部人工验收通过）；D3 PR #32 已于2026-10-12合入refactor（代码与文档）；D4 PR #33已合入refactor，包含代码与文档；D5在Draft PR #34实施与真实CI验证中；D6–D7待开发。
 
 规划基线：`agent/v1-8-r8-cleanup-acceptance` @ `641e106252e7053ea9a306fddcbc1c80ad66592e`；已验证刷新修复代码为 `4948ece`。本次只提交计划和依据对齐，不表示下述功能已实现，也不启动部署或自动合并。
 
@@ -81,7 +81,7 @@ D0 冻结诊断信封 `diagnosticVersion`、内容类型、来源、采集策略
 
 ## 5. 顺序工作包与完成标准
 
-D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证见 [D3指南](../guides/runtime-diagnostics-d3.md) 和结果文档，D4–D7 仍待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
+D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证见 [D3指南](../guides/runtime-diagnostics-d3.md) 和结果文档，D4已合并、D5验证中、D6–D7待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
 
 ### D0 — 合同、存储与访问控制基础（P0）
 
@@ -138,6 +138,8 @@ D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证�
 完成标准：一个获授权工程师可按页面完整完成定位与证据导出，普通 viewer 保持质量统计可用且不能获得原文。
 
 ### D5 — SourceMap 与源码定位（P2，依赖 D4）
+
+当前：实现与验证检查点见[结果](../progress/runtime-diagnostics-results.md)，接入/CLI/权限/恢复见[D5指南](../guides/runtime-diagnostics-d5.md)。完整真实CI尚未成功时以下完成门不得勾选。
 
 - [ ] 新增按 project/release/build/asset checksum 上传和管理 SourceMap 的部署接口及最小 CLI；普通采集 appId 不能上传或下载源码资料。
 - [ ] 服务端映射文件/函数/行列号与源码片段，保留原始编译栈；支持没有 sourcesContent 的映射文件，并明确源码片段不可用。

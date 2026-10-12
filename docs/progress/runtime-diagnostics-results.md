@@ -449,3 +449,7 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 ### D5 首轮真实CI失败与修复
 
 `3cfcab2acdda62f380786012823f6822b5a08267` / [38196097052](https://github.com/captainamari/frontend-insight/actions/runs/38196097052)：check、真实服务、增量升级、D0角色/TTL/故障重试通过；D5 Chromium未观察到错误信封而失败。根因是实验室尝试在beforeSend附加身份，而既有SDK明确禁止beforeSend改写诊断，事件被正确拒绝。修复为可选errors入口`withSourceMapIdentity`在采集阶段冻结身份，转发原提取器生命周期；不放宽beforeSend保护、不改基础包。另核实esbuild源码路径采用URI编码，保持固定4:9断言。下一次完整CI必须覆盖此修复及实际恢复，首轮不作为通过证据。
+
+第二轮 `d18393e` / CI 38196633195 在新增测试的类型导入Lint处失败，已改用仓库要求的import type。第三轮以 `3ab58470d8ff6f4717f2296f5af40b02f2dfd26d` 运行中。后续本地check已通过，619项测试；errors可选包2,248 bytes，基础仍12,273，新增身份功能没有放入基础入口。
+
+D5 第三轮 CI `38196796398`（`3ab58470d8ff6f4717f2296f5af40b02f2dfd26d`）：Chromium 部署链路、CLI、权限、UI 与变体均通过；WebKit 第 4 行实际映射第 13 列，旧断言误用了 Chromium 的第 9 列。修正为各浏览器独立精确列，未放宽为仅成功状态；恢复验证尚未执行。

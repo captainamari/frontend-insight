@@ -7,6 +7,12 @@ interface Detail {
   sourceMapping?: {
     state: string;
     coordinateBase: string;
+    stacks?: {
+      errorPath: string;
+      state: string;
+      parsedFrames: number;
+      unparsed: number;
+    }[];
     artifacts: unknown[];
     frames: {
       state: string;
@@ -92,6 +98,7 @@ const visibleLogs = computed(() =>
 );
 const mappingLabels: Record<string, string> = {
   success: "全部可映射帧已定位",
+  error_budget: "错误树超过32个节点映射预算",
   partial: "部分帧已定位，请逐帧核对",
   failed: "未能定位源码，原始编译栈仍保留",
   no_frames: "无可映射栈帧",
@@ -454,6 +461,11 @@ onBeforeUnmount(() => {
           {{ mappingLabels[result.sourceMapping.state] ?? result.sourceMapping.state }}
         </p>
         <p>{{ result.sourceMapping.coordinateBase }}</p>
+        <p v-for="stack in result.sourceMapping.stacks" :key="stack.errorPath">
+          {{ stack.errorPath }}：{{ labels[stack.state] ?? stack.state }}，{{
+            stack.parsedFrames
+          }}帧；未解析行{{ stack.unparsed }}
+        </p>
         <button @click="copy('sourceMapping')">重新授权并复制源码定位</button>
         <div v-for="(frame, index) in result.sourceMapping.frames" :key="index">
           <p>

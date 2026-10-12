@@ -51,6 +51,12 @@ export interface SourceMapping {
   state: string;
   derived: true;
   coordinateBase: string;
+  stacks: {
+    errorPath: string;
+    state: string;
+    parsedFrames: number;
+    unparsed: number;
+  }[];
   frames: (MappedFrame & {
     errorPath: string;
     compiled: ReturnType<typeof parseErrorStack>["frames"][number];
@@ -196,7 +202,13 @@ export class SourceMaps {
         throw new SourceMapError("upload_budget");
       if (sha256(js) !== input.assetSha256 || sha256(map) !== input.mapSha256)
         throw new SourceMapError("checksum_mismatch");
-      const parsed = await parseSourceMap(map.toString("utf8"));
+      let mapText: string;
+      try {
+        mapText = new TextDecoder("utf-8", { fatal: true }).decode(map);
+      } catch {
+        throw new SourceMapError("parse_failed");
+      }
+      const parsed = await parseSourceMap(mapText);
       if (parsed.state !== "ready") throw new SourceMapError(parsed.state);
       await mkdir(this.root, { recursive: true, mode: 0o700 });
       const c = await this.mysql.pool.getConnection();
@@ -394,6 +406,7 @@ export class SourceMaps {
       derived: true,
       coordinateBase: "编译栈与显示行列均从1开始；SourceMap内部列从0开始",
       frames: [],
+      stacks: [],
       artifacts: [],
     };
     const identity = raw.sourceMap as
@@ -406,8 +419,19 @@ export class SourceMaps {
       | undefined;
     const collect = (error: unknown, path: string, depth: number) => {
       if (!error || typeof error !== "object" || depth > 4) return;
+      if (result.stacks.length >= 32) {
+        result.state = "error_budget";
+        return;
+      }
       const e = error as Record<string, unknown>;
-      for (const compiled of parseErrorStack(e.stack).frames) {
+      const stack = parseErrorStack(e.stack);
+      result.stacks.push({
+        errorPath: path,
+        state: stack.state,
+        parsedFrames: stack.frames.length,
+        unparsed: stack.unparsed,
+      });
+      for (const compiled of stack.frames) {
         if (result.frames.length >= L.frames) {
           result.state = "frame_budget";
           break;
@@ -427,6 +451,8 @@ export class SourceMaps {
         !frame.compiled.file ||
         !frame.compiled.line ||
         !frame.compiled.column ||
+        !Number.isSafeInteger(frame.compiled.line) ||
+        !Number.isSafeInteger(frame.compiled.column) ||
         frame.compiled.eval ||
         frame.compiled.native
       ) {
@@ -505,10 +531,17 @@ export class SourceMaps {
         });
       }
     }
-    if (result.state !== "frame_budget" && result.frames.length) {
+    if (
+      !["frame_budget", "error_budget"].includes(result.state) &&
+      result.frames.length
+    ) {
       const ok = result.frames.filter((f) => f.original).length;
       result.state =
-        ok === result.frames.length ? "success" : ok ? "partial" : "failed";
+        ok === result.frames.length && result.stacks.every((s) => s.state === "parsed")
+          ? "success"
+          : ok
+            ? "partial"
+            : "failed";
     }
     if (Buffer.byteLength(JSON.stringify(result)) > L.outputBytes) {
       result.frames.forEach((f) => {

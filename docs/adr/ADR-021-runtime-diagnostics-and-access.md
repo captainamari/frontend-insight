@@ -1,7 +1,7 @@
 # ADR-021：诊断原文与项目访问权限
 
 - 日期：2026-10-10
-- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 PR #31 已合并代码与文档；D3 PR #32 已合并代码与文档；D4 已实现并通过完整真实CI（Draft PR #33待用户手工验收/评审），D5–D7 未完成
+- 状态：用户已决定诊断信息不脱敏；D0 已合并，D1 代码与真实 CI 已通过且 PR #30 已合并，证据以 runtime-diagnostics-results 为准；D2 PR #31 已合并代码与文档；D3 PR #32 已合并代码与文档；D4 PR #33已合并代码与文档；D5 Draft PR #34实现与真实CI验证中，D6–D7未完成
 - 来源：Jesse 本次明确要求“不需要脱敏，只要是有价值的诊断信息都收集了。但是可以考虑展示时什么角色的用户能看到”
 - 执行依据：[运行时诊断能力补齐计划](../planning/runtime-diagnostics-development-plan.md)
 
@@ -31,3 +31,7 @@ R8 手工验收发现错误已入库，但原始消息不展示、SDK 首帧与 
 | ADR-018 外部接口、质量分与 Prometheus                        | 保留 token hash/scope、独立质量分和低基数标签约束；原文走受限明细接口    |
 
 这项决定不赋予代理合并、生产部署、读取实际业务原文或更改其他业务审批的权限。规划中的工程数据源是应用显式接入的运行诊断，不包括主动扫描浏览器凭证存储、任意 DOM 或其他标签页。
+
+## D5 制品实现补充
+
+普通v3 map在服务端受限worker内解析；项目/release/build/完整资源URL与JS校验和严格匹配。原始栈不改写，源码为派生视图。可选errors模块采集时冻结构建清单，不放宽beforeSend的证据保护。文件私有持久卷、元数据及凭证hash在MySQL增量010；当前成员read读取片段，read+export下载整map，admin管理，独立上传凭证无读取能力。预算、失败/保留期/备份恢复与实际验证状态见[D5指南](../guides/runtime-diagnostics-d5.md)和results。

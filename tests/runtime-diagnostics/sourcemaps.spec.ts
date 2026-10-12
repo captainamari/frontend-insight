@@ -106,7 +106,8 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
   expect(mapped.original).toMatchObject({
     file: "../../examples/sourcemaps/%E6%BA%90%E7%A0%81%E5%9C%BA%E6%99%AF.ts",
     line: 4,
-    column: 9,
+    // WebKit reports the constructor call; V8 reports the new expression.
+    column: info.project.name === "webkit" ? 13 : 9,
   });
   expect(mapped.snippet.map((s: { text: string }) => s.text).join("\n")).toContain(
     "throw new TypeError(label);",
