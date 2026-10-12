@@ -197,7 +197,7 @@ function change(key: string, value?: string) {
         cursor: undefined,
         ...(key === "groupId"
           ? { mode: value ? "all" : "latest" }
-          : key !== "mode"
+          : key !== "mode" && key !== "release"
             ? { groupId: undefined }
             : {}),
       },
@@ -341,7 +341,8 @@ onBeforeUnmount(() => {
     </div>
     <DiagnosticSearch v-bind="searchScope" @select="detailEvent" />
     <DiagnosticImpact
-      v-if="route.query.groupId"
+      v-if="route.query.groupId && data"
+      :as-of="data.asOf"
       v-bind="searchScope"
       :group-id="String(route.query.groupId)"
     />

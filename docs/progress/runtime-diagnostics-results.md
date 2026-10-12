@@ -373,13 +373,13 @@ D3实现与自动化交付完成，待用户手工验收/评审。上面的逐�
 
 基线 `d9e9e0d6174bc9df90eb299827ac7b651f77fa78`：已核实 D3 #32 合并，含代码 `857b5c0a221b59c03e9558e5212774b4b1b46624` 与仅文档 `e9801961a1601bcfd6a1e01971f54e319c35719b`。继承的成功 CI 为 38125100719，不当成 D4 证据。分支 `agent/runtime-diagnostics-d4-troubleshooting`，不改旧 D3 工作区未提交内容。
 
-| D4 原任务 | 当前实现位置与缺口 | 验证 |
-| --- | --- | --- |
-| 组→实例→统一详情与有界搜索 | PageQualityView、DiagnosticSearch、diagnostic-search、diagnostics.controller；补 release 和 POST 原文搜索 | 单元匹配/分页/预算已运行，真实服务待验证 |
-| 解析失败原文与诊断上下文 | 复用 DiagnosticDetail；入口与现行测试/指南文案统一 | 继承 D1，D4 浏览器补不可解析栈 |
-| 链接、复制、导出、版本影响 | 稳定路由、即时授权 StreamableFile、DiagnosticImpact、groupStats | 实际下载/跨标签/登录恢复待 CI |
-| 只读运营与授权 viewer | 服务端当前账户/成员/read/export 再检查，页面能力提示 | 专项角色与撤权待 CI |
-| 键盘、文本、环境刷新、缓存撤权 | generation/AbortController、blob URL 销毁、继承窗口刷新 | Chromium/WebKit 新流程待 CI |
+| D4 原任务                      | 当前实现位置与缺口                                                                                        | 验证                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 组→实例→统一详情与有界搜索     | PageQualityView、DiagnosticSearch、diagnostic-search、diagnostics.controller；补 release 和 POST 原文搜索 | 单元匹配/分页/预算已运行，真实服务待验证 |
+| 解析失败原文与诊断上下文       | 复用 DiagnosticDetail；入口与现行测试/指南文案统一                                                        | 继承 D1，D4 浏览器补不可解析栈           |
+| 链接、复制、导出、版本影响     | 稳定路由、即时授权 StreamableFile、DiagnosticImpact、groupStats                                           | 实际下载/跨标签/登录恢复待 CI            |
+| 只读运营与授权 viewer          | 服务端当前账户/成员/read/export 再检查，页面能力提示                                                      | 专项角色与撤权待 CI                      |
+| 键盘、文本、环境刷新、缓存撤权 | generation/AbortController、blob URL 销毁、继承窗口刷新                                                   | Chromium/WebKit 新流程待 CI              |
 
 本地 78 文件 / 606 单测通过，工作区/合同/规范名及类型检查通过。首次 lint 指出受限存储异常没有 cause；该处为避免原文存储异常进入普通日志，保留稳定错误码并添加明确说明。尚无 D4 成功 CI，五项不能勾选完成。
 

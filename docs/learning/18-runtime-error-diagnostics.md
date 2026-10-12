@@ -73,3 +73,15 @@ D2 已新增 console 实现（最终验证状态以 results 为准）。接入�
 - 单测关注Promise/响应/错误身份、this、原参数、访问器不执行、并发/跨页/销毁、JSON转义与容量；真实浏览器再验证HTTP/opaque/SSE取消与全服务链路。普通响应、日志、审计、DLQ仍不含原文。
 
 D3不包含D4产品检索导出、D5源码映射或D7长期压力。上一节D2的后续说明保留为历史交接，当前进度以结果记录为准。
+
+## D4：查询、协作与统计维护
+
+阅读顺序：`server-core/src/diagnostic-search.ts` → `runtime-diagnostics.ts` → API `diagnostics.controller.ts` → `DiagnosticSearch.vue` / `DiagnosticDetail.vue` → `PageQualityStore.groupStats` / `DiagnosticImpact.vue`。指南与预算见 [D4](../guides/runtime-diagnostics-d4.md)。
+
+搜索从基础事实有界选候选，再查未过期ready receipt与ClickHouse信封，搜索词只在服务内匹配解码字符串，不进入SQL/日志/URL；授权在读前与返回前重新检查。查询返回预算失败时不能改为空数组。测试应覆盖当前页以外命中、同时间戳分页、预算拒绝与过期原文排除。
+
+导出走即时POST和StreamableFile，read+export都必要。`storedEnvelopeJson`是已存文本，`diagnostic`和`view`分别是解析对象与派生展示；不能用格式化对象冒充采集时字符串。前端下载使用同一会话刷新机制，blob及时释放，generation和AbortController防止旧范围异步结果回写。
+
+稳定实例路由不依赖列表窗口，API按项目/eventId定位并返回基础上下文；不存在和未启用必须不同。质量计数/影响仍读取原基础事实，先eventId去重，再user_id/device_id/page_route统计；诊断采样、TTL、写失败不参与计数过滤。历史首次只是当前90天保留窗口最早事实。
+
+回归入口：`diagnostic-search.test.ts`、`diagnostics-d4.controller.test.ts`、`runtime-diagnostics-integration.ts`、`tests/runtime-diagnostics/troubleshooting.spec.ts`，真实服务由Runtime diagnostics D4工作流执行。不存在Docker时不得把本地单测称为全链路验证。

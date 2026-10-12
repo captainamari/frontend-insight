@@ -99,6 +99,7 @@ export class ObservabilityController {
           env: z.enum(["dev", "staging", "prod"]),
           from: z.string().datetime(),
           to: z.string().datetime(),
+          asOf: z.string().datetime().optional(),
           category: z.enum(["all", ...ERROR_CATEGORIES]).default("all"),
           pageRoute: z
             .string()
@@ -119,12 +120,16 @@ export class ObservabilityController {
     )
       throw new HttpException("QUALITY_RANGE_INVALID", 400);
     try {
-      return await this.core.pageQuality.groupStats(projectId, {
-        ...q,
-        groupId,
-        mode: "all",
-        limit: 100,
-      });
+      return await this.core.pageQuality.groupStats(
+        projectId,
+        {
+          ...q,
+          groupId,
+          mode: "all",
+          limit: 100,
+        },
+        q.asOf,
+      );
     } catch (e) {
       if (e instanceof PageQualityError) throw new HttpException(e.message, 422);
       throw e;

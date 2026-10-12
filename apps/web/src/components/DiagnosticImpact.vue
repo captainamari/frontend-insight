@@ -10,6 +10,7 @@ const props = defineProps<{
   release?: string;
   category?: string;
   pageRoute?: string;
+  asOf?: string;
 }>();
 interface Impact {
   release: string | null;
@@ -39,7 +40,7 @@ watch(
     result.value = null;
     error.value = "";
     const q = new URLSearchParams({ env: props.env, from: props.from, to: props.to });
-    for (const k of ["release", "category", "pageRoute"] as const)
+    for (const k of ["release", "category", "pageRoute", "asOf"] as const)
       if (props[k]) q.set(k, props[k]!);
     try {
       const value = await api.request<NonNullable<typeof result.value>>(

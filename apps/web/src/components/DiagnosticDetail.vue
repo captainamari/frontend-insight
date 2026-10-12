@@ -95,6 +95,7 @@ const result = ref<Detail | null>(null),
   copied = ref("");
 const canExport = ref(false);
 let downloadUrl: string | undefined;
+let downloadAbort: AbortController | undefined;
 let generation = 0,
   abort: AbortController | undefined,
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -118,6 +119,7 @@ const show = (value: unknown) =>
 function clear() {
   generation++;
   abort?.abort();
+  downloadAbort?.abort();
   clearTimeout(timer);
   result.value = null;
   canExport.value = false;
@@ -174,6 +176,7 @@ async function renew(id: number) {
       return;
     }
     canExport.value = access.export;
+    if (!access.export) downloadAbort?.abort();
     timer = setTimeout(() => void renew(id), 1000);
   } catch {
     if (id === generation) {
@@ -221,6 +224,8 @@ async function link() {
   }
 }
 async function download(format: "json" | "text") {
+  downloadAbort?.abort();
+  downloadAbort = new AbortController();
   const id = generation,
     project = props.projectId,
     event = props.eventId;
@@ -231,7 +236,7 @@ async function download(format: "json" | "text") {
         method: "POST",
         body: JSON.stringify({ format }),
         cache: "no-store",
-        ...(abort ? { signal: abort.signal } : {}),
+        signal: downloadAbort.signal,
       },
     );
     if (id !== generation) return;

@@ -330,8 +330,10 @@ export class PageQualityStore {
       },
     };
   }
-  async groupStats(projectId: string, q: PageQualityQuery) {
-    const asOf = Date.now();
+  async groupStats(projectId: string, q: PageQualityQuery, snapshot?: string) {
+    const asOf = snapshot ? Date.parse(snapshot) : Date.now();
+    if (!Number.isSafeInteger(asOf) || asOf > Date.now() || Date.now() - asOf > 3600000)
+      throw new PageQualityError("QUALITY_CURSOR_INVALID_OR_EXPIRED");
     const read = async (from: string, to: string) => {
       const response = await this.client.query({
         query: `SELECT release, grouping(release) AS is_total, count() AS occurrences,
