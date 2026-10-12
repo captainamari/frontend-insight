@@ -238,7 +238,7 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   );
   await page
     .getByRole("button", {
-      name: `打开复现条件 ${item.occurrenceId.slice(0, 8)}`,
+      name: `打开诊断上下文 ${item.occurrenceId.slice(0, 8)}`,
       exact: true,
     })
     .click();
@@ -269,7 +269,7 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
     const row = rows.items.find((i: { eventId: string }) => i.eventId === eventId);
     await page
       .getByRole("button", {
-        name: `打开复现条件 ${row.occurrenceId.slice(0, 8)}`,
+        name: `打开诊断上下文 ${row.occurrenceId.slice(0, 8)}`,
         exact: true,
       })
       .click();
@@ -345,7 +345,7 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   );
   await page
     .getByRole("button", {
-      name: `打开复现条件 ${item.occurrenceId.slice(0, 8)}`,
+      name: `打开诊断上下文 ${item.occurrenceId.slice(0, 8)}`,
       exact: true,
     })
     .click();

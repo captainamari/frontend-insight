@@ -259,7 +259,7 @@ test("R5-B real SDK categories, scoped occurrences, cursor and keyboard product 
   );
   await page.reload();
   await expect(page.getByLabel("错误类别")).toHaveValue("vue");
-  const button = page.getByRole("button", { name: /^打开复现条件/ }).first();
+  const button = page.getByRole("button", { name: /^打开诊断上下文/ }).first();
   await expect(button).toBeVisible();
   await button.focus();
   await page.keyboard.press("Enter");

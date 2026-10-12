@@ -189,6 +189,40 @@ try {
     (v) => v.state === "ready",
   );
   assert.deepEqual(ready.diagnostic, d);
+  const searchD4 = {
+    env: "dev",
+    from: new Date(Date.now() - 3600000).toISOString(),
+    to: new Date(Date.now() + 60000).toISOString(),
+    term: "FI_D0_SYNTHETIC",
+    field: "raw",
+  };
+  const searchPath = root + "/search",
+    exportPath = path + "/export";
+  const exported = await call(exportPath, token, "POST", { format: "json" }, 201);
+  assert.deepEqual((exported.evidence as { diagnostic: unknown }).diagnostic, d);
+  assert.deepEqual(
+    JSON.parse(
+      (exported.evidence as { storedEnvelopeJson: string }).storedEnvelopeJson,
+    ),
+    d,
+  );
+  assert.equal((await call(searchPath, token, "POST", searchD4, 201)).total, 1);
+  for (const auth of [viewerToken, ""]) {
+    await call(searchPath, auth, "POST", searchD4, auth ? 403 : 401);
+    await call(exportPath, auth, "POST", { format: "json" }, auth ? 403 : 401);
+  }
+  assert.equal(
+    (await call(root + "/instances/evt_missing_d4", token)).state,
+    "not_found",
+  );
+  await call(
+    root + "/instances/evt_missing_d4/export",
+    token,
+    "POST",
+    { format: "json" },
+    404,
+  );
+
   await call(path, viewerToken, "GET", undefined, 403);
   await call(path, "", "GET", undefined, 401);
   // Real legacy external credential remains unable to read diagnostics.
@@ -216,6 +250,8 @@ try {
     randomUUID(),
   );
   await call(path, issued.token!, "GET", undefined, 401);
+  await call(searchPath, issued.token!, "POST", searchD4, 401);
+  await call(exportPath, issued.token!, "POST", { format: "json" }, 401);
   const prometheusScope = {
     env: "dev" as const,
     from: new Date(now - 3600000).toISOString(),
@@ -258,6 +294,8 @@ try {
 
   await call(root + "/grants/" + viewerId, token, "PUT", { read: true, export: false });
   assert.deepEqual((await call(path, viewerToken)).diagnostic, d);
+  assert.equal((await call(searchPath, viewerToken, "POST", searchD4, 201)).total, 1);
+  await call(exportPath, viewerToken, "POST", { format: "json" }, 403);
   assert.deepEqual(await call(root + "/capabilities", viewerToken), {
     read: true,
     export: false,
@@ -278,6 +316,11 @@ try {
   );
   await call(root + "/grants/" + viewerId, token, "PUT", { read: true, export: true });
   assert.equal((await call(root + "/capabilities", viewerToken)).export, true);
+  await call(exportPath, viewerToken, "POST", { format: "json" }, 201);
+  await call(root + "/grants/" + viewerId, token, "PUT", { read: true, export: false });
+  await call(exportPath, viewerToken, "POST", { format: "json" }, 403);
+  assert.equal((await call(path, viewerToken)).state, "ready");
+  await call(root + "/grants/" + viewerId, token, "PUT", { read: true, export: true });
   const other = await call(
     "/api/projects",
     token,
@@ -312,6 +355,22 @@ try {
     [pid, viewerId],
   );
   await call(path, viewerToken, "GET", undefined, 403); // removal also erased old grant
+  await call(searchPath, viewerToken, "POST", searchD4, 403);
+  await call(exportPath, viewerToken, "POST", { format: "json" }, 403);
+  await call(
+    `/api/projects/${other.id}/diagnostics/search`,
+    viewerToken,
+    "POST",
+    searchD4,
+    403,
+  );
+  await call(
+    `/api/projects/${other.id}/diagnostics/instances/${event}/export`,
+    viewerToken,
+    "POST",
+    { format: "json" },
+    403,
+  );
   // Retried IDs do not consume more admission capacity or overwrite evidence.
   for (let i = 0; i < 3; i++) await call("/v1/events", "", "POST", b, 202);
   const changed = structuredClone(b);
@@ -357,9 +416,9 @@ try {
   const old = make(undefined);
   delete old.events[0]!.diagnostic;
   await call("/v1/events", "", "POST", old, 202);
-  assert.equal(
-    (await call(root + "/instances/" + old.events[0]!.eventId, token)).state,
-    "not_enabled",
+  await until(
+    () => call(root + "/instances/" + old.events[0]!.eventId, token),
+    (v) => v.state === "not_enabled",
   );
   await until(count, (n) => n === 24);
   // Incremental policy affects new receipts only.
@@ -384,6 +443,19 @@ try {
     (await call(root + "/instances/" + ttl.events[0]!.eventId, token)).state,
     "expired",
   );
+  await call(
+    root + "/instances/" + ttl.events[0]!.eventId + "/export",
+    token,
+    "POST",
+    { format: "json" },
+    410,
+  );
+  const afterExpiry = await call(searchPath, token, "POST", searchD4, 201);
+  assert(
+    !(afterExpiry.items as { eventId: string }[]).some(
+      (e) => e.eventId === ttl.events[0]!.eventId,
+    ),
+  );
   // Real partial write: base raw insert succeeds while the detail table is unavailable.
   await ch.command({
     query: "RENAME TABLE diagnostic_details TO diagnostic_details_d0_fault",
@@ -407,6 +479,19 @@ try {
     (v) => v.state === "ready",
   );
   assert.equal(await count(), 26);
+  const current = await call(
+    `/api/projects/${pid}/observability/occurrences?env=dev&range=7d&mode=all`,
+    token,
+  );
+  const group = (current.items as { groupId: string }[])[0]!.groupId;
+  const impact = await call(
+    `/api/projects/${pid}/observability/groups/${group}/impact?` +
+      new URLSearchParams({ env: "dev", from: searchD4.from, to: searchD4.to }),
+    token,
+  );
+  assert.equal((impact.selected as { occurrences: number }).occurrences, 26);
+  assert.equal(current.totalOccurrences, 26);
+
   // Missing physical detail remains distinct from a missing base error.
   await ch.command({
     query:
@@ -458,6 +543,27 @@ try {
       audits.some((a) => a.result === "ready"),
   );
   assert(!/FI_D[023]_SYNTHETIC/.test(JSON.stringify(audits)));
+  for (const action of ["diagnostics.search", "diagnostics.export.json"]) {
+    assert(audits.some((a) => a.action === action && a.result === "success"));
+    assert(audits.some((a) => a.action === action && a.result === "forbidden"));
+  }
+  mkdirSync(process.env.FI_EVIDENCE_DIR ?? "artifacts", { recursive: true });
+  writeFileSync(
+    (process.env.FI_EVIDENCE_DIR ?? "artifacts") + "/d4-access.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA,
+        passed: true,
+        searchRoles: true,
+        exportRoles: true,
+        expiry: true,
+        impactAfterLimitsAndFailure: 26,
+        auditMetadataOnly: true,
+      },
+      null,
+      2,
+    ),
+  );
   await diagnostics.cleanup();
   const kafka = new Kafka({
     brokers: (process.env.KAFKA_BROKERS ?? "kafka:9092").split(","),
@@ -509,6 +615,57 @@ try {
     await producer.disconnect();
     await dead.disconnect();
   }
+  // A finite synthetic dataset verifies the real candidate-query gate (not D7 load testing).
+  for (let offset = 0; offset < 501; offset += 50) {
+    const candidateBatch = make();
+    candidateBatch.events = Array.from({ length: Math.min(50, 501 - offset) }, () => {
+      const value = make().events[0]!;
+      value.appId = String(other.appId);
+      delete value.diagnostic;
+      return value;
+    });
+    await call("/v1/events", "", "POST", candidateBatch, 202);
+  }
+  await until(
+    async () => {
+      const response = await ch.query({
+        query:
+          "SELECT uniqExact(event_id) n FROM raw_events WHERE project_id={p:UUID} AND event='error'",
+        query_params: { p: String(other.id) },
+        format: "JSONEachRow",
+      });
+      return Number((await response.json<{ n: string }>())[0]!.n);
+    },
+    (n) => n === 501,
+  );
+  await call(
+    `/api/projects/${other.id}/diagnostics/search`,
+    token,
+    "POST",
+    { ...searchD4, to: new Date(Date.now() + 1000).toISOString() },
+    422,
+  );
+  const narrow = await call(
+    `/api/projects/${other.id}/diagnostics/search`,
+    token,
+    "POST",
+    { ...searchD4, to: new Date(Date.now() + 1000).toISOString(), release: "no-match" },
+    201,
+  );
+  assert.equal(narrow.total, 0);
+  writeFileSync(
+    (process.env.FI_EVIDENCE_DIR ?? "artifacts") + "/d4-query-budget.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA,
+        passed: true,
+        candidateGate: 501,
+        releaseFilter: true,
+      },
+      null,
+      2,
+    ),
+  );
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
     projectId: pid,

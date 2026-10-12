@@ -55,6 +55,11 @@ export const router = createRouter({
           component: () => import("./views/PageAnalysisView.vue"),
         },
         {
+          path: "diagnostics/:eventId",
+          name: "project-diagnostic-instance",
+          component: () => import("./views/DiagnosticInstanceView.vue"),
+        },
+        {
           path: "settings",
           name: "project-settings",
           component: () => import("./views/SettingsView.vue"),

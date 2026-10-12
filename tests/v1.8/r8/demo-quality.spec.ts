@@ -52,7 +52,7 @@ test("scenario JS error becomes visible after quality refresh, only in its envir
   expect(event.appId).toBe("fi_public_m1demo001");
   expect(event.timestamp).toBeGreaterThan(Date.parse(oldTo));
   const occurrence = createHash("sha256").update(event.eventId).digest("hex");
-  const buttonName = `打开复现条件 ${occurrence.slice(0, 8)}`;
+  const buttonName = `打开诊断上下文 ${occurrence.slice(0, 8)}`;
   await expect(page.getByRole("button", { name: buttonName })).toHaveCount(0);
 
   const auth = await request.post("/api/auth/login", {

@@ -100,3 +100,20 @@
 ### D3 构建压缩的合同保护补充
 
 实测发现仅凭TypeScript private声明不够：同名公开JSON字段也会被esbuild mangleProps重写。D3追加压缩中误含usageSequence/usageClosed，已删除；只使用内部方法名，并在每次build按生成schema的所有properties检查白名单交集，重名立即中止。跨路由page_leave仍使用原v3字段，不修改指标或为过门禁放宽schema。修复后12,273 bytes基础包仍低于12,288，完整组合27,111 bytes。
+
+## D4 实施决定（2026-10-12，自动化交付完成）
+
+- 复用 ClickHouse 基础事实及 `(project_id,event_id)` 排序的 diagnostic_details；无需搜索引擎、新服务或迁移。先按项目/env/time/release/category/pageRoute/group 选基础实例并按 eventId 去重，再查当前 receipt 为 ready 且未过期的有限详情。SDK 不改，12KiB 基础门禁不变。
+- POST 搜索仅 read + 当前项目权限；搜索词不进入 URL、SQL 参数、普通日志或审计。字段白名单 message（根错误消息）/raw（raw 中所有字符串值），解码后的字面子串、JS Unicode toLowerCase 忽略大小写，不用正则/分词/模糊匹配，不搜索 JSON 键或未保存历史。不是过滤浏览器当前页。
+- 搜索限7×24小时、2–128个UTF-16码元、500个基础候选、32MiB信封，每页1–50（UI25）。候选超过500整次报预算失败，不把截断结果冒充完整；ClickHouse 每次5秒、100万扫描行、64MiB扫描字节，两次查询最多10秒存储执行预算。分页快照最多1小时；搜索期内TTL仍优先，旧数据到期可以让结果减少。查询统计只含扫描量/耗时。
+- 单实例导出 JSON/text，最大512KiB UTF-8（信封64KiB之外包含JSON转义、原始信封、派生解析和说明）。同时 read/export，先查后再授权；不存在404、过期410，其他缺失状态以证据说明保留。无公开文件或持久下载token，只提供即时POST；每次审计操作者、项目、实例、格式、结果，不存正文。前端blob用后销毁，失焦/切换/关闭清理；已下载字节无法远程收回。
+- 稳定链接只含 projectId/eventId，单独实例路由复用已有详情；不受列表时间分页限制。访问和复制均重新授权。原文不存 localStorage/sessionStorage。
+- 版本影响复用 raw_events/eventId 去重及原 observability 的 user_id/device_id/page_route 去重口径，不回写计数或改变分母。所选 release 的统计与同窗口所有 release 比较分别标明；未知release独立。历史标为当前系统保留90天范围，绝不称永久历史首次。单次版本最多100，统计每次5秒/100万行/64MiB扫描/128MiB内存，超限显式失败。D7全量压力测试仍未完成。
+
+D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有error_group/release bloom_filter；当前projectId过滤不保证只扫描单项目，因此扫描行/字节门禁仍强制，CI只证明本批有界数据的实际行为，不宣称大规模查询性能。详情复用(project_id,event_id)排序；未新增索引迁移。候选/字节/扫描超限、已识别ClickHouse超时和存储不可用返回不同稳定错误码，页面分别提示，不把失败当空结果。
+
+### D4 最终预算证据与下一阶段
+
+代码 `be130df4dac89be3c022be3230e2187e96fd80de` 的 [CI 38192686130](https://github.com/captainamari/frontend-insight/actions/runs/38192686130)全部成功。真实501候选查询按预算拒绝，release条件进入查询后无匹配为0；实际双浏览器6实例搜索分别扫描558行/19,973 bytes/0.006832秒与623行/253,212 bytes/0.008306秒。这是该隔离数据集的两次存储执行测量，包含跨项目扫描，不是p95或D7压力结论。字节/超时错误分类与512KiB导出拒绝由单测验证，不声称真实大规模压测。基础SDK gzip仍12,273/12,288 bytes；D4没有修改SDK、迁移或计数公式。
+
+最终新增两种浏览器的实际文件下载/文本内容、分页外搜索、稳定链接登录/刷新/新标签、仅export撤销和环境切换竞态均通过；继承十项浏览器与R5-A/B、TTL/故障/升级/原文隔离也通过。文档收尾提交仅维护证据，以PR记录的文档SHA区分完整CI验证代码。D5须待用户合并D4后核实最新refactor再启动；SourceMap、D6设置UI、D7容量与全路线验收仍未实施。

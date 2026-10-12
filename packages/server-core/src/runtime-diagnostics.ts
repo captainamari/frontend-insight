@@ -1,3 +1,10 @@
+import { projectOccurrence } from "./page-quality.js";
+import {
+  searchDiagnostics,
+  DiagnosticQueryError,
+  DIAGNOSTIC_QUERY_LIMITS,
+  type DiagnosticSearchQuery,
+} from "./diagnostic-search.js";
 import { diagnosticErrorView } from "./error-stack.js";
 import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
@@ -283,12 +290,33 @@ export class RuntimeDiagnostics {
         [project, event],
       );
       const r = rows[0];
+      const baseResponse = await ch.query({
+        query: `SELECT event_id, error_group_id, error_type, error_category,
+          toUnixTimestamp64Milli(timestamp) AS at, page_route, release, env,
+          payload_json, error_stack_frame, browser, os, viewport_bucket,
+          request_method, request_path, http_status, sdk_version, schema_version
+          FROM raw_events WHERE project_id={project:UUID} AND event_id={event:String}
+          AND (event='error' OR (event='api' AND error_type='api'))
+          ORDER BY received_at DESC LIMIT 1`,
+        format: "JSONEachRow",
+        query_params: { project, event },
+        clickhouse_settings: {
+          max_execution_time: 5,
+          max_rows_to_read: "1000000",
+          max_bytes_to_read: "67108864",
+          read_overflow_mode: "throw",
+        },
+      });
+      const base = (await baseResponse.json<Record<string, unknown>>())[0];
       let state = !r
-        ? "not_enabled"
+        ? base
+          ? "not_enabled"
+          : "not_found"
         : new Date(r.expires_at).getTime() <= Date.now()
           ? "expired"
           : String(r.state);
       let diagnostic: DiagnosticEnvelope | undefined;
+      let storedEnvelopeJson: string | undefined;
       if (state === "ready") {
         const response = await ch.query({
           query:
@@ -297,34 +325,34 @@ export class RuntimeDiagnostics {
           query_params: { project, event },
         });
         const details = await response.json<{ envelope_json: string }>();
-        if (details[0])
-          diagnostic = JSON.parse(details[0].envelope_json) as DiagnosticEnvelope;
-        else state = "unavailable";
+        if (details[0]) {
+          storedEnvelopeJson = details[0].envelope_json;
+          diagnostic = JSON.parse(storedEnvelopeJson) as DiagnosticEnvelope;
+        } else state = "unavailable";
       }
       let legacy: Record<string, unknown> | undefined;
-      if (!r) {
-        const response = await ch.query({
-          query:
-            "SELECT payload_json FROM raw_events WHERE project_id={project:UUID} AND event_id={event:String} AND event='error' ORDER BY received_at DESC LIMIT 1",
-          format: "JSONEachRow",
-          query_params: { project, event },
-        });
-        const rows = await response.json<{ payload_json: string }>();
-        if (rows[0]) {
-          const payload = JSON.parse(rows[0].payload_json);
-          legacy = {
-            name: payload.errorName,
-            message: payload.errorMessage,
-            stack: payload.stackTopFrame,
-            ...(payload.errorType === "resource"
-              ? { resourceUrl: payload.requestPath }
-              : {}),
-          };
-        }
+      if (!r && base) {
+        const payload = JSON.parse(String(base.payload_json ?? "{}"));
+        legacy = {
+          name: payload.errorName,
+          message: payload.errorMessage,
+          stack: payload.stackTopFrame,
+          ...(payload.errorType === "resource"
+            ? { resourceUrl: payload.requestPath }
+            : {}),
+        };
+      }
+      await this.authorize(p, project, event, "diagnostics.read");
+      if (r && new Date(r.expires_at).getTime() <= Date.now()) {
+        state = "expired";
+        diagnostic = undefined;
+        storedEnvelopeJson = undefined;
       }
       await this.audit(p.userId, project, event, "diagnostics.read", state);
       return {
         eventId: event,
+        projectId: project,
+        occurrence: base ? projectOccurrence(base) : null,
         state,
         expiresAt: r ? new Date(r.expires_at).toISOString() : null,
         ...(r?.capture_metadata
@@ -336,13 +364,96 @@ export class RuntimeDiagnostics {
             }
           : {}),
         ...(diagnostic
-          ? { diagnostic, view: diagnosticErrorView(diagnostic.raw) }
+          ? {
+              diagnostic,
+              storedEnvelopeJson,
+              view: diagnosticErrorView(diagnostic.raw),
+            }
           : {}),
         ...(legacy ? { legacy: true, view: diagnosticErrorView(legacy) } : {}),
       };
-    } catch {
+    } catch (e) {
+      if (e instanceof DiagnosticAccessError) throw e;
       await this.audit(p.userId, project, event, "diagnostics.read", "failed");
+      // Raw storage exceptions must never escape to ordinary service logs.
+      // eslint-disable-next-line preserve-caught-error
       throw new Error("DIAGNOSTICS_READ_FAILED");
+    }
+  }
+
+  async search(
+    ch: ClickHouseClient,
+    p: Principal,
+    project: string,
+    q: DiagnosticSearchQuery,
+  ) {
+    const action = "diagnostics.search";
+    try {
+      await this.authorize(p, project, "search", "diagnostics.read");
+      const result = await searchDiagnostics(ch, project, q, async (ids) => {
+        if (!ids.length) return [];
+        const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
+          `SELECT event_id FROM diagnostic_receipts WHERE project_id=? AND state='ready' AND expires_at>NOW(3) AND event_id IN (${ids.map(() => "?").join(",")})`,
+          [project, ...ids],
+        );
+        return rows.map((r) => String(r.event_id));
+      });
+      await this.authorize(p, project, "search", "diagnostics.read");
+      await this.audit(p.userId, project, "search", action, "success");
+      return result;
+    } catch (e) {
+      await this.audit(
+        p.userId,
+        project,
+        "search",
+        action,
+        e instanceof DiagnosticAccessError ? "forbidden" : "failed",
+      );
+      throw e;
+    }
+  }
+
+  async exportEvidence(
+    ch: ClickHouseClient,
+    p: Principal,
+    project: string,
+    event: string,
+    format: "json" | "text",
+  ) {
+    const action = `diagnostics.export.${format}`;
+    try {
+      await this.authorize(p, project, event, "diagnostics.export");
+      const evidence = await this.read(ch, p, project, event);
+      if (evidence.state === "not_found")
+        throw new DiagnosticQueryError("DIAGNOSTICS_INSTANCE_NOT_FOUND");
+      if (evidence.state === "expired")
+        throw new DiagnosticQueryError("DIAGNOSTICS_EXPIRED");
+      const document = {
+        formatVersion: 1,
+        exportedAt: new Date().toISOString(),
+        note: "storedEnvelopeJson 是已存信封原文；diagnostic 为解析值；view 为派生展示。关联仅依显式证据，否则为时间邻近。已下载文件无法远程收回。",
+        evidence,
+      };
+      const body =
+        format === "json"
+          ? JSON.stringify(document, null, 2)
+          : `Frontend Insight 诊断证据\n项目: ${project}\n实例: ${event}\n状态: ${evidence.state}\n${document.note}\n\n已存信封原文\n${evidence.storedEnvelopeJson ?? "未保存原文，见采集与缺失状态"}\n\n诊断上下文与派生解析（JSON）\n${JSON.stringify({ ...document, evidence: { ...evidence, storedEnvelopeJson: undefined } }, null, 2)}\n`;
+      if (Buffer.byteLength(body) > DIAGNOSTIC_QUERY_LIMITS.exportBytes)
+        throw new DiagnosticQueryError("DIAGNOSTICS_EXPORT_BYTE_BUDGET");
+      await this.authorize(p, project, event, "diagnostics.export");
+      if (evidence.expiresAt && Date.parse(evidence.expiresAt) <= Date.now())
+        throw new DiagnosticQueryError("DIAGNOSTICS_EXPIRED");
+      await this.audit(p.userId, project, event, action, "success");
+      return body;
+    } catch (e) {
+      await this.audit(
+        p.userId,
+        project,
+        event,
+        action,
+        e instanceof DiagnosticAccessError ? "forbidden" : "failed",
+      );
+      throw e;
     }
   }
 

@@ -24,6 +24,7 @@ export interface PageQualityQuery {
   groupId?: string | undefined;
   limit: number;
   cursor?: string | undefined;
+  release?: string | undefined;
 }
 export class PageQualityError extends Error {}
 const choose = (v: unknown, allowed: readonly string[], fallback = "unknown") =>
@@ -166,6 +167,7 @@ function scope(projectId: string, q: PageQualityQuery) {
         q.mode,
         q.groupId ?? "",
         q.limit,
+        q.release ?? "",
       ]),
     )
     .digest("hex");
@@ -230,6 +232,10 @@ export function qualityOccurrencePage(
     .filter(
       (e) =>
         (!q.pageRoute || e.pageRoute === q.pageRoute) &&
+        (!q.release ||
+          (q.release === "__unknown__"
+            ? e.context.release === null
+            : e.context.release === q.release)) &&
         (q.category === "all" || q.category === e.category) &&
         (!q.groupId || e.groupId === q.groupId),
     )
@@ -294,6 +300,7 @@ export class PageQualityStore {
         FROM raw_events WHERE project_id = {projectId:UUID} AND env = {env:String}
         AND timestamp >= parseDateTime64BestEffort({from:String}, 3) AND timestamp < parseDateTime64BestEffort({to:String}, 3)
         AND received_at <= fromUnixTimestamp64Milli({asOf:Int64}) AND error_group_id IS NOT NULL
+        AND ({release:String}='' OR ifNull(release,'__unknown__')={release:String})
         AND (event = 'error' OR (event = 'api' AND error_type = 'api'))
         ORDER BY received_at DESC, event_id DESC LIMIT 1 BY event_id LIMIT 50001`,
       query_params: {
@@ -302,6 +309,7 @@ export class PageQualityStore {
         from: q.from,
         to: q.to,
         asOf: cursor.asOf,
+        release: q.release ?? "",
       },
       clickhouse_settings: {
         max_execution_time: 5,
@@ -321,6 +329,102 @@ export class PageQualityStore {
         elapsedSeconds: body.statistics?.elapsed ?? 0,
       },
     };
+  }
+  async groupStats(projectId: string, q: PageQualityQuery, snapshot?: string) {
+    const asOf = snapshot ? Date.parse(snapshot) : Date.now();
+    if (!Number.isSafeInteger(asOf) || asOf > Date.now() || Date.now() - asOf > 3600000)
+      throw new PageQualityError("QUALITY_CURSOR_INVALID_OR_EXPIRED");
+    const read = async (from: string, to: string) => {
+      const response = await this.client.query({
+        query: `SELECT release, grouping(release) AS is_total, count() AS occurrences,
+          uniqExactIf(user_id,user_id IS NOT NULL) AS affectedUsers,
+          uniqExact(device_id) AS affectedBrowsers, uniqExact(page_route) AS affectedPages,
+          toUnixTimestamp64Milli(min(timestamp)) AS firstAt,toUnixTimestamp64Milli(max(timestamp)) AS lastAt
+          FROM (SELECT event_id,timestamp,release,user_id,device_id,page_route FROM raw_events
+            WHERE project_id={projectId:UUID} AND env={env:String}
+            AND timestamp>=parseDateTime64BestEffort({from:String},3) AND timestamp<parseDateTime64BestEffort({to:String},3)
+            AND received_at<=fromUnixTimestamp64Milli({asOf:Int64}) AND error_group_id={groupId:String}
+            AND (event='error' OR (event='api' AND error_type='api'))
+            AND ({pageRoute:String}='' OR page_route={pageRoute:String})
+            AND ({category:String}='all' OR if(error_type IN ('api','resource'),error_type,if(error_category IN {categories:Array(String)},error_category,'other'))={category:String})
+            ORDER BY received_at DESC,event_id DESC LIMIT 1 BY event_id)
+          GROUP BY GROUPING SETS ((release),()) ORDER BY is_total DESC,release LIMIT 102`,
+        query_params: {
+          projectId,
+          env: q.env,
+          from,
+          to,
+          asOf,
+          groupId: q.groupId!,
+          pageRoute: q.pageRoute ?? "",
+          category: q.category,
+          categories: [...ERROR_CATEGORIES],
+        },
+        clickhouse_settings: {
+          max_execution_time: 5,
+          max_rows_to_read: "1000000",
+          max_bytes_to_read: "67108864",
+          max_memory_usage: "134217728",
+          read_overflow_mode: "throw",
+        },
+        format: "JSONEachRow",
+      });
+      const rows = await response.json<Record<string, unknown>>();
+      if (rows.length > 101)
+        throw new PageQualityError("QUALITY_RELEASE_BUDGET_EXCEEDED");
+      return rows.map((r) => ({
+        release: r.release === null ? null : String(r.release),
+        total: Number(r.is_total) === 1,
+        occurrences: Number(r.occurrences),
+        affectedUsers: Number(r.affectedUsers),
+        affectedBrowsers: Number(r.affectedBrowsers),
+        affectedPages: Number(r.affectedPages),
+        firstSeen: Number(r.occurrences)
+          ? new Date(Number(r.firstAt)).toISOString()
+          : null,
+        lastSeen: Number(r.occurrences)
+          ? new Date(Number(r.lastAt)).toISOString()
+          : null,
+      }));
+    };
+    try {
+      const window = await read(q.from, q.to);
+      const historyFrom = new Date(asOf - 90 * 86400000).toISOString();
+      const history = await read(historyFrom, new Date(asOf).toISOString());
+      const select = (rows: typeof window) =>
+        rows.find((r) =>
+          q.release
+            ? !r.total &&
+              (q.release === "__unknown__"
+                ? r.release === null
+                : r.release === q.release)
+            : r.total,
+        ) ?? null;
+      return {
+        groupId: q.groupId,
+        scope: {
+          env: q.env,
+          from: q.from,
+          to: q.to,
+          pageRoute: q.pageRoute ?? null,
+          category: q.category,
+          release: q.release ?? null,
+        },
+        selected: select(window),
+        history: select(history),
+        releases: window.filter((r) => !r.total),
+        historyReleases: history.filter((r) => !r.total),
+        historyFrom,
+        asOf: new Date(asOf).toISOString(),
+        definition:
+          "deduplicated_event_id; account=user_id; browser=device_id; page=page_route",
+        historyScope: "retained_90_days",
+        searchApplied: false,
+      };
+    } catch (e) {
+      if (e instanceof PageQualityError) throw e;
+      throw new PageQualityError("QUALITY_STATISTICS_BUDGET_OR_UNAVAILABLE");
+    }
   }
   async close() {
     await this.client.close();

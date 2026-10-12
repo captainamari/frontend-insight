@@ -36,4 +36,4 @@
 
 ### 运行时错误诊断（D1）
 
-在页面质量列表打开“复现条件”，进入错误诊断详情。admin 或获得当前项目 diagnostics.read 的成员可按需查看/复制原始消息和编译栈，展开 cause 与子错误；普通 viewer 保留统计与摘要。历史数据、截断、未采集、过期与无权限分别提示。接入与手工操作见 [D1 错误诊断指南](../runtime-diagnostics-d1.md)；console、请求正文和 SourceMap 仍待后续阶段。
+在页面质量列表打开“诊断上下文”，进入错误诊断详情。admin 或获得当前项目 diagnostics.read 的成员可按需查看/复制原始消息和编译栈，展开 cause 与子错误；普通 viewer 保留统计与摘要。历史数据、截断、未采集、过期与无权限分别提示。接入与手工操作见 [D1 错误诊断指南](../runtime-diagnostics-d1.md)；console、请求正文和 SourceMap 仍待后续阶段。

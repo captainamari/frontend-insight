@@ -61,6 +61,7 @@ async function request<T>(
   path: string,
   init: RequestInit = {},
   allowRefresh = true,
+  binary = false,
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body && !headers.has("content-type")) {
@@ -74,7 +75,7 @@ async function request<T>(
   });
   if (response.status === 401 && allowRefresh && !path.startsWith("/api/auth/")) {
     const refreshed = await refreshAccessToken();
-    if (refreshed) return request<T>(path, init, false);
+    if (refreshed) return request<T>(path, init, false, binary);
   }
   if (!response.ok) {
     const body: ErrorBody = await parseBody<ErrorBody>(response).catch(() => ({}));
@@ -86,11 +87,12 @@ async function request<T>(
       body.message ?? "请求失败",
     );
   }
-  return parseBody<T>(response);
+  return binary ? ((await response.blob()) as T) : parseBody<T>(response);
 }
 
 export const api = {
   request,
+  download: (path: string, init: RequestInit) => request<Blob>(path, init, true, true),
   async login(email: string, password: string): Promise<LoginResponse> {
     const body = await request<LoginResponse>(
       "/api/auth/login",
