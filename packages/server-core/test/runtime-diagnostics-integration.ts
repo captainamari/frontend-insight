@@ -404,12 +404,23 @@ try {
   );
   assert.equal(Number(rates[0]!.n), 20);
   // Independent admissions share the policy lock, but the same page budget stays atomic.
+  const concurrentProject = await call(
+    "/api/projects",
+    token,
+    "POST",
+    {
+      name: "D7 concurrent " + randomUUID(),
+      timezone: "UTC",
+      origins: ["http://127.0.0.1:4174"],
+    },
+    201,
+  );
   const remainingInWindow = 60000 - (Date.now() % 60000);
   if (remainingInWindow < 5000)
     await new Promise((resolve) => setTimeout(resolve, remainingInWindow + 10));
   const simultaneous = Array.from({ length: 22 }, () => {
     const next = make();
-    next.events[0]!.appId = String(other.appId);
+    next.events[0]!.appId = String(concurrentProject.appId);
     return next;
   });
   await Promise.all(
@@ -417,12 +428,12 @@ try {
   );
   const [concurrentRates] = await mysql.pool.query<RowDataPacket[]>(
     "SELECT SUM(admitted) n FROM diagnostic_rate_windows WHERE project_id=?",
-    [other.id],
+    [concurrentProject.id],
   );
   assert.equal(Number(concurrentRates[0]!.n), 20);
   const [concurrentRejected] = await mysql.pool.query<RowDataPacket[]>(
     "SELECT COUNT(*) n FROM diagnostic_receipts WHERE project_id=? AND state='rate_limited'",
-    [other.id],
+    [concurrentProject.id],
   );
   assert.equal(Number(concurrentRejected[0]!.n), 2);
   const listed = await call(
