@@ -1,6 +1,8 @@
 # 运行时诊断实施结果
 
-## D0 当前状态
+> 本文按批次保留当时的状态与失败记录；旧节中的“待合并/未完成”是历史检查点。当前状态以文末最新交付证据和开发计划为准。
+
+## D0 历史交付状态
 
 D0 已实现并通过真实 CI，等待用户评审/合并；不代表整条诊断路线完成。基线：`8ff28a6140f62d8376d84a0a2e56fb93a5ff1b1e`（最新 `origin/refactor`）。分支：`agent/runtime-diagnostics-d0-contract-access`；目标：`refactor`。工作区开始时干净；未发现 AGENTS.md。
 
@@ -392,3 +394,40 @@ D3实现与自动化交付完成，待用户手工验收/评审。上面的逐�
 - 同批收尾：稳定实例页不显示无效的列表时间/env筛选；详情补完整raw/correlation；导出收尾检查TTL；下载资源清理与返回竞态断言；501基础候选实际预算门禁。证据路径遵循FI_EVIDENCE_DIR。最终完整CI仍待本检查点之后成功。
 
 第三轮 `38191623711` / `1818c0331ae96566e33908cdc107d1e1fd06a85c`：完整检查、增量升级、真实身份/TTL/故障恢复/审计、501候选预算通过，D0–D3双浏览器10项全部通过。D4两浏览器均走到实际JSON下载内容验证后，文本按钮定位器写成“下载 文本 证据”，实际按钮为“下载文本证据”，等待超时；修正定位器并保留实际文件内容断言，不放宽功能门禁。后续将D4浏览器单列步骤并置于继承浏览器之前，失败即停止后续浏览器以缩短反馈；最终成功仍需D4两项和继承十项全部通过。搜索错误补分预算、超时和不可用，等待最终同代码完整CI。
+
+## D4 最终交付证据（2026-10-12）
+
+D4开发计划§5全部五项已实现并通过自动化验证，等待用户手工验收/评审。D0–D3能力作为继承回归，未当作D4新增能力。基线已核实D3 PR #32合并代码与文档；没有自动合并、生产操作或代填人工验收。
+
+- 分支：`agent/runtime-diagnostics-d4-troubleshooting`；[Draft PR #33](https://github.com/captainamari/frontend-insight/pull/33)，目标refactor。
+- **精确验证代码：`be130df4dac89be3c022be3230e2187e96fd80de`**；源码tree `1c041a29074c5b6a83f58a624d4df3e184007f8e`。
+- **最终真实CI：[38192686130](https://github.com/captainamari/frontend-insight/actions/runs/38192686130)**，job `114628629044`，head_sha与上述代码一致，所有步骤成功。
+- `pnpm check`：格式、合同/工作区/规范名、Lint、类型、79文件/611单测、构建通过。基础SDK gzip **12,273/12,288 bytes**，D4未改SDK或上调预算。
+- 新增D4真实Chromium/WebKit **2项通过**；继承D0–D3 **10项通过**；R5-A **2项**、R5-B **2项**及存储privacy/服务日志原文隔离通过。运行于GitHub Actions Ubuntu24.04隔离Docker服务，非本地模拟服务。
+- [小型证据归档](https://github.com/captainamari/frontend-insight/actions/runs/38192686130/artifacts/11722152443)：8,789 bytes、22份JSON，保留7天；下载核验SHA-256 `ee42cf7f85331069fa2ecf89f337bc52a9be5d719f0765a424150ae1729a3ffb`，所有含testedCommit的摘要均对应验证代码。只含必要摘要和包体，无正文、trace或完整服务日志附件。
+
+### D4 原任务完成矩阵
+
+| 开发计划§5原任务                                               | 本批实际产品入口与新增实现                                                                                                                                 | 同代码验证证据                                                                                                                             |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 组→实例→统一详情，env/release/category/time/消息与授权有界搜索 | `PageQualityView.vue`保留筛选与返回；`DiagnosticSearch.vue`、`diagnostic-search.ts`、`diagnostics.controller.ts`服务端POST搜索；复用原详情/时间线          | D4两浏览器真实SDK6实例原文逐一相等、两release各3、不同env、当前页以外命中、分页；501候选真实拒绝；不是本地已加载数组搜索                   |
+| 解析失败可看原文，准确诊断上下文文案                           | `DiagnosticDetail.vue`复用消息/原始栈/帧/cause/console/请求，补原始raw及关联展开；现行入口/指南/测试同步文案                                               | D4不可解析栈仍有原文；D1–D3原文/状态/请求关联回归，不把已有采集重新算成D4新增                                                              |
+| 稳定链接、复制、JSON/文本导出、版本首次/最近及影响             | 新`DiagnosticInstanceView.vue`与路由；`RuntimeDiagnostics.exportEvidence`即时双能力授权；`DiagnosticImpact.vue`与`PageQualityStore.groupStats`复用基础事实 | 登录后/新标签/刷新定位，复制重新授权；API与浏览器真实两格式下载并读文件比对；统计6及3/3、26条限流/故障后基础计数不减；缺失/过期/512KiB单测 |
+| 只读运营与授权viewer分离                                       | 搜索与导出controller/AuthGuard/RuntimeDiagnostics当前账户、成员、read/export检查；页面能力提示                                                             | admin、read+export、仅read、普通viewer、跨项目、未登录、外部token；旧token、仅撤export、撤read、移除成员及成功/拒绝元数据审计              |
+| 键盘/文本/多环境/刷新与缓存撤权                                | 复用抽屉焦点/Escape；搜索与详情generation/AbortController；下载blob及时撤销；稳定页不注入无效列表筛选                                                      | Chromium/WebKit Enter/Escape、中文emoji/换行/长串/XSS纯文本、延迟搜索结果跨env隔离、已打开页撤权清空；继承窗口刷新与跨路由晚到响应回归     |
+
+### 查询、导出与统计边界
+
+搜索字段和匹配语义、权限、状态、发布/回滚及可执行手工步骤见[D4指南](../guides/runtime-diagnostics-d4.md)。搜索最多7天、2–128 UTF-16码元、500基础候选、32MiB信封、每页1–50；每次存储查询5秒/100万扫描行/64MiB。词只在POST体，不进URL、SQL、普通日志或审计正文。统计与原文搜索结果数量明确分开，TTL/采样不改基础错误计数。
+
+实际查询摘要：Chromium 140.0.7339.16 为558扫描行/19,973 bytes/0.006832秒；WebKit26.0 为623扫描行/253,212 bytes/0.008306秒，均6命中。扫描跨项目和既有数据，因此不能把这些值称单项目扫描或p95。独立501候选场景验证预算拒绝且release过滤实际生效。超时、扫描/字节预算、不可用的稳定错误分类由单测覆盖；没有D7全量压力结论。
+
+仅单实例导出，512KiB上限，read+export双能力逐次与返回前授权，private/no-store，无长期公开下载链接；旧URL不能免授权，已下载文件无法远程收回。已存信封文本与派生视图区分。错误组影响继续按既有eventId去重；未知release单列，窗口首次与最多90天可追溯保留历史首次分别标明，不修改API分母/评分。
+
+D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过。D4无迁移、无新服务；发布API/server-core与UI即可，回滚同两层，不执行reset/seed。D3仍为受控fetch+应用已读取文本，不clone/tee/自动XHR。Firefox仅栈fixture；剪贴板用sink验证，不冒充系统剪贴板覆盖。D5 SourceMap、D6完整策略设置UI、D7全路线容量/验收保持未完成。
+
+### 可恢复交接
+
+本轮此前三次失败及具体修复保留在上方检查点，未删除断言、放宽权限或降低门禁。完整CI已完成，无剩余工程阻塞；下一步是按[D4指南](../guides/runtime-diagnostics-d4.md#可执行手工验收)由用户验收/评审Draft PR。最短路径：部署实验室“D3请求503→异常” → 管理端dev/近7天刷新 → 错误组/实例 → 搜索 `FI_D3_SYNTHETIC` → 诊断上下文 → 稳定链接与JSON/文本下载 → 分别撤销export/read验证。
+
+之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。

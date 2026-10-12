@@ -47,7 +47,7 @@ Content-Type: application/json
 - 超过候选或字节预算整次拒绝，提示缩短范围，不返回貌似完整的部分命中。每次ClickHouse查询最多5秒、100万扫描行、64MiB扫描字节；搜索最多两次存储查询，执行预算最多10秒，另外有权限/receipt查询与传输时间。失败与空结果区分，不承诺固定端到端延迟。
 - 返回扫描量/耗时、候选数、可搜索原文数、命中数及分页。基础事实按查询快照固定，但TTL仍优先；翻页期间到期或详情完成写入可能改变可搜索集合，可刷新重查。
 
-现有 ClickHouse `raw_events` 的项目/环境/时间筛选及 `diagnostic_details(project_id,event_id)` 排序足以支持本批有界查询，未新增全文索引或搜索服务。预算实际验证见 results；D7全量压力和长期容量校准仍待后续实施。
+现有 ClickHouse `raw_events` 排序以 `app_id` 开头，另有 `error_group` / `release` bloom_filter；项目/环境/时间条件进入实际查询，但不保证只扫描该项目。详情复用 `diagnostic_details(project_id,event_id)` 排序；扫描行/字节预算始终生效，未新增全文索引或搜索服务。候选/字节/扫描预算超限、执行超时、存储不可用分别返回稳定错误并提示重试或缩短范围。预算实际验证见 results；D7全量压力和长期容量校准仍待后续实施。
 
 ## 导出内容与限制
 
