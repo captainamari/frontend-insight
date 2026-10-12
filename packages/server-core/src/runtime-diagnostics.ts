@@ -1,6 +1,7 @@
 import { DiagnosticOperations } from "./diagnostic-operations.js";
 import {
   DEFAULT_DIAGNOSTIC_POLICY,
+  type DiagnosticPolicy,
   diagnosticRouteMatches,
 } from "@frontend-insight/event-contract/diagnostic-policy";
 import type { SourceMaps } from "./sourcemaps.js";
@@ -36,6 +37,38 @@ const absent = (
   raw: {},
   suppressed: Math.max(1, d.suppressed),
 });
+
+/** Both the legacy explicit request and D3 records obey the same admission rules. */
+export function diagnosticRequestsSuppressed(
+  raw: Record<string, unknown>,
+  policy: DiagnosticPolicy,
+) {
+  const requests = Array.isArray(raw.requests) ? [...raw.requests] : [];
+  if (raw.request !== undefined) requests.push(raw.request);
+  return requests.some((value: unknown) => {
+    if (!value || typeof value !== "object") return true;
+    const r = value as {
+      url?: string | { value?: string };
+      result?: string;
+      requestBody?: unknown;
+      responseBody?: unknown;
+      status?: number;
+    };
+    try {
+      const path = new URL(typeof r.url === "string" ? r.url : (r.url?.value ?? ""))
+        .pathname;
+      return (
+        !diagnosticRouteMatches(path, policy.requestRoutes) ||
+        ((r.result === "success" ||
+          (typeof r.status === "number" && r.status >= 200 && r.status < 400)) &&
+          (r.requestBody !== undefined || r.responseBody !== undefined) &&
+          !diagnosticRouteMatches(path, policy.successBodyRoutes))
+      );
+    } catch {
+      return true;
+    }
+  });
+}
 
 export class RuntimeDiagnostics {
   sourceMaps?: SourceMaps;
@@ -224,26 +257,7 @@ export class RuntimeDiagnostics {
               (r: unknown) =>
                 !policy.consoleLevels.includes((r as { level?: string })?.level),
             )) ||
-          (Array.isArray(event.diagnostic.raw.requests) &&
-            event.diagnostic.raw.requests.some((r: unknown) => {
-              const record = r as {
-                url?: { value?: string };
-                result?: string;
-                responseBody?: { value?: string };
-                requestBody?: { value?: string };
-              };
-              try {
-                const path = new URL(record.url?.value ?? "").pathname;
-                return (
-                  !diagnosticRouteMatches(path, policy.requestRoutes) ||
-                  (record.result === "success" &&
-                    (record.responseBody?.value || record.requestBody?.value) &&
-                    !diagnosticRouteMatches(path, policy.successBodyRoutes))
-                );
-              } catch {
-                return true;
-              }
-            }))
+          diagnosticRequestsSuppressed(event.diagnostic.raw, policy)
         ) {
           state = "policy_suppressed";
           event.diagnostic = absent(event.diagnostic, "unavailable");

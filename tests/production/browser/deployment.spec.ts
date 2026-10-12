@@ -82,6 +82,54 @@ test("production TLS login, SDK storage and retained volumes", async ({
     )
     .toBeGreaterThanOrEqual(2);
   mkdirSync("artifacts", { recursive: true });
+  const diagnosticRoot = `/api/projects/${project.id}/diagnostics`;
+  const policyResponse = await context.request.get(diagnosticRoot + "/settings", {
+    headers,
+  });
+  expect(policyResponse.status()).toBe(200);
+  const policy = await policyResponse.json();
+  if (phase === "initial") {
+    expect(policy.revision).toBe(0);
+    const published = await context.request.put(diagnosticRoot + "/policy", {
+      headers,
+      data: {
+        revision: policy.revision,
+        policy: { ...policy.policy, retentionDays: 2 },
+      },
+    });
+    expect(published.status()).toBe(200);
+  } else {
+    expect(policy.revision).toBe(1);
+    expect(policy.policy.retentionDays).toBe(2);
+  }
+  const health = await context.request.post("/v1/events/diagnostics-health", {
+    headers: { origin: "https://127.0.0.1:8443" },
+    data: {
+      appId: project.appId,
+      clientId: randomUUID(),
+      sequence: 1,
+      metadata: {
+        version: "d6-1",
+        sync: "applied",
+        collectorErrors: 0,
+        syncFailures: 0,
+        suppressed: 0,
+        truncated: 0,
+        enabled: ["errors"],
+      },
+    },
+  });
+  expect(health.status()).toBe(200);
+  const maintenance = await context.request.get(diagnosticRoot + "/maintenance", {
+    headers,
+  });
+  expect(maintenance.status()).toBe(200);
+  expect((await maintenance.json()).health.length).toBeGreaterThan(0);
+  await page.goto(`/projects/${project.id}/settings?env=prod&range=7d&tab=diagnostics`);
+  await expect(
+    page.getByRole("heading", { name: "诊断策略与维护", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/已发布版本 d6-1/)).toBeVisible();
   writeFileSync(
     artifact,
     JSON.stringify(
@@ -92,6 +140,7 @@ test("production TLS login, SDK storage and retained volumes", async ({
         tlsLogin: true,
         secureRefresh: true,
         sdkQueryable: true,
+        diagnosticPolicyAndHealth: true,
         retainedAfterRestart: phase === "retained" || phase === "restored",
         restoredFromBackup: phase === "restored",
         phase,

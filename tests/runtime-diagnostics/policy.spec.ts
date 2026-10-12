@@ -34,7 +34,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   await expect(page.getByRole("heading", { name: "诊断策略与维护" })).toBeVisible();
   await page.getByLabel("新证据保留天数").fill("2");
   await page.getByRole("button", { name: "保存并发布诊断策略" }).click();
-  await expect(page.getByRole("status")).toContainText("发布成功");
+  await expect(
+    page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
+  ).toContainText("发布成功");
   expect(
     (
       await request.put(root + "/policy", {
@@ -93,7 +95,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   );
   await page.getByLabel("启用诊断采集", { exact: true }).uncheck();
   await page.getByRole("button", { name: "保存并发布诊断策略" }).click();
-  await expect(page.getByRole("status")).toContainText("发布成功");
+  await expect(
+    page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
+  ).toContainText("发布成功");
   // Offline SDK still holds the old policy; server admission already enforces shutdown.
   const offlineEvent = await send();
   await expect
@@ -106,7 +110,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   expect(off.diagnostic?.raw).toEqual({});
   await page.getByLabel("启用诊断采集", { exact: true }).check();
   await page.getByRole("button", { name: "保存并发布诊断策略" }).click();
-  await expect(page.getByRole("status")).toContainText("发布成功");
+  await expect(
+    page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
+  ).toContainText("发布成功");
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
   const restored = await send();
   await expect
@@ -154,7 +160,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   await page.getByLabel("实例 eventId", { exact: true }).fill(first.eventId);
   await page.getByLabel("确认删除此项目此实例的原文").check();
   await page.getByRole("button", { name: "删除指定原始证据" }).click();
-  await expect(page.getByRole("status")).toContainText("已逻辑删除");
+  await expect(
+    page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
+  ).toContainText("已逻辑删除");
   expect((await detail(first.eventId)).state).toBe("deleted");
   expect((await detail(first.eventId)).diagnostic).toBeUndefined();
   expect(

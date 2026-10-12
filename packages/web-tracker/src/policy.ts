@@ -245,6 +245,14 @@ export function createDiagnosticPolicy(options: {
     source,
     occurrence,
   ) {
+    if (this !== owner) {
+      const unrelated = fallback.call(this, value, source, occurrence);
+      if (unrelated) {
+        unrelated.diagnostic.raw = {};
+        unrelated.diagnostic.status = "unavailable";
+      }
+      return unrelated;
+    }
     let result;
     try {
       result = (adapter?.errorDiagnostics ?? fallback).call(

@@ -99,6 +99,22 @@ it("validates hard bounds and bounded pathname semantics", () => {
   expect(diagnosticRouteMatches("/api", ["/api/**"])).toBe(true);
   expect(diagnosticRouteMatches("/apix", ["/api/**"])).toBe(false);
 });
+
+it("does not reuse a live project's policy or context in another extractor scope", async () => {
+  const f = fixture();
+  await f.adapter.sync();
+  console.warn("owner-only-context");
+  const other = f.adapter.errorDiagnostics.call(
+    { appId: "fi_other" },
+    new Error("other"),
+    "manual",
+  );
+  expect(other?.diagnostic.raw).toEqual({});
+  expect(other?.diagnostic.policyVersion).not.toBe("d6-1");
+  f.tracker.captureException(new Error("owner"));
+  await f.tracker.flush();
+  expect(JSON.stringify(f.events)).toContain("owner-only-context");
+});
 it("applies policy, freezes queued raw, disables wrappers and keeps one base fact per error", async () => {
   const original = window.console.warn;
   const f = fixture();
