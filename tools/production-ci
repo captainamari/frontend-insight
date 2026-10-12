@@ -96,6 +96,8 @@ restart)
   sudo bash scripts/production deploy production-ci
   ;;
 restore-drill)
+  # Keep the isolated external edge closed throughout old-snapshot replacement.
+  docker stop fi-production-tls >/dev/null
   # Safe runtime diagnostics identify packaging/cwd issues without env or secrets.
   compose exec -T consumer node --input-type=module -e 'import {existsSync} from "node:fs"; console.log(JSON.stringify({cwd:process.cwd(),offsetTool:existsSync("/app/tools/kafka-durable-offsets.mjs"),brokerConfigured:Boolean(process.env.KAFKA_BROKERS),groupConfigured:Boolean(process.env.CONSUMER_GROUP_ID)}))'
   compose exec -T consumer node /app/tools/kafka-durable-offsets.mjs
@@ -124,7 +126,9 @@ JS
       "SELECT * FROM $table$final_clause ORDER BY tuple(*) SETTINGS max_bytes_before_external_sort=134217728,max_threads=2 FORMAT JSONEachRow" | sha256sum > "$RUNNER_TEMP/$table.restored.sha256"
     sudo cmp "backups/production/r8-restore-ci/$table.rows.sha256" "$RUNNER_TEMP/$table.restored.sha256"
   done
-  node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("artifacts/production-restore.json",JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,archiveFormat:3,destructiveTest:"isolated GitHub-hosted only",durableTables:["raw_events","repeated_operation_proofs","diagnostic_details"],privateSourcemapArchive:true,nonEmptyProofFixture:true,logicalRows:"complete ordered JSONEachRow SHA-256 equal; Native archive checksum also verified",shortReferences:"not backed up, cleared on restore"},null,2))'
+  # This drill has no later authorization changes; real recovery must reconcile them here.
+  docker start fi-production-tls >/dev/null
+  node --input-type=module -e 'import {writeFileSync} from "node:fs";writeFileSync("artifacts/production-restore.json",JSON.stringify({testedCommit:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,archiveFormat:3,edgeIsolatedDuringRestore:true,postBackupAuthorizationChanges:"none in this drill; reconcile later changes before reopening",destructiveTest:"isolated GitHub-hosted only",durableTables:["raw_events","repeated_operation_proofs","diagnostic_details"],privateSourcemapArchive:true,nonEmptyProofFixture:true,logicalRows:"complete ordered JSONEachRow SHA-256 equal; Native archive checksum also verified",shortReferences:"not backed up, cleared on restore"},null,2))'
   ;;
 evidence)
   mkdir -p artifacts

@@ -57,6 +57,8 @@ jobs:
           pnpm test:r5a:e2e
           pnpm test:r5b:e2e
           node tools/r5b-storage-privacy.mjs
+      - name: Actual MySQL dependency failure and idempotent diagnostic recovery
+        run: node tools/d7-fault.mjs
       - name: Diagnostic normal and storm load at 20 and 200 events per second
         run: node tools/d7-load.mjs
       - name: Diagnostic raw is absent from service logs
