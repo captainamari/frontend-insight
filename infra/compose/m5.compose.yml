@@ -86,6 +86,19 @@ services:
           memory: 128M
     networks: [m24]
 
+  demo-fixtures:
+    image: node:24-alpine
+    working_dir: /app
+    command: ["node", "tools/demo-request-fixtures.mjs"]
+    volumes:
+      - ../../tools/demo-request-fixtures.mjs:/app/tools/demo-request-fixtures.mjs:ro
+      - ../../apps/demo-app/src/request-fixture.ts:/app/apps/demo-app/src/request-fixture.ts:ro
+    networks: [m24]
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
   demo:
     build:
       context: ../..
@@ -104,6 +117,8 @@ services:
       retries: 30
       start_period: 5s
     depends_on:
+      demo-fixtures:
+        condition: service_started
       api:
         condition: service_healthy
     deploy:

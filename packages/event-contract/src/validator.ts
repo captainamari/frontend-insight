@@ -239,6 +239,20 @@ export function validateTransportBatch(
     }
     const { diagnostic, ...baseEvent } = event;
     if (diagnostic) {
+      if (
+        Array.isArray(diagnostic.raw.requests) &&
+        diagnostic.raw.requests.some(
+          (r) =>
+            (r as Record<string, unknown>).appId !== event.appId ||
+            (r as Record<string, unknown>).pageViewId !== event.pageViewId,
+        )
+      )
+        return error(
+          REJECTION_CODES.schemaInvalid,
+          path,
+          "diagnostic request ownership mismatch",
+        );
+
       if (event.event !== "error" && event.event !== "api")
         return error(
           REJECTION_CODES.schemaInvalid,

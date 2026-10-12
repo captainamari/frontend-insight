@@ -50,3 +50,9 @@ R6 duration queries require an observed page view plus contiguous settlements th
 从 `@frontend-insight/web-tracker/console` 导入 `createConsoleDiagnostics`，配置 `errorDiagnostics: createConsoleDiagnostics({ scope: { appId } })`，替代 D1 的 `createErrorDiagnostics()`。默认 error/warn，log/info/debug 显式启用；本模块复用 errors 下载，不另加全局异常监听或上传通道。console.error 自身不计为 JS 异常。
 
 scope 是应用对全局 console 项目所有权的明确声明，多项目冲突停止采集；每 tracker/pageView 独立。最多 50 条/24 KiB/60 秒，单条连元数据不超过 2 KiB；配置只能收紧。参数调用时取值、异常时冻结、后续修改不回写。基础包仍受 12 KiB 门禁，下载量见 `dist/console-bundle-report.json`（含所有实际组合）。完整配置、能力边界、升级、权限和验收见 [D2 指南](../../docs/guides/runtime-diagnostics-d2.md)。
+
+## D3 可选请求上下文
+
+`./requests` 导出 `createRequestDiagnostics`，配置 `errorDiagnostics: diagnostics.errorDiagnostics`（已组合D1/D2）。每个tracker独立创建，初始化后通过 `diagnostics.bind(operation.getContext?.()).wrapFetch(window.fetch)` 调用受控请求；action/context及workflow实例/step/attempt显式绑定。诊断不重复发API或JS事实，质量分母仍通过一次quality.observeApi。
+
+响应正文使用 `diagnostics.responseText(response, originalText, explicitBusinessFailure?)`，传业务已经读取的原始文本。SDK不clone/tee、不读取或锁业务流；未提供显示host_text_required。成功正文按successBodyRoutes精确路由开启，失败提供文本后默认采集。异常即时冻结pending状态，晚结果不补传；XHR自动捕获未实现。完整代码、状态、预算、宿主Promise语义、升级与手工验收见 [D3指南](../../docs/guides/runtime-diagnostics-d3.md)。各独立模块和实际启用组合体积见构建的requests-bundle-report.json。

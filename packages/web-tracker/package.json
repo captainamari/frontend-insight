@@ -19,6 +19,10 @@
     "./console": {
       "types": "./src/console.ts",
       "import": "./dist/console.js"
+    },
+    "./requests": {
+      "types": "./src/requests.ts",
+      "import": "./dist/requests.js"
     }
   },
   "scripts": {

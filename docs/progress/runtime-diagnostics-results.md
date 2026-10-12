@@ -244,3 +244,127 @@ D1 已完成实现与自动化交付，没有替用户填写手工验收通过�
 - 当前服务端请求即时按最新权限拒绝；前端通过每秒轮询/失焦/卸载/切换清理，不承诺撤回已返回字节。原文仍只由按实例授权API读取。
 - 无新增待决策预算项；没有连接生产、自动合并或代填人工验收通过。D2完成只代表可用console上下文，**D3–D7仍未完成**。
 - 合并后D3入口：核实PR #31已合入最新origin/refactor，再从该实际基线实施“请求、操作与工作流关联”；沿用已验证的原文权限、日志快照、基础计数与预算，不从未合并D2自行叠加。
+
+## D3 检查点 1（进行中，尚未完成真实 CI）
+
+- 基线：`e51b63523103597822df7acfa3dd1911e93109a5`。D2 PR #31 merged=true，包含代码与文档；没有新增手工验收记录。新克隆无已有修改，未发现适用 AGENTS.md。
+- 分支：`agent/runtime-diagnostics-d3-request-context`。此前无同名远端分支/PR。
+- 已实现：可选 requests 模块、受控 fetch、调用时快照、即时异常冻结、显式 operation/workflow 上下文、原文与状态、条数/字段/集合预算、生成源结构与项目/页面校验。没有后台正文读取任务。正文能力边界见本批 decisions。
+- 首轮 SDK/合同16项针对性测试通过；测试发现同名step误关联，已修正为实例级ID核对。正在增加集合/归属、真实HTTP/浏览器、权限与计数回归。
+- 授权时间线和实际实验室初版已在工作区，后续检查点提交。当前完整门禁仍在执行，没有真实 CI 成功记录，不标 D3 完成。
+- 下一步：完成页面/HTTP场景与专项Actions，运行 `pnpm check`，推送后核对真实run/head_sha，修复失败，更新指南和最终证据。D4–D7未展开。
+
+## D3 检查点 2（页面、实验室与真实回归准备）
+
+- SDK检查点已提交远端 `3dbadf7f7de4e2b525e8acc618240c56c48eb6d5`，本地index/source tree与远端核对一致。通过 GitHub 连接器提交，不修改 refactor。
+- 授权 API view 增加 requests/actions；错误详情增加稳定时间线、类型/失败过滤、展开原文与独立状态、复制重新授权。沿用D1每秒续验/失焦/退出/切换清理，不声称收回已返回字节。
+- 实际实验室增加真实HTTP fixture（503、200、业务失败、慢响应、取消/超时、网络断开、长文本、二进制、SSE与重定向）及按钮。fixture只返回合成值，无外部网络或生产操作。
+- 本地完整检查已通过75文件/590单测、类型、lint、构建；之后新增合同数组/归属/边界3项，针对性19项通过。最终同提交仍须真实CI重新确认。
+- 当前基础gzip为12,269/12,288 bytes，errors1,980、console2,706、quality5,239、requests4,413；完整组合26,607 bytes。后续代码调整以最终报告为准。
+- D3 workflow继承D0六身份/升级/故障/TTL/重试、D1/D2双浏览器与R5-A/B；新增真实HTTP→SDK→ingestion→Kafka→consumer→存储→授权API→UI逐字段验证，pending/跨页冻结、统计不双计、原文复制与撤权，以及无后台读取/持续容量测量。
+- **尚无真实CI成功记录，D3仍在实施。** 下一步推送此检查点、创建Draft PR、核对并修复真实Actions，再交付最终指南/证据。
+
+### D3 首轮真实CI与修复
+
+- 代码 `c7a2e18083c1f89223d32c4e2826630cf62023bd`，CI [38121823939](https://github.com/captainamari/frontend-insight/actions/runs/38121823939) **失败，不作为交付成功证据**。
+- pnpm check、真实服务、D0增量升级/六身份/限流/TTL/故障恢复均成功；D0–D2双浏览器8项成功。D3两浏览器在网络失败断言处失败：Vite fixture在Nginx静态演示部署中未运行，路径落到index.html，实际不是预期HTTP场景。
+- 修复为隔离m5 Compose内的demo-fixtures服务与demo专用Nginx路由；真实断网使用Nginx444，不把代理502当network rejection。生产web/API不开放fixture。保留所有断言并重新运行真实CI。
+- 同时补充页面/销毁代际隔离、重复wrapper缓存、原生DOMException分类、冻结后预算余量、D3请求原文的六身份/日志/审计/DLQ负向fixture，以及5000次并发调用容量测量。当前本地75文件/595项测试成功；最终代码需新的同提交CI验证。
+
+### D3 第二轮真实CI
+
+代码 `eb6d16583b104466428b66a2b2d041dfd89d62af`，CI [38122434801](https://github.com/captainamari/frontend-insight/actions/runs/38122434801) 仍失败。真实HTTP、取消/网络/SSE/opaque、SDK原文字段和快照断言已通过；服务端详情等待返回not_enabled。测试创建了真实SDK工作流，却未在服务端注册/激活定义，这是已发现的fixture缺口，但当时尚未取得实际拒收字段，不能把它认定为唯一根因；补齐项目module/feature/workflow定义及激活，并增加每个出站批次的合同和ingestion202断言，避免把发送视为接收成功。保留D0–D2已通过8项，不把本轮当最终交付。
+
+## D3 实现与验证矩阵
+
+本表描述实现位置和验证范围；最终同提交 CI 结论见本节后的交付证据。此前失败/取消记录保留，不将提交或发送成功当作闭环通过。
+
+| D3任务              | 当前实现 / 实现位置                                                                               | 验证与边界                                                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 继承基线与统一链路  | `web-tracker/src/requests.ts` 组合 `console.ts`、`errors.ts`，原 tracker 传输；D2 #31 已合并      | 基线e51b635；D0–D2原有测试继续执行；无旁路上传                                                                                                     |
+| 请求入口及指标      | `bind().wrapFetch()`；`quality.observeApi` 保持唯一API事实所有者                                  | HTTP503 fulfilled；单一真实请求1条API事实；7个真实捕获错误7条JS事实；XHR不纳入支持                                                                 |
+| 原文字段与独立状态  | `request-evidence.ts` / `requests.ts`；URL/query、时点、headers、正文、结果/原因、页面/项目、关联 | 合成token、换行、嵌套JSON空格、HTML逐字段传输/API/UI比对；不脱敏、不读取环境秘密                                                                   |
+| 正文与宿主行为      | 调用时字符串请求体；应用 `responseText` 交付业务已读原文                                          | 无clone/tee/reader/后台读取；不以全部读完再截断实现SDK有界读取；Response身份/this/参数/同步抛错/拒绝/AbortSignal测试；派生Promise不保留Promise引用 |
+| 成功/失败及排除     | `successBodyRoutes`、`excludeRoutes`、enabled、source                                             | 成功正文默认关闭，失败已提供文本默认保留；业务失败须显式；SDK端点与文件上传排除只影响诊断，不改变质量观察配置                                      |
+| 有界缓存与冻结      | 20条/32KiB/60s，单条24KiB，最多4个pending；action30条/8KiB                                        | 请求正文/响应正文16KiB、头4KiB、整个JSON含元数据；未读字节不编精确值；错误立即冻结，晚到响应不补传/改队列                                          |
+| 操作/工作流和多项目 | `OperationHandle/WorkflowHandle.getContext()`、显式bind、action、原pageViewId                     | 真实服务注册/激活工作流；实际实例ID、step/attempt；unit并发乱序/重试/多项目/重绑/销毁代际；无全局当前操作、无注入追踪头                            |
+| 关联依据与生命周期  | instance/request/trace显式匹配；其余同页限定窗口temporal                                          | 本地观察ID有local前缀；跨页晚到结果丢弃；destroy清空；全局方法不由D3替换，第三方不会被销毁覆盖                                                     |
+| 合同与兼容          | `event-contract/scripts/generate-types.mjs`、diagnostics/validator及生成schema                    | 集合/逐项/字段/归属/64KiB服务端校验；旧raw.request按JSON字节收紧已记录；旧v3与D0–D2回归；无数据库迁移                                              |
+| 授权页面            | `server-core/src/error-stack.ts`、`DiagnosticDetail.vue`、`RequestTimeline.vue`                   | 异常/console/导航/action/请求时间线，状态、展开、过滤数量、复制重新授权、文本渲染；每秒续验/失焦清除，不能收回已返回字节                           |
+| 权限与原文隔离      | 原D0诊断服务/API，D3 fixture扩充 `runtime-diagnostics-integration.ts`、`d0-log-check.mjs`         | 六身份、撤权/移除成员、no-store/admin审计；列表、事实、日志、Prometheus、DLQ不泄漏；负向断言继续存在                                               |
+| 实验室与双浏览器    | `demo-app/src/App.vue`、request-fixture、demo隔离HTTP服务、`requests.spec.ts`                     | 503、业务200、成功正文、pending、abort/timeout/network、opaque、redirect、超长多字节、二进制、真实SSE reader；Firefox仅原栈fixture                 |
+| 性能/包体/交接      | build-bundle、requests.spec、D3指南、SDK README、用户指南、learning18                             | 独立模块全下载计量；1000包装/正文/冻结、5000并发调用；计时粒度单独采样；不冒充D7完整压测；未代填人工验收                                           |
+
+### D3 测量复核检查点
+
+第三轮 [38123203413](https://github.com/captainamari/frontend-insight/actions/runs/38123203413) 在检查通过后被后续提交按分支并发策略取消；不作为成功证据。复核补充了重复使用同一个Response时的关联淘汰保护，并将时钟粒度采样与冻结工作耗时分开，避免用工作耗时冒充计时分辨率。针对性15项请求测试通过。当前代码 `f98a2232a509f465829b3623bd7e572cb020c2eb`，正在等待 [38123327038](https://github.com/captainamari/frontend-insight/actions/runs/38123327038) 完整结果。
+
+第四轮 `38123327038` 完成完整检查、增量升级及D0服务回归后，在Playwright加载测试时失败：新增运行时validator使用了根package未声明的workspace包名。改为仓库已有E2E使用的相对源码入口，并在本地用 `playwright --list` 验证独立runner加载；类型导入本身不需要运行时解析。本轮没有执行浏览器用例，不将其记为通过。同步加入第三方非原生返回值保护及unit；最新本地完整75文件/599项通过。
+
+第五轮 [38123667731](https://github.com/captainamari/frontend-insight/actions/runs/38123667731) 完整检查和D0回归成功、继承双浏览器8项通过；D3在新加入的出站合同断言失败，尚未进入授权API/UI验证。完整SDK快照与tracker+quality+operation/workflow的本地合同回归已新增并通过；将布尔断言改为只输出合同错误code/path/message（不输出原文），继续定位实际浏览器差异。没有放宽合同、删除断言或把此轮记作通过。
+
+### D3 跨路由合同拒收根因与修复
+
+本地运行构建后的SDK和完整场景回调（模拟HTTP，仅用于定位，不作为真实服务证据）复现：跨路由page_leave的公开字段 `usageSequence` / `usageClosed` 被压缩成私有短名，违反既有合同。此前“私有压缩白名单不碰公开字段”的审查不足；现已从白名单移除这两个名字，改用仅内部的fetch安装/Promise错误处理方法名，且构建时遍历事件schema，白名单与任何wire字段重名立即失败。没有改动公开合同或上调基础包预算。
+
+修复后同一完整回调合同复现通过；新增tracker+quality+operation/workflow测试也增加跨路由并通过。当前基础gzip12,273/12,288 bytes，requests4,913，全部组合27,111 bytes。第六轮 `38124331636` 属于修复前诊断提交，将由新提交按并发策略取代；最终仍以修复后完整真实CI为准。
+
+第七轮 [38124573740](https://github.com/captainamari/frontend-insight/actions/runs/38124573740)，代码 `f7faa9ed7fb43af61fd4c1c31032db107d320627`：D0检查/升级/故障回归成功；双浏览器10项中9项成功，Chromium D3完整原文→授权API/UI/复制/撤权闭环已通过。WebKit出站合同与ingestion202也通过，唯一失败为测试假定自定义abort reason一定以DOMException TimeoutError拒绝。改为在同一真实浏览器运行未包装fetch参照，断言受控包装保留原生拒绝名称并核对诊断分类；不重写业务拒绝对象，不把所有取消硬改为timeout。修复后的完整双浏览器和R5继承回归仍需下一轮确认。
+
+## D3 最终交付证据（2026-10-11）
+
+D3实现与自动化交付完成，待用户手工验收/评审。上面的逐项矩阵已经由本节同提交证据收尾；D4–D7仍未完成，没有连接生产或自动合并。
+
+- 实际基线：`e51b63523103597822df7acfa3dd1911e93109a5`，D2 PR #31合并代码和文档已核实；未新增未经执行的人工验收。
+- **精确验证代码SHA：`857b5c0a221b59c03e9558e5212774b4b1b46624`**，源码tree `11fa8035bd979050c2e30ed0a16c556fd468c77a`。
+- **最终真实CI：[38125100719](https://github.com/captainamari/frontend-insight/actions/runs/38125100719)**，job `114427711437`，已核对head_sha，上述代码全部步骤成功。
+- `pnpm check`：格式、workspace边界、生成合同、规范名、lint、类型、**76文件/601单测**及所有构建通过；构建增加私有压缩名称与公开schema字段的冲突门禁，基础包上限未调整。
+- D0/D1/D2/D3 **Chromium/WebKit共10项**真实浏览器用例通过。D3两浏览器均完成真实HTTP→SDK→ingestion202→Kafka→consumer→存储→按实例授权API→UI，7个错误分别比对完整原文信封；HTTP/URL/query/headers/原文正文、开始/结束/耗时/相对时间、operation/workflow/step/attempt和显式/时间邻近有断言。具体错误栈 `renderReport`、`/assets/d3.js?token=synthetic`、40:7与前置console保留。
+- 真实pending即时冻结、晚到正文、跨页清空、成功正文默认关闭/路由启用、显式业务失败、HTTP503、取消/超时reason、网络拒绝、opaque、重定向、二进制3bytes、真实SSE业务reader读取23bytes并取消、超长多字节文本通过。业务Response开始未消费，未被SDK锁住；SDK reader/待读任务均为0。
+- D3质量组合仅1个受观察的真实请求产生1条API事实，7个显式JS异常产生7条错误事实；原D1去重、D2 console不新增错误与原限流基础计数回归继续成立。
+- 授权viewer的原文展开、过滤、HTML文本渲染、复制前再授权、撤权后服务端拒绝和页面清空通过。原D0真实六身份/跨项目/未登录/外部token、撤权/移除成员、admin审计/no-store、旧v3、限流基础26个错误、TTL、幂等重试、部分写入恢复均通过；fixture扩充D3合成请求原文，普通列表/事实/审计/DLQ/Prometheus负向断言保留。
+- D0增量升级验证保留既有数据与migration checksum、重复执行幂等。R5-A **2项**、R5-B **2项**真实浏览器质量/分母回归，storage privacy和服务日志原文隔离全部通过。
+- [最终artifact](https://github.com/captainamari/frontend-insight/actions/runs/38125100719/artifacts/11696951687)：**7,387 bytes / 18份必要摘要JSON**，保留7天；SHA-256 `3821120669ce85615575cbb71cea092f383d365e337b2179087e20d4ed5798c4` 已下载校验，所有testedCommit一致。没有上传trace、原文body或服务日志附件。
+- [Draft PR #32](https://github.com/captainamari/frontend-insight/pull/32) 指向refactor，保持Draft。之后只补docs证据；文档收尾SHA记录在PR/交付回复，不把它冒充重新运行全部CI的代码SHA。
+
+### D3 最终下载体积（gzip bytes）
+
+| 模块/实际启用组合                            |   字节 |
+| -------------------------------------------- | -----: |
+| 基础SDK                                      | 12,273 |
+| errors                                       |  1,980 |
+| console（共享errors.js）                     |  2,706 |
+| quality                                      |  5,239 |
+| requests（共享console/errors.js）            |  4,913 |
+| 基础 + errors                                | 14,253 |
+| 基础 + errors + console                      | 16,959 |
+| 基础 + errors + console + quality            | 22,198 |
+| 基础 + errors + console + requests           | 21,872 |
+| 基础 + errors + console + quality + requests | 27,111 |
+
+全部实际下载依赖计入，未把requests当作零成本；基础仍低于12,288 bytes，上限未改、仅余15 bytes。比D2基础12,258增加15 bytes，完整组合比D2的22,174增加4,937 bytes。没有预算上调待决策项。
+
+### D3 最终同步测量（毫秒，p50 / p95）
+
+环境为GitHub Actions Ubuntu24.04，Chromium **140.0.7339.16**、WebKit **26.0**。Desktop设备UA中的Windows/macOS只是浏览器模拟配置，不是宿主OS。时钟最小正tick分别约0.1ms与1ms。
+
+| 测量              | 样本与数据                                                                                   |  Chromium | WebKit |
+| ----------------- | -------------------------------------------------------------------------------------------- | --------: | -----: |
+| 普通同步受控调用  | 1000次；预先创建的Response、短字符串请求                                                     | 0.4 / 0.8 | <1 / 1 |
+| 正文快照与裁剪    | 1000次；`中\n`重复8000，即16000字符，32,000 bytes（31.25KiB）UTF-8未计JSON转义；含字符串构造 | 1.4 / 2.8 |  1 / 2 |
+| 异常冻结与组装    | 1000次；已有请求缓冲与16KiB字段限制                                                          | 0.7 / 1.5 |  1 / 1 |
+| 高频/并发受控调用 | 连续5000次；只保留4个新pending观察记录                                                       | 0.2 / 0.3 | <1 / 1 |
+
+计时只包含同步受控调用/快照/组装，排除网络和业务异步读取；普通调用含原业务函数的Promise.resolve，不是扣除裸fetch基线后的纯增量。WebKit原始0表示低于1ms分辨率，不能写成零开销；已按实际精度取整。SDK没有异步正文读取，读取耗时不适用，不用0ms冒充网络或业务耗时。
+
+并发期间缓冲为5条/20,020 JSON bytes（1条既有完成请求+4条pending），超并发观察淘汰计数4,996，业务5000个Promise照常完成。完成后Chromium5条/21,112 bytes、WebKit5条/21,108 bytes；response association5条，activeReads=0、pendingReads=0。1000次长正文过程中按字节淘汰999次，集合始终低于32KiB。导航后旧请求0，destroy后请求/action/响应关联均0；空数组JSON为2bytes，不代表残留请求。条数20、时间窗60秒等上限另有单测覆盖；这里没有声称完成heap分析或D7压测。
+
+### 浏览器差异、交接与剩余边界
+
+- 最终原生参照：Chromium自定义超时reason拒绝为TimeoutError，WebKit为AbortError；受控包装与各自原生一致，诊断分别记录timeout/aborted。未篡改请求或拒绝对象，也不猜测服务端状态。
+- 请求入口为明确项目/实例绑定的受控fetch；**无自动XHR、无自动响应正文读取**。应用应提供业务本来已读的原始text；只调用json()时不能重新序列化冒充原文。文件/二进制/SSE/opaque给出状态，不克隆/tee业务流；浏览器不可见headers/原始网络字节/完整重定向链不在承诺内。
+- 真实业务HTTP、双浏览器全链路与权限/UI已通过；并发乱序/多项目/第三方/销毁代际与异常对象细节主要由unit覆盖。Firefox仅继承栈格式fixture；React仅D1显式适配器，未新增React渲染树。没有把本批验收当作所有浏览器或D7完整压测。
+- 页面通过下一次采集/冻结/stats识别pageViewId变化并清旧buffer，闲置缓存有界；destroy立即清空。授权撤销服务端即时生效，前端每秒续验及失焦/卸载/切换清理，不能收回已返回客户端的字节。
+- 无数据库迁移；先发布新API/consumer/UI，再发布配套SDK。旧raw.request预算按JSON UTF-8计量收紧，边界重报可能被拒，详见[D3指南](../guides/runtime-diagnostics-d3.md)。回滚先关新SDK、排空新信封，再回滚服务。
+- 可执行手工步骤和默认配置见[D3指南](../guides/runtime-diagnostics-d3.md#可执行验收)：实验室 `/observability?acceptance=fast` → “D3 请求503→异常” → 管理端dev/当前范围 → 错误实例授权详情，检查具体错误/前置console/失败请求原文/显式operation关联，随后过滤、复制、撤权。此处提供步骤，**未代填用户人工验收通过**。
+- D3合并后再核实最新origin/refactor，从已合并基线开始D4“排障产品流程与协作”。D4全文搜索/导出/稳定实例链接、D5 SourceMap、D6完整策略UI、D7全量验收仍未完成；不因D3解除R6/R7业务授权和个人行为分析边界。

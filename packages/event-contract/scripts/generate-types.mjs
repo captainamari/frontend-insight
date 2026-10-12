@@ -36,6 +36,117 @@ if (manifest.contractVersion !== 3) {
   throw new Error("R0 only generates contract v3");
 }
 
+const evidence = {
+  type: "object",
+  additionalProperties: false,
+  required: ["state", "bytes"],
+  properties: {
+    state: { type: "string", maxLength: 64 },
+    value: { type: "string" },
+    reason: { type: "string", maxLength: 128 },
+    bytes: { type: "integer", minimum: 0, maximum: 16384 },
+    omittedBytes: { type: "integer", minimum: 0 },
+    omittedBytesExact: { type: "boolean" },
+  },
+};
+const requestAssociation = {
+  type: "object",
+  additionalProperties: false,
+  properties: Object.fromEntries(
+    [
+      "requestId",
+      "traceId",
+      "operationInstanceId",
+      "workflowInstanceId",
+      "stepKey",
+      "attemptId",
+    ].map((k) => [k, { type: "string", maxLength: 128 }]),
+  ),
+};
+const time = { type: "number", minimum: 0, maximum: 8640000000000000 };
+const diagnosticRequest = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "kind",
+    "localId",
+    "sequence",
+    "timestamp",
+    "appId",
+    "pageViewId",
+    "method",
+    "url",
+    "result",
+    "association",
+    "basis",
+    "requestBody",
+    "responseBody",
+    "requestHeaders",
+    "responseHeaders",
+  ],
+  properties: {
+    kind: { const: "request" },
+    localId: { type: "string", maxLength: 64 },
+    sequence: { type: "integer", minimum: 0 },
+    timestamp: time,
+    endedAt: time,
+    bodyCapturedAt: time,
+    durationMs: time,
+    relativeMs: { type: "number" },
+    appId: { type: "string", maxLength: 64 },
+    pageViewId: { type: "string", maxLength: 128 },
+    pageUrl: evidence,
+    method: { type: "string", maxLength: 32 },
+    url: evidence,
+    responseUrl: evidence,
+    redirected: { type: "boolean" },
+    result: {
+      enum: [
+        "pending",
+        "success",
+        "http",
+        "network",
+        "aborted",
+        "timeout",
+        "business",
+        "opaque",
+      ],
+    },
+    status: { type: "integer", minimum: 0, maximum: 599 },
+    failureReason: evidence,
+    association: requestAssociation,
+    basis: { enum: ["explicit", "temporal", "unassociated"] },
+    requestBody: evidence,
+    responseBody: evidence,
+    requestHeaders: evidence,
+    responseHeaders: evidence,
+  },
+};
+const diagnosticAction = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "kind",
+    "sequence",
+    "timestamp",
+    "pageViewId",
+    "name",
+    "target",
+    "association",
+    "context",
+  ],
+  properties: {
+    kind: { enum: ["action", "navigation"] },
+    sequence: { type: "integer", minimum: 0 },
+    timestamp: time,
+    relativeMs: { type: "number" },
+    pageViewId: { type: "string", maxLength: 128 },
+    name: evidence,
+    target: evidence,
+    association: requestAssociation,
+    context: {},
+  },
+};
 const commonEventProperties = {
   diagnostic: { $ref: "#/$defs/diagnostic" },
   eventId: { type: "string", pattern: "^evt_[A-Za-z0-9_-]{8,64}$" },
@@ -186,7 +297,14 @@ const schema = {
             ]),
           ),
         },
-        raw: { type: "object", maxProperties: 100 },
+        raw: {
+          type: "object",
+          maxProperties: 100,
+          properties: {
+            requests: { type: "array", maxItems: 20, items: diagnosticRequest },
+            timeline: { type: "array", maxItems: 30, items: diagnosticAction },
+          },
+        },
       },
     },
     sdk: {

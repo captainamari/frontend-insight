@@ -3,13 +3,27 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { build } from "esbuild";
 
 const maximumGzipBytes = 12 * 1024;
+// Public wire fields must never enter the private-property compression allowlist.
+const privateProperties =
+  /^(originalFetch|instrumentedFetch|qualityPayload|activeLongViews|visibleStartedAt|flushTimer|lastActivityAt|installFetchInstrumentation|handleUnhandledRejection|resolvePageRoute|settleVisiblePage|refreshSession|loadOrCreateDevice|nextBatch|makeBatch|stopLongViews|businessInFlight|installedHistory|originalHistory|errorCleanup|associatedOperation|reportError|sessionStorageKey|handlePageRouteChange|handleVisibilityChange|handlePageHide|handlePageShow|installLifecycle|uninstallLifecycle|diagnosticWindow)$/;
+const wireSchema = JSON.parse(
+  await readFile("../event-contract/schema/event-batch-v3.schema.json", "utf8"),
+);
+function checkWireNames(node) {
+  if (!node || typeof node !== "object") return;
+  for (const key of Object.keys(node.properties ?? {})) {
+    if (privateProperties.test(key))
+      throw new Error(`PRIVATE_MANGLE_WIRE_COLLISION: ${key}`);
+  }
+  for (const child of Object.values(node)) checkWireNames(child);
+}
+checkWireNames(wireSchema);
 await mkdir("dist", { recursive: true });
 await build({
   entryPoints: ["src/index.ts"],
-  // These identifiers are private BrowserTracker lifecycle members only; never public
+  // These identifiers are private BrowserTracker / BrowserObservability members only; never public
   // config, event keys, collector ports or string-indexed methods. Keep the allowlist narrow.
-  mangleProps:
-    /^(installedHistory|originalHistory|errorCleanup|handlePageRouteChange|handleVisibilityChange|handlePageHide|handlePageShow|installLifecycle|uninstallLifecycle|diagnosticWindow)$/,
+  mangleProps: privateProperties,
   outfile: "dist/index.js",
   bundle: true,
   minify: true,
@@ -126,3 +140,28 @@ await writeFile(
   JSON.stringify(consoleReport, null, 2),
 );
 console.log(JSON.stringify(consoleReport));
+
+await build({
+  entryPoints: ["src/requests.ts"],
+  outfile: "dist/requests.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  external: ["./console.js", "./errors.js"],
+  legalComments: "none",
+});
+const requestsBytes = gzipSync(await readFile("dist/requests.js")).byteLength;
+const requestReport = {
+  ...consoleReport,
+  requestsGzipBytes: requestsBytes,
+  baseErrorsConsoleRequests: consoleReport.baseErrorsConsole + requestsBytes,
+  baseErrorsConsoleQualityRequests:
+    consoleReport.baseErrorsConsoleQuality + requestsBytes,
+};
+await writeFile(
+  "dist/requests-bundle-report.json",
+  JSON.stringify(requestReport, null, 2),
+);
+console.log(JSON.stringify(requestReport));

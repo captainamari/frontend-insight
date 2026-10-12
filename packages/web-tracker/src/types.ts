@@ -154,6 +154,7 @@ export interface Tracker {
 }
 
 export interface OperationHandle {
+  getContext?(): Readonly<{ operationInstanceId: string; workflowInstanceId?: string }>;
   succeed(payload?: EventPayload): void;
   fail(reasonCode: string, payload?: EventPayload): void;
   cancel(payload?: EventPayload): void;
