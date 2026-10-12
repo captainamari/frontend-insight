@@ -8,6 +8,9 @@ const state = ref<unknown>("填写隔离项目appId，再初始化"),
   offline = ref(false);
 let tracker: Tracker | undefined,
   policy: ReturnType<typeof createDiagnosticPolicy> | undefined;
+function snapshot() {
+  return { ...policy?.status(), transport: tracker?.getDiagnostics() };
+}
 function install() {
   tracker?.destroy();
   events.value = [];
@@ -49,10 +52,11 @@ function install() {
       return event;
     },
   });
-  state.value = policy.status();
+  state.value = snapshot();
 }
 async function sync() {
-  state.value = await policy?.sync();
+  await policy?.sync();
+  state.value = snapshot();
 }
 async function capture(stress = false) {
   if (!tracker) return;
@@ -62,7 +66,7 @@ async function capture(stress = false) {
       new Error(stress ? "D6 " + "大".repeat(20000) : "D6 policy synthetic error"),
     );
   await tracker.flush();
-  state.value = policy?.status();
+  state.value = snapshot();
 }
 onBeforeUnmount(() => tracker?.destroy());
 </script>
@@ -87,7 +91,7 @@ onBeforeUnmount(() => tracker?.destroy());
     ><button
       @click="
         tracker?.destroy();
-        state = policy?.status();
+        state = snapshot();
       "
     >
       销毁 D6 SDK

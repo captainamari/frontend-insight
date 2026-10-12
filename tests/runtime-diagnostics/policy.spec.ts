@@ -75,7 +75,15 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   const send = async () => {
     const n = captured.length;
     await demo.getByRole("button", { name: "D6 日志后错误", exact: true }).click();
-    await expect.poll(() => captured.length).toBe(n + 1);
+    await expect
+      .poll(async () => ({
+        count: captured.length,
+        state:
+          captured.length === n + 1
+            ? "sent"
+            : await demo.getByTestId("d6-policy-state").innerText(),
+      }))
+      .toEqual({ count: n + 1, state: "sent" });
     return captured[n]!;
   };
   const first = await send();

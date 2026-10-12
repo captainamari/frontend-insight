@@ -13,6 +13,20 @@ import {
   type TrackerConfig,
 } from "../src/index.js";
 import { createQualityCollectors } from "../src/quality.js";
+
+it("disabling raw traversal preserves ordinary error grouping and event deduplication", () => {
+  let enabled = true;
+  const extractor = createErrorDiagnostics(() => enabled);
+  const error = new TypeError("same base fact", { cause: new Error("nested") });
+  const on = extractor(error, "explicit");
+  enabled = false;
+  const off = extractor(error, "explicit");
+  expect(off?.payload).toEqual(on?.payload);
+  expect(off?.diagnostic.raw).toEqual({});
+  const occurrence = {};
+  expect(extractor(error, "explicit", occurrence)).not.toBeNull();
+  expect(extractor(error, "explicit", occurrence)).toBeNull();
+});
 import { diagnosticBudgetError } from "@frontend-insight/event-contract/diagnostics";
 import { validateForIngestion } from "@frontend-insight/event-contract";
 const trackers: Tracker[] = [];

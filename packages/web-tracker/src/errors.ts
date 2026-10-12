@@ -5,7 +5,11 @@ const nativeStackGetter = Object.getOwnPropertyDescriptor(new Error(), "stack")?
 const encoder = new TextEncoder();
 const bytes = (s: string) => encoder.encode(s).length;
 /** Optional D1 extractor: never evaluates accessors or calls user toJSON/toString. */
-export function extractError(value: unknown, source: ErrorSource): DiagnosticEnvelope {
+export function extractError(
+  value: unknown,
+  source: ErrorSource,
+  summaryOnly = false,
+): DiagnosticEnvelope {
   let remaining = 40000,
     nodes = 0,
     omittedBytes = 0;
@@ -73,6 +77,7 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
       issue(`${path}:non_json`);
       return `[${typeof v}${typeof v === "bigint" ? `:${v}` : ""}]`;
     }
+    if (summaryOnly && depth > 0) return "[omitted]";
     if (seen.has(v)) {
       issue(`${path}:circular`);
       return "[circular]";
@@ -94,9 +99,18 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
       }
       const result: Record<string, unknown> = Object.create(null);
       // Include non-enumerable Error fields and ordinary rejection-object data.
-      const keys = [
-        ...new Set(["name", "message", "stack", "cause", "errors", ...Object.keys(v)]),
-      ];
+      const keys = summaryOnly
+        ? ["name", "message", "stack"]
+        : [
+            ...new Set([
+              "name",
+              "message",
+              "stack",
+              "cause",
+              "errors",
+              ...Object.keys(v),
+            ]),
+          ];
       if (keys.length > 32) issue(`${path}:properties_omitted`);
       for (const key of keys.slice(0, 32)) {
         const child = read(v, key, `${path}.${key}`);
@@ -163,7 +177,9 @@ export function extractError(value: unknown, source: ErrorSource): DiagnosticEnv
 }
 /** One instance per tracker. Event identity de-duplicates listeners; same-object
  * cross-source propagation is scoped to one task, never a message fingerprint cap. */
-export function createErrorDiagnostics(): ErrorExtractor {
+export function createErrorDiagnostics(
+  captureRaw: (this: object | void) => boolean = () => true,
+): ErrorExtractor {
   const scopes = new WeakMap<
     object,
     {
@@ -202,7 +218,10 @@ export function createErrorDiagnostics(): ErrorExtractor {
         }, 0);
       }
     }
-    const diagnostic = extractError(value, source);
+    const collecting = captureRaw.call(scope);
+    // Disabled collection retains only the bounded top-level grouping work needed
+    // for quality facts. No cause, aggregate children or arbitrary fields are traversed.
+    const diagnostic = extractError(value, source, !collecting);
     const raw = diagnostic.raw.error as Record<string, unknown>;
     // An opaque derived signature keeps messages/URLs out of ordinary lists.
     let hash = 2166136261;
@@ -221,6 +240,10 @@ export function createErrorDiagnostics(): ErrorExtractor {
     ].includes(rawName)
       ? rawName
       : "Error";
+    if (!collecting) {
+      diagnostic.raw = {};
+      diagnostic.status = "unavailable";
+    }
     return {
       diagnostic,
       payload: {

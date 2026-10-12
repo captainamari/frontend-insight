@@ -107,7 +107,7 @@ it("does not reuse a live project's policy or context in another extractor scope
   const other = f.adapter.errorDiagnostics.call(
     { appId: "fi_other" },
     new Error("other"),
-    "manual",
+    "explicit",
   );
   expect(other?.diagnostic.raw).toEqual({});
   expect(other?.diagnostic.policyVersion).not.toBe("d6-1");
@@ -129,7 +129,12 @@ it("applies policy, freezes queued raw, disables wrappers and keeps one base fac
   });
   await f.adapter.sync();
   expect(window.console.warn).toBe(original);
-  f.tracker.captureException(new Error("disabled"));
+  const inspectCause = vi.fn(() => []);
+  const disabled = new Error("disabled", {
+    cause: new Proxy({}, { ownKeys: inspectCause }),
+  });
+  f.tracker.captureException(disabled);
+  expect(inspectCause).not.toHaveBeenCalled();
   await f.tracker.flush();
   const errors = f.events.filter((e) => e.event === "error");
   expect(errors).toHaveLength(2);

@@ -54,7 +54,9 @@ export function createDiagnosticPolicy(options: {
   const clientId = globalThis.crypto.randomUUID();
   const controllers = new Set<AbortController>();
   // The extractor keeps deduplication alive while raw collectors are suspended.
-  const fallback = createErrorDiagnostics();
+  const fallback = createErrorDiagnostics(function () {
+    return this === owner && alive && published.policy.enabled;
+  });
   function enabled() {
     if (!alive || !published.policy.enabled) return [] as string[];
     return [

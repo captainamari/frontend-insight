@@ -61,7 +61,7 @@ await tracker.flush();
 
 复用R4-B的`POST /v1/events/workflow-config`获取当前诊断策略，首次及每60秒同步；本客户端可显式sync。超时5秒，响应最多64KiB；失败用最后有效配置，首次无有效配置用明确兼容默认。状态含版本、最后尝试/成功时间、enabled、未安装/不支持项。销毁中止未完成同步，项目固定在创建参数，不跨项目复用adapter。重复初始化遵循base已有实例管理，跨tracker复用句柄不授权采集。
 
-策略改变重建上下文collector并清空旧环形缓冲，进行中请求继续执行业务，但旧collector晚到内容不进入新缓冲。已冻结、排队或重试事件不改写；其policyVersion保留采集时版本，服务端最新准入可能拒收详情。关闭恢复console原方法和释放缓冲，不取消业务fetch，不消费业务流；质量监听/计数独立保留。重新开启只安装一次当前collector。
+策略改变重建上下文collector并清空旧环形缓冲，进行中请求继续执行业务，但旧collector晚到内容不进入新缓冲。已冻结、排队或重试事件不改写；其policyVersion保留采集时版本，服务端最新准入可能拒收详情。关闭后仅保留基础错误分组与去重所需的有界顶层name/message/stack处理，不遍历cause、子错误或任意扩展字段；恢复console原方法和释放缓冲，不取消业务fetch，不消费业务流；质量监听/计数独立保留。重新开启只安装一次当前collector。
 
 ### Vue、React 与请求
 
@@ -78,6 +78,43 @@ if (!response.ok) tracker.captureException(new Error("report failed"));
 ```
 
 `quality.observeApi`继续是对应API基础事实的唯一入口，证据adapter不自行创建API事实；完整受控请求和operation/workflow确定关联示例仍见[D3指南](runtime-diagnostics-d3.md)。XHR保留已有质量观察能力，没有自动XHR原文接口。应用可显式`captureDiagnostic`提供其已取得的JSON证据，但这会产生一条独立错误事实，不得对同一故障再重复captureException。不要虚构XHR wrapper或将fetch adapter用于XHR。
+
+### XHR 的真实质量观察接口
+
+以下是原生XHR接入质量统计的最小例子；没有诊断XHR wrapper。应用创建Promise，`quality.observeApi`只观察完成结果，不代读响应正文。`quality.factory`必须在创建tracker时传入，且对应指标已有项目绑定（同R5接入）。不要对同一次请求额外调用captureApiError。
+
+```ts
+import { createQualityCollectors } from "@frontend-insight/web-tracker/quality";
+const quality = createQualityCollectors({ api: true, jsErrors: true });
+const xhrTracker = createTracker({
+  appId,
+  env: "dev",
+  release: "xhr-example",
+  endpoint: "https://collector.example/v1/events",
+  quality: quality.factory,
+  observability: { enabled: true, captureApiErrors: false, captureWebVitals: false },
+});
+const xhr = await quality.observeApi(
+  "/api/report",
+  () =>
+    new Promise<XMLHttpRequest>((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open("GET", "/api/report");
+      request.timeout = 5000;
+      request.onload = () => resolve(request); // HTTP错误仍是正常XHR完成
+      request.onerror = () => reject(new TypeError("network failure"));
+      request.ontimeout = () => reject(new DOMException("timeout", "TimeoutError"));
+      request.onabort = () => reject(new DOMException("aborted", "AbortError"));
+      request.send();
+    }),
+);
+// 应用按自身需要处理xhr.status、xhr.responseText；SDK没有取得XHR正文。
+void xhr.status;
+await xhrTracker.flush();
+xhrTracker.destroy();
+```
+
+该独立示例不要与前面的同appId活跃tracker同时初始化；实际应用应将quality.factory合并到唯一tracker配置。Vue和React使用前述D1真实适配器，其tracker同样可换成带policy.errorDiagnostics的D6实例。
 
 D5 `withSourceMapIdentity(policy.errorDiagnostics, manifest)` 可在采集时冻结真实构建身份；使用正式`tools/sourcemaps.mjs issue/upload`上传同一构建产物，具体签名、manifest与CLI参数见[D5指南](runtime-diagnostics-d5.md)。完整DevTools不在承诺内：不可见headers、跨域、应用没读的正文、二进制/流、无栈、未安装模块和历史缺身份都有边界；不补读远端URL或本地源码。
 
@@ -102,6 +139,15 @@ D5 `withSourceMapIdentity(policy.errorDiagnostics, manifest)` 可在采集时冻
 新增MySQL迁移011，旧迁移不改；无reset/seed升级。先备份→增量011→consumer/API→管理端→可选SDK接入。旧项目config=null按兼容值解释，并继承D0 retention；revision从0开始。服务端发布用revision比较并在事务内加锁，旧编辑不能覆盖新版本。
 
 现有`./scripts/production backup NAME`完整MySQL dump自动包含策略、grants、墓碑、健康与维护状态；ClickHouse detail和私有map归档继续使用D5同停写窗口。恢复必须同时还原receipt/detail/map，合法空Native表按空表处理；缺归档/校验失败不得宣称成功。实际破坏恢复证据在results，不能仅凭脚本存在宣称通过。
+
+最短受限命令（仅在已批准的维护目标上执行；本批CI使用隔离环境）：
+
+```bash
+sudo bash scripts/production backup before-d6
+sudo bash scripts/production restore before-d6 --confirm-replace-data
+```
+
+**恢复前先在入口代理/防火墙保持维护隔离**，直到恢复后的核对结束再放行真实流量。现有restore命令会在校验成功后启动API/consumer/web以供本机验证，并不是“自动对外开放且权限已审核”；不要仅依赖进程停止维持隔离。先从受限入口核对管理员和项目成员、read/export、上传凭证撤销、策略版本与enabled、删除墓碑；用合成实例验证有效详情/源码可读、已删除/过期不可读，再解除维护隔离。缺文件、校验失败或部分恢复失败保持隔离，使用自动安全备份与匹配版本处理，不手工改成功标记。
 
 恢复旧备份可能恢复旧read/export授权、上传凭证和已删除数据。开放服务前核对成员、授权、凭证、删除任务及策略，重新执行备份后发生的撤权/删除/轮换，确认详情和源码定位。系统不能自动保留旧备份之后的所有撤销。
 
