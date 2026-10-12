@@ -133,7 +133,7 @@ jobs:
       - name: Run R5-A quality fact mix at 20 and 200 events per second
         run: node tools/r5a-load.mjs
 
-      - name: Verify data-preserving 001-002 to 003-005 migration
+      - name: Verify data-preserving 001-002 to current 003-011 migration
         run: ./scripts/dev verify-r2-upgrade
 
       - name: Verify R4-C real directory and queued Kafka replay

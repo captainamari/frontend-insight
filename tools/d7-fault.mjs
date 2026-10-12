@@ -129,7 +129,7 @@ try {
     "-c",
     'exec clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database frontend_insight --query "$1"',
     "--",
-    `SELECT count() FROM raw_events FINAL WHERE project_id='${project.id}' AND event_id='${event.eventId}' FORMAT TabSeparated`,
+    `SELECT count() FROM raw_events WHERE project_id='${project.id}' AND event_id='${event.eventId}' FORMAT TabSeparated`,
   ])
     .toString()
     .trim();

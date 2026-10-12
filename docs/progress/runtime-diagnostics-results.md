@@ -594,3 +594,11 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 [诊断38226795225](https://github.com/captainamari/frontend-insight/actions/runs/38226795225)在新acceptance fixture失败：筛选offline诊断时对没有diagnostic的普通page_view执行JSON.stringify后直接includes，产生TypeError。此前真实挂载Vue、原文入库/导出和15条离线队列保留已走到断言；仍不把局部步骤当整个场景成功。修复筛选条件，保留15条唯一事件、逐条原文入库及2ms门禁。[R1–R8回归38226795341](https://github.com/captainamari/frontend-insight/actions/runs/38226795341)发现刷新fixture还缺D4影响统计请求；补准确空响应，仍对未知接口抛错。本地实际Chromium通过六种时间窗刷新fixture，不冒充真实服务验证。
 
 本批又修复销毁期间网络失败：销毁后的队列容量为0，重试耗尽后清空并明确计入丢弃，不把原文积压保存在已销毁tracker中；正常关闭的既有best-effort发送路径继续保留。新增销毁/正在重试的资源边界单测。本地完整check现83文件639单测通过；基础gzip12,284/12,288、完整诊断24,973、带quality30,212 bytes，最终同SHA CI待重跑。
+
+### D7 第三轮继承与测量入口修复
+
+候选`bcf721ee2164f74ba6ea9495e2edfa94097ee104`的[Ubuntu22 CI38228221219](https://github.com/captainamari/frontend-insight/actions/runs/38228221219)全部成功。诊断专项[38228221310](https://github.com/captainamari/frontend-insight/actions/runs/38228221310)已通过双浏览器框架/断网恢复/2ms、D0–D6原文、权限与真实备份恢复及R5回归，但MySQL故障验证最后的计数SQL对MergeTree raw_events误用FINAL而失败；前面的停止/恢复和原文一致性已执行，整项仍未完成。已去掉不支持的FINAL，继续对真实行数和uniqExact两者断言，不改变去重标准。
+
+继承产品回归[38228221366](https://github.com/captainamari/frontend-insight/actions/runs/38228221366)已通过R8、SDK双浏览器与R5–R7、20/200质量事实负载，旧R2升级验证器只预期到009导致失败（实际正确应用010/011）。已补全003–011预期，原始记录与001/002 checksum不变、重复迁移零新增等断言保留；没有修改已应用迁移。
+
+测量入口同时明确逻辑原文JSON、信封元数据、MySQL收据文本（不含定长列/索引）与共享物理parts/待清理分开，不把收据抽样或全信封当项目精确磁盘用量。记录CPU型号/OS/Node/Docker/Compose；验证异常时也保留数字证据，失败仍抛出，不放宽阈值。最终同SHA全量复验待执行。
