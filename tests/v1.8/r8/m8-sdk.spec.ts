@@ -19,7 +19,19 @@ test("controlled demo proves all four M8 events are sanitized before send", asyn
   await page.getByRole("button", { name: "模拟资源失败" }).click();
   await page.getByRole("button", { name: "模拟 LCP poor" }).click();
   await expect(page.locator(".event-list")).toContainText("error");
-  await expect.poll(() => payloads.length).toBeGreaterThanOrEqual(4);
+  // Flush may combine events; assert all four facts rather than packet count.
+  await expect
+    .poll(() => {
+      const sent = payloads.flatMap(
+        (p) => (p.events as Array<Record<string, unknown>>) ?? [],
+      );
+      return {
+        errors: sent.filter((e) => e.event === "error").length,
+        api: sent.some((e) => e.event === "api"),
+        performance: sent.some((e) => e.event === "performance"),
+      };
+    })
+    .toEqual({ errors: 2, api: true, performance: true });
 
   const events = payloads.flatMap(
     (payload) => (payload.events as Array<Record<string, unknown>>) ?? [],

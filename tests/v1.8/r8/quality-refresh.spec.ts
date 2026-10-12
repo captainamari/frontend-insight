@@ -16,6 +16,8 @@ test("quality refresh advances presets, preserves custom ranges and resets curso
         accessToken: "ui-test-only",
         user: { id: "ui", displayName: "UI fixture", globalRole: "admin" },
       };
+    } else if (url.pathname.endsWith("/diagnostics/capabilities")) {
+      body = { read: false, export: false, manage: false };
     } else if (url.pathname.endsWith("/access")) {
       body = { id: "ui", name: "UI fixture", timezone: "Asia/Shanghai" };
     } else if (url.pathname.endsWith("/observability/occurrences")) {

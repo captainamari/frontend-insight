@@ -991,7 +991,18 @@ export class BrowserTracker implements Tracker {
         const body = JSON.stringify(pending.batch);
         const sent = await this.send(body, reason);
         if (sent) this.diagnostics.sentEvents += pending.batch.events.length;
-        else this.diagnostics.failedBatches += 1;
+        else {
+          this.diagnostics.failedBatches += 1;
+          // Only transient exhaustion is retained. Permanent 4xx cannot retry forever.
+          if (sent === undefined) {
+            this.queue.unshift(...pending.batch.events);
+            while (this.queue.length > this.config.maximumQueueSize) {
+              this.queue.pop();
+              this.drop("QUEUE_OVERFLOW");
+            }
+            break;
+          }
+        }
         pending = this.nextBatch();
       }
     } catch {
@@ -1003,7 +1014,10 @@ export class BrowserTracker implements Tracker {
     }
   }
 
-  private async send(body: string, reason: "normal" | "lifecycle"): Promise<boolean> {
+  private async send(
+    body: string,
+    reason: "normal" | "lifecycle",
+  ): Promise<boolean | undefined> {
     const keepalive = reason === "lifecycle" && diagnosticBytes(body) <= 60 * 1024;
     if (keepalive) {
       const queued = this.runtime.navigator.sendBeacon(
@@ -1034,7 +1048,7 @@ export class BrowserTracker implements Tracker {
         );
       }
     }
-    return false;
+    return undefined;
   }
 
   destroy(): void {

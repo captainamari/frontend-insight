@@ -332,4 +332,48 @@ describe("D0 explicit diagnostic transport", () => {
     ).toBe("too_large");
     tracker.destroy();
   });
+  it("retains transiently failed events with stable IDs and drains after recovery", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "offline_d7"));
+    tracker.featureExposed("sales_dashboard");
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const failed = tracker.flush();
+    await failed;
+    const original = (await payload(fetchMock)).events;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(tracker.getDiagnostics().queueSize).toBe(original.length);
+    expect(tracker.getDiagnostics().retries).toBe(2);
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await tracker.flush();
+    expect((await payload(fetchMock, 3)).events).toEqual(original);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
+  it("does not retain permanently rejected requests", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "permanent_d7"));
+    fetchMock.mockResolvedValue(new Response(null, { status: 422 }));
+    await tracker.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
+  it("bounds retained backlog while new events arrive during retries", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "bounded_d7"),
+      maximumQueueSize: 3,
+    });
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const failed = tracker.flush();
+    for (let i = 0; i < 8; i++) tracker.featureExposed("sales_dashboard");
+    await failed;
+    expect(tracker.getDiagnostics().queueSize).toBe(3);
+    expect(tracker.getDiagnostics().droppedEvents).toBeGreaterThan(0);
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await tracker.flush();
+    expect((await payload(fetchMock, 3)).events).toHaveLength(3);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
 });

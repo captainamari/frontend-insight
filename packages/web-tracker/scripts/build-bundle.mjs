@@ -5,7 +5,7 @@ import { build } from "esbuild";
 const maximumGzipBytes = 12 * 1024;
 // Public wire fields must never enter the private-property compression allowlist.
 const privateProperties =
-  /^(originalFetch|instrumentedFetch|qualityPayload|activeLongViews|visibleStartedAt|flushTimer|lastActivityAt|installFetchInstrumentation|handleUnhandledRejection|resolvePageRoute|settleVisiblePage|refreshSession|loadOrCreateDevice|nextBatch|makeBatch|stopLongViews|businessInFlight|installedHistory|originalHistory|errorCleanup|associatedOperation|reportError|sessionStorageKey|handlePageRouteChange|handleVisibilityChange|handlePageHide|handlePageShow|installLifecycle|uninstallLifecycle|diagnosticWindow)$/;
+  /^(originalFetch|instrumentedFetch|qualityPayload|activeLongViews|visibleStartedAt|flushTimer|lastActivityAt|installFetchInstrumentation|handleUnhandledRejection|resolvePageRoute|settleVisiblePage|refreshSession|loadOrCreateDevice|nextBatch|makeBatch|stopLongViews|businessInFlight|installedHistory|originalHistory|errorCleanup|associatedOperation|reportError|sessionStorageKey|handlePageRouteChange|handleVisibilityChange|handlePageHide|handlePageShow|installLifecycle|uninstallLifecycle|diagnosticWindow|flushing|destroyed|isVisible|errorCleanup|listen|safe)$/;
 const wireSchema = JSON.parse(
   await readFile("../event-contract/schema/event-batch-v3.schema.json", "utf8"),
 );

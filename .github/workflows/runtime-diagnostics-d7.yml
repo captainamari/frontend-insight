@@ -44,6 +44,8 @@ jobs:
         run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts --max-failures=1
       - name: D6 settings and real SDK policy lifecycle in both browsers
         run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts policy.spec.ts --max-failures=1
+      - name: Mounted Vue framework and actual offline drain in both browsers
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts acceptance.spec.ts --max-failures=1
       - name: D5 persistence, lifecycle and actual backup restoration
         run: node tools/d5-storage-verify.mjs
       - name: D4 troubleshooting in Chromium and WebKit
@@ -55,6 +57,8 @@ jobs:
           pnpm test:r5a:e2e
           pnpm test:r5b:e2e
           node tools/r5b-storage-privacy.mjs
+      - name: Diagnostic normal and storm load at 20 and 200 events per second
+        run: node tools/d7-load.mjs
       - name: Diagnostic raw is absent from service logs
         run: node tools/d0-log-check.mjs
       - uses: actions/upload-artifact@v4
@@ -69,6 +73,7 @@ jobs:
             artifacts/d4-*.json
             artifacts/d5-*.json
             artifacts/d6-*.json
+            artifacts/d7-*.json
             packages/web-tracker/dist/policy-bundle-report.json
             artifacts/r5b-privacy.json
             packages/web-tracker/dist/bundle-report.json

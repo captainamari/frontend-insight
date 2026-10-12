@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node ../../tools/build-d5-fixture.mjs && vite --host 0.0.0.0",
-    "build": "node ../../tools/build-d5-fixture.mjs && vue-tsc --noEmit && vite build",
+    "dev": "node ../../tools/build-d5-fixture.mjs && cd ../.. && node tools/build-d7-fixture.mjs && cd apps/demo-app && vite --host 0.0.0.0",
+    "build": "node ../../tools/build-d5-fixture.mjs && cd ../.. && node tools/build-d7-fixture.mjs && cd apps/demo-app && vue-tsc --noEmit && vite build",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
