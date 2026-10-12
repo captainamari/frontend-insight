@@ -4,6 +4,7 @@ import RequestTimeline from "./RequestTimeline.vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
+  diagnostic?: { raw: Record<string, unknown>; correlation: unknown };
   occurrence?: {
     timestamp: string;
     category: string;
@@ -244,9 +245,15 @@ async function download(format: "json" | "text") {
     const anchor = document.createElement("a");
     anchor.href = downloadUrl;
     anchor.download = `diagnostic-${event}.${format === "json" ? "json" : "txt"}`;
+    anchor.hidden = true;
+    document.body.append(anchor);
     anchor.click();
-    URL.revokeObjectURL(downloadUrl);
-    downloadUrl = undefined;
+    anchor.remove();
+    const deliveredUrl = downloadUrl;
+    setTimeout(() => {
+      URL.revokeObjectURL(deliveredUrl);
+      if (downloadUrl === deliveredUrl) downloadUrl = undefined;
+    }, 0);
     copied.value = "证据已下载；已交付文件无法远程收回。";
   } catch (e) {
     if (id !== generation) return;
@@ -455,6 +462,12 @@ onBeforeUnmount(() => {
           <pre>{{ show(result.view.console?.metadata) }}</pre>
         </details>
       </section>
+      <details v-if="result.diagnostic">
+        <summary>完整已存诊断原文与关联信息</summary>
+        <p>原始采集字段；未提供的上下文不推测。关联强度以时间线说明为准。</p>
+        <pre>{{ show(result.diagnostic.raw) }}</pre>
+        <pre>{{ show(result.diagnostic.correlation) }}</pre>
+      </details>
       <RequestTimeline
         :data="result.view.requests"
         :logs="result.view.console?.records ?? []"

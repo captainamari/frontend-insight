@@ -547,8 +547,9 @@ try {
     assert(audits.some((a) => a.action === action && a.result === "success"));
     assert(audits.some((a) => a.action === action && a.result === "forbidden"));
   }
+  mkdirSync(process.env.FI_EVIDENCE_DIR ?? "artifacts", { recursive: true });
   writeFileSync(
-    "artifacts/d4-access.json",
+    (process.env.FI_EVIDENCE_DIR ?? "artifacts") + "/d4-access.json",
     JSON.stringify(
       {
         testedCommit: process.env.GITHUB_SHA,
@@ -614,6 +615,57 @@ try {
     await producer.disconnect();
     await dead.disconnect();
   }
+  // A finite synthetic dataset verifies the real candidate-query gate (not D7 load testing).
+  for (let offset = 0; offset < 501; offset += 50) {
+    const candidateBatch = make();
+    candidateBatch.events = Array.from({ length: Math.min(50, 501 - offset) }, () => {
+      const value = make().events[0]!;
+      value.appId = String(other.appId);
+      delete value.diagnostic;
+      return value;
+    });
+    await call("/v1/events", "", "POST", candidateBatch, 202);
+  }
+  await until(
+    async () => {
+      const response = await ch.query({
+        query:
+          "SELECT uniqExact(event_id) n FROM raw_events WHERE project_id={p:UUID} AND event='error'",
+        query_params: { p: String(other.id) },
+        format: "JSONEachRow",
+      });
+      return Number((await response.json<{ n: string }>())[0]!.n);
+    },
+    (n) => n === 501,
+  );
+  await call(
+    `/api/projects/${other.id}/diagnostics/search`,
+    token,
+    "POST",
+    { ...searchD4, to: new Date(Date.now() + 1000).toISOString() },
+    422,
+  );
+  const narrow = await call(
+    `/api/projects/${other.id}/diagnostics/search`,
+    token,
+    "POST",
+    { ...searchD4, to: new Date(Date.now() + 1000).toISOString(), release: "no-match" },
+    201,
+  );
+  assert.equal(narrow.total, 0);
+  writeFileSync(
+    (process.env.FI_EVIDENCE_DIR ?? "artifacts") + "/d4-query-budget.json",
+    JSON.stringify(
+      {
+        testedCommit: process.env.GITHUB_SHA,
+        passed: true,
+        candidateGate: 501,
+        releaseFilter: true,
+      },
+      null,
+      2,
+    ),
+  );
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
     projectId: pid,

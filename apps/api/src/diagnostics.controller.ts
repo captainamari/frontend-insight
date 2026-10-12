@@ -62,7 +62,18 @@ export class DiagnosticsController {
   ) {
     // Authorize before parsing diagnostic search data. Validation emits no input values.
     return this.run(project, async () => {
-      await this.core.diagnostics.authorize(p, project, "search", "diagnostics.read");
+      try {
+        await this.core.diagnostics.authorize(p, project, "search", "diagnostics.read");
+      } catch (e) {
+        await this.core.diagnostics.audit(
+          p.userId,
+          project,
+          "search",
+          "diagnostics.search",
+          e instanceof DiagnosticAccessError ? "forbidden" : "failed",
+        );
+        throw e;
+      }
       const q = parseInput(
         z
           .object({

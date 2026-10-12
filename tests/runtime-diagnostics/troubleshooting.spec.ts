@@ -302,6 +302,28 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
+  // A late authorized result must not repopulate a different environment.
+  let releaseSearch!: () => void, searchSeen!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    releaseSearch = resolve;
+  });
+  const seen = new Promise<void>((resolve) => {
+    searchSeen = resolve;
+  });
+  await page.route("**" + root + "/diagnostics/search", async (route) => {
+    const response = await route.fetch();
+    searchSeen();
+    await gate;
+    await route.fulfill({ response }).catch(() => undefined);
+  });
+  await page.getByLabel("搜索词", { exact: true }).fill("FI_D4_SYNTHETIC");
+  await page.getByRole("button", { name: "搜索原文", exact: true }).click();
+  await seen;
+  await page.getByLabel("项目环境", { exact: true }).selectOption("prod");
+  await expect(page.getByLabel("搜索词", { exact: true })).toHaveValue("");
+  releaseSearch();
+  await page.unroute("**" + root + "/diagnostics/search");
+  await expect(page.getByRole("button", { name: /查看命中实例/ })).toHaveCount(0);
   await page.goto(stable);
   await expect(page.getByTestId("diagnostic-message")).toBeVisible();
   await request.put(grant, { headers, data: { read: false, export: false } });

@@ -343,6 +343,11 @@ export class RuntimeDiagnostics {
         };
       }
       await this.authorize(p, project, event, "diagnostics.read");
+      if (r && new Date(r.expires_at).getTime() <= Date.now()) {
+        state = "expired";
+        diagnostic = undefined;
+        storedEnvelopeJson = undefined;
+      }
       await this.audit(p.userId, project, event, "diagnostics.read", state);
       return {
         eventId: event,
@@ -436,6 +441,8 @@ export class RuntimeDiagnostics {
       if (Buffer.byteLength(body) > DIAGNOSTIC_QUERY_LIMITS.exportBytes)
         throw new DiagnosticQueryError("DIAGNOSTICS_EXPORT_BYTE_BUDGET");
       await this.authorize(p, project, event, "diagnostics.export");
+      if (evidence.expiresAt && Date.parse(evidence.expiresAt) <= Date.now())
+        throw new DiagnosticQueryError("DIAGNOSTICS_EXPIRED");
       await this.audit(p.userId, project, event, action, "success");
       return body;
     } catch (e) {

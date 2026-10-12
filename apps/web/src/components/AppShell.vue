@@ -127,12 +127,14 @@ watch(
 watch(
   () => [
     route.params.projectId,
+    route.name,
     route.query.from,
     route.query.to,
     route.query.range,
     route.query.env,
   ],
   () => {
+    if (route.name === "project-diagnostic-instance") return;
     if (!route.query.from && !route.query.to && range.value)
       void router.replace({
         query: {
@@ -198,7 +200,7 @@ watch(
     </aside>
     <div class="main-column">
       <header class="topbar">
-        <div class="toolbar-group">
+        <div v-if="route.name !== 'project-diagnostic-instance'" class="toolbar-group">
           <label
             >时间范围<select
               :value="preset"
@@ -240,7 +242,7 @@ watch(
           <button @click="logout">退出</button>
         </div>
       </header>
-      <div class="project-window">
+      <div v-if="route.name !== 'project-diagnostic-instance'" class="project-window">
         <p v-if="range">
           {{ range.localFrom }} — {{ range.localTo }}（结束不含） ·
           {{ range.granularity }} · {{ env }}

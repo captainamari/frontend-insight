@@ -10,7 +10,11 @@ it("D4 search authorization precedes input parsing and disallows arbitrary field
     .fn()
     .mockRejectedValue(new DiagnosticAccessError("DIAGNOSTICS_FORBIDDEN"));
   const c = new DiagnosticsController({
-    diagnostics: { authorize, search: vi.fn() },
+    diagnostics: {
+      authorize,
+      search: vi.fn(),
+      audit: vi.fn().mockResolvedValue(undefined),
+    },
   } as unknown as CoreService);
   await expect(c.search(project, p, { term: "SECRET" })).rejects.toMatchObject({
     status: 403,

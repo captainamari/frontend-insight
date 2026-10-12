@@ -64,6 +64,7 @@ describe("R5-B occurrence projection and pagination", () => {
     const next = { ...q, cursor: page.nextCursor! };
     for (const patch of [
       { env: "prod" },
+      { release: "v2" },
       { category: "api" },
       { pageRoute: "/other" },
       { mode: "latest" as const },
@@ -80,6 +81,29 @@ describe("R5-B occurrence projection and pagination", () => {
     ).toThrow("CURSOR");
     expect(() => readQualityCursor("p", next, secret, now + 3600001)).toThrow("CURSOR");
     expect(() => readQualityCursor("p", next, secret, now - 1)).toThrow("CURSOR");
+  });
+  it("keeps release-specific group counts and an explicit unknown bucket", () => {
+    const rows = [
+      { ...row("one"), release: "v1" },
+      { ...row("two"), release: "v2" },
+      row("unknown"),
+      { ...row("one"), release: "v1" },
+    ];
+    const page = qualityOccurrencePage(rows, "p", { ...q, release: "v1" }, secret, {
+      asOf: now,
+      after: null,
+    });
+    expect(page.totalOccurrences).toBe(1);
+    expect(page.items[0]!.context.release).toBe("v1");
+    const unknown = qualityOccurrencePage(
+      rows,
+      "p",
+      { ...q, release: "__unknown__" },
+      secret,
+      { asOf: now, after: null },
+    );
+    expect(unknown.totalOccurrences).toBe(1);
+    expect(unknown.items[0]!.context.release).toBeNull();
   });
   it("only projects safe context, never legacy raw content or identities", () => {
     const item = projectOccurrence({
