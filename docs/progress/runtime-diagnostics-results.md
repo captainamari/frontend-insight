@@ -586,3 +586,11 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 失败历史：清理后候选f92c2dac的[R1–R8 CI38223878892](https://github.com/captainamari/frontend-insight/actions/runs/38223878892)在R8阶段失败。刷新fixture缺少D4新增capabilities接口；M8把四类事件误写成至少四个HTTP包。已补fixture并改为精确断言两条错误+API+performance事实，保留原内容检查，未提高超时或删除事实断言。新候选需复验。
 
 新增正常/异常20eps×60秒、200eps×10秒负载工具`tools/d7-load.mjs`；不绕过20/page/min准入，采用固定多客户端，记录速率、持久化、查询与逻辑容量。压力和容量门禁尚无最终实测成功证据，不宣称生产容量。原D7全部七项仍未勾选，新增清理第八项不替代原范围。
+
+### D7 第二轮失败与修复
+
+候选`3e5099ea8f865208ed97080a20b2fe3e7c3f8f2f`的[Ubuntu22部署/恢复38226795396](https://github.com/captainamari/frontend-insight/actions/runs/38226795396)全部成功，包含关闭TLS入口的真实破坏恢复。该成功不覆盖后续SDK修复。
+
+[诊断38226795225](https://github.com/captainamari/frontend-insight/actions/runs/38226795225)在新acceptance fixture失败：筛选offline诊断时对没有diagnostic的普通page_view执行JSON.stringify后直接includes，产生TypeError。此前真实挂载Vue、原文入库/导出和15条离线队列保留已走到断言；仍不把局部步骤当整个场景成功。修复筛选条件，保留15条唯一事件、逐条原文入库及2ms门禁。[R1–R8回归38226795341](https://github.com/captainamari/frontend-insight/actions/runs/38226795341)发现刷新fixture还缺D4影响统计请求；补准确空响应，仍对未知接口抛错。本地实际Chromium通过六种时间窗刷新fixture，不冒充真实服务验证。
+
+本批又修复销毁期间网络失败：销毁后的队列容量为0，重试耗尽后清空并明确计入丢弃，不把原文积压保存在已销毁tracker中；正常关闭的既有best-effort发送路径继续保留。新增销毁/正在重试的资源边界单测。本地完整check现83文件639单测通过；基础gzip12,284/12,288、完整诊断24,973、带quality30,212 bytes，最终同SHA CI待重跑。

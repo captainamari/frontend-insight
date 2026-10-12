@@ -376,4 +376,15 @@ describe("D0 explicit diagnostic transport", () => {
     expect(tracker.getDiagnostics().queueSize).toBe(0);
     tracker.destroy();
   });
+  it("does not retain backlog in a destroyed tracker after an in-flight outage", async () => {
+    const { runtime, fetchMock } = createRuntime({ beacon: false });
+    const tracker = createTracker(config(runtime, "destroyed_offline_d7"));
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const pending = tracker.flush();
+    tracker.featureExposed("sales_dashboard");
+    tracker.destroy();
+    await pending;
+    expect(tracker.getDiagnostics().state).toBe("destroyed");
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+  });
 });

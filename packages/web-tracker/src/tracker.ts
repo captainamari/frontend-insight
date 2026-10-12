@@ -102,7 +102,7 @@ export class BrowserTracker implements Tracker {
   private readonly forms: FormCollector;
   private readonly workflows: WorkflowRuntime;
   private readonly registeredFeatures: ReadonlySet<string> | null;
-  private readonly queue: TrackerEvent[] = [];
+  private readonly eventQueue: TrackerEvent[] = [];
   private readonly activeLongViews = new Set<() => void>();
   private quality: QualityHooks | undefined;
   private errorCleanup?: (() => void) | undefined;
@@ -476,17 +476,17 @@ export class BrowserTracker implements Tracker {
     ) {
       return this.drop("EVENT_TOO_LARGE");
     }
-    if (this.queue.length >= this.config.maximumQueueSize) {
-      this.queue.shift();
+    if (this.eventQueue.length >= this.config.maximumQueueSize) {
+      this.eventQueue.shift();
       this.drop("QUEUE_OVERFLOW");
     }
     if (candidate.event === "page_leave" && candidate.payload.qualityVersion) {
       candidate.payload.qualityDropped = this.diagnostics.droppedEvents;
       candidate.payload.qualityFailed = this.diagnostics.failedBatches;
     }
-    this.queue.push(candidate);
-    this.diagnostics.queueSize = this.queue.length;
-    if (this.queue.length >= CONTRACT_LIMITS.maximumEventsPerBatch) {
+    this.eventQueue.push(candidate);
+    this.diagnostics.queueSize = this.eventQueue.length;
+    if (this.eventQueue.length >= CONTRACT_LIMITS.maximumEventsPerBatch) {
       void this.flush("normal");
     }
   }
@@ -925,20 +925,23 @@ export class BrowserTracker implements Tracker {
   }
 
   private nextBatch(): PendingBatch | null {
-    if (!this.queue.length) return null;
+    if (!this.eventQueue.length) return null;
     const events: TrackerEvent[] = [];
-    while (this.queue.length && events.length < CONTRACT_LIMITS.maximumEventsPerBatch) {
-      const event = this.queue[0]!;
+    while (
+      this.eventQueue.length &&
+      events.length < CONTRACT_LIMITS.maximumEventsPerBatch
+    ) {
+      const event = this.eventQueue[0]!;
       const candidate = this.makeBatch([...events, event]);
       if (byteLength(candidate) > CONTRACT_LIMITS.maximumBatchBytes) break;
-      events.push(this.queue.shift()!);
+      events.push(this.eventQueue.shift()!);
     }
     if (!events.length) {
-      this.queue.shift();
+      this.eventQueue.shift();
       this.drop("BATCH_SIZE_UNRESOLVABLE");
       return null;
     }
-    this.diagnostics.queueSize = this.queue.length;
+    this.diagnostics.queueSize = this.eventQueue.length;
     return { batch: this.makeBatch(events), attempts: 0 };
   }
 
@@ -995,9 +998,12 @@ export class BrowserTracker implements Tracker {
           this.diagnostics.failedBatches += 1;
           // Only transient exhaustion is retained. Permanent 4xx cannot retry forever.
           if (sent === undefined) {
-            this.queue.unshift(...pending.batch.events);
-            while (this.queue.length > this.config.maximumQueueSize) {
-              this.queue.pop();
+            this.eventQueue.unshift(...pending.batch.events);
+            while (
+              this.eventQueue.length >
+              (this.destroyed ? 0 : this.config.maximumQueueSize)
+            ) {
+              this.eventQueue.pop();
               this.drop("QUEUE_OVERFLOW");
             }
             break;
@@ -1010,7 +1016,7 @@ export class BrowserTracker implements Tracker {
       this.diagnostics.lastErrorCode = "FLUSH_FAILED";
     } finally {
       this.flushing = false;
-      this.diagnostics.queueSize = this.queue.length;
+      this.diagnostics.queueSize = this.eventQueue.length;
     }
   }
 
@@ -1074,7 +1080,7 @@ export class BrowserTracker implements Tracker {
   getDiagnostics(): Readonly<TrackerDiagnostics> {
     return Object.freeze({
       ...this.diagnostics,
-      queueSize: this.queue.length,
+      queueSize: this.eventQueue.length,
       warnings: [...this.diagnostics.warnings],
     });
   }

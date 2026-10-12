@@ -102,7 +102,7 @@ test("D7 mounted Vue event → raw SDK → services → export; offline bounded 
   const queued = [
     ...new Map(
       wire
-        .filter((e) => JSON.stringify(e.diagnostic).includes("offline"))
+        .filter((e) => e.diagnostic && JSON.stringify(e.diagnostic).includes("offline"))
         .map((e) => [e.eventId, e]),
     ).values(),
   ];
