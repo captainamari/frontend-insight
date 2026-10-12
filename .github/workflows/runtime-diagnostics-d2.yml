@@ -41,7 +41,7 @@ jobs:
       - name: Real role matrix, rate limits, retries, TTL and partial write recovery
         run: ./scripts/dev verify-d0
       - name: Real SDK transport in Chromium and WebKit
-        run: pnpm exec playwright test -c playwright.diagnostics.config.ts
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
       - name: Inherited quality and denominator regressions
         run: |
           pnpm test:r5a:e2e

@@ -49,19 +49,19 @@ jobs:
         run: bash tools/production-ci tls
       - run: pnpm exec playwright install --with-deps chromium webkit
       - name: Production HTTPS browser SDK collector storage and settings
-        run: pnpm exec playwright test -c playwright.production.config.ts
+        run: pnpm exec playwright test -c tests/config/playwright.production.config.ts
       - name: Recreate production containers with retained volumes
         run: bash tools/production-ci restart
       - name: Verify retained login and event data in both browsers
         env:
           FI_PRODUCTION_PHASE: retained
-        run: pnpm exec playwright test -c playwright.production.config.ts
+        run: pnpm exec playwright test -c tests/config/playwright.production.config.ts
       - name: Backup and restore populated durable schema in isolated CI
         run: bash tools/production-ci restore-drill
       - name: Verify restored accounts projects policies and events in both browsers
         env:
           FI_PRODUCTION_PHASE: restored
-        run: pnpm exec playwright test -c playwright.production.config.ts
+        run: pnpm exec playwright test -c tests/config/playwright.production.config.ts
       - name: Verify exact commit evidence
         run: bash tools/production-ci evidence
       - uses: actions/upload-artifact@v4

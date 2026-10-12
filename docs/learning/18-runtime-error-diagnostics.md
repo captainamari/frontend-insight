@@ -37,7 +37,7 @@
 ```bash
 pnpm exec vitest run packages/web-tracker/test/errors.test.ts packages/server-core/test/error-stack.test.ts
 pnpm check
-pnpm exec playwright test -c playwright.diagnostics.config.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
 ```
 
 真实服务前置见 D1 指南。专项 CI 继承 D0 迁移、六身份、故障、TTL、日志/DLQ与 R5-A/B 真实分母回归。测试 fixture 路由只提供 SDK/合成业务场景，后端 ingestion/Kafka/consumer/数据库/API/管理页面为真实服务。
@@ -59,7 +59,7 @@ D2 已新增 console 实现（最终验证状态以 results 为准）。接入�
 
 排错时依次看：接入是否启用 → scope 是否冲突 → 配置级别/页面/窗口 → 实际 records/预算说明 → 信封采集状态 → 存储状态 → 当前访问权限 → UI 过滤条件。不要把“debug 没有显示”直接解释为采集故障。
 
-验证：`pnpm exec vitest run packages/web-tracker/test/console.test.ts`；真实链路 `pnpm exec playwright test -c playwright.diagnostics.config.ts`。D0 真实权限/TTL/故障 fixture 也含 console 原文，继承的负向检查不删除。性能数据是同步局部测量，D3 请求关联、D5 SourceMap、D7 完整发布验收仍需分别实施。
+验证：`pnpm exec vitest run packages/web-tracker/test/console.test.ts`；真实链路 `pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`。D0 真实权限/TTL/故障 fixture 也含 console 原文，继承的负向检查不删除。性能数据是同步局部测量，D3 请求关联、D5 SourceMap、D7 完整发布验收仍需分别实施。
 
 ## D3：请求证据与显式关联
 

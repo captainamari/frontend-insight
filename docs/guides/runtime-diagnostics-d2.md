@@ -102,7 +102,7 @@ M5_ALLOW_NON_ARM64=1 ./scripts/dev bootstrap
 ./scripts/dev up
 ./scripts/dev smoke
 pnpm exec playwright install chromium webkit
-pnpm exec playwright test -c playwright.diagnostics.config.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
 # 以下有故障注入，仅可在可丢弃测试环境执行：
 ./scripts/dev verify-d0-upgrade
 ./scripts/dev verify-d0

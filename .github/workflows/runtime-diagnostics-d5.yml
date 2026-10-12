@@ -41,13 +41,13 @@ jobs:
       - name: Real role matrix, rate limits, retries, TTL and partial write recovery
         run: ./scripts/dev verify-d0
       - name: D5 deployed sourcemaps and CLI in Chromium and WebKit
-        run: pnpm exec playwright test -c playwright.diagnostics.config.ts sourcemaps.spec.ts --max-failures=1
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts --max-failures=1
       - name: D5 persistence, lifecycle and actual backup restoration
         run: node tools/d5-storage-verify.mjs
       - name: D4 troubleshooting in Chromium and WebKit
-        run: pnpm exec playwright test -c playwright.diagnostics.config.ts troubleshooting.spec.ts --max-failures=1
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts troubleshooting.spec.ts --max-failures=1
       - name: Inherited SDK transport in Chromium and WebKit
-        run: pnpm exec playwright test -c playwright.diagnostics.config.ts console.spec.ts errors.spec.ts requests.spec.ts transport.spec.ts --max-failures=1
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts console.spec.ts errors.spec.ts requests.spec.ts transport.spec.ts --max-failures=1
       - name: Inherited quality and denominator regressions
         run: |
           pnpm test:r5a:e2e

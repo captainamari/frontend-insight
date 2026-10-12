@@ -32,7 +32,7 @@ D0 已实现并通过真实 CI，等待用户评审/合并；不代表整条诊�
 
 - `./scripts/dev verify-d0-upgrade`：独立数据库 MySQL 7→8→9、ClickHouse 4→5，保存 sentinel 和旧 checksum，重复迁移不再应用。
 - `./scripts/dev verify-d0`：真实 ingestion/Kafka/consumer/数据库/API、角色矩阵、重试、冲突、限流、旧 v3、TTL、详情表临时不可用恢复及 DLQ。**仅用于可丢弃的测试堆栈**，会临时重命名诊断表，不能在生产运行。
-- `pnpm exec playwright test -c playwright.diagnostics.config.ts`：Chromium/WebKit SDK 原文、beforeSend、拆批、授权读取一致性。
+- `pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`：Chromium/WebKit SDK 原文、beforeSend、拆批、授权读取一致性。
 - `node tools/d0-log-check.mjs`：只输出成功元数据，检查服务日志没有合成标记。
 - `.github/workflows/runtime-diagnostics-d0.yml`：静态/全量单测/构建、上述验证及继承 R5-A/B 浏览器回归。
 
@@ -430,7 +430,7 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 
 本轮此前三次失败及具体修复保留在上方检查点，未删除断言、放宽权限或降低门禁。完整CI已完成，无剩余工程阻塞；下一步是按[D4指南](../guides/runtime-diagnostics-d4.md#可执行手工验收)由用户验收/评审Draft PR。最短路径：部署实验室“D3请求503→异常” → 管理端dev/近7天刷新 → 错误组/实例 → 搜索 `FI_D3_SYNTHETIC` → 诊断上下文 → 稳定链接与JSON/文本下载 → 分别撤销export/read验证。
 
-之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
+之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
 
 ## D5 开发过程检查点（历史，最终状态见下方交付证据）
 
@@ -488,7 +488,7 @@ D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手�
 
 实际构建JS SHA256：`ca6626e62201bbba4c5bd91990ec06062aebda98a7712e0e810797af2be6222e`；map SHA256：`46f5c7da19ef89efd654435288ac077aac0cdbfebb712cc04a86e84141bb3952`。浏览器列差异来自各自抛错位置，编译函数名差异来自V8的function.name与WebKit的压缩绑定名；源码函数名仅取map的names，不猜测。未提供名称的throw位置仍明确为null；第8行第12列具名调用段为renderSourceMapScenario。
 
-[完整CLI、部署顺序、迁移/回滚、保留/容量及手工验收](../guides/runtime-diagnostics-d5.md)。最快自动化复验：隔离bootstrap/up/smoke后，运行`pnpm exec playwright test -c playwright.diagnostics.config.ts sourcemaps.spec.ts`和`node tools/d5-storage-verify.mjs`。人工入口为部署demo的`/observability?acceptance=fast`，点击场景按钮后从管理端dev/近7天/release=d5-lab-v1打开诊断详情或eventId稳定链接；期望同时看到编译栈和上述源码位置。
+[完整CLI、部署顺序、迁移/回滚、保留/容量及手工验收](../guides/runtime-diagnostics-d5.md)。最快自动化复验：隔离bootstrap/up/smoke后，运行`pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts`和`node tools/d5-storage-verify.mjs`。人工入口为部署demo的`/observability?acceptance=fast`，点击场景按钮后从管理端dev/近7天/release=d5-lab-v1打开诊断详情或eventId稳定链接；期望同时看到编译栈和上述源码位置。
 
 ### 边界与可恢复交接
 
