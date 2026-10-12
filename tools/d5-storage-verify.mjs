@@ -118,7 +118,12 @@ async function main() {
   ]);
   const tables = ["raw_events", "diagnostic_details", "repeated_operation_proofs"];
   const snapshots = Object.fromEntries(
-    tables.map((t) => [t, ch(`SELECT * FROM ${t} FORMAT Native`)]),
+    tables.map((t) => [
+      t,
+      ch(
+        `SELECT * FROM ${t}${t === "diagnostic_details" ? " FINAL" : ""} FORMAT Native`,
+      ),
+    ]),
   );
   archive("backup");
   phase = "destructive-proof";
@@ -135,6 +140,8 @@ async function main() {
     "find /var/lib/frontend-insight/sourcemaps -type f -delete",
   ]);
   sql("DELETE FROM diagnostic_sourcemaps");
+  sql("DELETE FROM diagnostic_upload_credentials");
+  sql("DELETE FROM diagnostic_grants");
   ch("TRUNCATE TABLE diagnostic_details");
   run(["up", "--detach", "--no-build", "--wait", "api"]);
   assert.equal((await detail()).state, "unavailable");
@@ -150,6 +157,36 @@ async function main() {
   archive("restore");
   run(["up", "--detach", "--no-build", "--wait", "api", "consumer"]);
   await mapped();
+  assert.equal(
+    sql(
+      `SELECT revoked FROM diagnostic_upload_credentials WHERE id='${proof.revokedCredentialId}'`,
+    ),
+    "1",
+  );
+  assert.equal(
+    sql(
+      `SELECT COUNT(*) FROM project_members WHERE project_id='${proof.projectId}' AND user_id='${proof.removedMemberId}'`,
+    ),
+    "0",
+  );
+  const viewer = await (
+    await fetch("http://127.0.0.1:3000/api/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "viewer@example.invalid",
+        password: "LocalViewer-1234",
+      }),
+    })
+  ).json();
+  assert.equal(
+    (
+      await fetch(root + `/diagnostics/instances/${proof.eventId}`, {
+        headers: { authorization: `Bearer ${viewer.accessToken}` },
+      })
+    ).status,
+    403,
+  );
   phase = "missing-corrupt";
   const file = "/var/lib/frontend-insight/sourcemaps/" + proof.artifactId + ".map";
   const saved = run(["exec", "-T", "api", "cat", file]);
@@ -223,6 +260,21 @@ async function main() {
     "removed",
   );
   assert.equal((await send()).status, 201);
+  phase = "project-capacity";
+  const retainedBytes = sql(
+    `SELECT byte_size FROM diagnostic_sourcemaps WHERE id='${failedId}'`,
+  );
+  sql(`UPDATE diagnostic_sourcemaps SET byte_size=104857600 WHERE id='${failedId}'`);
+  uploadBody.build = "over-project-budget";
+  try {
+    const rejected = await send();
+    assert.equal(rejected.status, 422);
+    assert((await rejected.text()).includes("SOURCEMAP_PROJECT_BUDGET"));
+  } finally {
+    sql(
+      `UPDATE diagnostic_sourcemaps SET byte_size=${Number(retainedBytes)} WHERE id='${failedId}'`,
+    );
+  }
   // Simulate interrupted .tmp and pre-transaction crash orphans; real cleaner reclaims both.
   const orphan = "0".repeat(64) + ".map",
     temporary = "1".repeat(64) + ".map.11111111-1111-4111-8111-111111111111.tmp";
@@ -329,6 +381,7 @@ async function main() {
       metadataWriteFailureRecovery: true,
       interruptedOrphanCleanup: true,
       expiry: true,
+      projectCapacity: true,
       credentialExpiry: true,
       mapSha256: digest,
     }),

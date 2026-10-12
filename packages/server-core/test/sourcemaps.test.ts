@@ -114,6 +114,7 @@ describe("D5 bounded parsing and exact assets", () => {
       "https://u:pw@x/a",
       "https://x/../a",
       "https://x/%2e%2e/a",
+      "https://x/.%2e/a",
       "https://x/a\\b",
     ])
       expect(() => canonicalAsset(s)).toThrow();
@@ -216,6 +217,36 @@ it("rechecks deletion and authorization after async mapping without cached sourc
     expect(
       (await service.map(p, project, "evt_testcase", raw, "v1")).frames[0]?.state,
     ).toBe("mapped");
+    const childWithoutStack = await service.map(
+      p,
+      project,
+      "evt_testcase",
+      {
+        ...raw,
+        error: { ...raw.error, cause: { message: "no stack" } },
+      },
+      "v1",
+    );
+    expect(childWithoutStack.state).toBe("partial");
+    expect(childWithoutStack.stacks[1]).toMatchObject({
+      errorPath: "error.cause",
+      state: "unavailable",
+      parsedFrames: 0,
+    });
+    const tooManyFrames = await service.map(
+      p,
+      project,
+      "evt_testcase",
+      {
+        ...raw,
+        error: {
+          stack: Array.from({ length: 33 }, () => ` at f (${url}:1:1)`).join("\n"),
+        },
+      },
+      "v1",
+    );
+    expect(tooManyFrames.state).toBe("frame_budget");
+    expect(tooManyFrames.frames).toHaveLength(32);
     deleted = true;
     reads = 0;
     const after = await service.map(p, project, "evt_testcase", raw, "v1");
@@ -227,6 +258,36 @@ it("rechecks deletion and authorization after async mapping without cached sourc
     await expect(service.map(p, project, "evt_testcase", raw, "v1")).rejects.toThrow(
       "DIAGNOSTICS_FORBIDDEN",
     );
+    authorizations = 0;
+    await expect(service.download(p, project, id)).rejects.toThrow(
+      "DIAGNOSTICS_FORBIDDEN",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+it("continues orphan cleanup beyond one directory batch", async () => {
+  const { SourceMaps } = await import("../src/sourcemaps.js");
+  const { mkdtemp, writeFile, utimes, readdir, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const dir = await mkdtemp(tmpdir() + "/fi-cleanup-");
+  const db = { pool: { query: async () => [[]], execute: async () => [[]] } };
+  const service = new SourceMaps(
+    db as unknown as MySqlStore,
+    {} as RuntimeDiagnostics,
+    dir,
+  );
+  try {
+    for (let i = 0; i < 1001; i++) {
+      const path = dir + "/" + i.toString(16).padStart(64, "0") + ".map";
+      await writeFile(path, "synthetic orphan");
+      await utimes(path, new Date(0), new Date(0));
+    }
+    await service.cleanup();
+    expect((await readdir(dir)).length).toBe(1);
+    await service.cleanup();
+    expect(await readdir(dir)).toEqual([]);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

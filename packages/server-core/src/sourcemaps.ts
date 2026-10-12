@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, open, rename, unlink, readdir, lstat } from "node:fs/promises";
+import { mkdir, open, rename, unlink, opendir, lstat } from "node:fs/promises";
 import { constants } from "node:fs";
 import { resolve } from "node:path";
 import type { RowDataPacket } from "mysql2/promise";
@@ -68,6 +68,8 @@ export class SourceMaps {
   readonly root: string;
   private activeUploads = 0;
   private cleanupCursor = "";
+  private cleanupActive = false;
+  private cleanupDirectory: Awaited<ReturnType<typeof opendir>> | undefined;
   constructor(
     private readonly mysql: MySqlStore,
     private readonly diagnostics: RuntimeDiagnostics,
@@ -362,6 +364,7 @@ export class SourceMaps {
     try {
       await c.beginTransaction();
       await c.query("SELECT id FROM projects WHERE id=? FOR UPDATE", [project]);
+      await this.diagnostics.manage(p, project, id);
       await c.execute(
         "UPDATE diagnostic_sourcemaps SET state='deleted' WHERE project_id=? AND id=?",
         [project, id],
@@ -418,13 +421,17 @@ export class SourceMaps {
         }
       | undefined;
     const collect = (error: unknown, path: string, depth: number) => {
-      if (!error || typeof error !== "object" || depth > 4) return;
+      if (!error || typeof error !== "object") return;
+      if (depth > 4) {
+        result.state = "error_budget";
+        return;
+      }
       if (result.stacks.length >= 32) {
         result.state = "error_budget";
         return;
       }
       const e = error as Record<string, unknown>;
-      const stack = parseErrorStack(e.stack);
+      const stack = parseErrorStack(e.stack, L.frames + 1);
       result.stacks.push({
         errorPath: path,
         state: stack.state,
@@ -564,6 +571,15 @@ export class SourceMaps {
     return result;
   }
   async cleanup() {
+    if (this.cleanupActive) return { state: "busy" };
+    this.cleanupActive = true;
+    try {
+      return await this.cleanupInternal();
+    } finally {
+      this.cleanupActive = false;
+    }
+  }
+  private async cleanupInternal() {
     await mkdir(this.root, { recursive: true, mode: 0o700 });
     await this.mysql.pool.execute(
       "UPDATE diagnostic_sourcemaps SET state='expired' WHERE state='ready' AND expires_at<=NOW(3)",
@@ -575,13 +591,24 @@ export class SourceMaps {
     this.cleanupCursor = rows.length === 1000 ? rows[rows.length - 1]!.id : "";
     for (const r of rows) await unlink(this.path(r.id)).catch(() => {});
     // Crash orphan files are bounded by project quotas and reclaimed after one hour.
-    let seen = 0;
-    for (const name of await readdir(this.root)) {
-      if (++seen > 10000) break;
+    // Preserve a streaming directory cursor across maintenance ticks: directories
+    // larger than one batch must not permanently starve later orphan files.
+    this.cleanupDirectory ??= await opendir(this.root);
+    for (let seen = 0; seen < 1000; seen++) {
+      const entry = await this.cleanupDirectory.read();
+      if (!entry) {
+        await this.cleanupDirectory.close();
+        this.cleanupDirectory = undefined;
+        break;
+      }
+      const name = entry.name;
       if (!/^[a-f0-9]{64}\.map(?:\.[a-f0-9-]{36}\.tmp)?$/.test(name)) continue;
-      const path = resolve(this.root, name),
-        stat = await lstat(path);
-      if (Date.now() - stat.mtimeMs < 3600000) continue;
+      const path = resolve(this.root, name);
+      const stat = await lstat(path).catch((e: NodeJS.ErrnoException) => {
+        if (e.code === "ENOENT") return undefined;
+        throw e;
+      });
+      if (!stat || Date.now() - stat.mtimeMs < 3600000) continue;
       const [r] = await this.mysql.pool.query<RowDataPacket[]>(
         "SELECT id FROM diagnostic_sourcemaps WHERE id=?",
         [name.slice(0, 64)],

@@ -55,7 +55,7 @@ node tools/sourcemaps.mjs delete --api https://insight.example.invalid --project
 node tools/sourcemaps.mjs revoke --api https://insight.example.invalid --project "$PROJECT_ID" --id "$CREDENTIAL_ID"
 ```
 
-上传成功输出`id/assetSha256/mapSha256/bytes/state/idempotent`；失败退出非0。网络/429/502/503/504最多尝试3次，每次15秒超时，短暂退避；409不盲目重试。单次只上传一个JS/map对，不递归遍历或处理压缩包。一个发布有多个文件时由流水线逐个调用，任一失败阻止发布。
+上传成功输出`id/assetSha256/mapSha256/bytes/state/idempotent`；失败退出非0。上传的网络/429/502/503/504最多尝试3次，每次15秒超时，短暂退避；409不盲目重试。签发不自动重试，先保留0600目标文件；输入/IO异常只输出固定错误码，避免原生JSON错误夹带凭证内容。单次只上传一个JS/map对，不递归遍历或处理压缩包。一个发布有多个文件时由流水线逐个调用，任一失败阻止发布。
 
 相应接口均在`/api/projects/:projectId/diagnostics/sourcemaps`：POST `/credentials`、DELETE `/credentials/:id`、POST `/upload`、GET根路径、DELETE `/:id`、POST `/:id/download`。管理操作要求当前有效admin；整map下载要求项目成员read+export（admin沿既有权限）。普通read可查看有界片段，但不能下载整份map。全路径private/no-store；审计只有操作者/上传凭证ID、项目、制品ID、行为、格式/结果，不写正文。
 
@@ -104,7 +104,7 @@ const tracker = createTracker({
 | 源码输出   | 每帧前后2行、JSON4KiB，整体64KiB；超限明确状态                            |
 | 导出       | D4单实例JSON/text总512KiB，包含全部派生信息                               |
 
-状态包括identity_missing、version_mismatch、asset_mismatch、checksum_mismatch、ambiguous_asset、not_found、unsupported_format、parse_failed、mapping_not_found、no_sources_content、unmappable_frame、upload_budget、project_budget、parse_budget、frame_budget、output_budget、busy、expired、deleted、storage_missing、storage_corrupt、storage_unavailable、forbidden。整体success/partial/failed/no_frames与逐帧状态分别显示，加载由现有pending状态呈现。不存在不能伪装成解析成功或空源码。
+状态包括identity_missing、version_mismatch、asset_mismatch、checksum_mismatch、ambiguous_asset、not_found、unsupported_format、parse_failed、mapping_not_found、no_sources_content、unmappable_frame、upload_budget、project_budget、parse_budget、frame_budget、error_budget、output_budget、busy、expired、deleted、storage_missing、storage_corrupt、storage_unavailable、forbidden。整体success/partial/failed/no_frames与逐帧状态分别显示，加载由现有pending状态呈现。不存在不能伪装成解析成功或空源码。
 
 ## 5. 持久化、维护与恢复
 
@@ -112,11 +112,11 @@ MySQL增量`010_diagnostic_sourcemaps.sql`新增元数据和凭证；不修改�
 
 上传临时文件使用wx+fsync、原子rename后提交元数据。失败尽量清理本次未提交文件；进程中断遗留临时/孤儿文件在超过1小时后清理。文件缺失或损坏只影响诊断定位，不影响基本事实；相同上传可修复缺失文件，损坏文件拒绝静默覆盖，应从备份恢复。删除先提交墓碑再unlink；unlink失败后访问仍拒绝。
 
-API启动及每5分钟执行受限清理；重复执行幂等。处理过期/删除文件、1小时以上孤儿和临时文件、到期后90天墓碑及过期凭证；失败下次重试。没有派生映射缓存，删除/到期每次读均查当前元数据。维护不能通过公共采集凭证调用。
+API启动及每5分钟执行受限清理；重复执行幂等。处理过期/删除文件、1小时以上孤儿和临时文件、到期后90天墓碑及过期凭证；失败下次重试；每批最多1000条元数据/1000个目录条目，保留续扫游标，不会长期只扫描目录头部。没有派生映射缓存，删除/到期每次读均查当前元数据。维护不能通过公共采集凭证调用。
 
 生产既有`./scripts/production backup NAME` / `restore NAME --confirm-replace-data`增加私有map归档、diagnostic_details与MySQL中的凭证/权限，使用同一停写窗口与校验和。备份本身含敏感原文，沿用0700目录/0600文件，不能上传普通CI artifact。新恢复要求D5完整归档；旧备份不可凭空恢复缺失源码资料。恢复旧凭证状态可能撤回备份之后的撤销记录，维护者应在恢复后、开放上传前核对并重新撤销/轮换受影响凭证。
 
-隔离恢复测试`node tools/d5-storage-verify.mjs`只操作固定的frontend-insight-m5栈：浏览器先产出合成事件，重启API仍可映射；备份文件/元数据/权限/原始信封，实际删除后观察详情不可用，再恢复并断言第4行第9列与片段；另测缺失、损坏、凭证到期和清理。共享生产源码归档函数，备份不作为CI artifact。执行结果必须查看results，不能因脚本存在就声称成功。
+隔离恢复测试`node tools/d5-storage-verify.mjs`只操作固定的frontend-insight-m5栈：浏览器先产出合成事件，重启API仍可映射；备份文件/元数据/权限/原始信封，实际删除后观察详情不可用，再恢复并断言第4行第9列与片段；另测缺失、损坏、凭证到期、项目容量、元数据写入失败及临时/孤儿文件清理；恢复后核对凭证撤销与成员移除仍生效。共享生产源码归档函数，备份不作为CI artifact。执行结果必须查看results，不能因脚本存在就声称成功。
 
 ## 6. 发布、手工验收与回滚
 
@@ -146,7 +146,7 @@ node tools/d5-storage-verify.mjs
 
 1. 演示`http://127.0.0.1:4174/observability?acceptance=fast`模拟登录，点击“D5 压缩源码异常”；默认发到既有演示项目。若为独立测试项目，可附`&d5AppId=<该项目appId>`，并把map上传到同一项目。
 2. 管理端登录，选dev/近7天，刷新并筛选release=`d5-lab-v1`；打开实例或场景显示的eventId稳定链接。
-3. 原始编译栈仍指向`/d5/fixture.js:1:…`；源码定位应指向自有`examples/sourcemaps/源码场景.ts`第4行第9列，片段含`throw new TypeError(label);`；调用帧定位第7行。文件名可能按构建map显示URI编码。
+3. 原始编译栈仍指向`/d5/fixture.js:1:…`；源码定位应指向自有`examples/sourcemaps/源码场景.ts`第4行（Chromium第9列、WebKit第13列），片段含`throw new TypeError(label);`；调用帧定位第8行第12列（具名调用段renderSourceMapScenario）。文件名可能按构建map显示URI编码。
 4. 部分应用框架帧未上传应明确asset_mismatch，不能把整体标成全部成功。查看制品身份，核对CLI返回的两个checksum。
 5. 复制源码定位/下载JSON与文本，核对派生标识与原始编译栈；read-only成员不能下载map，撤read/移除成员后已打开页面清空且后续请求拒绝。
 6. 使用CLI重复上传幂等；换内容但保留身份409。删除制品后详情仍有编译栈，源码状态deleted；不能使用旧下载地址取回文件。

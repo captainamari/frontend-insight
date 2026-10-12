@@ -4,5 +4,9 @@ export function renderSourceMapScenario(): never {
   throw new TypeError(label);
 }
 export function runSourceMapScenario(): never {
-  return renderSourceMapScenario();
+  try {
+    return renderSourceMapScenario();
+  } finally {
+    Math.random(); // 保留真实调用帧，避免 WebKit 尾调用消除。
+  }
 }

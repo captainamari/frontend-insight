@@ -9,7 +9,7 @@ export interface StackFrame {
   async: boolean;
 }
 /** Compiled stack only. No fetching arbitrary URLs or source-map inference. */
-export function parseErrorStack(stack: unknown) {
+export function parseErrorStack(stack: unknown, maxFrames = 32) {
   if (typeof stack !== "string" || !stack)
     return { state: "unavailable", frames: [] as StackFrame[], unparsed: 0 };
   const frames: StackFrame[] = [];
@@ -58,7 +58,7 @@ export function parseErrorStack(stack: unknown) {
       eval: isEval,
       async,
     });
-    if (frames.length >= 32) break;
+    if (frames.length >= maxFrames) break;
   }
   return {
     state: frames.length ? (unparsed ? "partial" : "parsed") : "parse_failed",

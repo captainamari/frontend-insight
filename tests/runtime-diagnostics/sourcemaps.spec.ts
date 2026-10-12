@@ -112,11 +112,16 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
   expect(mapped.snippet.map((s: { text: string }) => s.text).join("\n")).toContain(
     "throw new TypeError(label);",
   );
-  expect(
-    detail.sourceMapping.frames.some(
-      (f: { original?: { line: number } }) => f.original?.line === 7,
-    ),
-  ).toBe(true);
+  const caller = detail.sourceMapping.frames.find(
+    (f: { original?: { line: number } }) => f.original?.line === 8,
+  );
+  expect(caller.original).toMatchObject({
+    line: 8,
+    column: 12,
+    function: "renderSourceMapScenario",
+  });
+  expect(mapped.original.function).toBeNull(); // esbuild has no name at the constructor location
+  expect(mapped.compiled.function).toContain("renderSourceMapScenario");
   expect(detail.view.error.stack).toContain("/d5/fixture.js:1:");
   expect(detail.sourceMapping.state).toBe("partial"); // caller Vue/bundle frames absent from upload manifest
   const list = await request.get(sm, { headers });
@@ -428,6 +433,8 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
       projectId: project.id,
       eventId: event.eventId,
       artifactId: uploaded.id,
+      revokedCredentialId: credential.id,
+      removedMemberId: viewer.user.userId,
       assetSha256: uploaded.assetSha256,
       mapSha256: uploaded.mapSha256,
       location: mapped.original,

@@ -72,7 +72,7 @@ export function canonicalAsset(input: string, base?: string): string {
   if (
     input.length > 2048 ||
     [...input].some((c) => c.charCodeAt(0) <= 32 || c === "\\") ||
-    /(?:^|\/)(?:\.{1,2}|%2e(?:%2e)?)(?:\/|$)/i.test(input)
+    /(?:^|\/)(?:\.|%2e){1,2}(?:\/|$)/i.test(input)
   )
     throw new SourceMapError("invalid_asset");
   let url: URL;
