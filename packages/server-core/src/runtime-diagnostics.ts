@@ -186,10 +186,12 @@ export class RuntimeDiagnostics {
   async admit(project: string, events: FrontendInsightEventV3[], now: number) {
     const c = await this.mysql.pool.getConnection();
     try {
-      await c.beginTransaction();
+      // Initialize in autocommit: INSERT IGNORE takes a shared duplicate-key lock.
+      // Holding it while upgrading to FOR UPDATE deadlocks concurrent admissions.
       await c.execute("INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)", [
         project,
       ]);
+      await c.beginTransaction();
       const [policies] = await c.query<RowDataPacket[]>(
         "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
         [project],

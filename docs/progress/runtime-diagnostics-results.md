@@ -610,3 +610,9 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 [诊断38230212586](https://github.com/captainamari/frontend-insight/actions/runs/38230212586)的MySQL恢复验证对原始传输副本数量预期错误：两次成功POST保留两份MergeTree传输记录，既定产品事实查询按eventId去重（与D0一致）。改为同时要求两份传输副本、一个唯一eventId和页面totalOccurrences=1，增加产品层断言，不把物理行数冒充逻辑事实。负载工具等待基础事件与ready收据同时就绪，保持5分钟门禁。
 
 复核资源边界发现本地maximumQueueSize负值可能使新增积压裁剪循环无法终止，NaN可能失去界限；已将本地容量安全归一化到1–100整数，并增加负值、NaN、0、分数和Infinity的网络失败场景。只有SDK私有trackerConfig/emitCustom额外压缩，公共字段未改。最终包体与浏览器门禁仍以最新候选为准。
+
+### D7 修复检查点：140f3629 压测失败
+
+- 代码 `140f3629071d0ea5f2fbb4db1550a1ece69080e5` 的 Ubuntu22 工作流 [38234109987](https://github.com/captainamari/frontend-insight/actions/runs/38234109987) 成功，下载证据包校验一致，5份JSON均为该SHA。
+- 诊断工作流 [38234109765](https://github.com/captainamari/frontend-insight/actions/runs/38234109765) 中原MySQL恢复去重失败已修复；双浏览器链路与实际恢复通过，负载阶段失败。普通20eps接收p95=13.98ms；普通200eps=168.78ms，超100ms门禁；异常负载首轮返回503。未宣称诊断工程验收通过。
+- 准入事务中INSERT IGNORE重复行的共享锁再升级FOR UPDATE存在并发死锁风险；改为事务前自动提交初始化，事务内仍锁定策略并原子计入限额，增加8路同eventId并发重试回归。压测追加低基数拒绝码及已有服务端分阶段数字耗时，继续定位性能；不增加预算，不减少负载。

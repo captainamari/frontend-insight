@@ -184,12 +184,26 @@ try {
           signal: AbortSignal.timeout(30000),
         });
         samples.push(performance.now() - start);
+        const response = await r.json();
+        if (r.status !== 202) {
+          const known = [
+            "DIAGNOSTICS_ADMISSION_UNAVAILABLE",
+            "KAFKA_UNAVAILABLE",
+            "PROBE_POLICY_UNAVAILABLE",
+            "RATE_LIMITED",
+          ];
+          report.rejectedRequest = {
+            status: r.status,
+            code: known.includes(response.code) ? response.code : "OTHER",
+          };
+        }
         assert.equal(r.status, 202);
-        assert.equal((await r.json()).acceptedEvents, events.length);
+        assert.equal(response.acceptedEvents, events.length);
       };
       // Three warm-up batches use separate pages and are excluded from measured count.
       for (let i = 0; i < 3; i++)
         await send([{ ...event(-i - 1), pageViewId: "pv_warm_" + prefix + "_" + i }]);
+      const priorSequence = (await json("/api/system/metrics")).ingestion.requests;
       samples.length = 0;
       sizes.length = 0;
       ids.length = 0;
@@ -309,7 +323,15 @@ try {
           timings[name] = { samples: 20, warmups: 3, p95Ms: p95(durations) };
         }
       }
+      const metrics = (await json("/api/system/metrics")).ingestion;
+      const stages = metrics.recentTimings.filter((t) => t.sequence > priorSequence);
+      const stageP95Ms = Object.fromEntries(
+        Object.keys(stages[0] ?? {})
+          .filter((key) => key.endsWith("Ms"))
+          .map((key) => [key, p95(stages.map((t) => t[key]))]),
+      );
       const measurement = {
+        stageP95Ms,
         kind,
         targetEventsPerSecond: eps,
         seconds,

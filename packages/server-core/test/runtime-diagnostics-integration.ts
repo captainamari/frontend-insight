@@ -373,6 +373,10 @@ try {
   );
   // Retried IDs do not consume more admission capacity or overwrite evidence.
   for (let i = 0; i < 3; i++) await call("/v1/events", "", "POST", b, 202);
+  // Concurrent duplicate admission must neither deadlock nor spend the page budget.
+  await Promise.all(
+    Array.from({ length: 8 }, () => call("/v1/events", "", "POST", b, 202)),
+  );
   const changed = structuredClone(b);
   changed.events[0]!.diagnostic!.raw = { message: "different" };
   await call("/v1/events", "", "POST", changed, 409);
