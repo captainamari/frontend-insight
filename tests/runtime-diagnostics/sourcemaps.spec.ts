@@ -152,6 +152,42 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
       })
     ).status(),
   ).toBe(422);
+  for (const invalidMap of [
+    "not-json",
+    JSON.stringify({
+      version: 3,
+      sections: [{ url: "http://never.invalid/remote.map" }],
+    }),
+  ]) {
+    const content = Buffer.from(invalidMap);
+    expect(
+      (
+        await request.post(sm + "/upload", {
+          headers: uh,
+          data: {
+            ...uploadBody,
+            build: "invalid",
+            map: content.toString("base64"),
+            mapSha256: hash(content),
+          },
+        })
+      ).status(),
+    ).toBe(422);
+  }
+  const oversized = Buffer.alloc(1048577, 32);
+  expect(
+    (
+      await request.post(sm + "/upload", {
+        headers: uh,
+        data: {
+          ...uploadBody,
+          build: "large",
+          javascript: oversized.toString("base64"),
+          assetSha256: hash(oversized),
+        },
+      })
+    ).status(),
+  ).toBe(422);
   const viewer = await login("viewer@example.invalid", "LocalViewer-1234"),
     vh = { authorization: `Bearer ${viewer.accessToken}` };
   for (const h of [
@@ -292,6 +328,13 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
     expect(v.sourceMapping.frames[0].state).toBe(state);
     expect(v.view.error.stack).toBe(detail.view.error.stack);
   }
+  const missing = await variant((e) => {
+    const r = rawOf(e),
+      error = r.error as { stack: string };
+    error.stack = error.stack.replaceAll("/d5/fixture.js", "/d5/not-uploaded.js");
+    identityOf(e).assets[0]!.url = "/d5/not-uploaded.js";
+  });
+  expect(missing.sourceMapping.frames[0].state).toBe("not_found");
   const child = await variant((e) => {
     const r = rawOf(e);
     r.error = {

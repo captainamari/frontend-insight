@@ -85,7 +85,32 @@ async function main() {
     );
   } else if (command === "revoke")
     console.log(JSON.stringify(await request("/credentials/" + options.id, "DELETE")));
-  else if (command === "list") console.log(JSON.stringify(await request("", "GET")));
+  else if (command === "list")
+    console.log(
+      JSON.stringify(
+        (await request("", "GET")).map(
+          ({
+            id,
+            release,
+            build,
+            assetSha256,
+            mapSha256,
+            bytes,
+            state,
+            expiresAt,
+          }) => ({
+            id,
+            release,
+            build,
+            assetSha256,
+            mapSha256,
+            bytes,
+            state,
+            expiresAt,
+          }),
+        ),
+      ),
+    );
   else if (command === "delete")
     console.log(JSON.stringify(await request("/" + options.id, "DELETE")));
   else if (upload) {

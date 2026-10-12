@@ -61,6 +61,7 @@ const archive = (command) =>
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
+let phase = "setup";
 async function main() {
   const proof = JSON.parse(readFileSync("artifacts/d5-chromium.json", "utf8"));
   const root = `http://127.0.0.1:3000/api/projects/${proof.projectId}`;
@@ -99,12 +100,14 @@ async function main() {
     return d;
   };
   await mapped();
+  phase = "restart";
   run(["restart", "api"]);
   run(["up", "--detach", "--no-build", "--wait", "api"]);
   await mapped();
   // Coherent snapshot after completed browser receipts: stop writers; save MySQL,
   // source files, raw facts and original diagnostic envelopes, including grants/revocations.
   run(["stop", "api", "consumer"]);
+  phase = "backup";
   const mysql = run([
     "exec",
     "-T",
@@ -118,6 +121,7 @@ async function main() {
     tables.map((t) => [t, ch(`SELECT * FROM ${t} FORMAT Native`)]),
   );
   archive("backup");
+  phase = "destructive-proof";
   // Destructively remove file + metadata + raw detail, prove restore is necessary.
   run([
     "run",
@@ -146,6 +150,7 @@ async function main() {
   archive("restore");
   run(["up", "--detach", "--no-build", "--wait", "api", "consumer"]);
   await mapped();
+  phase = "missing-corrupt";
   const file = "/var/lib/frontend-insight/sourcemaps/" + proof.artifactId + ".map";
   const saved = run(["exec", "-T", "api", "cat", file]);
   run(["exec", "-T", "api", "rm", file]);
@@ -157,6 +162,7 @@ async function main() {
   assert.equal((await detail()).sourceMapping.frames[0].state, "storage_corrupt");
   run(["exec", "-T", "api", "sh", "-c", 'cat > "$1"', "--", file], saved);
   await mapped();
+  phase = "credential-expiry";
   const cred = await (
     await fetch(root + "/diagnostics/sourcemaps/credentials", {
       method: "POST",
@@ -177,6 +183,7 @@ async function main() {
     ).status,
     403,
   );
+  phase = "retention-cleanup";
   sql(
     `UPDATE diagnostic_sourcemaps SET expires_at=DATE_SUB(NOW(),INTERVAL 1 SECOND) WHERE id='${proof.artifactId}'`,
   );
@@ -207,6 +214,7 @@ async function main() {
     ]).toString(),
     "removed",
   );
+  phase = "final-restore";
   // Restore the consistent snapshot a second time, including credential revocation.
   run(["stop", "api", "consumer"]);
   run(
@@ -237,9 +245,9 @@ async function main() {
   console.log("D5_STORAGE_RESTORE_PASSED");
 }
 main()
-  .catch(() => {
+  .catch((error) => {
     console.error(
-      "D5_STORAGE_RESTORE_FAILED (services may remain stopped; isolated stack only)",
+      `D5_STORAGE_RESTORE_FAILED phase=${phase} type=${error.name} code=${error.code ?? error.status ?? "unknown"} (isolated stack only)`,
     );
     process.exitCode = 1;
   })

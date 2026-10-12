@@ -1,3 +1,6 @@
+import type { MySqlStore } from "../src/mysql-store.js";
+import type { RuntimeDiagnostics } from "../src/runtime-diagnostics.js";
+import type { Principal } from "../src/model.js";
 import { describe, it, expect } from "vitest";
 import {
   canonicalAsset,
@@ -192,14 +195,14 @@ it("rechecks deletion and authorization after async mapping without cached sourc
     audit: async () => {},
   };
   const service = new SourceMaps(
-    db as unknown as import("../src/mysql-store.js").MySqlStore,
-    access as unknown as import("../src/runtime-diagnostics.js").RuntimeDiagnostics,
+    db as unknown as MySqlStore,
+    access as unknown as RuntimeDiagnostics,
     dir,
   );
   const p = {
     userId: "test",
     globalRole: "viewer",
-  } as import("../src/model.js").Principal;
+  } as Principal;
   const raw = {
     error: { stack: `Error: synthetic\n at f (${url}:1:1)` },
     sourceMap: {
