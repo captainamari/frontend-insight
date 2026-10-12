@@ -104,7 +104,7 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
     (f: { original?: { line: number } }) => f.original?.line === 4,
   );
   expect(mapped.original).toMatchObject({
-    file: "../../examples/sourcemaps/源码场景.ts",
+    file: "../../examples/sourcemaps/%E6%BA%90%E7%A0%81%E5%9C%BA%E6%99%AF.ts",
     line: 4,
     column: 9,
   });
@@ -264,7 +264,7 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
       },
     ],
     [
-      "not_found",
+      "version_mismatch",
       (e: Record<string, unknown>) => {
         identityOf(e).build = "wrong-build";
       },

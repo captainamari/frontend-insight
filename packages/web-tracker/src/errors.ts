@@ -276,3 +276,44 @@ export function createReactErrorHandler(
     return previous?.apply(this, args);
   };
 }
+
+export interface SourceMapIdentity {
+  release: string;
+  build: string;
+  baseUrl?: string;
+  assets: { url: string; sha256: string }[];
+}
+/** Optional errors entry, never part of the base bundle. Compose before capture;
+ * beforeSend deliberately forbids changes to diagnostic evidence. */
+export function withSourceMapIdentity(
+  extractor: ErrorExtractor,
+  identity: SourceMapIdentity,
+): ErrorExtractor {
+  const snapshot = structuredClone(identity);
+  if (
+    !/^[A-Za-z0-9_.-]{1,64}$/.test(snapshot.release) ||
+    !/^[A-Za-z0-9_.-]{1,64}$/.test(snapshot.build) ||
+    snapshot.assets.length > 16 ||
+    snapshot.assets.some(
+      (a) => a.url.length > 2048 || !/^[a-f0-9]{64}$/.test(a.sha256),
+    ) ||
+    bytes(JSON.stringify(snapshot)) > 8192
+  )
+    throw new Error("SOURCEMAP_IDENTITY_INVALID");
+  const wrapped: ErrorExtractor = function (
+    this: object | void,
+    value,
+    source,
+    occurrence,
+  ) {
+    const result = extractor.call(this, value, source, occurrence);
+    if (
+      result &&
+      !["rate_limited", "too_large", "unavailable"].includes(result.diagnostic.status)
+    )
+      result.diagnostic.raw.sourceMap = structuredClone(snapshot);
+    return result;
+  };
+  if (extractor.start) wrapped.start = (...args) => extractor.start!(...args);
+  return wrapped;
+}

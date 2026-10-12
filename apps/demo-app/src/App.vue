@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   createErrorDiagnostics,
+  withSourceMapIdentity,
   installVueErrorHandler,
   createReactErrorHandler,
 } from "@frontend-insight/web-tracker/errors";
@@ -199,21 +200,13 @@ async function sourceMapScene() {
       env: "dev",
       release: manifest.release,
       endpoint: location.origin + "/v1/events",
-      errorDiagnostics: createErrorDiagnostics(),
+      errorDiagnostics: withSourceMapIdentity(createErrorDiagnostics(), {
+        ...manifest,
+        baseUrl: location.origin + "/",
+      }),
       beforeSend: ({ event }) => {
-        if (event.diagnostic) {
-          event = {
-            ...event,
-            diagnostic: {
-              ...event.diagnostic,
-              raw: {
-                ...event.diagnostic.raw,
-                sourceMap: { ...manifest, baseUrl: location.origin + "/" },
-              },
-            },
-          };
+        if (event.diagnostic)
           sourceMapStatus.value = `D5 已发送实例 ${event.eventId}；release ${manifest.release}；请在质量页查看源码定位`;
-        }
         return event;
       },
     });

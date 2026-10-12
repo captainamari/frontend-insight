@@ -121,7 +121,7 @@ D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有
 ## D5 实施决定（2026-10-12，验证进行中）
 
 - 使用 `@jridgewell/trace-mapping@0.3.31`，核对[官方说明](https://github.com/jridgewell/trace-mapping)：内部行从1/列从0；浏览器编译栈和UI行列均从1。仅支持普通v3 encoded mappings；indexed/sections明确拒绝。独立worker，1.5秒/64MiB old+8MiB young/2MiB stack，最多2个，不抓取任何远端或磁盘源码。
-- 通过构建清单在既有beforeSend为诊断raw增加可选sourceMap身份；不改变基础SDK，不伪造历史build/checksum。绝对HTTP(S)资源URL保留origin/path/query、去fragment；相对资源必须给baseUrl，不剥CDN前缀、不按basename猜测。Map sources/sourceRoot只是输出标识，不作为读取路径。
+- 通过构建清单在可选errors入口withSourceMapIdentity为诊断raw增加可选sourceMap身份（beforeSend保持不可改写证据）；不改变基础SDK，不伪造历史build/checksum。绝对HTTP(S)资源URL保留origin/path/query、去fragment；相对资源必须给baseUrl，不剥CDN前缀、不按basename猜测。Map sources/sourceRoot只是输出标识，不作为读取路径。
 - 项目/release/build/规范URL唯一绑定JS与map各自SHA256；上传同时传JS/map实际字节，服务端分别校验，JS不持久化。幂等不延长保留期，同身份内容冲突拒绝；删除/到期不可复活，应创建新build。制品元数据按管理权限，整map下载需read+export。
 - 独立上传凭证仅存SHA256，有效1–30天、限定项目和上传；当前签发管理员账户必须仍有效。CLI凭证只从环境或0600文件读取，不在URL/参数或标准输出打印明文。所有读取/导出复用当前项目权限，无派生缓存；文件状态在异步解析后复核。
 - 单请求一对文件，JS1MiB/map2MiB，HTTP体4,500,000 bytes只放宽上传路由；每项目200个身份/100MiB账面容量（含90天墓碑），保留1–90天。最大32帧、每帧源码片段4KiB/前后2行、总映射输出64KiB；继承单实例导出512KiB。解析10万segments/2048sources/1万names/1MiB mappings。

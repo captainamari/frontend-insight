@@ -40,6 +40,7 @@ export async function parseSourceMap(
     return await new Promise<ParsedMap>((resolve) => {
       const worker = new Worker(new URL("./sourcemap-worker.mjs", import.meta.url), {
         workerData: { map, frames },
+        execArgv: [],
         resourceLimits: {
           maxOldGenerationSizeMb: 64,
           maxYoungGenerationSizeMb: 8,

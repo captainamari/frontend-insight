@@ -60,6 +60,8 @@ export interface SourceMapping {
 }
 export class SourceMaps {
   readonly root: string;
+  private activeUploads = 0;
+  private cleanupCursor = "";
   constructor(
     private readonly mysql: MySqlStore,
     private readonly diagnostics: RuntimeDiagnostics,
@@ -156,6 +158,15 @@ export class SourceMaps {
     return String(rows[0].id);
   }
   async upload(token: string, project: string, input: SourceMapUpload) {
+    if (this.activeUploads >= 2) throw new SourceMapError("busy");
+    this.activeUploads++;
+    try {
+      return await this.uploadInternal(token, project, input);
+    } finally {
+      this.activeUploads--;
+    }
+  }
+  private async uploadInternal(token: string, project: string, input: SourceMapUpload) {
     const credential = await this.uploadCredential(token, project);
     let id = "upload";
     try {
@@ -190,12 +201,13 @@ export class SourceMaps {
       await mkdir(this.root, { recursive: true, mode: 0o700 });
       const c = await this.mysql.pool.getConnection();
       let temporary: string | undefined;
+      let installedNewFile = false;
       try {
         await c.beginTransaction();
         await c.query("SELECT id FROM projects WHERE id=? FOR UPDATE", [project]);
         // serialize project quota/identity decisions; check credential again after parsing.
         const [liveCredential] = await c.query<RowDataPacket[]>(
-          "SELECT id FROM diagnostic_upload_credentials WHERE id=? AND project_id=? AND revoked=FALSE AND expires_at>NOW(3) FOR UPDATE",
+          "SELECT c.id FROM diagnostic_upload_credentials c JOIN users u ON u.id=c.created_by JOIN projects p ON p.id=c.project_id WHERE c.id=? AND c.project_id=? AND c.revoked=FALSE AND c.expires_at>NOW(3) AND u.status='active' AND u.global_role='admin' AND p.status='active' FOR UPDATE",
           [credential, project],
         );
         if (!liveCredential.length)
@@ -238,6 +250,7 @@ export class SourceMaps {
         }
         await rename(temporary, this.path(id));
         temporary = undefined;
+        installedNewFile = !existing;
         if (!existing)
           await c.execute(
             "INSERT INTO diagnostic_sourcemaps(id,project_id,release_id,build_id,asset,asset_sha256,map_sha256,byte_size,expires_at) VALUES(?,?,?,?,?,?,?,?,?)",
@@ -268,6 +281,12 @@ export class SourceMaps {
           idempotent: Boolean(existing),
         };
       } catch (e) {
+        // Before releasing the project lock, remove a new file whose metadata
+        // transaction failed. Committed ambiguous outcomes are checked below.
+        if (installedNewFile) {
+          const committed = await this.rows(project, id).catch(() => undefined);
+          if (!committed) await unlink(this.path(id)).catch(() => {});
+        }
         await c.rollback();
         throw e;
       } finally {
@@ -436,7 +455,15 @@ export class SourceMaps {
         const id = sha256(
           JSON.stringify([project, identity.release, identity.build, asset]),
         );
-        const row = this.valid(await this.rows(project, id));
+        const candidate = await this.rows(project, id);
+        if (!candidate) {
+          const [otherVersions] = await this.mysql.pool.query<RowDataPacket[]>(
+            "SELECT id FROM diagnostic_sourcemaps WHERE project_id=? AND asset=? LIMIT 1",
+            [project, asset],
+          );
+          if (otherVersions.length) throw new SourceMapError("version_mismatch");
+        }
+        const row = this.valid(candidate);
         if (row.asset_sha256 !== matches[0]!.sha256) {
           frame.state = "checksum_mismatch";
           continue;
@@ -491,6 +518,7 @@ export class SourceMaps {
       });
       result.artifacts = [];
       result.state = "output_budget";
+      if (Buffer.byteLength(JSON.stringify(result)) > L.outputBytes) result.frames = [];
     }
     await this.diagnostics.authorize(p, project, event, "diagnostics.read");
     await this.diagnostics.audit(
@@ -508,10 +536,12 @@ export class SourceMaps {
       "UPDATE diagnostic_sourcemaps SET state='expired' WHERE state='ready' AND expires_at<=NOW(3)",
     );
     const [rows] = await this.mysql.pool.query<Artifact[]>(
-      "SELECT * FROM diagnostic_sourcemaps WHERE state<>'ready' LIMIT 1000",
+      "SELECT * FROM diagnostic_sourcemaps WHERE state<>'ready' AND id>? ORDER BY id LIMIT 1000",
+      [this.cleanupCursor],
     );
+    this.cleanupCursor = rows.length === 1000 ? rows[rows.length - 1]!.id : "";
     for (const r of rows) await unlink(this.path(r.id)).catch(() => {});
-    // Crash orphan files are bounded by upload quotas/rate and reclaimed after one hour.
+    // Crash orphan files are bounded by project quotas and reclaimed after one hour.
     let seen = 0;
     for (const name of await readdir(this.root)) {
       if (++seen > 10000) break;

@@ -283,3 +283,25 @@ describe("D1 shared collection and lifecycle", () => {
     expect(capture).toHaveBeenCalledWith(e, "react");
   });
 });
+
+it("D5 composes immutable build identity without allowing beforeSend evidence changes", async () => {
+  const { withSourceMapIdentity, createErrorDiagnostics } =
+    await import("../src/errors.js");
+  const identity = {
+    release: "v1",
+    build: "b1",
+    assets: [{ url: "https://cdn.invalid/a.js", sha256: "a".repeat(64) }],
+  };
+  const extract = withSourceMapIdentity(createErrorDiagnostics(), identity);
+  identity.assets[0]!.sha256 = "b".repeat(64);
+  const result = extract(new Error("synthetic"), "explicit")!;
+  expect((result.diagnostic.raw.sourceMap as typeof identity).assets[0]!.sha256).toBe(
+    "a".repeat(64),
+  );
+  expect(() =>
+    withSourceMapIdentity(createErrorDiagnostics(), {
+      ...identity,
+      assets: Array.from({ length: 17 }, () => identity.assets[0]!),
+    }),
+  ).toThrow("SOURCEMAP_IDENTITY_INVALID");
+});

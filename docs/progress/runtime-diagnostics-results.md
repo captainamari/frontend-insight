@@ -445,3 +445,7 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 | 压缩构建与双浏览器       | esbuild 自有固定源码，部署实验室按钮，Chromium/WebKit 专项          | 测试已编写，未冒充真实通过                             |
 
 检查点命令：`pnpm check`；基础SDK12,273/12,288 bytes。首轮曾因把额外身份预算放进共享SDK路径导致12,298超限；已移除该冗余检查，身份由生成schema与原有64KiB信封限制，不上调门禁。恢复脚本 `node tools/d5-storage-verify.mjs` 只允许固定隔离Compose项目。下一步：读取D5 Actions失败步骤、修复并完成最终同代码验证；补齐中文操作指南/ADR/计划和最终证据。没有代填手工验收，D6/D7未实施。
+
+### D5 首轮真实CI失败与修复
+
+`3cfcab2acdda62f380786012823f6822b5a08267` / [38196097052](https://github.com/captainamari/frontend-insight/actions/runs/38196097052)：check、真实服务、增量升级、D0角色/TTL/故障重试通过；D5 Chromium未观察到错误信封而失败。根因是实验室尝试在beforeSend附加身份，而既有SDK明确禁止beforeSend改写诊断，事件被正确拒绝。修复为可选errors入口`withSourceMapIdentity`在采集阶段冻结身份，转发原提取器生命周期；不放宽beforeSend保护、不改基础包。另核实esbuild源码路径采用URI编码，保持固定4:9断言。下一次完整CI必须覆盖此修复及实际恢复，首轮不作为通过证据。

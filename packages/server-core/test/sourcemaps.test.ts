@@ -116,3 +116,115 @@ describe("D5 bounded parsing and exact assets", () => {
       expect(() => canonicalAsset(s)).toThrow();
   });
 });
+
+it("does not request remote sources/sourceRoot and enforces worker concurrency", async () => {
+  const { createServer } = await import("node:http");
+  let requests = 0;
+  const server = createServer((_req, res) => {
+    requests++;
+    res.end("MUST_NOT_READ");
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const port = (server.address() as { port: number }).port;
+  try {
+    const remote = JSON.stringify({
+      version: 3,
+      sourceRoot: `http://127.0.0.1:${port}/`,
+      sources: ["private-source.js"],
+      names: [],
+      mappings: "AAAA",
+    });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => parseSourceMap(remote, [{ line: 1, column: 1 }])),
+    );
+    expect(results.some((r) => r.state === "busy")).toBe(true);
+    expect(
+      results
+        .filter((r) => r.state === "ready")
+        .every((r) => r.frames[0]?.state === "no_sources_content"),
+    ).toBe(true);
+    expect(requests).toBe(0);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((e) => (e ? reject(e) : resolve())),
+    );
+  }
+});
+
+it("rechecks deletion and authorization after async mapping without cached source", async () => {
+  const { SourceMaps, sha256 } = await import("../src/sourcemaps.js");
+  const { DiagnosticAccessError } = await import("../src/runtime-diagnostics.js");
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const dir = await mkdtemp(tmpdir() + "/fi-source-");
+  const project = "11111111-1111-4111-8111-111111111111",
+    url = "https://cdn.invalid/a.js";
+  const id = sha256(JSON.stringify([project, "v1", "b1", url]));
+  const row = {
+    id,
+    project_id: project,
+    release_id: "v1",
+    build_id: "b1",
+    asset: url,
+    asset_sha256: "a".repeat(64),
+    map_sha256: sha256(map),
+    byte_size: map.length,
+    state: "ready",
+    expires_at: new Date(Date.now() + 60000),
+  };
+  let reads = 0,
+    authorizations = 0,
+    revoke = false,
+    deleted = false;
+  const db = {
+    pool: {
+      query: async () => {
+        reads++;
+        return [[{ ...row, state: deleted && reads >= 3 ? "deleted" : "ready" }]];
+      },
+    },
+  };
+  const access = {
+    authorize: async () => {
+      if (revoke && ++authorizations > 1)
+        throw new DiagnosticAccessError("DIAGNOSTICS_FORBIDDEN");
+    },
+    audit: async () => {},
+  };
+  const service = new SourceMaps(
+    db as unknown as import("../src/mysql-store.js").MySqlStore,
+    access as unknown as import("../src/runtime-diagnostics.js").RuntimeDiagnostics,
+    dir,
+  );
+  const p = {
+    userId: "test",
+    globalRole: "viewer",
+  } as import("../src/model.js").Principal;
+  const raw = {
+    error: { stack: `Error: synthetic\n at f (${url}:1:1)` },
+    sourceMap: {
+      release: "v1",
+      build: "b1",
+      assets: [{ url, sha256: "a".repeat(64) }],
+    },
+  };
+  try {
+    await writeFile(dir + "/" + id + ".map", map);
+    expect(
+      (await service.map(p, project, "evt_testcase", raw, "v1")).frames[0]?.state,
+    ).toBe("mapped");
+    deleted = true;
+    reads = 0;
+    const after = await service.map(p, project, "evt_testcase", raw, "v1");
+    expect(after.frames[0]?.state).toBe("deleted");
+    expect(after.frames[0]?.snippet).toBeUndefined();
+    deleted = false;
+    revoke = true;
+    authorizations = 0;
+    await expect(service.map(p, project, "evt_testcase", raw, "v1")).rejects.toThrow(
+      "DIAGNOSTICS_FORBIDDEN",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
