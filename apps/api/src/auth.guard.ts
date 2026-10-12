@@ -35,7 +35,11 @@ export class AuthGuard implements CanActivate {
           null,
           diagnosticPath[1]!,
           diagnosticPath[2] ?? "authentication",
-          "diagnostics.read",
+          request.url.includes("/export")
+            ? "diagnostics.export"
+            : request.url.includes("/search")
+              ? "diagnostics.search"
+              : "diagnostics.read",
           "unauthenticated",
         );
     };

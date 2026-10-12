@@ -368,3 +368,19 @@ D3实现与自动化交付完成，待用户手工验收/评审。上面的逐�
 - 无数据库迁移；先发布新API/consumer/UI，再发布配套SDK。旧raw.request预算按JSON UTF-8计量收紧，边界重报可能被拒，详见[D3指南](../guides/runtime-diagnostics-d3.md)。回滚先关新SDK、排空新信封，再回滚服务。
 - 可执行手工步骤和默认配置见[D3指南](../guides/runtime-diagnostics-d3.md#可执行验收)：实验室 `/observability?acceptance=fast` → “D3 请求503→异常” → 管理端dev/当前范围 → 错误实例授权详情，检查具体错误/前置console/失败请求原文/显式operation关联，随后过滤、复制、撤权。此处提供步骤，**未代填用户人工验收通过**。
 - D3合并后再核实最新origin/refactor，从已合并基线开始D4“排障产品流程与协作”。D4全文搜索/导出/稳定实例链接、D5 SourceMap、D6完整策略UI、D7全量验收仍未完成；不因D3解除R6/R7业务授权和个人行为分析边界。
+
+## D4 开发检查点（2026-10-12，未交付）
+
+基线 `d9e9e0d6174bc9df90eb299827ac7b651f77fa78`：已核实 D3 #32 合并，含代码 `857b5c0a221b59c03e9558e5212774b4b1b46624` 与仅文档 `e9801961a1601bcfd6a1e01971f54e319c35719b`。继承的成功 CI 为 38125100719，不当成 D4 证据。分支 `agent/runtime-diagnostics-d4-troubleshooting`，不改旧 D3 工作区未提交内容。
+
+| D4 原任务 | 当前实现位置与缺口 | 验证 |
+| --- | --- | --- |
+| 组→实例→统一详情与有界搜索 | PageQualityView、DiagnosticSearch、diagnostic-search、diagnostics.controller；补 release 和 POST 原文搜索 | 单元匹配/分页/预算已运行，真实服务待验证 |
+| 解析失败原文与诊断上下文 | 复用 DiagnosticDetail；入口与现行测试/指南文案统一 | 继承 D1，D4 浏览器补不可解析栈 |
+| 链接、复制、导出、版本影响 | 稳定路由、即时授权 StreamableFile、DiagnosticImpact、groupStats | 实际下载/跨标签/登录恢复待 CI |
+| 只读运营与授权 viewer | 服务端当前账户/成员/read/export 再检查，页面能力提示 | 专项角色与撤权待 CI |
+| 键盘、文本、环境刷新、缓存撤权 | generation/AbortController、blob URL 销毁、继承窗口刷新 | Chromium/WebKit 新流程待 CI |
+
+本地 78 文件 / 606 单测通过，工作区/合同/规范名及类型检查通过。首次 lint 指出受限存储异常没有 cause；该处为避免原文存储异常进入普通日志，保留稳定错误码并添加明确说明。尚无 D4 成功 CI，五项不能勾选完成。
+
+下一步：完善实际服务权限/过期/审计覆盖，运行 `pnpm check`，推送后检查 `Runtime diagnostics D4` 每个步骤；修复具体失败，再完成指南、results、decisions 和计划状态。无数据库迁移、SDK改动或门禁上调，D5–D7 未实施。

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import DiagnosticSearch from "../components/DiagnosticSearch.vue";
+import DiagnosticImpact from "../components/DiagnosticImpact.vue";
 import DiagnosticDetail from "../components/DiagnosticDetail.vue";
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import { useRoute, useRouter, type LocationQueryRaw } from "vue-router";
@@ -52,6 +54,7 @@ const route = useRoute(),
 const data = ref<Response | null>(null),
   loading = ref(false),
   error = ref("");
+const selectedEventId = ref<string | null>(null);
 const selected = ref<Occurrence | null>(null),
   open = ref(false),
   pathSearch = ref("");
@@ -85,6 +88,7 @@ const signature = computed(() =>
       "category",
       "mode",
       "groupId",
+      "release",
       "cursor",
     ].map((k) => route.query[k]),
   ]),
@@ -92,9 +96,17 @@ const signature = computed(() =>
 const filterScope = computed(() =>
   JSON.stringify([
     route.params.projectId,
-    ...["env", "range", "from", "to", "pageRoute", "category", "mode", "groupId"].map(
-      (k) => route.query[k],
-    ),
+    ...[
+      "env",
+      "range",
+      "from",
+      "to",
+      "pageRoute",
+      "category",
+      "mode",
+      "groupId",
+      "release",
+    ].map((k) => route.query[k]),
   ]),
 );
 let generation = 0,
@@ -106,6 +118,7 @@ async function load() {
   data.value = null;
   open.value = false;
   selected.value = null;
+  selectedEventId.value = null;
   loading.value = true;
   error.value = "";
   const q = new URLSearchParams();
@@ -118,6 +131,7 @@ async function load() {
     "category",
     "mode",
     "groupId",
+    "release",
     "cursor",
   ])
     if (typeof route.query[key] === "string") q.set(key, String(route.query[key]));
@@ -192,8 +206,39 @@ function change(key: string, value?: string) {
 }
 function detail(item: Occurrence) {
   selected.value = item;
+  selectedEventId.value = item.eventId;
   open.value = true;
 }
+function detailEvent(event: string) {
+  selected.value = null;
+  selectedEventId.value = event;
+  open.value = true;
+}
+const searchScope = computed(() => {
+  const resolved = resolveProjectCalendar(
+    {
+      range: CANONICAL_RANGES.find((r) => r.key === route.query.range)?.key ?? "7d",
+      env:
+        route.query.env === "dev" || route.query.env === "staging"
+          ? route.query.env
+          : "prod",
+      ...(typeof route.query.from === "string" ? { from: route.query.from } : {}),
+      ...(typeof route.query.to === "string" ? { to: route.query.to } : {}),
+    },
+    projects.find(String(route.params.projectId))?.timezone ?? "UTC",
+  );
+  return {
+    projectId: String(route.params.projectId),
+    env: resolved.env,
+    from: resolved.from,
+    to: resolved.to,
+    ...Object.fromEntries(
+      ["release", "category", "groupId", "pageRoute"]
+        .filter((k) => typeof route.query[k] === "string")
+        .map((k) => [k, String(route.query[k])]),
+    ),
+  };
+});
 function time(value: string | null) {
   return value
     ? new Intl.DateTimeFormat("zh-CN", {
@@ -235,7 +280,7 @@ watch(filterScope, () => {
   if (route.query.cursor)
     void router.replace({ query: { ...route.query, cursor: undefined } });
 });
-watch(signature, load, { immediate: true });
+watch(signature, load, { immediate: true, flush: "sync" });
 onBeforeUnmount(() => {
   ++generation;
   controller?.abort();
@@ -245,7 +290,9 @@ onBeforeUnmount(() => {
   <section class="panel page-quality" aria-labelledby="quality-title">
     <h1 id="quality-title">页面分析</h1>
 
-    <p>按页面、时间和错误类别定位问题。时间使用项目时区；上方可选择自定义日期。</p>
+    <p>
+      按页面、环境、时间、版本和错误类别定位问题；筛选先作用于实例，再汇总错误组。时间使用项目时区；上方可选择自定义日期。
+    </p>
     <div class="quality-filters">
       <label
         >查找路径<input v-model="pathSearch" type="search" placeholder="输入部分路径"
@@ -270,6 +317,14 @@ onBeforeUnmount(() => {
         </select></label
       >
       <label
+        >Release 精确筛选<input
+          aria-label="Release 精确筛选"
+          :value="route.query.release ?? ''"
+          maxlength="64"
+          placeholder="留空为全部；__unknown__ 为未知"
+          @change="change('release', ($event.target as HTMLInputElement).value)"
+      /></label>
+      <label
         >实例范围<select
           aria-label="实例范围"
           :value="route.query.mode ?? 'latest'"
@@ -284,6 +339,12 @@ onBeforeUnmount(() => {
       </button>
       <button type="button" :disabled="loading" @click="refresh">刷新</button>
     </div>
+    <DiagnosticSearch v-bind="searchScope" @select="detailEvent" />
+    <DiagnosticImpact
+      v-if="route.query.groupId"
+      v-bind="searchScope"
+      :group-id="String(route.query.groupId)"
+    />
     <p v-if="loading" role="status">正在读取错误实例…</p>
     <div v-if="error" role="alert">
       <p>{{ error }}</p>
@@ -317,7 +378,7 @@ onBeforeUnmount(() => {
               <th>路径</th>
               <th>时间</th>
               <th>堆栈信息</th>
-              <th>复现条件</th>
+              <th>诊断上下文</th>
               <th>类别</th>
               <th>Release</th>
             </tr>
@@ -338,15 +399,17 @@ onBeforeUnmount(() => {
               <td>{{ item.pageRoute }}</td>
               <td>{{ time(item.timestamp) }}</td>
               <td>
-                <code>{{ item.stackFrames.join("\n") || "未采集安全堆栈" }}</code>
+                <code>{{
+                  item.stackFrames.join("\n") || "摘要无栈帧；原文请打开诊断上下文"
+                }}</code>
               </td>
               <td>
                 <button
                   type="button"
-                  :aria-label="'打开复现条件 ' + item.occurrenceId.slice(0, 8)"
+                  :aria-label="'打开诊断上下文 ' + item.occurrenceId.slice(0, 8)"
                   @click="detail(item)"
                 >
-                  复现条件
+                  诊断上下文
                 </button>
               </td>
               <td>{{ item.category }}</td>
@@ -380,14 +443,14 @@ onBeforeUnmount(() => {
       :close-on-press-escape="true"
       destroy-on-close
     >
+      <p v-if="selected">{{ time(selected.timestamp) }} · {{ selected.category }}</p>
+      <DiagnosticDetail
+        v-if="open"
+        :key="String(route.params.projectId) + selectedEventId"
+        :project-id="String(route.params.projectId)"
+        :event-id="selectedEventId"
+      />
       <template v-if="selected">
-        <p>{{ time(selected.timestamp) }} · {{ selected.category }}</p>
-        <DiagnosticDetail
-          v-if="open"
-          :key="String(route.params.projectId) + selected.occurrenceId"
-          :project-id="String(route.params.projectId)"
-          :event-id="selected.eventId"
-        />
         <dl class="quality-context">
           <template v-for="(label, key) in contextLabels" :key="key"
             ><dt>{{ label }}</dt>
@@ -403,7 +466,9 @@ onBeforeUnmount(() => {
           </li>
         </ol>
         <p v-else>未采集安全操作记录。</p>
-        <p>上下文只展示已采集的安全字段。工作流步骤尚未关联时保持未采集。</p>
+        <p>
+          以上为基础事件摘要；诊断原文在授权详情中展示。缺少明确关联证据时不能推断工作流或因果。
+        </p>
       </template>
     </ElDrawer>
   </section>

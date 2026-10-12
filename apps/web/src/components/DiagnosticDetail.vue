@@ -4,6 +4,11 @@ import RequestTimeline from "./RequestTimeline.vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
+  occurrence?: {
+    timestamp: string;
+    category: string;
+    context: { env: string; release: string | null };
+  };
   state: string;
   expiresAt: string | null;
   legacy?: boolean;
@@ -68,6 +73,7 @@ const visibleLogs = computed(() =>
   ),
 );
 const labels: Record<string, string> = {
+  not_found: "此项目中实例不存在，或基础事实已超过保留期。",
   ready: "诊断详情已就绪",
   complete: "采集完整",
   parsed: "编译栈已解析",
@@ -87,6 +93,8 @@ const labels: Record<string, string> = {
 const result = ref<Detail | null>(null),
   status = ref("pending"),
   copied = ref("");
+const canExport = ref(false);
+let downloadUrl: string | undefined;
 let generation = 0,
   abort: AbortController | undefined,
   timer: ReturnType<typeof setTimeout> | undefined;
@@ -112,6 +120,9 @@ function clear() {
   abort?.abort();
   clearTimeout(timer);
   result.value = null;
+  canExport.value = false;
+  if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+  downloadUrl = undefined;
   copied.value = "";
 }
 async function load() {
@@ -132,9 +143,11 @@ async function load() {
     result.value = value;
     status.value = value.state;
     // Renew access without rebuilding expanded content; never cache across scope changes.
+    void capabilities(id);
     if (value.view) timer = setTimeout(() => void renew(id), 1000);
     else if (["pending", "write_failed"].includes(value.state))
       timer = setTimeout(() => void load(), 3000);
+    return id;
   } catch (e) {
     if (id !== generation) return;
     result.value = null;
@@ -150,7 +163,7 @@ async function renew(id: number) {
     return;
   }
   try {
-    const access = await api.request<{ read: boolean }>(
+    const access = await api.request<{ read: boolean; export: boolean }>(
       `/api/projects/${encodeURIComponent(props.projectId)}/diagnostics/capabilities`,
       { cache: "no-store", ...(abort ? { signal: abort.signal } : {}) },
     );
@@ -160,6 +173,7 @@ async function renew(id: number) {
       status.value = "forbidden";
       return;
     }
+    canExport.value = access.export;
     timer = setTimeout(() => void renew(id), 1000);
   } catch {
     if (id === generation) {
@@ -168,9 +182,79 @@ async function renew(id: number) {
     }
   }
 }
+async function capabilities(id: number) {
+  try {
+    const access = await api.request<{ read: boolean; export: boolean }>(
+      `/api/projects/${props.projectId}/diagnostics/capabilities`,
+      { cache: "no-store", ...(abort ? { signal: abort.signal } : {}) },
+    );
+    if (id !== generation) return;
+    canExport.value = access.read && access.export;
+    if (!access.read) {
+      clear();
+      status.value = "forbidden";
+    }
+  } catch {
+    if (id === generation) {
+      clear();
+      status.value = "forbidden";
+    }
+  }
+}
+async function link() {
+  const id = await load();
+  if (
+    id !== generation ||
+    !result.value ||
+    ["forbidden", "not_found"].includes(status.value)
+  )
+    return;
+  const url = new URL(
+    `/projects/${encodeURIComponent(props.projectId)}/diagnostics/${encodeURIComponent(props.eventId!)}`,
+    location.origin,
+  ).href;
+  try {
+    await navigator.clipboard.writeText(url);
+    if (id === generation) copied.value = "实例链接已复制";
+  } catch {
+    if (id === generation) copied.value = "链接复制失败";
+  }
+}
+async function download(format: "json" | "text") {
+  const id = generation,
+    project = props.projectId,
+    event = props.eventId;
+  try {
+    const blob = await api.download(
+      `/api/projects/${project}/diagnostics/instances/${event}/export`,
+      {
+        method: "POST",
+        body: JSON.stringify({ format }),
+        cache: "no-store",
+        ...(abort ? { signal: abort.signal } : {}),
+      },
+    );
+    if (id !== generation) return;
+    downloadUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.download = `diagnostic-${event}.${format === "json" ? "json" : "txt"}`;
+    anchor.click();
+    URL.revokeObjectURL(downloadUrl);
+    downloadUrl = undefined;
+    copied.value = "证据已下载；已交付文件无法远程收回。";
+  } catch (e) {
+    if (id !== generation) return;
+    await load();
+    copied.value =
+      e instanceof ApiError && e.status === 403
+        ? "无导出权限；需要 read 和 export。"
+        : "下载失败：实例不存在、已过期或超过预算，请核对状态。";
+  }
+}
 async function copy(kind: "message" | "stack" | "console" | "requests") {
-  await load(); // Reauthorize every copy, including after a revoke.
-  if (!result.value?.view) return;
+  const id = await load(); // Reauthorize every copy, including after a revoke.
+  if (id !== generation || !result.value?.view) return;
   try {
     await navigator.clipboard.writeText(
       kind === "requests"
@@ -187,9 +271,9 @@ async function copy(kind: "message" | "stack" | "console" | "requests") {
             )
           : show(result.value.view.error[kind]),
     );
-    copied.value = "已复制";
+    if (id === generation) copied.value = "已复制";
   } catch {
-    copied.value = "复制失败，请选择原文手动复制。";
+    if (id === generation) copied.value = "复制失败，请选择原文手动复制。";
   }
 }
 const blur = () => {
@@ -213,6 +297,32 @@ onBeforeUnmount(() => {
     <h3>错误诊断详情</h3>
     <p role="status">{{ labels[status] ?? status }}</p>
     <button type="button" @click="load">重新授权并读取</button>
+    <p v-if="result?.occurrence">
+      {{ result.occurrence.timestamp }} · {{ result.occurrence.category }} ·
+      {{ result.occurrence.context.env }} ·
+      {{ result.occurrence.context.release ?? "未知 release" }}
+    </p>
+    <div v-if="result && status !== 'not_found'">
+      <button type="button" @click="link">复制稳定实例链接</button>
+      <button
+        type="button"
+        :disabled="!canExport || status === 'expired'"
+        @click="download('json')"
+      >
+        下载 JSON 证据
+      </button>
+      <button
+        type="button"
+        :disabled="!canExport || status === 'expired'"
+        @click="download('text')"
+      >
+        下载文本证据
+      </button>
+      <p v-if="!canExport">
+        导出需要 diagnostics.read 和 diagnostics.export；只读授权仍可查看详情。
+      </p>
+    </div>
+    <p role="status">{{ copied }}</p>
     <p v-if="result?.legacy">
       历史已存摘要：以下内容可能已脱敏、仅有首帧或不完整，不代表原始完整错误。
     </p>

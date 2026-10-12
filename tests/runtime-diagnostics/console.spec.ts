@@ -262,7 +262,7 @@ test("D2 console raw roundtrip, quality UI, permissions and bounded browser meas
   await page.goto(`/projects/${project.id}/pages?` + query);
   await page
     .getByRole("button", {
-      name: `打开复现条件 ${item.occurrenceId.slice(0, 8)}`,
+      name: `打开诊断上下文 ${item.occurrenceId.slice(0, 8)}`,
       exact: true,
     })
     .click();

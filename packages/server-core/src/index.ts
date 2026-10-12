@@ -58,3 +58,5 @@ export * from "./settings-facts.js";
 export * from "./runtime-diagnostics.js";
 
 export type { StackFrame } from "./error-stack.js";
+
+export * from "./diagnostic-search.js";

@@ -39,6 +39,10 @@ export class ObservabilityController {
           category: z.enum(["all", ...ERROR_CATEGORIES]).default("all"),
           mode: z.enum(["latest", "all"]).default("latest"),
           groupId: groupIdSchema.optional(),
+          release: z
+            .string()
+            .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+            .optional(),
           limit: z.coerce.number().int().min(1).max(100).default(25),
           cursor: z.string().max(1024).optional(),
         })
@@ -76,6 +80,53 @@ export class ObservabilityController {
     } catch (e) {
       if (e instanceof PageQualityError)
         throw new HttpException(e.message, e.message.includes("BUDGET") ? 422 : 400);
+      throw e;
+    }
+  }
+
+  @Get("groups/:groupId/impact")
+  async impact(
+    @Param("projectId") projectId: string,
+    @Param("groupId") groupId: string,
+    @Query() query: unknown,
+    @CurrentPrincipal() p: Principal,
+  ) {
+    await this.authorize(p, projectId);
+    parseInput(groupIdSchema, groupId);
+    const q = parseInput(
+      z
+        .object({
+          env: z.enum(["dev", "staging", "prod"]),
+          from: z.string().datetime(),
+          to: z.string().datetime(),
+          category: z.enum(["all", ...ERROR_CATEGORIES]).default("all"),
+          pageRoute: z
+            .string()
+            .regex(/^\/[^?#]*$/)
+            .max(512)
+            .optional(),
+          release: z
+            .string()
+            .regex(/^[a-zA-Z0-9_.-]{1,64}$/)
+            .optional(),
+        })
+        .strict(),
+      query,
+    );
+    if (
+      Date.parse(q.to) <= Date.parse(q.from) ||
+      Date.parse(q.to) - Date.parse(q.from) > 366 * 86400000
+    )
+      throw new HttpException("QUALITY_RANGE_INVALID", 400);
+    try {
+      return await this.core.pageQuality.groupStats(projectId, {
+        ...q,
+        groupId,
+        mode: "all",
+        limit: 100,
+      });
+    } catch (e) {
+      if (e instanceof PageQualityError) throw new HttpException(e.message, 422);
       throw e;
     }
   }
