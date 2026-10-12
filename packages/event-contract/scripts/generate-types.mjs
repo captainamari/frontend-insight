@@ -301,6 +301,29 @@ const schema = {
           type: "object",
           maxProperties: 100,
           properties: {
+            sourceMap: {
+              type: "object",
+              additionalProperties: false,
+              required: ["release", "build", "assets"],
+              properties: {
+                release: { type: "string", pattern: "^[A-Za-z0-9_.-]{1,64}$" },
+                build: { type: "string", pattern: "^[A-Za-z0-9_.-]{1,64}$" },
+                baseUrl: { type: "string", maxLength: 2048 },
+                assets: {
+                  type: "array",
+                  maxItems: 16,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["url", "sha256"],
+                    properties: {
+                      url: { type: "string", maxLength: 2048 },
+                      sha256: { type: "string", pattern: "^[a-f0-9]{64}$" },
+                    },
+                  },
+                },
+              },
+            },
             requests: { type: "array", maxItems: 20, items: diagnosticRequest },
             timeline: { type: "array", maxItems: 30, items: diagnosticAction },
           },

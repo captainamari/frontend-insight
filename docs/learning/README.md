@@ -60,4 +60,4 @@
 
 产品需求见 [v1.8 需求](../product/requirements-v1.8.md)，开发范围见 [v1.5 计划](../planning/mvp-plan-v1.5.md)，架构决策见 [ADR 目录](../adr/)，接入与排障见 [用户操作指南](../guides/user-manual/README.md)。若计划与代码有差异，记录差异，不把未实现或待批准能力写成可用。
 
-- [18. D1 运行时错误诊断维护路径](18-runtime-error-diagnostics.md)：共用提取器、编译栈、受限原文页面、历史兼容与真实回归。
+- [18. D1–D5 运行时诊断维护路径](18-runtime-error-diagnostics.md)：共用提取器、编译栈、受限原文、搜索导出、私有SourceMap/CLI与恢复；配合[D5指南](../guides/runtime-diagnostics-d5.md)验证完整部署链路。

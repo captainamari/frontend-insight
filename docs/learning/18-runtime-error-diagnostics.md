@@ -1,6 +1,6 @@
-# 18. 运行时错误与 console 诊断维护路径
+# 18. D1–D5 运行时诊断维护路径
 
-先阅读 ADR-021 与 D0/D1/D2 接入说明。本章解释错误原文及 console 上下文；D3 请求关联、D5 SourceMap 尚未实现。D2 最终验证状态以结果文档为准。
+先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6–D7未完成。
 
 ## 从浏览器到页面
 
@@ -85,3 +85,13 @@ D3不包含D4产品检索导出、D5源码映射或D7长期压力。上一节D2�
 稳定实例路由不依赖列表窗口，API按项目/eventId定位并返回基础上下文；不存在和未启用必须不同。质量计数/影响仍读取原基础事实，先eventId去重，再user_id/device_id/page_route统计；诊断采样、TTL、写失败不参与计数过滤。历史首次只是当前90天保留窗口最早事实。
 
 回归入口：`diagnostic-search.test.ts`、`diagnostics-d4.controller.test.ts`、`runtime-diagnostics-integration.ts`、`tests/runtime-diagnostics/troubleshooting.spec.ts`，真实服务由Runtime diagnostics D4工作流执行。不存在Docker时不得把本地单测称为全链路验证。
+
+## D5：源码映射维护路径
+
+按 `tools/build-d5-fixture.mjs` → `tools/sourcemaps.mjs` → API `sourcemaps.controller.ts` → `server-core/src/sourcemaps.ts` → `sourcemap-parser.ts` / `sourcemap-worker.mjs` → `RuntimeDiagnostics.read/exportEvidence` → `DiagnosticDetail.vue` 跟读。精确权限、失败码、预算、身份与恢复操作见 [D5指南](../guides/runtime-diagnostics-d5.md)。
+
+练习：把固定build或JS校验和改错，观察版本/校验失败但编译栈与基本次数仍在；去掉sourcesContent，验证位置成功而片段不可用；删除私有文件，确认storage_missing，然后通过实际隔离恢复脚本恢复位置。不要从URL或本地源码目录自动补读。解析worker只接收已授权的有界map字符串与行列，不能执行上传代码。数据库只存元数据/凭证hash，map与诊断原文走私有存储。
+
+维护重点：URL origin/query不得为了方便匹配而删除；同身份不同内容不覆盖；SDK基础包无解析依赖；逐帧状态包括cause/子错误；read不等于export；无缓存不代表可以省掉异步返回前权限/文件状态复核。运行恢复验证只允许隔离栈，不把脚本存在或单测通过称为恢复成功。
+
+D5维护基线：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；[完整专项验证](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[隔离Ubuntu22生产配置验证](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)已成功。实际生产与Jesse手工验收不在这些自动化结论内。

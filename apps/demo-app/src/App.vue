@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import {
+  createErrorDiagnostics,
+  withSourceMapIdentity,
   installVueErrorHandler,
   createReactErrorHandler,
 } from "@frontend-insight/web-tracker/errors";
@@ -184,6 +186,43 @@ async function requestScene(kind = "failure", capture = true) {
     requestSceneStatus.value = `场景 ${kind} 已取消或拒绝`;
   }
   await tracker.flush();
+}
+const sourceMapStatus = ref("");
+async function sourceMapScene() {
+  sourceMapStatus.value = "正在加载真实压缩构建";
+  let instance: Tracker | undefined;
+  try {
+    const response = await fetch("/d5/manifest.json");
+    if (!response.ok) throw new Error("manifest unavailable");
+    const manifest = await response.json();
+    instance = createTracker({
+      appId: new URLSearchParams(location.search).get("d5AppId") ?? appId,
+      env: "dev",
+      release: manifest.release,
+      endpoint: location.origin + "/v1/events",
+      errorDiagnostics: withSourceMapIdentity(createErrorDiagnostics(), {
+        ...manifest,
+        baseUrl: location.origin + "/",
+      }),
+      beforeSend: ({ event }) => {
+        if (event.diagnostic)
+          sourceMapStatus.value = `D5 已发送实例 ${event.eventId}；release ${manifest.release}；请在质量页查看源码定位`;
+        return event;
+      },
+    });
+    const path = "/d5/fixture.js";
+    const module = await import(/* @vite-ignore */ path);
+    try {
+      module.runSourceMapScenario();
+    } catch (error) {
+      instance.captureException(error);
+    }
+    await instance.flush();
+  } catch {
+    sourceMapStatus.value = "D5 场景失败，请确认部署包含构建产物";
+  } finally {
+    instance?.destroy();
+  }
 }
 function initializeTracker(): void {
   if (tracker) return;
@@ -700,6 +739,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="outcome-grid observability-lab-grid">
+            <button @click="sourceMapScene">D5 压缩源码异常</button>
+            <p role="status">{{ sourceMapStatus }}</p>
             <button @click="requestScene('failure')">D3 请求 503 → 异常</button>
             <button @click="requestScene('failure', false)">D3 仅请求失败</button>
             <button

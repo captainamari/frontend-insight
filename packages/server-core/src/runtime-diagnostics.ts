@@ -1,3 +1,4 @@
+import type { SourceMaps } from "./sourcemaps.js";
 import { projectOccurrence } from "./page-quality.js";
 import {
   searchDiagnostics,
@@ -29,6 +30,7 @@ const absent = (d: DiagnosticEnvelope, status: "rate_limited") => ({
 });
 
 export class RuntimeDiagnostics {
+  sourceMaps?: SourceMaps;
   constructor(private readonly mysql: MySqlStore) {}
 
   async audit(
@@ -342,6 +344,16 @@ export class RuntimeDiagnostics {
             : {}),
         };
       }
+      const sourceMapping =
+        this.sourceMaps && (diagnostic || legacy)
+          ? await this.sourceMaps.map(
+              p,
+              project,
+              event,
+              diagnostic?.raw ?? legacy!,
+              typeof base?.release === "string" ? base.release : null,
+            )
+          : undefined;
       await this.authorize(p, project, event, "diagnostics.read");
       if (r && new Date(r.expires_at).getTime() <= Date.now()) {
         state = "expired";
@@ -352,6 +364,7 @@ export class RuntimeDiagnostics {
       return {
         eventId: event,
         projectId: project,
+        ...(sourceMapping && state !== "expired" ? { sourceMapping } : {}),
         occurrence: base ? projectOccurrence(base) : null,
         state,
         expiresAt: r ? new Date(r.expires_at).toISOString() : null,
@@ -431,7 +444,7 @@ export class RuntimeDiagnostics {
       const document = {
         formatVersion: 1,
         exportedAt: new Date().toISOString(),
-        note: "storedEnvelopeJson 是已存信封原文；diagnostic 为解析值；view 为派生展示。关联仅依显式证据，否则为时间邻近。已下载文件无法远程收回。",
+        note: "storedEnvelopeJson 是已存信封原文；diagnostic 为解析值；view 和 sourceMapping 为派生展示，sourceMapping.artifacts 标明制品身份。关联仅依显式证据，否则为时间邻近。已下载文件无法远程收回。",
         evidence,
       };
       const body =

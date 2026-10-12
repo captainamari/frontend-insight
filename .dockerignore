@@ -17,3 +17,7 @@ playwright-report
 .runtime
 backups
 deployment-info*.txt
+
+# Upload credential files must never enter Docker build contexts.
+**/*.sourcemap-credential.json
+*.sourcemap-credential.json

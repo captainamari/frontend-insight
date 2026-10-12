@@ -1,6 +1,6 @@
 # 运行时诊断能力补齐计划
 
-日期：2026-10-10。状态：D0 已由用户合并；D1 已通过真实 CI 且 PR #30 已合并（不等于全部人工验收通过），详见 [结果](../progress/runtime-diagnostics-results.md)；D2 PR #31 已于 2026-10-11 合入 refactor，包含代码与文档（不等于全部人工验收通过）；D3 PR #32 已于2026-10-12合入refactor（代码与文档）；D4五项已实现并通过同代码完整真实CI，Draft PR #33待用户手工验收/评审；D5–D7待开发。
+日期：2026-10-10。状态：D0 已由用户合并；D1 已通过真实 CI 且 PR #30 已合并（不等于全部人工验收通过），详见 [结果](../progress/runtime-diagnostics-results.md)；D2 PR #31 已于 2026-10-11 合入 refactor，包含代码与文档（不等于全部人工验收通过）；D3 PR #32 已于2026-10-12合入refactor（代码与文档）；D4 PR #33已合入refactor，包含代码与文档；D5已在Draft PR #34完成实现与完整真实CI，待手工验收/评审；D6–D7待开发。
 
 规划基线：`agent/v1-8-r8-cleanup-acceptance` @ `641e106252e7053ea9a306fddcbc1c80ad66592e`；已验证刷新修复代码为 `4948ece`。本次只提交计划和依据对齐，不表示下述功能已实现，也不启动部署或自动合并。
 
@@ -22,7 +22,7 @@ Jesse 于 2026-10-10 明确要求：“不需要脱敏，只要是有价值的�
 | F04 | 未收集 console；现有 breadcrumb 仅少量枚举，实验室路径未启用 | console 与操作/导航/请求时间线 | `packages/web-tracker/src/`、`apps/demo-app/src/App.vue` |
 | F05 | SDK 和契约对整个事件递归检查凭据字符串，新增原文会被拒收 | 为版本化诊断字段贯通校验、传输、入库与访问，不全局关闭验证 | `packages/web-tracker/src/tracker.ts`、`packages/event-contract/src/{validator,security}.ts`、`apps/consumer/src/index.ts` |
 | F06 | 现有项目可读权限即可查询错误明细，没有原文诊断权限 | 项目级详情/导出/配置能力及服务端拦截 | `packages/server-core/src/mysql-store.ts`、`settings.ts`、API controllers、设置页面 |
-| F07 | 请求上下文有限；SourceMap 尚未实现 | 请求证据、显式关联 ID、源码映射与明确失败状态 | SDK 请求适配器、诊断存储/API、发布管理 |
+| F07 | 基线请求上下文有限；SourceMap 当时尚未实现 | 请求证据、显式关联 ID、源码映射与明确失败状态 | SDK 请求适配器、诊断存储/API、发布管理 |
 | F08 | 回归证明“有错误且能看到”，未完整证明“信息足够排障” | 原文一致性、字段完整性、权限和真实浏览器定位验收 | `tests/v1.8/r5b/`、`tests/v1.8/r8/`、新的诊断专项 CI |
 
 已复现的 F02：实验室提供了栈，SDK 输出 `at renderChart (...)` 形式的相对路径帧，实例投影返回 `stackFrames: []`。不能把这种解析失败展示成“没有采集”。
@@ -81,7 +81,7 @@ D0 冻结诊断信封 `diagnosticVersion`、内容类型、来源、采集策略
 
 ## 5. 顺序工作包与完成标准
 
-D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证见 [D3指南](../guides/runtime-diagnostics-d3.md) 和结果文档，D4–D7 仍待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
+D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证见 [D3指南](../guides/runtime-diagnostics-d3.md) 和结果文档，D4已合并、D5已实现且自动化验证通过（待手工/评审）、D6–D7待开发。每批必须同时交代码、测试、接入说明和证据；不得只打勾或只提交数据表。
 
 ### D0 — 合同、存储与访问控制基础（P0）
 
@@ -139,11 +139,13 @@ D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证�
 
 ### D5 — SourceMap 与源码定位（P2，依赖 D4）
 
-- [ ] 新增按 project/release/build/asset checksum 上传和管理 SourceMap 的部署接口及最小 CLI；普通采集 appId 不能上传或下载源码资料。
-- [ ] 服务端映射文件/函数/行列号与源码片段，保留原始编译栈；支持没有 sourcesContent 的映射文件，并明确源码片段不可用。
-- [ ] 映射失败、缺文件、版本不匹配、解析预算超限分开呈现；不同 release/同名文件不能误配。不根据错误里的任意 URL 在服务端自动抓取远端文件。
-- [ ] 文件持久化、授权读取、删除/保留期和备份恢复包含 SourceMap；上传凭证独立授权且可撤销。
-- [ ] 使用真实压缩构建制造错误，双浏览器验证映射回固定源码位置；错版本和缺 map 时可继续看编译栈。
+当前：D5五项已实现并通过自动化验证。精确代码`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`，D5 CI 38199033567与Ubuntu22 CI 38199033462全部成功；[结果](../progress/runtime-diagnostics-results.md)记录矩阵与证据，[D5指南](../guides/runtime-diagnostics-d5.md)记录接入/CLI/权限/恢复。下列完成标记不代替Jesse手工验收/评审。
+
+- [x] 新增按 project/release/build/asset checksum 上传和管理 SourceMap 的部署接口及最小 CLI；普通采集 appId 不能上传或下载源码资料。
+- [x] 服务端映射文件/函数/行列号与源码片段，保留原始编译栈；支持没有 sourcesContent 的映射文件，并明确源码片段不可用。
+- [x] 映射失败、缺文件、版本不匹配、解析预算超限分开呈现；不同 release/同名文件不能误配。不根据错误里的任意 URL 在服务端自动抓取远端文件。
+- [x] 文件持久化、授权读取、删除/保留期和备份恢复包含 SourceMap；上传凭证独立授权且可撤销。
+- [x] 使用真实压缩构建制造错误，双浏览器验证映射回固定源码位置；错版本和缺 map 时可继续看编译栈。
 
 完成标准：可以定位原始源码文件和行列号；该项是此次诊断路线图的新范围，取代旧需求中 SourceMap 永远不在本轮的限制，但不要求在 D1 同时实现。
 

@@ -141,6 +141,7 @@ services:
     networks: [m24]
 
   api:
+    volumes: [sourcemap-data:/var/lib/frontend-insight/sourcemaps]
     build: *app-build
     command: [pnpm, --filter, "@frontend-insight/api", start]
     environment:
@@ -225,6 +226,7 @@ services:
     networks: [m24]
 
 volumes:
+  sourcemap-data:
   mysql-data:
   clickhouse-data:
   kafka-data:

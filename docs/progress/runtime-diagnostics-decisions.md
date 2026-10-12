@@ -117,3 +117,16 @@ D4索引与失败反馈补充：基础表现有排序键以app_id开头，另有
 代码 `be130df4dac89be3c022be3230e2187e96fd80de` 的 [CI 38192686130](https://github.com/captainamari/frontend-insight/actions/runs/38192686130)全部成功。真实501候选查询按预算拒绝，release条件进入查询后无匹配为0；实际双浏览器6实例搜索分别扫描558行/19,973 bytes/0.006832秒与623行/253,212 bytes/0.008306秒。这是该隔离数据集的两次存储执行测量，包含跨项目扫描，不是p95或D7压力结论。字节/超时错误分类与512KiB导出拒绝由单测验证，不声称真实大规模压测。基础SDK gzip仍12,273/12,288 bytes；D4没有修改SDK、迁移或计数公式。
 
 最终新增两种浏览器的实际文件下载/文本内容、分页外搜索、稳定链接登录/刷新/新标签、仅export撤销和环境切换竞态均通过；继承十项浏览器与R5-A/B、TTL/故障/升级/原文隔离也通过。文档收尾提交仅维护证据，以PR记录的文档SHA区分完整CI验证代码。D5须待用户合并D4后核实最新refactor再启动；SourceMap、D6设置UI、D7容量与全路线验收仍未实施。
+
+## D5 实施决定（2026-10-12，自动化验证完成）
+
+- 使用 `@jridgewell/trace-mapping@0.3.31`，核对[官方说明](https://github.com/jridgewell/trace-mapping)：内部行从1/列从0；浏览器编译栈和UI行列均从1。仅支持普通v3 encoded mappings；indexed/sections明确拒绝。独立worker，1.5秒/64MiB old+8MiB young/2MiB stack，最多2个，不抓取任何远端或磁盘源码。
+- 通过构建清单在可选errors入口withSourceMapIdentity为诊断raw增加可选sourceMap身份（beforeSend保持不可改写证据）；不改变基础SDK，不伪造历史build/checksum。绝对HTTP(S)资源URL保留origin/path/query、去fragment；相对资源必须给baseUrl，不剥CDN前缀、不按basename猜测。Map sources/sourceRoot只是输出标识，不作为读取路径。
+- 项目/release/build/规范URL唯一绑定JS与map各自SHA256；上传同时传JS/map实际字节，服务端分别校验，JS不持久化。幂等不延长保留期，同身份内容冲突拒绝；删除/到期不可复活，应创建新build。制品元数据按管理权限，整map下载需read+export。
+- 独立上传凭证仅存SHA256，有效1–30天、限定项目和上传；当前签发管理员账户必须仍有效。CLI凭证只从环境或0600文件读取，不在URL/参数或标准输出打印明文。所有读取/导出复用当前项目权限，无派生缓存；文件状态在异步解析后复核。
+- 单请求一对文件，JS1MiB/map2MiB，HTTP体4,500,000 bytes只放宽上传路由；每项目200个身份/100MiB账面容量（含90天墓碑），保留1–90天。最大32帧、每帧源码片段4KiB/前后2行、总映射输出64KiB；继承单实例导出512KiB。解析10万segments/2048sources/1万names/1MiB mappings。
+- 私有命名卷与MySQL元数据独立，文件只用服务端哈希命名、0600、O_NOFOLLOW；先fsync临时文件再原子rename，再提交元数据。墓碑先阻止访问再删除文件；每5分钟重试过期/删除与1小时以上孤儿清理。生产备份增加diagnostic_details和私有map；恢复证据必须真实运行后才标完成。
+
+D5验证补充：Chromium与WebKit同一异常分别定位第4行第9/13列（new表达式/构造调用），保留各浏览器原始列；Map无名称时不猜当前函数，具名调用段另外断言。清理用跨批目录游标，上传CLI签发不自动重试、异常只输出安全码；源代码结果输出前再次授权，删除与异步映射竞态不给过期片段。
+
+D5最终代码 `8d7a8f3dd5e40db3e662e226cfe7b1698fea7470` 的[D5完整CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[Ubuntu22隔离生产配置CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)均成功，所有证据摘要testedCommit已核对。实际破坏/恢复、失败写入回收、过期/容量与撤权均完成；空Native快照恢复按TRUNCATE语义处理并继续校验完整逻辑行。基础包12,273/12,288 bytes、623单测，D0–D4与R5-A/B回归通过。手工验收/评审仍待Jesse，D6/D7未完成；文档收尾SHA与运行代码SHA分别记录在PR及交付回复。

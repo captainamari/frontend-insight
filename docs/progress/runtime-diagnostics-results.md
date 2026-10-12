@@ -431,3 +431,71 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 本轮此前三次失败及具体修复保留在上方检查点，未删除断言、放宽权限或降低门禁。完整CI已完成，无剩余工程阻塞；下一步是按[D4指南](../guides/runtime-diagnostics-d4.md#可执行手工验收)由用户验收/评审Draft PR。最短路径：部署实验室“D3请求503→异常” → 管理端dev/近7天刷新 → 错误组/实例 → 搜索 `FI_D3_SYNTHETIC` → 诊断上下文 → 稳定链接与JSON/文本下载 → 分别撤销export/read验证。
 
 之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
+
+## D5 开发过程检查点（历史，最终状态见下方交付证据）
+
+基线 `b69125b1d35e8bf27fe2e5afb02a52003e0996a2`，已核实 D4 PR #33 合并代码及文档。分支 `agent/runtime-diagnostics-d5-sourcemaps`。
+
+| D5 原任务                | 当前实现                                                            | 验证/剩余工作                                          |
+| ------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------ |
+| 身份、上传接口和 CLI     | `sourcemaps.ts`、`sourcemaps.controller.ts`、`tools/sourcemaps.mjs` | 本地检查通过；真实 CLI/角色矩阵待 CI                   |
+| 映射与源码片段           | 私有文件→受限 worker→现有详情/稳定页/导出                           | 单测已验证 Unicode/CRLF/列基准/无源码；真实浏览器待 CI |
+| 失败状态与版本匹配       | 精确 URL/query+project/release/build+JS checksum，逐帧状态          | 格式/路径/复杂度单测通过；版本变体真实链路待 CI        |
+| 持久化、凭证、清理、恢复 | 增量 010、私有卷、5分钟清理、生产备份包含诊断原文与 map             | 重启/损坏/到期/实际恢复脚本已编写，待真实执行          |
+| 压缩构建与双浏览器       | esbuild 自有固定源码，部署实验室按钮，Chromium/WebKit 专项          | 测试已编写，未冒充真实通过                             |
+
+检查点命令：`pnpm check`；基础SDK12,273/12,288 bytes。首轮曾因把额外身份预算放进共享SDK路径导致12,298超限；已移除该冗余检查，身份由生成schema与原有64KiB信封限制，不上调门禁。恢复脚本 `node tools/d5-storage-verify.mjs` 只允许固定隔离Compose项目。下一步：读取D5 Actions失败步骤、修复并完成最终同代码验证；补齐中文操作指南/ADR/计划和最终证据。没有代填手工验收，D6/D7未实施。
+
+### D5 首轮真实CI失败与修复
+
+`3cfcab2acdda62f380786012823f6822b5a08267` / [38196097052](https://github.com/captainamari/frontend-insight/actions/runs/38196097052)：check、真实服务、增量升级、D0角色/TTL/故障重试通过；D5 Chromium未观察到错误信封而失败。根因是实验室尝试在beforeSend附加身份，而既有SDK明确禁止beforeSend改写诊断，事件被正确拒绝。修复为可选errors入口`withSourceMapIdentity`在采集阶段冻结身份，转发原提取器生命周期；不放宽beforeSend保护、不改基础包。另核实esbuild源码路径采用URI编码，保持固定4:9断言。下一次完整CI必须覆盖此修复及实际恢复，首轮不作为通过证据。
+
+第二轮 `d18393e` / CI 38196633195 在新增测试的类型导入Lint处失败，已改用仓库要求的import type。第三轮以 `3ab58470d8ff6f4717f2296f5af40b02f2dfd26d` 运行中。后续本地check已通过，619项测试；errors可选包2,248 bytes，基础仍12,273，新增身份功能没有放入基础入口。
+
+D5 第三轮 CI `38196796398`（`3ab58470d8ff6f4717f2296f5af40b02f2dfd26d`）：Chromium 部署链路、CLI、权限、UI 与变体均通过；WebKit 第 4 行实际映射第 13 列，旧断言误用了 Chromium 的第 9 列。修正为各浏览器独立精确列，未放宽为仅成功状态；恢复验证尚未执行。
+
+第四轮 `08e1ab0b6f15f9ab2b52d2fe3072dd5f03a3f629` / CI `38197363174`：Chromium通过，WebKit固定第4行第13列通过，但第二调用帧缺失。合成源码使用尾调用，WebKit真实栈会删除该帧（[官方说明](https://webkit.org/blog/6240/ecmascript-6-proper-tail-calls-in-webkit/)）；改用try/finally保留真实调用帧，仍要求双浏览器多帧、固定文件/函数/行列，未在服务端补造帧。新增CLI异常隐私、跨批清理、项目容量及恢复后的权限状态断言；继续等待同代码完整CI。
+
+第五轮 `22df59e638af1c8619527408ce58793acc3897d4` / CI `38197878102`：两浏览器已通过精确源码位置（4:9/4:13）及第8行第12列的具名调用段。WebKit随后在编译函数名断言失败：它保留压缩绑定名t，而V8使用keepNames生成的function.name。改为分别核对实际压缩产物导出的绑定名与V8函数名；原始函数名仍来自map的具名调用段，不混用编译名称。收尾追加v3制品审计、归档预检、Docker凭证文件排除，并将隔离Ubuntu22生产配置回归纳入D5分支。
+
+第六轮 `ac9eff2087b706df1f50cdc22108a721bc7e230b` / D5 CI `38198419500`：真实Chromium/WebKit全部通过（2项），check含623单测通过；恢复脚本在API重启后出现TypeError，尚未执行到破坏恢复。该进程在同步Docker命令期间保留了Node fetch连接，重启后可能复用已失效的socket；验证客户端改为每次Connection: close，并补充安全的cause错误码/脚本行号，保持所有恢复与定位断言。Ubuntu22隔离生产回归另见 `38198419452`，不能把未完成的D5恢复算为成功。
+
+同候选代码的Ubuntu22 CI `38198419452` 已通过部署、HTTPS双浏览器和保留卷重启；真实恢复暴露空表边界：diagnostic_details的合法空Native备份不应送给ClickHouse INSERT（NO_DATA_TO_INSERT）。修复为先TRUNCATE，只有非空Native才INSERT，随后仍严格比对完整逻辑行校验和；D5隔离恢复脚本同样处理合法空表。没有跳过实际删除/恢复或校验。
+
+## D5 最终交付证据（2026-10-12）
+
+D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手工验收与PR评审。原始诊断和编译栈保留，SourceMap只提供派生定位；D6完整设置UI、D7全路线验收未实施。
+
+- 分支：`agent/runtime-diagnostics-d5-sourcemaps`；[Draft PR #34](https://github.com/captainamari/frontend-insight/pull/34)，目标refactor，未自动合并。
+- 精确运行代码：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；源码tree `81850a5934a87408b1fdd310685c5478ed45911b`。
+- 完整[D5专项CI](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)：同代码，所有步骤成功；[Ubuntu22隔离生产配置回归](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)：同代码，所有步骤成功。两者均为GitHub托管的一次性隔离环境，没有操作实际生产服务器。
+- `pnpm check`：格式、契约/工作区/规范名、Lint、类型、81文件/623单测、构建通过。基础SDK gzip **12,273/12,288 bytes**；errors可选包2,248 bytes，未把SourceMap解析库放入浏览器SDK，未提升预算。
+- 真实Chromium/WebKit D5各1项通过；D4两项、D0–D3十项、R5-A/B各两项以及升级、角色/TTL/故障/查询预算/日志原文隔离均通过。
+- D5隔离存储验证实际重启API，备份后删除文件、元数据、上传凭证和诊断信封，恢复后重新定位源码；另验证缺失/损坏、元数据提交失败清理及重试、临时/孤儿回收、项目容量、文件和凭证过期。恢复后已撤销凭证及已移除成员仍受拒绝。
+- 生产配置回归实际执行新部署、私有卷保留重启、HTTPS双浏览器及备份格式3的破坏/恢复；非目标服务器验收。
+
+### D5 原任务完成矩阵
+
+| 开发计划§5原任务 | 实际入口及实现位置 | 同代码证据 |
+| --- | --- | --- |
+| project/release/build/asset checksum上传管理接口及最小CLI | `sourcemaps.controller.ts`、`sourcemaps.ts`、`tools/sourcemaps.mjs`；签发/撤销、上传、元数据查询、删除、下载 | 两浏览器均经正式CLI上传实际发布字节；重复幂等、冲突/校验和/非法格式/超限拒绝；CLI私密异常与相同请求重试单测 |
+| 服务端源码映射与源码片段 | `sourcemap-worker.mjs`、`sourcemap-parser.ts`、`RuntimeDiagnostics.read/exportEvidence`；统一详情与D4稳定实例页的源码定位面板 | SDK→ingestion→Kafka→consumer→存储→授权API→UI；精确源码位置、具名调用段、片段、编译栈、复制和两种派生导出；无sourcesContent仍定位 |
+| 失败状态与严格版本匹配 | 完整URL/query/project/release/build/JS SHA256匹配；map SHA256验证文件；错误树逐帧及逐栈状态 | 错release/build/checksum、无身份、歧义、缺map、删除、cause/子错误；Unicode/CRLF、匿名/无名称、非法/indexed/远端引用、帧/错误树/解析/输出/并发预算 |
+| 持久化、授权、删除/保留期、备份恢复、可撤销凭证 | 增量010、`sourcemap-data`私有卷、5分钟清理、`scripts/production`及共享归档函数；无映射缓存 | admin/read+export/read/viewer/跨项目/未登录/外部token/appId/上传凭证；撤read/export/移除成员、旧下载地址、打开页及异步复核；真实升级/重启/破坏恢复与故障回收 |
+| 真实压缩构建及双浏览器 | `tools/build-d5-fixture.mjs`、`examples/sourcemaps/源码场景.ts`；部署实验室“D5 压缩源码异常” | CLI上传esbuild产物并校验部署JS；Chromium固定4:9、WebKit固定4:13；两者具名调用段固定8:12，片段含throw语句，未上传框架帧保留明确失败状态 |
+
+### 精确制品与最短复验
+
+实际构建JS SHA256：`ca6626e62201bbba4c5bd91990ec06062aebda98a7712e0e810797af2be6222e`；map SHA256：`46f5c7da19ef89efd654435288ac077aac0cdbfebb712cc04a86e84141bb3952`。浏览器列差异来自各自抛错位置，编译函数名差异来自V8的function.name与WebKit的压缩绑定名；源码函数名仅取map的names，不猜测。未提供名称的throw位置仍明确为null；第8行第12列具名调用段为renderSourceMapScenario。
+
+[完整CLI、部署顺序、迁移/回滚、保留/容量及手工验收](../guides/runtime-diagnostics-d5.md)。最快自动化复验：隔离bootstrap/up/smoke后，运行`pnpm exec playwright test -c playwright.diagnostics.config.ts sourcemaps.spec.ts`和`node tools/d5-storage-verify.mjs`。人工入口为部署demo的`/observability?acceptance=fast`，点击场景按钮后从管理端dev/近7天/release=d5-lab-v1打开诊断详情或eventId稳定链接；期望同时看到编译栈和上述源码位置。
+
+### 边界与可恢复交接
+
+普通v3字符串VLQ map；indexed/sections明确拒绝。没有远端抓取、本地源码补读、整份源码公开静态服务或长期下载token。历史缺身份不补造；大于JS1MiB/map2MiB、16资源/8KiB事件清单或其他预算需调整构建/接入，不能静默上调。无sourcesContent仍定位但不显示源码片段。已下载内容无法远程撤回。
+
+本地无Docker，完整容器/浏览器/恢复证据来自上述真实Actions。Firefox仅栈fixture；剪贴板测试用sink验证授权和内容，不声称系统剪贴板覆盖；没有D7全量负载、全部浏览器或生产容量验收。发布需增量010与私有卷，先部署服务再上传制品再发布匹配应用；回滚保留表/卷与原始证据，不reset/seed。旧备份缺map不能恢复源码；恢复旧凭证状态后需核对后续撤销记录。
+
+先前每次失败和修复在历史检查点保留。最终无未解决工程阻塞；下一步是用户按D5指南手工验收、评审Draft PR，之后再决定合并及D6实施。本段之后的文档提交仅收尾证据，精确文档SHA在PR/交付回复记录，不冒充重新运行过全套CI的代码。
+
+证据包已实际下载校验：[D5摘要](https://github.com/captainamari/frontend-insight/actions/runs/38199033567/artifacts/11724623989) 10,484 bytes、25份JSON（21份testedCommit均匹配），SHA256 `58196ff5eb0c78ffaa886afa96815ebda6c411eb53099edbb7586da8791d7938`；[Ubuntu22摘要](https://github.com/captainamari/frontend-insight/actions/runs/38199033462/artifacts/11724434196) 2,540 bytes、5份同提交JSON，SHA256 `b79382d3e8fd55f4088fab7907e60b9c7bf3d9f4151cf28093667b48fca6ddac`。D5包只有摘要/包体/必要位置与checksum，无整map、源码、诊断正文、上传凭据、trace或完整服务日志。Ubuntu22三轮真实双浏览器各2项通过。

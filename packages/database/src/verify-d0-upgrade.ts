@@ -42,7 +42,37 @@ try {
       )
     )[0],
   );
-  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [8, 9]);
+  assert.deepEqual(
+    (await runMySqlMigrations({ mysqlUrl, upToVersion: 9 })).applied,
+    [8, 9],
+  );
+  await pool.execute(
+    "INSERT INTO project_members(project_id,user_id,role) VALUES(?,?,'viewer')",
+    [project, user],
+  );
+  await pool.execute(
+    "INSERT INTO diagnostic_grants(project_id,user_id,can_read,can_export) VALUES(?,?,TRUE,TRUE)",
+    [project, user],
+  );
+  await pool.execute(
+    "INSERT INTO diagnostic_policies(project_id,retention_days) VALUES(?,30)",
+    [project],
+  );
+  const diagnosticBefore = JSON.stringify(
+    (await pool.query("SELECT * FROM diagnostic_grants"))[0],
+  );
+  const policyBefore = JSON.stringify(
+    (await pool.query("SELECT * FROM diagnostic_policies"))[0],
+  );
+  assert.deepEqual((await runMySqlMigrations({ mysqlUrl })).applied, [10]);
+  assert.equal(
+    JSON.stringify((await pool.query("SELECT * FROM diagnostic_grants"))[0]),
+    diagnosticBefore,
+  );
+  assert.equal(
+    JSON.stringify((await pool.query("SELECT * FROM diagnostic_policies"))[0]),
+    policyBefore,
+  );
   assert.equal(JSON.stringify((await pool.query("SELECT * FROM projects"))[0]), before);
   assert.equal(
     JSON.stringify(
@@ -75,9 +105,10 @@ try {
   assert.deepEqual((await runClickHouseMigrations(opts)).applied, []);
   const evidence = {
     testedCommit: process.env.GITHUB_SHA,
-    mysql: "7→8→9",
+    mysql: "7→8→9→10",
     clickhouse: "4→5",
     existingData: "preserved",
+    d4GrantsAndPolicy: "preserved through 009→010",
     checksums: "unchanged",
     repeat: "idempotent",
   };

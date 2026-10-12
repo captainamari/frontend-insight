@@ -114,3 +114,11 @@ sudo bash scripts/production backup "before-r8"
 R8 的生产 CI 在隔离 runner 中真正删除测试事实、改变项目元数据后恢复，并比较持久化表、通过 HTTPS 重验账户、配置、SDK 事实及两浏览器。成功证据以 R8 results 的实际代码 SHA 为准；R7 历史链接不代表 R8 已通过。目标 Docker 27.3.1 / Compose 2.32.2 和真实服务器尚未实测。
 
 R8 最终已验证代码 `745308d69d88856c0b37d0c108296dca359f33d4`：[生产 Compose 37752868903](https://github.com/captainamari/frontend-insight/actions/runs/37752868903)、[完整回归 37752868714](https://github.com/captainamari/frontend-insight/actions/runs/37752868714) 均 attempt 1 成功，含实际备份恢复及恢复后双浏览器。证据与剩余验收边界见 [R8 results](../progress/v1.8-r8-results.md)。不代表已操作目标服务器。
+
+## D5 SourceMap 发布补充
+
+D5增量迁移010、API私有命名卷、上传凭证与CLI按[专门指南](runtime-diagnostics-d5.md)执行。上传路由允许4,500,000-byte JSON，其他路由仍128KiB；外层自建Nginx也须仅对该路径设置对应上限。先迁移服务，后上传同一构建制品，最后发布带身份清单的应用。不要公开发布map。
+
+现有备份格式升级为3，包含MySQL（含权限/凭证/SourceMap元数据）、raw_events、repeated_operation_proofs、diagnostic_details和sourcemaps.tar；新增私有归档与全部文件校验和。旧备份缺这些资料时不能宣称完整恢复D5。恢复前停写并保留安全备份；恢复后核对凭证撤销/轮换，防止旧备份恢复了后来撤销的凭证。测试不操作生产。
+
+D5同代码`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`的[Ubuntu22回归](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)已在GitHub隔离环境完成部署、HTTPS双浏览器、保留卷重启与格式3实际恢复；非空map/元数据/诊断原文及权限的破坏恢复由[D5专项](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)验证。合法空Native快照只TRUNCATE、不执行空INSERT，逻辑行SHA256仍校验。没有操作目标生产服务器。
