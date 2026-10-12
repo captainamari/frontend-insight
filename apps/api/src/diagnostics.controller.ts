@@ -35,7 +35,14 @@ export class DiagnosticsController {
       return await task();
     } catch (e) {
       if (e instanceof DiagnosticOperationsError)
-        throw new HttpException(e.message, e.message.includes("CONFLICT") ? 409 : 422);
+        throw new HttpException(
+          e.message,
+          e.message.includes("CONFLICT")
+            ? 409
+            : e.message.includes("RATE_LIMIT")
+              ? 429
+              : 422,
+        );
       if (e instanceof DiagnosticAccessError) throw new HttpException(e.message, 403);
       if (e instanceof DiagnosticQueryError)
         throw new HttpException(
@@ -186,7 +193,22 @@ export class DiagnosticsController {
   @Get("maintenance")
   @Header("Cache-Control", "private, no-store")
   maintenance(@Param("projectId") project: string, @CurrentPrincipal() p: Principal) {
-    return this.run(project, () => this.core.diagnostics.operations.status(p, project));
+    return this.run(project, async () => {
+      const status = await this.core.diagnostics.operations.status(p, project);
+      const m = this.core.ingestion.getMetrics();
+      return {
+        ...status,
+        ingestion: {
+          scope: "current_api_process_since_start_all_projects",
+          requests: m.requests,
+          acceptedEvents: m.acceptedEvents,
+          rejectedEvents: m.rejectedEvents,
+          kafkaFailures: m.kafkaFailures,
+          rejectionCodes: m.rejectionCodes,
+          latencyP95Ms: m.requests ? m.latencyP95Ms : null,
+        },
+      };
+    });
   }
   @Delete("instances/:eventId")
   @Header("Cache-Control", "private, no-store")

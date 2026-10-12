@@ -45,6 +45,7 @@ export function createDiagnosticPolicy(options: {
   let syncState: "pending" | "applied" | "last_valid" | "failed" | "destroyed" =
     "pending";
   const counters = { collectorErrors: 0, syncFailures: 0, suppressed: 0, truncated: 0 };
+  let windowPage = "";
   let windowAt = 0,
     count = 0,
     healthAt = 0,
@@ -60,8 +61,18 @@ export function createDiagnosticPolicy(options: {
       "errors",
       ...(published.policy.level === "context"
         ? [
-            ...(local.console && local.console.enabled !== false ? ["console"] : []),
-            ...(local.requests && local.requests.enabled !== false ? ["requests"] : []),
+            ...(local.console &&
+            local.console.enabled !== false &&
+            (local.console.levels ?? ["error", "warn"]).some((l) =>
+              published.policy.consoleLevels.includes(l),
+            )
+              ? ["console"]
+              : []),
+            ...(local.requests &&
+            local.requests.enabled !== false &&
+            published.policy.requestRoutes.length > 0
+              ? ["requests"]
+              : []),
           ]
         : []),
     ];
@@ -81,11 +92,22 @@ export function createDiagnosticPolicy(options: {
       return;
     adapter = createRequestDiagnostics({
       ...local.requests,
+      onCollectorError: () => {
+        counters.collectorErrors = Math.min(1000000, counters.collectorErrors + 1);
+      },
       scope: { appId: options.appId },
-      enabled: !!local.requests && local.requests.enabled !== false,
+      enabled:
+        !!local.requests &&
+        local.requests.enabled !== false &&
+        published.policy.requestRoutes.length > 0,
       console: {
         ...local.console,
-        enabled: !!local.console && local.console.enabled !== false,
+        enabled:
+          !!local.console &&
+          local.console.enabled !== false &&
+          (local.console.levels ?? ["error", "warn"]).some((l) =>
+            published.policy.consoleLevels.includes(l),
+          ),
         levels: (local.console?.levels ?? ["error", "warn"]).filter((l) =>
           published.policy.consoleLevels.includes(l),
         ),
@@ -184,6 +206,7 @@ export function createDiagnosticPolicy(options: {
       const result = await ownRequest("/workflow-config", {
         appId: options.appId,
         env: options.env,
+        diagnosticsOnly: true,
       });
       if (!alive || epoch !== generation || request < appliedNo) return status();
       const p = result.diagnostics as PublishedDiagnosticPolicy;
@@ -238,7 +261,8 @@ export function createDiagnosticPolicy(options: {
     const d = result.diagnostic,
       now = Date.now();
     d.policyVersion = published.version;
-    if (now - windowAt >= 60000) {
+    if (now - windowAt >= 60000 || windowPage !== page?.()) {
+      windowPage = page?.() ?? "";
       windowAt = now;
       count = 0;
     }

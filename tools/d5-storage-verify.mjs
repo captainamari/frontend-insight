@@ -119,6 +119,39 @@ async function main() {
     return d;
   };
   await mapped();
+  if (existsSync("artifacts/d6-chromium.json")) {
+    const evidence = JSON.parse(readFileSync("artifacts/d6-chromium.json", "utf8"));
+    phase = "d6-physical-cleanup";
+    run([
+      "exec",
+      "-T",
+      "api",
+      "node",
+      "--input-type=module",
+      "-e",
+      `import {MySqlStore,RuntimeDiagnostics} from './packages/server-core/dist/src/index.js';import {createClient} from '@clickhouse/client';const db=new MySqlStore(process.env.MYSQL_URL);const ch=createClient({url:process.env.CLICKHOUSE_URL,username:process.env.CLICKHOUSE_USERNAME,password:process.env.CLICKHOUSE_PASSWORD,database:'frontend_insight'});try{await new RuntimeDiagnostics(db).operations.cleanup(ch);}finally{await ch.close();await db.close();}`,
+    ]);
+    assert.equal(
+      ch(
+        `SELECT count() FROM diagnostic_details FINAL WHERE project_id='${evidence.projectId}' AND event_id='${evidence.deletedEvent}' FORMAT TabSeparated`,
+      )
+        .toString()
+        .trim(),
+      "0",
+    );
+    assert.equal(
+      sql(
+        `SELECT state FROM diagnostic_receipts WHERE project_id='${evidence.projectId}' AND event_id='${evidence.deletedEvent}'`,
+      ),
+      "deleted",
+    );
+    assert.equal(
+      sql(
+        "SELECT error_code IS NULL FROM diagnostic_maintenance WHERE component='evidence'",
+      ),
+      "1",
+    );
+  }
   phase = "restart";
   run(["restart", "api"]);
   run(["up", "--detach", "--no-build", "--wait", "api"]);

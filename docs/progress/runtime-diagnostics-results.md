@@ -512,3 +512,5 @@ D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手�
 | 接入/角色/实验室        | D6指南、实际部署DiagnosticPolicyDemo                                                             | Chromium/WebKit真实链路及继承D0–D5/R5回归           |
 
 本地未安装Docker，真实服务/浏览器/恢复通过GitHub Actions执行。初轮本地检查发现新subpath缺Vitest source alias、demo runtime/beforeSend签名及测试初始化异步竞争，逐项修复，不提高预算。尚无D6完整成功CI，不可验收；下一步`pnpm check`后推送并检查D6/Ubuntu22工作流，读取失败日志修复。迁移、代码、测试、页面均处实施中，详见D6指南。
+
+D6首轮真实CI `38212370258` / `6c2d7dbd070252960f92b08e61bb186b23960bde`：check、真实部署与基础服务smoke成功；增量升级脚本仍只预期迁移010，实际返回010+011而失败。修复为显式7→9→10→11，分别核对旧策略字段保留及D6新增字段的兼容默认；不移除升级断言。同期补齐删除后重放/搜索、实际物理清理、collector内部失败上报与维护查询预算；最终运行代码仍需完整CI。

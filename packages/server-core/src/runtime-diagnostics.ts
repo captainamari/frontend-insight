@@ -212,7 +212,9 @@ export class RuntimeDiagnostics {
           event.diagnostic = absent(event.diagnostic, "too_large");
         } else if (
           policy.level === "errors" &&
-          (event.diagnostic.raw.console || event.diagnostic.raw.requests)
+          (event.diagnostic.raw.console ||
+            event.diagnostic.raw.requests ||
+            event.diagnostic.raw.request)
         ) {
           state = "policy_suppressed";
           event.diagnostic = absent(event.diagnostic, "unavailable");

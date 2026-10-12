@@ -12,6 +12,18 @@ import type { Principal } from "./model.js";
 import type { RuntimeDiagnostics } from "./runtime-diagnostics.js";
 export class DiagnosticOperationsError extends Error {}
 export class DiagnosticOperations {
+  private cleaning = false;
+  private readonly queries = new Map<string, { started: number; count: number }>();
+  private queryBudget(project: string) {
+    const now = Date.now();
+    for (const [key, value] of this.queries)
+      if (now - value.started >= 60000) this.queries.delete(key);
+    const entry = this.queries.get(project) ?? { started: now, count: 0 };
+    if (entry.count >= 60 || (!this.queries.has(project) && this.queries.size >= 1000))
+      throw new DiagnosticOperationsError("DIAGNOSTICS_MAINTENANCE_RATE_LIMIT");
+    entry.count++;
+    this.queries.set(project, entry);
+  }
   constructor(
     private readonly mysql: MySqlStore,
     private readonly access: RuntimeDiagnostics,
@@ -147,9 +159,10 @@ export class DiagnosticOperations {
   }
   async status(p: Principal, project: string) {
     await this.access.manage(p, project, project);
+    this.queryBudget(project);
     // Bounded newest 10,000 receipts, explicitly a sample/window and not disk usage.
     const [counts] = await this.mysql.pool.query<RowDataPacket[]>(
-      `SELECT state,COUNT(*) AS count,SUM(byte_size) AS bytes,SUM(expires_at<=NOW(3)) AS expired,AVG(TIMESTAMPDIFF(MICROSECOND,created_at,persisted_at)/1000) AS persistDelayMs FROM (SELECT state,byte_size,expires_at,created_at,persisted_at FROM diagnostic_receipts WHERE project_id=? AND created_at>=DATE_SUB(NOW(3),INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 10000) r GROUP BY state`,
+      `SELECT /*+ MAX_EXECUTION_TIME(5000) */ state,COUNT(*) AS count,SUM(byte_size) AS bytes,SUM(CASE WHEN state='ready' AND expires_at>NOW(3) THEN byte_size ELSE 0 END) AS validBytes,SUM(expires_at<=NOW(3)) AS expired,AVG(TIMESTAMPDIFF(MICROSECOND,created_at,persisted_at)/1000) AS persistDelayMs FROM (SELECT state,byte_size,expires_at,created_at,persisted_at FROM diagnostic_receipts WHERE project_id=? AND created_at>=DATE_SUB(NOW(3),INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 10000) r GROUP BY state`,
       [project],
     );
     const [health] = await this.mysql.pool.query<RowDataPacket[]>(
@@ -229,12 +242,16 @@ export class DiagnosticOperations {
     );
   }
   async cleanup(ch: ClickHouseClient) {
+    if (this.cleaning) return;
+    this.cleaning = true;
+    const started = Date.now();
     try {
       // Revisit tombstones: a late writer after a previous sweep must still be physically reclaimed.
       const [rows] = await this.mysql.pool.query<RowDataPacket[]>(
         "SELECT id,project_id,event_id FROM diagnostic_deletions ORDER BY COALESCE(cleaned_at,created_at) LIMIT 100",
       );
       for (const r of rows) {
+        if (Date.now() - started > 10000) break;
         await ch.command({
           query:
             "ALTER TABLE diagnostic_details DELETE WHERE project_id={project:UUID} AND event_id={event:String}",
@@ -252,6 +269,8 @@ export class DiagnosticOperations {
       await this.recordCleanup("evidence", true);
     } catch {
       await this.recordCleanup("evidence", false);
+    } finally {
+      this.cleaning = false;
     }
   }
 }

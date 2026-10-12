@@ -24,6 +24,7 @@ interface Maintenance {
     count: number;
     bytes: number;
     expired: number;
+    validBytes: number;
     persistDelayMs: number | null;
   }[];
   health: unknown[];
@@ -31,6 +32,7 @@ interface Maintenance {
   cleanup: unknown[];
   deletions: unknown[];
   diskBytes: null;
+  ingestion: unknown;
 }
 interface Artifact {
   id: string;
@@ -293,6 +295,7 @@ onBeforeUnmount(() => generation++);
               <th>接收状态</th>
               <th>事件数</th>
               <th>逻辑字节</th>
+              <th>仍可读逻辑字节</th>
               <th>已过期数</th>
               <th>首次准入到持久化平均毫秒</th>
             </tr>
@@ -302,6 +305,7 @@ onBeforeUnmount(() => generation++);
               <td>{{ c.state }}</td>
               <td>{{ c.count }}</td>
               <td>{{ c.bytes }}</td>
+              <td>{{ c.validBytes }}</td>
               <td>{{ c.expired }}</td>
               <td>{{ c.persistDelayMs ?? "未知" }}</td>
             </tr>
@@ -310,6 +314,13 @@ onBeforeUnmount(() => generation++);
         <p v-if="!maintenance.counts.length">
           暂无接收观测；不能据此推断客户端无错误。
         </p>
+        <details>
+          <summary>接收拒绝与Kafka发送状态（当前API进程启动以来，所有项目）</summary>
+          <pre>{{ JSON.stringify(maintenance.ingestion, null, 2) }}</pre>
+          <p>
+            rejectionCodes按请求计数；accepted/rejectedEvents按事件尝试计数，重试会再次计入，不等于去重后的业务事实。
+          </p>
+        </details>
         <details open>
           <summary>客户端健康：当前实例累计计数，服务端按实例/序号去重</summary>
           <pre>{{

@@ -225,3 +225,30 @@ it("rejects another project's response and ignores a response after destroy", as
   await late;
   expect(f.adapter.status()).toMatchObject({ version: "d6-1", sync: "destroyed" });
 });
+it("applies exact envelope rate, preserves errors, and bounds health attempts", async () => {
+  const f = fixture();
+  await f.adapter.sync();
+  f.setRemote({
+    ...f.remote,
+    revision: 2,
+    version: "d6-2",
+    policy: { ...defaults, envelopesPerMinute: 1 },
+  });
+  await f.adapter.sync();
+  f.tracker.captureException(new Error("first"));
+  f.tracker.captureException(new Error("second"));
+  await f.tracker.flush();
+  const errors = f.events.filter((e) => e.event === "error");
+  expect(errors).toHaveLength(2);
+  expect(errors[0]!.diagnostic!.status).toBe("complete");
+  expect(errors[1]!.diagnostic!.status).toBe("rate_limited");
+  await f.adapter.reportHealth();
+  await f.adapter.reportHealth();
+  const calls = vi
+    .mocked(f.fetcher)
+    .mock.calls.filter(([url]) => String(url).endsWith("diagnostics-health"));
+  expect(calls).toHaveLength(1);
+  expect(new TextEncoder().encode(String(calls[0]![1]!.body)).byteLength).toBeLessThan(
+    2048,
+  );
+});

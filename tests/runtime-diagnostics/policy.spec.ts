@@ -48,9 +48,17 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   expect(published.revision).toBe(1);
   const demo = await context.newPage(),
     captured: FrontendInsightEventV3[] = [];
+  let firstBatch: Record<string, unknown> | undefined;
   demo.on("request", (r) => {
     if (r.url().endsWith("/v1/events") && r.postData()) {
       const b = JSON.parse(r.postData()!);
+      if (
+        !firstBatch &&
+        b.events.some(
+          (e: FrontendInsightEventV3) => e.release === "d6-lab" && e.diagnostic,
+        )
+      )
+        firstBatch = structuredClone(b);
       captured.push(
         ...b.events.filter(
           (e: FrontendInsightEventV3) => e.release === "d6-lab" && e.diagnostic,
@@ -157,6 +165,33 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       })
     ).status(),
   ).toBe(410);
+  const replay = await request.post("/v1/events", {
+    headers: { origin: "http://127.0.0.1:4174" },
+    data: {
+      ...firstBatch,
+      sentAt: Date.now(),
+      events: [first],
+    },
+  });
+  expect(replay.status()).toBe(202);
+  expect((await detail(first.eventId)).state).toBe("deleted");
+  const searched = await request.post(root + "/search", {
+    headers,
+    data: {
+      env: "dev",
+      from: new Date(Date.now() - 3600000).toISOString(),
+      to: new Date(Date.now() + 1000).toISOString(),
+      term: "D6 policy synthetic",
+      field: "raw",
+      category: "all",
+    },
+  });
+  expect(searched.status()).toBe(201);
+  expect(
+    (await searched.json()).items.some(
+      (e: { eventId: string }) => e.eventId === first.eventId,
+    ),
+  ).toBe(false);
   const again = await request.delete(root + `/instances/${first.eventId}`, { headers });
   expect(again.status()).toBe(200);
   const health = await (await request.get(root + "/maintenance", { headers })).json();

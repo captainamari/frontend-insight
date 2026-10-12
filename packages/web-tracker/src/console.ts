@@ -9,6 +9,7 @@ export interface ConsoleOptions {
   /** Explicit declaration: this app owns this realm's global console. Conflicting owners suspend capture. */
   scope: { appId: string };
   enabled?: boolean;
+  onCollectorError?: (() => void) | undefined;
   levels?: readonly ConsoleLevel[];
   maximumEntries?: number;
   maximumBytes?: number;
@@ -31,6 +32,7 @@ interface Subscriber {
   appId: string;
   prepare(level: ConsoleLevel, args: unknown[]): (() => void) | undefined;
   conflict(): void;
+  failed(): void;
 }
 interface Hub {
   subscribers: Set<Subscriber>;
@@ -74,7 +76,7 @@ function connect(target: object, subscriber: Subscriber) {
                   if (commit) commits.push(commit);
                 }
               } catch {
-                /* Collector failure never changes original console behavior. */
+                sub.failed();
               }
             }
             const result = Reflect.apply(
@@ -180,6 +182,13 @@ export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtracto
     let conflict = false;
     const sub: Subscriber = {
       appId: ownerAppId,
+      failed: () => {
+        try {
+          options.onCollectorError?.();
+        } catch {
+          /* health callback isolated */
+        }
+      },
       conflict() {
         reset();
         removed.scope += records.length;
@@ -235,7 +244,7 @@ export function createConsoleDiagnostics(options: ConsoleOptions): ErrorExtracto
           sub,
         );
       } catch {
-        /* absent or locked console */
+        sub.failed();
       }
     }
     return {

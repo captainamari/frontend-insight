@@ -21,6 +21,7 @@ export interface RequestAssociation {
 export interface RequestOptions {
   scope: { appId: string };
   enabled?: boolean;
+  onCollectorError?: () => void;
   console?: Omit<ConsoleOptions, "scope">;
   /** Exact URL pathnames, never body inspection or heuristics. */
   successBodyRoutes?: readonly string[];
@@ -92,18 +93,26 @@ function association(value: RequestAssociation): RequestAssociation {
   }
   return result;
 }
-const safe = (f: () => void) => {
-  try {
-    f();
-  } catch {
-    /* evidence never changes host behavior */
-  }
-};
 
 /** Scoped controlled adapter. Does not patch fetch/XHR or emit API/error facts. */
 export function createRequestDiagnostics(options: RequestOptions) {
+  const safe = (f: () => void) => {
+    try {
+      f();
+    } catch {
+      try {
+        options.onCollectorError?.();
+      } catch {
+        /* health callbacks cannot change host behavior */
+      }
+    }
+  };
   const appId = options.scope.appId;
-  const extract = createConsoleDiagnostics({ ...options.console, scope: { appId } });
+  const extract = createConsoleDiagnostics({
+    ...options.console,
+    scope: { appId },
+    onCollectorError: options.onCollectorError,
+  });
   const limits = {
     entries: bounded(options.maximumEntries, 20),
     bytes: bounded(options.maximumBytes, 32768),

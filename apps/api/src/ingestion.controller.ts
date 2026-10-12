@@ -50,6 +50,7 @@ export class IngestionController {
         .object({
           appId: z.string().regex(/^[a-z][a-z0-9_-]{2,63}$/),
           env: z.enum(["prod", "staging", "dev"]),
+          diagnosticsOnly: z.boolean().optional(),
         })
         .strict(),
       body,
@@ -66,6 +67,13 @@ export class IngestionController {
       .header("access-control-allow-origin", origin)
       .header("vary", "Origin")
       .header("cache-control", "no-store");
+    if (input.diagnosticsOnly)
+      return {
+        appId: input.appId,
+        env: input.env,
+        schemaVersion: 3,
+        diagnostics: await this.core.diagnostics.operations.published(project.id),
+      };
     const definitions = await readWorkflowFactDefinitions(
       this.core.mysql.pool,
       project.id,
