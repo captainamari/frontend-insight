@@ -130,9 +130,11 @@ D5 `withSourceMapIdentity(policy.errorDiagnostics, manifest)` 可在采集时冻
 
 ## 健康观测
 
-`POST /v1/events/diagnostics-health`仅收有限枚举、版本和累计计数。客户端每60秒至多一次，失败指数退避至15分钟；不通过console或业务错误递归上报，无质量事件副作用。数据是客户端自报，不能当作可信授权或全量客户端覆盖率。
+`POST /v1/events/diagnostics-health`仅收有限枚举、版本和累计计数；部署代理限制请求2KiB，服务端严格字段校验。客户端每60秒至多一次，失败指数退避至15分钟；不通过console或业务错误递归上报，无质量事件副作用。数据是客户端自报，不能当作可信授权或全量客户端覆盖率。
 
-维护页显示最近24小时最多100个客户端的最新快照：collectorErrors、syncFailures、suppressed、truncated累计数；同clientId/递增sequence覆盖，乱序/重复/一分钟内重复不累加。每项目最多1000个存活记录，过一天清理。一次实例生命周期的累计值不能跨实例加总成事件精确总量；历史未上报保持未知。
+维护页显示最近24小时最多100个客户端的最新快照：collectorErrors按SDK内部失败次数、syncFailures按同步失败尝试次数、suppressed按本adapter抑制的信封数、truncated按标记截断的信封数累计；后两者不是省略字段数或字节数。同clientId/递增sequence覆盖，乱序/重复/一分钟内重复不累加。每项目最多1000个存活记录，过一天清理。一次实例生命周期的累计值不能跨实例加总成事件精确总量；历史未上报保持未知。
+
+维护查询限制每项目每分钟60次；receipt读取最多10000行并限制5秒执行时间。接收/Kafka面板来自当前API进程启动以来的所有项目聚合，不伪装成项目精确统计：requests/rejectionCodes按请求，accepted/rejectedEvents按事件尝试，重试会再次计入；与去重后的持久receipt分开。无延迟样本显示null。
 
 服务端拒收详情原因由receipt区分disabled/policy_suppressed/rate_limited/too_large等；pending与write_failed分别表示等待和失败。入库延迟从服务端首次准入created_at到persisted_at，单位毫秒，重试后持久化一次，平均值只覆盖有持久化时间的样本；旧记录无时间为null。日志、审计和Prometheus不能写入原文、query、源码或任意高基数标签。
 
@@ -165,3 +167,16 @@ sudo bash scripts/production restore before-d6 --confirm-replace-data
 6. 查看容量口径、健康快照、清理时间；无观测不是零。由维护者在隔离环境执行备份、破坏和恢复脚本，并核对权限/策略/墓碑及D5固定源码位置。
 
 D7继续执行全路线压力、长期容量、完整发布验收与最终手工确认；本批不将它们标成完成。
+
+## 本批自动化证据与复验命令
+
+验证代码`a3d6754fdf379b9efe391839856c3a217ec446a6`的[D6全套CI](https://github.com/captainamari/frontend-insight/actions/runs/38215534859)及[Ubuntu22隔离部署/真实恢复](https://github.com/captainamari/frontend-insight/actions/runs/38215534939)均成功；详细矩阵、包体和制品校验见results。不是手工验收或D7完成声明。
+
+D6特定场景（仅可丢弃的隔离环境，前提是既有bootstrap/up/smoke及D5场景已按工作流执行）：
+
+```bash
+pnpm exec playwright test -c playwright.diagnostics.config.ts policy.spec.ts
+node tools/d5-storage-verify.mjs # 实际破坏/恢复，严禁指向生产
+```
+
+完整继承回归须按D6工作流的全部步骤执行，不能以这两个命令替代完整CI。基础包12,273 bytes；完整可选诊断组合24,962 bytes，加quality为30,201 bytes，硬门禁未变。文档收尾提交与验证代码分开记录于PR。

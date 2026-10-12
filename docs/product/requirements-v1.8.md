@@ -1,6 +1,6 @@
 # Frontend Insight 前端监测平台——需求文档 v1.8
 
-> **诊断方向更新 · 2026-10-10**：Jesse 明确要求诊断信息不脱敏、按角色控制展示。后续诊断扩展遵循 [ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 与 [D0–D7 开发计划](../planning/runtime-diagnostics-development-plan.md)，覆盖本文 §8.2/§13 的相关诊断限制，并将请求正文、SourceMap 分别纳入 D3/D5。D0–D4已实现并合入refactor；D5 SourceMap在Draft PR #34已实现并通过自动化验证（待手工/评审），精确状态见[诊断结果](../progress/runtime-diagnostics-results.md)。D6–D7未完成；其他领域边界保持。
+> **诊断方向更新 · 2026-10-10**：Jesse 明确要求诊断信息不脱敏、按角色控制展示。后续诊断扩展遵循 [ADR-021](../adr/ADR-021-runtime-diagnostics-and-access.md) 与 [D0–D7 开发计划](../planning/runtime-diagnostics-development-plan.md)，覆盖本文 §8.2/§13 的相关诊断限制，并将请求正文、SourceMap 分别纳入 D3/D5。D0–D4已实现并合入refactor；D5 SourceMap已通过PR #34合入代码与文档；D6采集策略/维护/接入在Draft PR #35已实现并通过完整真实CI（待手工/评审），精确状态见[诊断结果](../progress/runtime-diagnostics-results.md)。D7未完成；其他领域边界保持。
 
 > **C07-A 实施更新 · 2026-10-03**：Jesse确认“可以按照推荐A实施”。已接版本化全量声明、SDK0.8显式覆盖诊断、正式组织事实及可信目录渗透率；新定义r4c-facts-2026-10-03.3通过草稿/review/激活。旧目录、active、评分权重和历史不变；同提交真实CI验证后交Jesse手工验收，不自动合并、不进入R5。
 

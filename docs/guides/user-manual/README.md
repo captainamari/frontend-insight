@@ -34,9 +34,9 @@
 
 本文中的项目名、工作流和路由示例仅用于说明操作，不会自动在你的系统里创建。正式地址、账号、项目以及业务目标由维护者或项目负责人提供。
 
-### 运行时错误诊断（D1）
+### 运行时错误诊断（D0–D6）
 
-在页面质量列表打开“诊断上下文”，进入错误诊断详情。admin 或获得当前项目 diagnostics.read 的成员可按需查看/复制原始消息和编译栈，展开 cause 与子错误；普通 viewer 保留统计与摘要。历史数据、截断、未采集、过期与无权限分别提示。接入与手工操作见 [D1 错误诊断指南](../runtime-diagnostics-d1.md)；console、请求正文和 SourceMap 仍待后续阶段。
+在页面质量列表打开“诊断上下文”，进入错误诊断详情。admin或获得当前项目diagnostics.read的成员可查看原文；复制和下载另需diagnostics.export。普通viewer保留质量统计。console、受控请求、搜索/稳定链接与SourceMap按D2–D5边界使用；策略、维护及各接入方式见[D6指南](../runtime-diagnostics-d6.md)，真实完成状态以results为准。
 
 ## D6 诊断设置与维护入口
 

@@ -1,6 +1,6 @@
 # 18. D1–D5 运行时诊断维护路径
 
-先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6–D7未完成。
+先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6已实现并通过完整真实CI（待手工/评审），D7未完成。
 
 ## 从浏览器到页面
 

@@ -522,3 +522,55 @@ D6第三轮 `38213625513` / `6a32796577bccbbd053375544c16e7f19aa9659a`：升级�
 D6实验室注入runtime的定时器未像默认browserRuntime一样绑定globalThis，真实浏览器可在构造阶段因receiver错误返回noop，happy-dom未复现；已绑定四个计时器，增加初始化active断言和失败清理。上一运行代码`6a32796577bccbbd053375544c16e7f19aa9659a`的Ubuntu22 CI `38213625554`完整成功（含D6策略/健康三阶段验证），但不是后续修复代码的最终证据。
 
 D6第五轮 `38214741256` / `d6c84e83ae7568a9d448405e9c7d231b35043205` 已通过Chromium中的实际编辑发布→SDK同步→Kafka入库、断网保持最后配置、服务端关闭拒收、关闭/重新启用及原文一致性；后续viewer断言失败是测试使用了不存在的user.id，真实登录合同为user.userId，已修正并增加成员/授权前置结果断言，不放宽403。继续补齐有界超时与禁用原因状态、D6日志隔离，以及恢复脚本从server-core解析ClickHouse依赖；完整成功仍待下一轮。
+
+## D6 最终交付证据（2026-10-12）
+
+开发计划§5的D6四项均已实现并完成同代码自动化验证；等待Jesse手工验收与PR评审，不等于D7或整条诊断路线完成。
+
+- 分支：`agent/runtime-diagnostics-d6-policy-operations`；[Draft PR #35](https://github.com/captainamari/frontend-insight/pull/35)，目标refactor。没有合并、实际生产操作或手工验收代填。
+- 精确运行代码：`a3d6754fdf379b9efe391839856c3a217ec446a6`；tree `ed2b2920d573adca82c3bdd0089e2169861f4681`。
+- 完整[D6专项CI 38215534859](https://github.com/captainamari/frontend-insight/actions/runs/38215534859)和[Ubuntu22隔离部署/恢复CI 38215534939](https://github.com/captainamari/frontend-insight/actions/runs/38215534939)均成功，均对应上述代码。后一环境使用实际生产配置的一次性GitHub托管隔离部署，不是目标生产服务器。
+- `pnpm check`全通过：83文件、635单测，格式、契约/规范名/工作区、Lint、类型和构建均成功。
+- 真实浏览器：D6 Chromium/WebKit各1项；D5各1项、D4共2项、D0–D3共10项、R5-A/B各2项均通过。Ubuntu22初次部署、保留卷重启、破坏恢复后三轮各跑两浏览器，均通过。
+
+### D6四项完成矩阵
+
+| 原任务                                   | 实际产品/API/SDK入口                                                                                                            | 验证证据                                                                                                                                                                               |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 设置能力授权、采集策略及SDK状态          | 项目设置`?tab=diagnostics`；`diagnostics/settings`、`policy`、`grants/:userId`；可选`createDiagnosticPolicy`与`workflow-config` | 双浏览器实际编辑发布→SDK→真实事件→Kafka/consumer/存储→授权读取；revision冲突、失联保持旧配置但服务端拒收、关闭/恢复及viewer只读边界；单测覆盖非法/旧/乱序/超时/跨项目/销毁和本地未启用 |
+| 生命周期、容量和端到端维护               | 同页容量/清理/删除任务/SourceMap；单实例DELETE、持久墓碑、011迁移、有界cleanup；既有备份恢复命令                                | 真实删除、重放/搜索不复活、物理清理及基础事实保留；实际备份后删除策略/授权/墓碑/健康/map文件和原文，再恢复验证；D5缺失/损坏/部分失败/过期/孤儿回收；Ubuntu22实际升级和恢复             |
+| SDK自身失败、拒收、截断/抑制、入库延迟   | SDK`status/reportHealth`，健康入口；receipt精确状态/延迟；维护页客户端快照、接收/Kafka聚合、存储/map清理码                      | 双浏览器健康进入维护API；元数据不含合成原文；超时/退避/大小/速率单测；真实接收拒收、故障恢复、D0–D6服务日志隔离；未知不报零                                                            |
+| JS/Vue/React/fetch/XHR及角色/学习/实验室 | D6指南及D1/D3/D5实际导出API；部署`/observability?d6AppId=...`；用户手册与learning                                               | 实验室发布/断网/关闭恢复/删除全链路；继承真实Vue/React适配器与fetch宿主语义测试；XHR只说明实际quality.observeApi边界；D5正式CLI压缩构建定位                                            |
+
+### 真实恢复与制品核验
+
+`d6-restore.json`确认实际破坏恢复、策略、撤权、删除墓碑、健康快照及基础计数不变；`d5-storage.json`确认重启、原文与私有文件、缺失/损坏、元数据失败重试、孤儿清理、过期/容量/凭证过期。恢复后有效详情和固定源码位置重新可读，已删除实例仍为deleted、已撤权viewer仍403。完整MySQL包含新增表；空Native合法，缺失/损坏及部分失败按既有受限流程处理。旧备份之后发生的撤销/删除不能自动保留，开放服务前必须在入口隔离下核对并补执行。
+
+两份小型证据包已实际下载校验：
+
+- [D6摘要](https://github.com/captainamari/frontend-insight/actions/runs/38215534859/artifacts/11731383305)：12,310 bytes、29份JSON，其中24份testedCommit全部匹配；SHA256 `b3a154c7f8ac2574b719e706cf0314b7dfa28d1f8cf51eaedf39a6c4c6dfb620`。
+- [Ubuntu22摘要](https://github.com/captainamari/frontend-insight/actions/runs/38215534939/artifacts/11731273399)：2,582 bytes、5份JSON全部匹配testedCommit；SHA256 `f1fb91b98ddb53f77f376c4935746395a95fd4499bbb797914605c3dee85cbeb`。
+- 仅有摘要、包体、必要版本/实例标识、恢复布尔证据与checksum，无完整原文、源码、map、凭据、trace或完整服务日志。
+
+### 包体与边界
+
+| 下载模块或组合                      |      gzip bytes |
+| ----------------------------------- | --------------: |
+| 基础SDK / 原上限                    | 12,273 / 12,288 |
+| errors（受影响可选入口）            |           2,305 |
+| console（受影响可选入口）           |           2,741 |
+| requests（受影响可选入口）          |           4,976 |
+| policy（新增可选入口）              |           2,667 |
+| quality（未改变）                   |           5,239 |
+| base+errors+console+requests+policy |          24,962 |
+| 上述完整组合+quality                |          30,201 |
+
+共享模块按实际下载一次计费，未提高基础包或其他硬预算。旧SDK不应用新客户端策略，但服务端仍强制准入；发布不代表所有客户端同步。容量是明确有界样本及SourceMap账面值，不是精确项目磁盘占用；无健康上报保持未知。XHR不自动采原文，fetch不clone/tee、不代读业务流。Firefox仍只有栈fixture；React适配器回调验证不冒充完整React渲染树。没有D7长期容量/全路线压力与完整发布验收，也没有Jesse手工通过记录。
+
+### 最短复验与可恢复交接
+
+管理员在设置→诊断策略与维护发布；部署实验室填隔离appId初始化/同步/触发错误；用eventId查看原文，模拟断网后关闭验证服务端拒收；恢复同步再开启；授read后撤权；明确eventId删除并确认质量事实仍在；最后按[D6指南](../guides/runtime-diagnostics-d6.md)核对容量/健康、SourceMap与隔离恢复。
+
+自动复验使用`.github/workflows/runtime-diagnostics-d6.yml`完整顺序及production-deployment工作流；本地无Docker/浏览器socket许可，完整证明来自上述真实Actions。发布先备份→011→consumer/API/UI→可选SDK；回滚保留表/卷，旧API不理解墓碑，不能直接开放原文读取。当前无未解决工程阻塞。下一步为评审/手工验收，再由用户决定合并与D7实施。
+
+本段后的提交仅中文文档收尾，不改变运行代码；文档SHA记录于PR和最终交付回复，不冒充再次执行了完整CI。

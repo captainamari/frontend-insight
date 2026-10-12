@@ -137,3 +137,11 @@ D5最终代码 `8d7a8f3dd5e40db3e662e226cfe7b1698fea7470` 的[D5完整CI](https:
 - 字段仅收紧本地授权，URL pathname精确/斜杠子树匹配，无正则。兼容默认不改变旧项目本地collector；旧SDK继续由服务端强制准入。
 - 保留期只作用新receipt；主动删除首版选择明确单eventId，持久墓碑阻止重试复活，不增加通用任务平台。恢复旧备份后的撤权/删除必须运维核对，回滚旧服务不能继续开放不识别墓碑的诊断端点。
 - 容量是有界7天receipt样本与SourceMap配额账面值，共享磁盘未知；健康是客户端最新累计快照，缺记录不伪装零。真实浏览器与破坏恢复必须跑过后才能交付，D7仍保留。
+
+### D6最终验证及交付边界
+
+运行代码`a3d6754fdf379b9efe391839856c3a217ec446a6`的[D6完整CI](https://github.com/captainamari/frontend-insight/actions/runs/38215534859)与[Ubuntu22实际隔离部署/恢复](https://github.com/captainamari/frontend-insight/actions/runs/38215534939)均成功；635单测、双浏览器策略和原文链路、真实破坏恢复、D0–D5及R5必要回归均已核对。证据包testedCommit全匹配，原文/源码/map不进入artifact。
+
+原生定时器须绑定globalThis；否则实验室注入runtime会在真实浏览器初始化失败，不能用happy-dom通过替代浏览器。关闭采集保留基础分组/去重所需顶层处理，停止cause/子错误和任意扩展字段遍历。disabled明确区分本地关闭、未安装和策略抑制；超时保留最后有效版本。恢复验证的依赖从声明它的server-core包解析，未提高预算或放宽权限。
+
+基础gzip仍12273/12288；可选errors2305、console2741、requests4976、policy2667，完整诊断组合24962，带quality30201 bytes。完整字段/状态/时间窗口、恢复旧权限边界及发布回滚见D6指南。D6四项已交付自动化证据，Draft PR #35待评审与Jesse手工验收；D7完整负载及发布验收仍单独保留。最终文档收尾SHA与上述运行代码分别记录。
