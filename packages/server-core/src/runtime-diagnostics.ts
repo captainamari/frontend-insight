@@ -20,7 +20,7 @@ import type {
   FrontendInsightEventV3,
 } from "@frontend-insight/event-contract";
 import { DIAGNOSTIC_LIMITS } from "@frontend-insight/event-contract/constants";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import type { MySqlStore } from "./mysql-store.js";
 import type { KafkaEventEnvelope, Principal } from "./model.js";
 
@@ -184,6 +184,30 @@ export class RuntimeDiagnostics {
   /** Durable rate admission and receipt. Retried IDs retain first expiry/admission.
    * No raw content is stored in MySQL, logs, or receipt metadata. */
   async admit(project: string, events: FrontendInsightEventV3[], now: number) {
+    // Retry only MySQL deadlocks, with fresh envelopes after full transaction rollback.
+    // Never carry a suppressed envelope from an aborted transaction into a retry.
+    for (let attempt = 0; ; attempt++) {
+      const candidate = structuredClone(events);
+      try {
+        await this.admitTransaction(project, candidate, now);
+        for (let i = 0; i < events.length; i++) {
+          const diagnostic = candidate[i]!.diagnostic;
+          if (diagnostic) events[i]!.diagnostic = diagnostic;
+        }
+        return;
+      } catch (error) {
+        if ((error as { code?: string })?.code !== "ER_LOCK_DEADLOCK" || attempt >= 2)
+          throw error;
+        await new Promise((resolve) => setTimeout(resolve, 5 * (attempt + 1)));
+      }
+    }
+  }
+
+  private async admitTransaction(
+    project: string,
+    events: FrontendInsightEventV3[],
+    now: number,
+  ) {
     const c = await this.mysql.pool.getConnection();
     try {
       // Initialize in autocommit: INSERT IGNORE takes a shared duplicate-key lock.
@@ -193,7 +217,7 @@ export class RuntimeDiagnostics {
       ]);
       await c.beginTransaction();
       const [policies] = await c.query<RowDataPacket[]>(
-        "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
+        "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR SHARE",
         [project],
       );
       const config = policies[0]?.config;
@@ -205,11 +229,28 @@ export class RuntimeDiagnostics {
       for (const event of events) {
         if (!event.diagnostic) continue;
         const inputDigest = digest(event);
-        const [existing] = await c.query<RowDataPacket[]>(
-          "SELECT input_digest,storage_digest,state FROM diagnostic_receipts WHERE project_id=? AND event_id=?",
-          [project, event.eventId],
+        // The unique receipt reserves this event before spending the page budget.
+        // Concurrent identical retries wait for commit and reuse its final result.
+        const [reservation] = await c.execute<ResultSetHeader>(
+          "INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at) VALUES(?,?,?,?,'pending',?,?)",
+          [
+            project,
+            event.eventId,
+            inputDigest,
+            digest(event.diagnostic),
+            new Date(now + Number(policies[0]!.retention_days) * 86400000),
+            new Date(now),
+          ],
         );
-        if (existing[0]) {
+        const existing = reservation.affectedRows
+          ? []
+          : (
+              await c.query<RowDataPacket[]>(
+                "SELECT input_digest,storage_digest,state FROM diagnostic_receipts WHERE project_id=? AND event_id=? FOR SHARE",
+                [project, event.eventId],
+              )
+            )[0];
+        if (!reservation.affectedRows && existing[0]) {
           if (existing[0].input_digest !== inputDigest)
             throw new Error("DIAGNOSTICS_EVENT_CONFLICT");
           if (
@@ -274,7 +315,7 @@ export class RuntimeDiagnostics {
         else {
           const window = Math.floor(now / 60000);
           await c.execute(
-            "INSERT IGNORE INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES(?,?,?)",
+            "INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES(?,?,?) ON DUPLICATE KEY UPDATE admitted=admitted",
             [project, event.pageViewId, window],
           );
           const [rates] = await c.query<RowDataPacket[]>(
@@ -293,23 +334,13 @@ export class RuntimeDiagnostics {
               [project, event.pageViewId, window],
             );
         }
-        await c.execute(
-          "INSERT INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at) VALUES(?,?,?,?,?,?,?)",
-          [
-            project,
-            event.eventId,
-            inputDigest,
-            digest(event.diagnostic),
-            state,
-            new Date(now + Number(policies[0]!.retention_days) * 86400000),
-            new Date(now),
-          ],
-        );
         const { raw: _raw, ...captureMetadata } = event.diagnostic;
         void _raw;
         await c.execute(
-          "UPDATE diagnostic_receipts SET capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
+          "UPDATE diagnostic_receipts SET storage_digest=?,state=?,capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
           [
+            digest(event.diagnostic),
+            state,
             JSON.stringify(captureMetadata),
             Buffer.byteLength(JSON.stringify(event.diagnostic)),
             project,

@@ -403,6 +403,28 @@ try {
     [pid],
   );
   assert.equal(Number(rates[0]!.n), 20);
+  // Independent admissions share the policy lock, but the same page budget stays atomic.
+  const remainingInWindow = 60000 - (Date.now() % 60000);
+  if (remainingInWindow < 5000)
+    await new Promise((resolve) => setTimeout(resolve, remainingInWindow + 10));
+  const simultaneous = Array.from({ length: 22 }, () => {
+    const next = make();
+    next.events[0]!.appId = String(other.appId);
+    return next;
+  });
+  await Promise.all(
+    simultaneous.map((next) => call("/v1/events", "", "POST", next, 202)),
+  );
+  const [concurrentRates] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT SUM(admitted) n FROM diagnostic_rate_windows WHERE project_id=?",
+    [other.id],
+  );
+  assert.equal(Number(concurrentRates[0]!.n), 20);
+  const [concurrentRejected] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) n FROM diagnostic_receipts WHERE project_id=? AND state='rate_limited'",
+    [other.id],
+  );
+  assert.equal(Number(concurrentRejected[0]!.n), 2);
   const listed = await call(
     `/api/projects/${pid}/observability/occurrences?env=dev&range=7d&mode=all`,
     viewerToken,

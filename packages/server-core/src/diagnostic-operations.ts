@@ -59,10 +59,10 @@ export class DiagnosticOperations {
       throw new DiagnosticOperationsError("DIAGNOSTICS_POLICY_INVALID");
     const c = await this.mysql.pool.getConnection();
     try {
-      await c.beginTransaction();
       await c.execute("INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)", [
         project,
       ]);
+      await c.beginTransaction();
       const [rows] = await c.query<RowDataPacket[]>(
         "SELECT revision FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
         [project],
@@ -111,11 +111,11 @@ export class DiagnosticOperations {
       throw new DiagnosticOperationsError("DIAGNOSTICS_DELETE_SCOPE_INVALID");
     const c = await this.mysql.pool.getConnection();
     try {
-      await c.beginTransaction();
-      // Same project lock as admission: deletion cannot race a first receipt into existence.
+      // Exclusive policy lock waits for admission's shared lock before tombstoning.
       await c.execute("INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)", [
         project,
       ]);
+      await c.beginTransaction();
       await c.query(
         "SELECT project_id FROM diagnostic_policies WHERE project_id=? FOR UPDATE",
         [project],
