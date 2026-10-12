@@ -385,8 +385,12 @@ restore() {
   for table in raw_events repeated_operation_proofs diagnostic_details; do
     final_clause=""; [[ "$table" != diagnostic_details ]] || final_clause=" FINAL"
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- "TRUNCATE TABLE $table"
-    compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
-      "INSERT INTO $table FORMAT Native" < "$source/$table.native"
+    # An empty Native export is a valid empty-table snapshot; ClickHouse rejects
+    # INSERT with no blocks. TRUNCATE above is its complete restore operation.
+    if [[ -s "$source/$table.native" ]]; then
+      compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \
+        "INSERT INTO $table FORMAT Native" < "$source/$table.native"
+    fi
     # Native block boundaries/LowCardinality dictionaries are not logical data.
     # Compare every ordered row, including duplicate rows, without exposing values.
     compose exec -T clickhouse bash -ec 'exec clickhouse-client --user frontend_insight --password "$(cat /run/secrets/clickhouse_password)" --database frontend_insight --query "$1"' -- \

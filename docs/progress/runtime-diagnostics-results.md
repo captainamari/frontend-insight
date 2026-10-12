@@ -457,3 +457,7 @@ D5 第三轮 CI `38196796398`（`3ab58470d8ff6f4717f2296f5af40b02f2dfd26d`）：
 第四轮 `08e1ab0b6f15f9ab2b52d2fe3072dd5f03a3f629` / CI `38197363174`：Chromium通过，WebKit固定第4行第13列通过，但第二调用帧缺失。合成源码使用尾调用，WebKit真实栈会删除该帧（[官方说明](https://webkit.org/blog/6240/ecmascript-6-proper-tail-calls-in-webkit/)）；改用try/finally保留真实调用帧，仍要求双浏览器多帧、固定文件/函数/行列，未在服务端补造帧。新增CLI异常隐私、跨批清理、项目容量及恢复后的权限状态断言；继续等待同代码完整CI。
 
 第五轮 `22df59e638af1c8619527408ce58793acc3897d4` / CI `38197878102`：两浏览器已通过精确源码位置（4:9/4:13）及第8行第12列的具名调用段。WebKit随后在编译函数名断言失败：它保留压缩绑定名t，而V8使用keepNames生成的function.name。改为分别核对实际压缩产物导出的绑定名与V8函数名；原始函数名仍来自map的具名调用段，不混用编译名称。收尾追加v3制品审计、归档预检、Docker凭证文件排除，并将隔离Ubuntu22生产配置回归纳入D5分支。
+
+第六轮 `ac9eff2087b706df1f50cdc22108a721bc7e230b` / D5 CI `38198419500`：真实Chromium/WebKit全部通过（2项），check含623单测通过；恢复脚本在API重启后出现TypeError，尚未执行到破坏恢复。该进程在同步Docker命令期间保留了Node fetch连接，重启后可能复用已失效的socket；验证客户端改为每次Connection: close，并补充安全的cause错误码/脚本行号，保持所有恢复与定位断言。Ubuntu22隔离生产回归另见 `38198419452`，不能把未完成的D5恢复算为成功。
+
+同候选代码的Ubuntu22 CI `38198419452` 已通过部署、HTTPS双浏览器和保留卷重启；真实恢复暴露空表边界：diagnostic_details的合法空Native备份不应送给ClickHouse INSERT（NO_DATA_TO_INSERT）。修复为先TRUNCATE，只有非空Native才INSERT，随后仍严格比对完整逻辑行校验和；D5隔离恢复脚本同样处理合法空表。没有跳过实际删除/恢复或校验。

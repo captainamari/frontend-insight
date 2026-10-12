@@ -61,12 +61,20 @@ const archive = (command) =>
     ],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
+// This process blocks while Docker restarts containers. Do not reuse an idle
+// HTTP connection across that interval: its remote socket has been replaced.
+const request = (url, options = {}) =>
+  fetch(url, {
+    ...options,
+    headers: { ...options.headers, connection: "close" },
+    signal: AbortSignal.timeout(15000),
+  });
 let phase = "setup";
 async function main() {
   const proof = JSON.parse(readFileSync("artifacts/d5-chromium.json", "utf8"));
   const root = `http://127.0.0.1:3000/api/projects/${proof.projectId}`;
   const auth = await (
-    await fetch("http://127.0.0.1:3000/api/auth/login", {
+    await request("http://127.0.0.1:3000/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -80,7 +88,7 @@ async function main() {
     "content-type": "application/json",
   };
   const detail = async () => {
-    const r = await fetch(root + `/diagnostics/instances/${proof.eventId}`, {
+    const r = await request(root + `/diagnostics/instances/${proof.eventId}`, {
       headers,
     });
     assert.equal(r.status, 200);
@@ -88,6 +96,10 @@ async function main() {
   };
   const mapped = async () => {
     const d = await detail();
+    assert(
+      d.sourceMapping && Array.isArray(d.sourceMapping.frames),
+      "SOURCE_MAPPING_REQUIRED",
+    );
     assert(
       d.sourceMapping.frames.some(
         (f) =>
@@ -152,7 +164,7 @@ async function main() {
   );
   for (const t of tables) {
     ch(`TRUNCATE TABLE ${t}`);
-    ch(`INSERT INTO ${t} FORMAT Native`, snapshots[t]);
+    if (snapshots[t].length) ch(`INSERT INTO ${t} FORMAT Native`, snapshots[t]);
   }
   archive("restore");
   run(["up", "--detach", "--no-build", "--wait", "api", "consumer"]);
@@ -170,7 +182,7 @@ async function main() {
     "0",
   );
   const viewer = await (
-    await fetch("http://127.0.0.1:3000/api/auth/login", {
+    await request("http://127.0.0.1:3000/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -181,7 +193,7 @@ async function main() {
   ).json();
   assert.equal(
     (
-      await fetch(root + `/diagnostics/instances/${proof.eventId}`, {
+      await request(root + `/diagnostics/instances/${proof.eventId}`, {
         headers: { authorization: `Bearer ${viewer.accessToken}` },
       })
     ).status,
@@ -201,7 +213,7 @@ async function main() {
   await mapped();
   phase = "failed-write-recovery";
   const issued = await (
-    await fetch(root + "/diagnostics/sourcemaps/credentials", {
+    await request(root + "/diagnostics/sourcemaps/credentials", {
       method: "POST",
       headers,
       body: '{"days":1}',
@@ -221,7 +233,7 @@ async function main() {
     retentionDays: 1,
   };
   const send = () =>
-    fetch(root + "/diagnostics/sourcemaps/upload", {
+    request(root + "/diagnostics/sourcemaps/upload", {
       method: "POST",
       headers: { ...headers, authorization: `Bearer ${issued.token}` },
       body: JSON.stringify(uploadBody),
@@ -291,7 +303,7 @@ async function main() {
   ]);
   phase = "credential-expiry";
   const cred = await (
-    await fetch(root + "/diagnostics/sourcemaps/credentials", {
+    await request(root + "/diagnostics/sourcemaps/credentials", {
       method: "POST",
       headers,
       body: '{"days":1}',
@@ -302,7 +314,7 @@ async function main() {
   );
   assert.equal(
     (
-      await fetch(root + "/diagnostics/sourcemaps/upload", {
+      await request(root + "/diagnostics/sourcemaps/upload", {
         method: "POST",
         headers: { ...headers, authorization: `Bearer ${cred.token}` },
         body: "{}",
@@ -391,7 +403,7 @@ async function main() {
 main()
   .catch((error) => {
     console.error(
-      `D5_STORAGE_RESTORE_FAILED phase=${phase} type=${error.name} code=${error.code ?? error.status ?? "unknown"} (isolated stack only)`,
+      `D5_STORAGE_RESTORE_FAILED phase=${phase} type=${error.name} code=${error.code ?? error.cause?.code ?? error.status ?? "unknown"} location=${error.stack?.match(/d5-storage-verify\.mjs:\d+:\d+/)?.[0] ?? "unknown"} (isolated stack only)`,
     );
     process.exitCode = 1;
   })

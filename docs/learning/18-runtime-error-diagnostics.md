@@ -1,6 +1,6 @@
 # 18. 运行时错误与 console 诊断维护路径
 
-先阅读 ADR-021 与 D0/D1/D2 接入说明。本章解释错误原文及 console 上下文；D3 请求关联、D5 SourceMap 尚未实现。D2 最终验证状态以结果文档为准。
+先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6–D7未完成。
 
 ## 从浏览器到页面
 
