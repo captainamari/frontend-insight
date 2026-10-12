@@ -387,4 +387,29 @@ describe("D0 explicit diagnostic transport", () => {
     expect(tracker.getDiagnostics().state).toBe("destroyed");
     expect(tracker.getDiagnostics().queueSize).toBe(0);
   });
+  it("normalizes queue limits so invalid local configuration cannot create an unbounded retry queue", async () => {
+    let index = 0;
+    for (const [limit, capacity] of [
+      [Number.NaN, 100],
+      [-2, 1],
+      [0, 100],
+      [1.8, 1],
+      [Infinity, 100],
+    ] as const) {
+      const { runtime, fetchMock } = createRuntime({ beacon: false });
+      const tracker = createTracker({
+        ...config(runtime, `queue_limit_d7_${index++}`),
+        maximumQueueSize: limit,
+      });
+      fetchMock.mockRejectedValue(new Error("synthetic offline"));
+      const pending = tracker.flush();
+      for (let n = 0; n < 120; n++) tracker.featureExposed("sales_dashboard");
+      await pending;
+      expect(tracker.getDiagnostics().queueSize).toBeLessThanOrEqual(capacity);
+      expect(tracker.getDiagnostics().droppedEvents).toBeGreaterThan(0);
+      fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+      await tracker.flush();
+      tracker.destroy();
+    }
+  });
 });

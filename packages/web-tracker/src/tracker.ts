@@ -125,7 +125,7 @@ export class BrowserTracker implements Tracker {
   private flushing = false;
 
   constructor(
-    private readonly config: Required<
+    private readonly trackerConfig: Required<
       Pick<
         TrackerConfig,
         | "appId"
@@ -173,7 +173,7 @@ export class BrowserTracker implements Tracker {
         /^ses_[0-9a-f]{32}$/.test(saved.id) &&
         typeof saved.at === "number" &&
         saved.at <= runtime.now() &&
-        runtime.now() - saved.at < config.sessionTimeoutMs
+        runtime.now() - saved.at < trackerConfig.sessionTimeoutMs
       )
         this.sessionId = saved.id;
     } catch {
@@ -186,11 +186,11 @@ export class BrowserTracker implements Tracker {
       pushState: history.pushState.bind(history),
       replaceState: history.replaceState.bind(history),
     };
-    this.observability = config.observability
+    this.observability = trackerConfig.observability
       ? new BrowserObservability(
           runtime,
-          config.observability,
-          config.endpoint,
+          trackerConfig.observability,
+          trackerConfig.endpoint,
           (event, payload) => this.emit(event, payload),
           this.reportError,
         )
@@ -212,7 +212,8 @@ export class BrowserTracker implements Tracker {
             ),
         },
         session: () =>
-          this.runtime.now() - this.lastActivityAt >= this.config.sessionTimeoutMs
+          this.runtime.now() - this.lastActivityAt >=
+          this.trackerConfig.sessionTimeoutMs
             ? "expired"
             : this.sessionId,
         emit: (name, control) => this.emit("custom", { name, ...control }),
@@ -223,17 +224,18 @@ export class BrowserTracker implements Tracker {
       workflowDefinitions,
     );
     this.forms = new FormCollector(
-      config.forms,
+      trackerConfig.forms,
       (payload) => this.emit("custom", payload),
       () => runtime.crypto.randomUUID(),
       (code) => this.drop(code),
     );
-    if (config.initialUserId !== undefined) this.setUser(config.initialUserId);
+    if (trackerConfig.initialUserId !== undefined)
+      this.setUser(trackerConfig.initialUserId);
     this.safe(() => {
-      this.quality = config.quality?.({
+      this.quality = trackerConfig.quality?.({
         runtime,
         error: this.reportError,
-        rawErrors: !!config.errorDiagnostics,
+        rawErrors: !!trackerConfig.errorDiagnostics,
         diagnostics: () => this.getDiagnostics(),
         capture: () => {
           const context = {
@@ -249,10 +251,10 @@ export class BrowserTracker implements Tracker {
       });
     });
     this.safe(() => {
-      this.errorCleanup = config.errorDiagnostics?.start?.(
+      this.errorCleanup = trackerConfig.errorDiagnostics?.start?.(
         runtime,
         () => this.pageViewId,
-        config,
+        trackerConfig,
       );
     });
     this.emit("page_view", this.qualityPayload("enter"));
@@ -260,12 +262,12 @@ export class BrowserTracker implements Tracker {
     this.installLifecycle();
     this.flushTimer = runtime.setInterval(
       () => void this.flush("normal"),
-      config.flushIntervalMs,
+      trackerConfig.flushIntervalMs,
     );
   }
 
   private sessionStorageKey() {
-    return `frontend-insight.session.${this.config.appId}.${this.config.env}`;
+    return `frontend-insight.session.${this.trackerConfig.appId}.${this.trackerConfig.env}`;
   }
 
   private loadOrCreateDevice(): string {
@@ -363,7 +365,7 @@ export class BrowserTracker implements Tracker {
   private resolvePageRoute(): string {
     const normalized = normalizeAndValidatePageRoute(
       currentUrl(this.runtime),
-      this.config.normalizePageRoute,
+      this.trackerConfig.normalizePageRoute,
     );
     if (!normalized) throw new Error("PAGE_ROUTE_INVALID");
     return normalized;
@@ -400,7 +402,7 @@ export class BrowserTracker implements Tracker {
 
   private refreshSession(): void {
     const now = this.runtime.now();
-    if (now - this.lastActivityAt >= this.config.sessionTimeoutMs) {
+    if (now - this.lastActivityAt >= this.trackerConfig.sessionTimeoutMs) {
       this.lastActivityAt = now;
       this.forms?.settle();
       this.sessionId = id(this.runtime, "ses");
@@ -442,14 +444,14 @@ export class BrowserTracker implements Tracker {
     const event: TrackerEvent = {
       eventId: id(this.runtime, "evt"),
       event: canonicalEvent,
-      appId: this.config.appId,
-      env: this.config.env,
-      release: this.config.release,
+      appId: this.trackerConfig.appId,
+      env: this.trackerConfig.env,
+      release: this.trackerConfig.release,
       pageUrl: pageUrl(this.runtime),
       pageRoute: this.pageRoute,
       userId: this.userId,
-      deptId: this.config.deptId,
-      roleId: this.config.roleId,
+      deptId: this.trackerConfig.deptId,
+      roleId: this.trackerConfig.roleId,
       sessionId: this.sessionId,
       deviceId: this.deviceId,
       pageViewId: this.pageViewId,
@@ -462,8 +464,8 @@ export class BrowserTracker implements Tracker {
       ...(diagnostic ? { diagnostic } : {}),
     };
     let candidate = event;
-    if (this.config.beforeSend) {
-      const result = this.config.beforeSend({ event: structuredClone(event) });
+    if (this.trackerConfig.beforeSend) {
+      const result = this.trackerConfig.beforeSend({ event: structuredClone(event) });
       const restricted = applyRestrictedBeforeSend(event, result);
       if (!restricted) return this.drop("BEFORE_SEND_REJECTED");
       candidate = restricted;
@@ -476,7 +478,7 @@ export class BrowserTracker implements Tracker {
     ) {
       return this.drop("EVENT_TOO_LARGE");
     }
-    if (this.eventQueue.length >= this.config.maximumQueueSize) {
+    if (this.eventQueue.length >= this.trackerConfig.maximumQueueSize) {
       this.eventQueue.shift();
       this.drop("QUEUE_OVERFLOW");
     }
@@ -491,7 +493,7 @@ export class BrowserTracker implements Tracker {
     }
   }
 
-  private custom(
+  private emitCustom(
     name: string,
     payload: EventPayload = {},
     control: EventPayload = {},
@@ -499,7 +501,7 @@ export class BrowserTracker implements Tracker {
     if (!canonicalCustomNames.has(name)) return this.drop("CUSTOM_NAME_INVALID");
     const labels = normalizePayload({
       ...payload,
-      ...this.config.staticPayload,
+      ...this.trackerConfig.staticPayload,
     });
     if (!labels) return this.drop("PAYLOAD_INVALID");
     this.emit("custom", {
@@ -521,7 +523,7 @@ export class BrowserTracker implements Tracker {
     if (this.registeredFeatures && !this.registeredFeatures.has(featureKey)) {
       return this.drop("FEATURE_NOT_REGISTERED");
     }
-    this.custom(name, payload, { featureKey, ...control });
+    this.emitCustom(name, payload, { featureKey, ...control });
   }
 
   setUser(userId: string | null): void {
@@ -543,7 +545,7 @@ export class BrowserTracker implements Tracker {
     this.safe(() =>
       name.startsWith("workflow_") || name === "form_summary"
         ? this.drop("WORKFLOW_HANDLE_REQUIRED")
-        : this.custom(name, payload),
+        : this.emitCustom(name, payload),
     );
   }
 
@@ -614,7 +616,7 @@ export class BrowserTracker implements Tracker {
       };
     }
     const operationInstanceId = id(this.runtime, "op");
-    const businessSampleRate = this.config.businessOperations?.sampleRate ?? 1;
+    const businessSampleRate = this.trackerConfig.businessOperations?.sampleRate ?? 1;
     const operationUser = this.userId,
       operationSession = this.sessionId;
     let state: OperationState = "started";
@@ -637,7 +639,8 @@ export class BrowserTracker implements Tracker {
           businessResult &&
           (this.userId !== operationUser ||
             this.sessionId !== operationSession ||
-            this.runtime.now() - this.lastActivityAt >= this.config.sessionTimeoutMs)
+            this.runtime.now() - this.lastActivityAt >=
+              this.trackerConfig.sessionTimeoutMs)
         ) {
           this.warn("BUSINESS_OPERATION_CONTEXT_CHANGED");
           return;
@@ -708,14 +711,14 @@ export class BrowserTracker implements Tracker {
   ): Promise<T> {
     let bypass: boolean;
     try {
-      const config = this.config.businessOperations;
-      const rate = config?.sampleRate ?? 1;
+      const trackerConfig = this.trackerConfig.businessOperations;
+      const rate = trackerConfig?.sampleRate ?? 1;
       bypass =
-        !config?.enabled ||
+        !trackerConfig?.enabled ||
         this.destroyed ||
-        !Array.isArray(config.operationKeys) ||
-        config.operationKeys.length > 100 ||
-        !config.operationKeys.includes(operationKey) ||
+        !Array.isArray(trackerConfig.operationKeys) ||
+        trackerConfig.operationKeys.length > 100 ||
+        !trackerConfig.operationKeys.includes(operationKey) ||
         this.businessInFlight >= 64 ||
         !Number.isFinite(rate) ||
         rate <= 0 ||
@@ -739,8 +742,8 @@ export class BrowserTracker implements Tracker {
           {},
           undefined,
           () => result,
-          this.config.repeatedOperations?.enabled &&
-            (this.config.businessOperations?.sampleRate ?? 1) === 1 &&
+          this.trackerConfig.repeatedOperations?.enabled &&
+            (this.trackerConfig.businessOperations?.sampleRate ?? 1) === 1 &&
             typeof objectReference === "string" &&
             objectReference.length <= 2048 &&
             /^or1_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/.test(objectReference)
@@ -810,7 +813,7 @@ export class BrowserTracker implements Tracker {
       () => {
         if (stopped || !this.isVisible()) return;
         const duration = accumulate();
-        if (!succeeded && duration >= this.config.longViewSuccessAfterMs) {
+        if (!succeeded && duration >= this.trackerConfig.longViewSuccessAfterMs) {
           succeeded = true;
           this.feature("feature_succeeded", featureKey, {
             visibleDurationMs: duration,
@@ -818,7 +821,7 @@ export class BrowserTracker implements Tracker {
         }
         if (
           succeeded &&
-          duration - lastHeartbeatAt >= this.config.longViewHeartbeatMs
+          duration - lastHeartbeatAt >= this.trackerConfig.longViewHeartbeatMs
         ) {
           lastHeartbeatAt = duration;
           this.feature("feature_long_view_heartbeat", featureKey, {
@@ -826,7 +829,7 @@ export class BrowserTracker implements Tracker {
           });
         }
       },
-      Math.min(1000, this.config.longViewSuccessAfterMs),
+      Math.min(1000, this.trackerConfig.longViewSuccessAfterMs),
     );
     const stop = (): void => {
       if (stopped) return;
@@ -894,8 +897,8 @@ export class BrowserTracker implements Tracker {
     extra = {},
   ) => {
     this.safe(() => {
-      if (this.config.errorDiagnostics) {
-        const result = this.config.errorDiagnostics(value, source, occurrence);
+      if (this.trackerConfig.errorDiagnostics) {
+        const result = this.trackerConfig.errorDiagnostics(value, source, occurrence);
         if (result)
           this.captureDiagnostic(result.diagnostic, { ...result.payload, ...extra });
       } else
@@ -952,15 +955,15 @@ export class BrowserTracker implements Tracker {
       sdk: {
         name: SDK_NAME,
         version: SDK_VERSION,
-        ...(this.config.usageCoverage?.enabled || this.config.quality
+        ...(this.trackerConfig.usageCoverage?.enabled || this.trackerConfig.quality
           ? {
               usageCoverage: {
-                businessSampleRate: this.config.businessOperations?.enabled
+                businessSampleRate: this.trackerConfig.businessOperations?.enabled
                   ? Math.max(
                       0,
                       Math.min(
                         1,
-                        Number(this.config.businessOperations.sampleRate ?? 1),
+                        Number(this.trackerConfig.businessOperations.sampleRate ?? 1),
                       ),
                     ) || 0
                   : 1,
@@ -970,13 +973,13 @@ export class BrowserTracker implements Tracker {
             }
           : {}),
         collectors: [
-          ...(this.config.forms?.enabled ? ["forms" as const] : []),
-          ...(this.config.businessOperations?.enabled
+          ...(this.trackerConfig.forms?.enabled ? ["forms" as const] : []),
+          ...(this.trackerConfig.businessOperations?.enabled
             ? ["business_results" as const]
             : []),
-          ...(this.config.repeatedOperations?.enabled &&
-          this.config.businessOperations?.enabled &&
-          (this.config.businessOperations.sampleRate ?? 1) === 1
+          ...(this.trackerConfig.repeatedOperations?.enabled &&
+          this.trackerConfig.businessOperations?.enabled &&
+          (this.trackerConfig.businessOperations.sampleRate ?? 1) === 1
             ? ["repeated_operations" as const]
             : []),
         ],
@@ -1001,7 +1004,7 @@ export class BrowserTracker implements Tracker {
             this.eventQueue.unshift(...pending.batch.events);
             while (
               this.eventQueue.length >
-              (this.destroyed ? 0 : this.config.maximumQueueSize)
+              (this.destroyed ? 0 : this.trackerConfig.maximumQueueSize)
             ) {
               this.eventQueue.pop();
               this.drop("QUEUE_OVERFLOW");
@@ -1027,7 +1030,7 @@ export class BrowserTracker implements Tracker {
     const keepalive = reason === "lifecycle" && diagnosticBytes(body) <= 60 * 1024;
     if (keepalive) {
       const queued = this.runtime.navigator.sendBeacon(
-        this.config.endpoint,
+        this.trackerConfig.endpoint,
         new Blob([body], { type: "application/json" }),
       );
       if (queued) return true;
@@ -1035,7 +1038,7 @@ export class BrowserTracker implements Tracker {
     }
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
-        const response = await this.runtime.fetch(this.config.endpoint, {
+        const response = await this.runtime.fetch(this.trackerConfig.endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body,
@@ -1101,6 +1104,6 @@ export class BrowserTracker implements Tracker {
 
   private warn(code: string): void {
     if (!this.diagnostics.warnings.includes(code)) this.diagnostics.warnings.push(code);
-    if (this.config.development) sdkWarn(code);
+    if (this.trackerConfig.development) sdkWarn(code);
   }
 }

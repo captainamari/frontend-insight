@@ -129,11 +129,20 @@ try {
     "-c",
     'exec clickhouse-client --user "$CLICKHOUSE_USER" --password "$CLICKHOUSE_PASSWORD" --database frontend_insight --query "$1"',
     "--",
-    `SELECT count() FROM raw_events WHERE project_id='${project.id}' AND event_id='${event.eventId}' FORMAT TabSeparated`,
+    `SELECT count(),uniqExact(event_id) FROM raw_events WHERE project_id='${project.id}' AND event_id='${event.eventId}' FORMAT TabSeparated`,
   ])
     .toString()
     .trim();
-  assert.equal(count, "1");
+  // Raw transport is append-only; separate accepted requests retain two copies.
+  // Product facts must still count the one stable eventId exactly once.
+  assert.equal(count, "2\t1");
+  const occurrences = await (
+    await call(
+      `/api/projects/${project.id}/observability/occurrences?env=dev&range=7d&mode=all`,
+      { headers },
+    )
+  ).json();
+  assert.equal(occurrences.totalOccurrences, 1);
   const health = await call(root + "/maintenance", { headers });
   assert.equal(health.status, 200);
   mkdirSync("artifacts", { recursive: true });
@@ -145,7 +154,10 @@ try {
       unknownNotZero: true,
       recovered: true,
       rawRoundtrip: true,
+      rawTransportCopies: 2,
       baseUniqueFactCount: 1,
+      productOccurrenceCount: occurrences.totalOccurrences,
+      dedupLayer: "eventId in product fact queries",
       retryDeduplicated: true,
     }),
   );

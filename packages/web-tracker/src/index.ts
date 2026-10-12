@@ -43,7 +43,10 @@ export function createTracker(config: TrackerConfig): Tracker {
         deptId: null,
         roleId: null,
         flushIntervalMs: config.flushIntervalMs ?? 10_000,
-        maximumQueueSize: Math.min(config.maximumQueueSize ?? 100, 100),
+        maximumQueueSize: Math.max(
+          1,
+          Math.min(Math.trunc(config.maximumQueueSize ?? 100) || 100, 100),
+        ),
         sessionTimeoutMs: config.sessionTimeoutMs ?? 30 * 60 * 1000,
         longViewSuccessAfterMs: config.longViewSuccessAfterMs ?? 30_000,
         longViewHeartbeatMs: config.longViewHeartbeatMs ?? 60_000,

@@ -602,3 +602,11 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 继承产品回归[38228221366](https://github.com/captainamari/frontend-insight/actions/runs/38228221366)已通过R8、SDK双浏览器与R5–R7、20/200质量事实负载，旧R2升级验证器只预期到009导致失败（实际正确应用010/011）。已补全003–011预期，原始记录与001/002 checksum不变、重复迁移零新增等断言保留；没有修改已应用迁移。
 
 测量入口同时明确逻辑原文JSON、信封元数据、MySQL收据文本（不含定长列/索引）与共享物理parts/待清理分开，不把收据抽样或全信封当项目精确磁盘用量。记录CPU型号/OS/Node/Docker/Compose；验证异常时也保留数字证据，失败仍抛出，不放宽阈值。最终同SHA全量复验待执行。
+
+### D7 继承回归成功与恢复事实口径
+
+`17316936d01a7091abfac8fedc51d86194a45cf2`的[R1–R8 CI38230212574](https://github.com/captainamari/frontend-insight/actions/runs/38230212574)全部成功，包括003–011保留数据升级、各角色实际产品流程、20/200质量事实负载、Kafka/consumer/ClickHouse停机恢复和真实恢复。该候选的[Ubuntu22 CI38230212623](https://github.com/captainamari/frontend-insight/actions/runs/38230212623)也全部成功。后续变更仍须最终同SHA复验。
+
+[诊断38230212586](https://github.com/captainamari/frontend-insight/actions/runs/38230212586)的MySQL恢复验证对原始传输副本数量预期错误：两次成功POST保留两份MergeTree传输记录，既定产品事实查询按eventId去重（与D0一致）。改为同时要求两份传输副本、一个唯一eventId和页面totalOccurrences=1，增加产品层断言，不把物理行数冒充逻辑事实。负载工具等待基础事件与ready收据同时就绪，保持5分钟门禁。
+
+复核资源边界发现本地maximumQueueSize负值可能使新增积压裁剪循环无法终止，NaN可能失去界限；已将本地容量安全归一化到1–100整数，并增加负值、NaN、0、分数和Infinity的网络失败场景。只有SDK私有trackerConfig/emitCustom额外压缩，公共字段未改。最终包体与浏览器门禁仍以最新候选为准。

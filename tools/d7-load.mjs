@@ -229,7 +229,15 @@ try {
             `SELECT uniqExact(event_id) FROM raw_events WHERE project_id='${project.id}' AND event_id IN (${ids.map((id) => `'${id}'`).join(",")}) FORMAT TabSeparated`,
           ),
         );
-        if (count >= expected) break;
+        const readyCount =
+          kind === "error"
+            ? Number(
+                sql(
+                  `SELECT COUNT(*) FROM diagnostic_receipts WHERE project_id='${project.id}' AND state='ready' AND event_id IN (${ids.map((id) => `'${id}'`).join(",")})`,
+                ),
+              )
+            : expected;
+        if (count >= expected && readyCount === expected) break;
         await wait(250);
       }
       // Exact ID set, excludes warmups, detects loss and duplicate base facts.
