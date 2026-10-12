@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "../runtime-diagnostics",
+  testMatch: "**/*.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

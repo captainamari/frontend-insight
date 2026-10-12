@@ -101,3 +101,7 @@ D5维护基线：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；[完整专项验�
 读取`DiagnosticSettings.vue`→`DiagnosticsController`→`DiagnosticOperations.publish`事务及revision；随后看`IngestionController.workflowConfig`的公开配置投影→可选SDK`policy.ts`交集及生命周期→`RuntimeDiagnostics.admit`最新服务端准入→consumer.persist→receipt延迟与维护页。诊断失败不删除基础raw_events。
 
 删除链路从明确eventId到持久墓碑；并发读取返回前复核、晚到consumer不将receipt改回ready、后台mutation物理回收。对照`policy.test.ts`与真实浏览器`policy.spec.ts`，再读D5恢复脚本中的D6策略/撤权/墓碑破坏恢复断言。不能从脚本存在推断执行通过。接入、观测口径、回滚及旧备份限制见[D6指南](../guides/runtime-diagnostics-d6.md)。
+
+## D7维护入口
+
+最终工程验收入口为[D7指南](../guides/runtime-diagnostics-d7.md)，目录变更依据见[清理记录](../progress/runtime-diagnostics-d7-cleanup.md)。本批仍在执行，不沿用历史CI打勾。网络/5xx重试耗尽后保留有界内存事件，恢复后flush以原eventId投递；永久4xx不重试，关页后没有持久离线队列。测试实际挂载Vue树的错误事件与适配器fixture是两种证据，Firefox当前只栈fixture。

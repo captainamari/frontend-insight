@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { cpus, totalmem } from "node:os";
 const base = "http://127.0.0.1:4173",
   origin = "http://127.0.0.1:4174";
@@ -310,6 +310,47 @@ for (const kind of ["normal", "error"])
     for (const [name, m] of Object.entries(timings))
       if (m.p95Ms > 2000) failures.push(`${kind}_${eps}_${name}_p95`);
   }
+const proof = JSON.parse(readFileSync("artifacts/d5-chromium.json", "utf8"));
+const mapSamples = [];
+for (let i = 0; i < 23; i++) {
+  const start = performance.now();
+  const d = await json(
+    `/api/projects/${proof.projectId}/diagnostics/instances/${proof.eventId}`,
+  );
+  assert(d.sourceMapping.frames.some((f) => f.state === "mapped"));
+  if (i >= 3) mapSamples.push(performance.now() - start);
+}
+report.sourceMapping = {
+  samples: 20,
+  warmups: 3,
+  p95Ms: p95(mapSamples),
+  method: "authorized detail including actual worker mapping",
+};
+if (report.sourceMapping.p95Ms > 2000) failures.push("source_mapping_p95");
+report.sharedPhysicalStorage = {
+  scope: "all projects on isolated shared disk; not exact per-project usage",
+  activeParts: ch(
+    "SELECT table,sum(bytes_on_disk) AS bytes FROM system.parts WHERE database='frontend_insight' AND active GROUP BY table FORMAT JSONEachRow",
+  ),
+  unfinishedMutations: ch(
+    "SELECT table,sum(parts_to_do) AS parts FROM system.mutations WHERE database='frontend_insight' AND is_done=0 GROUP BY table FORMAT JSONEachRow",
+  ),
+  sourceMapAllocatedKiB: run([
+    "exec",
+    "-T",
+    "api",
+    "du",
+    "-sk",
+    "/var/lib/frontend-insight/sourcemaps",
+  ]).split(/\s/)[0],
+};
+report.capacityAssumptions = {
+  retentionDays: 14,
+  compressionRatio: null,
+  backupCopiesExcluded: true,
+  projection:
+    "logical envelope bytes per received event × accepted events/s × 86400 × retentionDays; physical overhead/compression/replication and pending cleanup separately measured; no production capacity guarantee",
+};
 report.failures = failures;
 report.status = failures.length ? "failed" : "passed";
 mkdirSync("artifacts", { recursive: true });

@@ -574,3 +574,15 @@ D6第五轮 `38214741256` / `d6c84e83ae7568a9d448405e9c7d231b35043205` 已通过
 自动复验使用`.github/workflows/runtime-diagnostics-d6.yml`完整顺序及production-deployment工作流；本地无Docker/浏览器socket许可，完整证明来自上述真实Actions。发布先备份→011→consumer/API/UI→可选SDK；回滚保留表/卷，旧API不理解墓碑，不能直接开放原文读取。当前无未解决工程阻塞。下一步为评审/手工验收，再由用户决定合并与D7实施。
 
 本段后的提交仅中文文档收尾，不改变运行代码；文档SHA记录于PR和最终交付回复，不冒充再次执行了完整CI。
+
+## D7 执行检查点（2026-10-12，未交付）
+
+D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已有D7工作，Draft PR [#36](https://github.com/captainamari/frontend-insight/pull/36)，分支`agent/runtime-diagnostics-d7-acceptance-cleanup`。八项矩阵及测量前冻结门禁见[D7指南](../guides/runtime-diagnostics-d7.md)，清理依据见[清理记录](runtime-diagnostics-d7-cleanup.md)。D0–D6为已实现历史基线，不能代替D7最终候选验证；D7工程验收尚未通过，Jesse手工验收和发布批准均待确认。
+
+已推送候选`4586df061d122693694823c35157bbd03cedb599`，真实CI：[诊断专项38224965969](https://github.com/captainamari/frontend-insight/actions/runs/38224965969)、[R1–R8回归38224965936](https://github.com/captainamari/frontend-insight/actions/runs/38224965936)、[Ubuntu22隔离部署38224966171](https://github.com/captainamari/frontend-insight/actions/runs/38224966171)。当前均不能当作最终成功。本地pnpm check通过83文件638单测、类型/格式/契约/Lint/全部构建；基础gzip12,288/12,288 bytes，完整诊断组合24,977、带quality30,216 bytes（本机Node24.19.0，尚待最终CI）。
+
+本批修复：SDK网络/5xx三次重试耗尽后原先丢弃批次，现保留稳定eventId的有界内存队列并在后续flush重试；永久4xx不无限重试。新增瞬断恢复、永久拒收和重试期间积压边界单测。真实挂载Vue组件事件抛错与双浏览器断网恢复测试已经进入专项；完整框架覆盖不再引用适配器fixture冒充。当前又补充同步capture关闭/开启和最大65536字节信封测量，最终结果待复验。
+
+失败历史：清理后候选f92c2dac的[R1–R8 CI38223878892](https://github.com/captainamari/frontend-insight/actions/runs/38223878892)在R8阶段失败。刷新fixture缺少D4新增capabilities接口；M8把四类事件误写成至少四个HTTP包。已补fixture并改为精确断言两条错误+API+performance事实，保留原内容检查，未提高超时或删除事实断言。新候选需复验。
+
+新增正常/异常20eps×60秒、200eps×10秒负载工具`tools/d7-load.mjs`；不绕过20/page/min准入，采用固定多客户端，记录速率、持久化、查询与逻辑容量。压力和容量门禁尚无最终实测成功证据，不宣称生产容量。原D7全部七项仍未勾选，新增清理第八项不替代原范围。

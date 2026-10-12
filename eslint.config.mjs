@@ -8,6 +8,7 @@ export default tseslint.config(
       "**/dist/**",
       "**/node_modules/**",
       "**/coverage/**",
+      "apps/demo-app/public/d7/**", // Generated third-party framework fixture; source remains linted.
       "packages/event-contract/src/generated/**",
     ],
   },

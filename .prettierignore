@@ -18,3 +18,5 @@ docs/contracts/canonical-names-v1.8.md
 packages/event-contract/schema/event-batch-v3.schema.json
 packages/event-contract/src/generated
 packages/server-core/src/generated
+
+apps/demo-app/public/d7/

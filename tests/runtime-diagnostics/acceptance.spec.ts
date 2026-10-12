@@ -122,6 +122,20 @@ test("D7 mounted Vue event → raw SDK → services → export; offline bounded 
   await page.evaluate(() => {
     (window as unknown as { d7: { stop(): void } }).d7.stop();
   });
+  const synchronous = await page.evaluate(() =>
+    (
+      window as unknown as {
+        d7Benchmark(): {
+          result: Record<string, { p95Ms: number; samples: number; warmups: number }>;
+          envelopeBytes: number;
+          method: string;
+        };
+      }
+    ).d7Benchmark(),
+  );
+  expect(synchronous.envelopeBytes).toBe(65536);
+  for (const sample of Object.values(synchronous.result))
+    expect(sample.p95Ms).toBeLessThanOrEqual(2);
   mkdirSync("artifacts", { recursive: true });
   writeFileSync(
     `artifacts/d7-framework-${info.project.name}.json`,
@@ -133,6 +147,7 @@ test("D7 mounted Vue event → raw SDK → services → export; offline bounded 
       export: true,
       offlineUniqueEvents: queued.length,
       offlineQueueSize: offline.queueSize,
+      synchronous,
     }),
   );
 });

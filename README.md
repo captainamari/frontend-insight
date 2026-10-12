@@ -79,3 +79,5 @@ pnpm test:r8:e2e
 `apps/` 是 API、consumer、管理端和实验室；`packages/` 是契约、SDK、存储和领域实现；`infra/` 是 Compose/Docker/代理；`scripts/` 保留公开部署与恢复命令；`tools/` 是工程验证和 SourceMap CLI；`tests/config/` 统一阶段浏览器配置，默认 SDK 浏览器配置仍在根目录；`docs/` 按需求、计划、ADR、指南、学习与历史结果分组。
 
 D7 清理依据和兼容保留项见 [清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。
+
+D7完整验收与发布准备见[当前执行指南](docs/guides/runtime-diagnostics-d7.md)和[仓库清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。当前尚未完成工程验收，不代表已生产发布。
