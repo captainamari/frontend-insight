@@ -25,6 +25,9 @@ export interface RequestOptions {
   /** Exact URL pathnames, never body inspection or heuristics. */
   successBodyRoutes?: readonly string[];
   excludeRoutes?: readonly string[];
+  /** Optional D6 intersection; local authorization remains authoritative. */
+  routeAllowed?: (pathname: string) => boolean;
+  successBodyAllowed?: (pathname: string) => boolean;
   maximumEntries?: number;
   maximumBytes?: number;
   windowMs?: number;
@@ -109,7 +112,12 @@ export function createRequestDiagnostics(options: RequestOptions) {
     actionBytes: 8192,
   };
   const enabled = options.enabled !== false;
-  const successRoutes = new Set(options.successBodyRoutes ?? []);
+  const localSuccessRoutes = new Set(options.successBodyRoutes ?? []);
+  const successRoutes = {
+    has: (path: string) =>
+      localSuccessRoutes.has(path) &&
+      (!options.successBodyAllowed || options.successBodyAllowed(path)),
+  };
   const excluded = new Set(options.excludeRoutes ?? []);
   const errorAssociations = new WeakMap<object, RequestAssociation>();
   let runtime: TrackerRuntime | undefined, page: (() => string) | undefined;
@@ -237,6 +245,7 @@ export function createRequestDiagnostics(options: RequestOptions) {
         absolute.origin + absolute.pathname ===
           new URL(endpoint).origin + new URL(endpoint).pathname) ||
       excluded.has(absolute.pathname) ||
+      (options.routeAllowed && !options.routeAllowed(absolute.pathname)) ||
       source !== "application"
     ) {
       removed.excluded++;

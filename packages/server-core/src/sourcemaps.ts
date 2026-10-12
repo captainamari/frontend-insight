@@ -601,7 +601,10 @@ export class SourceMaps {
       [this.cleanupCursor],
     );
     this.cleanupCursor = rows.length === 1000 ? rows[rows.length - 1]!.id : "";
-    for (const r of rows) await unlink(this.path(r.id)).catch(() => {});
+    for (const r of rows)
+      await unlink(this.path(r.id)).catch((e: NodeJS.ErrnoException) => {
+        if (e.code !== "ENOENT") throw new SourceMapError("cleanup_failed");
+      });
     // Crash orphan files are bounded by project quotas and reclaimed after one hour.
     // Preserve a streaming directory cursor across maintenance ticks: directories
     // larger than one batch must not permanently starve later orphan files.
@@ -625,7 +628,10 @@ export class SourceMaps {
         "SELECT id FROM diagnostic_sourcemaps WHERE id=?",
         [name.slice(0, 64)],
       );
-      if (name.endsWith(".tmp") || !r.length) await unlink(path).catch(() => {});
+      if (name.endsWith(".tmp") || !r.length)
+        await unlink(path).catch((e: NodeJS.ErrnoException) => {
+          if (e.code !== "ENOENT") throw new SourceMapError("cleanup_failed");
+        });
     }
     await this.mysql.pool.execute(
       "DELETE FROM diagnostic_sourcemaps WHERE state<>'ready' AND expires_at<DATE_SUB(NOW(),INTERVAL 90 DAY)",

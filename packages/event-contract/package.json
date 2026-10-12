@@ -30,6 +30,10 @@
     "./diagnostics": {
       "types": "./src/diagnostics.ts",
       "import": "./dist/src/diagnostics.js"
+    },
+    "./diagnostic-policy": {
+      "types": "./src/diagnostic-policy.ts",
+      "import": "./dist/src/diagnostic-policy.js"
     }
   },
   "scripts": {

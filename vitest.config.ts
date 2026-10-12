@@ -8,6 +8,9 @@ function workspaceSource(relativePath: string): string {
 export default defineConfig({
   resolve: {
     alias: {
+      "@frontend-insight/event-contract/diagnostic-policy": workspaceSource(
+        "./packages/event-contract/src/diagnostic-policy.ts",
+      ),
       "@frontend-insight/event-contract/diagnostics": workspaceSource(
         "./packages/event-contract/src/diagnostics.ts",
       ),

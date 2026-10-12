@@ -1,5 +1,10 @@
 import {
+  validDiagnosticPolicy,
+  type DiagnosticPolicy,
+} from "@frontend-insight/event-contract/diagnostic-policy";
+import {
   Body,
+  Delete,
   Controller,
   Get,
   Header,
@@ -12,6 +17,7 @@ import {
 } from "@nestjs/common";
 import {
   DiagnosticAccessError,
+  DiagnosticOperationsError,
   DiagnosticQueryError,
   ERROR_CATEGORIES,
   type Principal,
@@ -28,13 +34,15 @@ export class DiagnosticsController {
     try {
       return await task();
     } catch (e) {
+      if (e instanceof DiagnosticOperationsError)
+        throw new HttpException(e.message, e.message.includes("CONFLICT") ? 409 : 422);
       if (e instanceof DiagnosticAccessError) throw new HttpException(e.message, 403);
       if (e instanceof DiagnosticQueryError)
         throw new HttpException(
           e.message,
           e.message.includes("NOT_FOUND")
             ? 404
-            : e.message.includes("EXPIRED")
+            : e.message.includes("EXPIRED") || e.message.includes("DELETED")
               ? 410
               : 422,
         );
@@ -168,19 +176,47 @@ export class DiagnosticsController {
       this.core.diagnostics.grant(p, project, user, v.read, v.export),
     );
   }
+  @Get("settings")
+  @Header("Cache-Control", "private, no-store")
+  settings(@Param("projectId") project: string, @CurrentPrincipal() p: Principal) {
+    return this.run(project, () =>
+      this.core.diagnostics.operations.settings(p, project),
+    );
+  }
+  @Get("maintenance")
+  @Header("Cache-Control", "private, no-store")
+  maintenance(@Param("projectId") project: string, @CurrentPrincipal() p: Principal) {
+    return this.run(project, () => this.core.diagnostics.operations.status(p, project));
+  }
+  @Delete("instances/:eventId")
+  @Header("Cache-Control", "private, no-store")
+  remove(
+    @Param("projectId") project: string,
+    @Param("eventId") event: string,
+    @CurrentPrincipal() p: Principal,
+  ) {
+    return this.run(project, () =>
+      this.core.diagnostics.operations.remove(p, project, event),
+    );
+  }
   @Put("policy")
   @Header("Cache-Control", "private, no-store")
-  async policy(
+  policy(
     @Param("projectId") project: string,
     @CurrentPrincipal() p: Principal,
     @Body() body: unknown,
   ) {
     const v = parseInput(
-      z.object({ retentionDays: z.number().int().min(1).max(90) }).strict(),
+      z
+        .object({
+          revision: z.number().int().min(0),
+          policy: z.custom<DiagnosticPolicy>(validDiagnosticPolicy),
+        })
+        .strict(),
       body,
     );
     return this.run(project, () =>
-      this.core.diagnostics.policy(p, project, v.retentionDays),
+      this.core.diagnostics.operations.publish(p, project, v.revision, v.policy),
     );
   }
 }

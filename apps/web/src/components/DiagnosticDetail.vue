@@ -138,6 +138,10 @@ const labels: Record<string, string> = {
   truncated: "诊断已截断或省略部分内容，请查看采集说明。",
   pending: "诊断正在写入，请稍后重试。",
   expired: "诊断已超过保留期限。",
+  deleted: "原始证据已主动删除；基础统计保留。",
+  disabled: "服务端策略已关闭诊断采集。",
+  policy_suppressed: "原文受当前服务端策略抑制；基础错误仍计数。",
+  unknown: "历史事件没有采集状态记录，原因未知。",
   forbidden: "无诊断详情权限，或当前项目成员关系已失效。",
   write_failed: "诊断写入失败，服务正在重试；基础错误仍计数。",
   rate_limited: "详情采集已限流，基础错误仍计数。",
@@ -382,14 +386,14 @@ onBeforeUnmount(() => {
       <button type="button" @click="link">复制稳定实例链接</button>
       <button
         type="button"
-        :disabled="!canExport || status === 'expired'"
+        :disabled="!canExport || ['expired', 'deleted'].includes(status)"
         @click="download('json')"
       >
         下载 JSON 证据
       </button>
       <button
         type="button"
-        :disabled="!canExport || status === 'expired'"
+        :disabled="!canExport || ['expired', 'deleted'].includes(status)"
         @click="download('text')"
       >
         下载文本证据

@@ -165,3 +165,30 @@ await writeFile(
   JSON.stringify(requestReport, null, 2),
 );
 console.log(JSON.stringify(requestReport));
+
+await build({
+  entryPoints: ["src/policy.ts"],
+  outfile: "dist/policy.js",
+  bundle: true,
+  minify: true,
+  format: "esm",
+  platform: "browser",
+  target: ["es2022"],
+  external: ["./requests.js", "./errors.js"],
+  legalComments: "none",
+});
+const policyBytes = gzipSync(await readFile("dist/policy.js")).byteLength;
+await writeFile(
+  "dist/policy-bundle-report.json",
+  JSON.stringify(
+    {
+      ...requestReport,
+      policyGzipBytes: policyBytes,
+      baseErrorsConsoleRequestsPolicy:
+        requestReport.baseErrorsConsoleRequests + policyBytes,
+      withQuality: requestReport.baseErrorsConsoleQualityRequests + policyBytes,
+    },
+    null,
+    2,
+  ),
+);

@@ -418,11 +418,15 @@ try {
   await call("/v1/events", "", "POST", old, 202);
   await until(
     () => call(root + "/instances/" + old.events[0]!.eventId, token),
-    (v) => v.state === "not_enabled",
+    (v) => v.state === "unknown",
   );
   await until(count, (n) => n === 24);
   // Incremental policy affects new receipts only.
-  await call(root + "/policy", token, "PUT", { retentionDays: 1 });
+  const published = await call(root + "/settings", token);
+  await call(root + "/policy", token, "PUT", {
+    revision: published.revision,
+    policy: { ...(published.policy as Record<string, unknown>), retentionDays: 1 },
+  });
   const ttl = make();
   ttl.events[0]!.pageViewId = "pv_d0_ttl000000";
   await call("/v1/events", "", "POST", ttl, 202);

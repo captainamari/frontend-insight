@@ -84,6 +84,7 @@ export class IngestionController {
       appId: input.appId,
       env: input.env,
       schemaVersion: 3,
+      diagnostics: await this.core.diagnostics.operations.published(project.id),
       definitions: recent.map((d) => ({
         workflowKey: d.workflowKey,
         canStart:
@@ -116,6 +117,65 @@ export class IngestionController {
     @Res({ passthrough: true }) response: FastifyReply,
   ) {
     this.options(origin, response);
+  }
+
+  @PublicRoute()
+  @Options("diagnostics-health")
+  @HttpCode(204)
+  healthOptions(
+    @Headers("origin") origin: string | undefined,
+    @Res({ passthrough: true }) response: FastifyReply,
+  ) {
+    this.options(origin, response);
+  }
+  @PublicRoute()
+  @Post("diagnostics-health")
+  @HttpCode(200)
+  async health(
+    @Body() body: unknown,
+    @Headers("origin") origin: string | undefined,
+    @Res({ passthrough: true }) response: FastifyReply,
+  ) {
+    const counter = z.number().int().min(0).max(1000000);
+    const v = parseInput(
+      z
+        .object({
+          appId: z.string().regex(/^[a-z][a-z0-9_-]{2,63}$/),
+          clientId: z.string().uuid(),
+          sequence: counter,
+          metadata: z
+            .object({
+              version: z.string().regex(/^[a-z0-9-]{1,64}$/),
+              sync: z.enum(["pending", "applied", "last_valid", "failed", "destroyed"]),
+              collectorErrors: counter,
+              syncFailures: counter,
+              suppressed: counter,
+              truncated: counter,
+              enabled: z.array(z.enum(["errors", "console", "requests"])).max(3),
+            })
+            .strict(),
+        })
+        .strict(),
+      body,
+    );
+    const project = await this.core.mysql.getIngestionProject(v.appId);
+    if (
+      !project ||
+      project.status !== "active" ||
+      !origin ||
+      !project.origins.includes(origin)
+    )
+      throw new IngestionError("DIAGNOSTICS_HEALTH_FORBIDDEN", 403);
+    response
+      .header("access-control-allow-origin", origin)
+      .header("vary", "Origin")
+      .header("cache-control", "no-store");
+    return this.core.diagnostics.operations.observe(
+      project.id,
+      v.clientId,
+      v.sequence,
+      v.metadata,
+    );
   }
 
   @PublicRoute()

@@ -6,6 +6,7 @@ import {
   createReactErrorHandler,
 } from "@frontend-insight/web-tracker/errors";
 import { createRequestDiagnostics } from "@frontend-insight/web-tracker/requests";
+import DiagnosticPolicyDemo from "./DiagnosticPolicyDemo.vue";
 import EfficiencyDemo from "./EfficiencyDemo.vue";
 import WorkflowDemo from "./WorkflowDemo.vue";
 import { createTracker } from "@frontend-insight/web-tracker";
@@ -504,11 +505,13 @@ onBeforeUnmount(() => {
         进入场景实验室
       </button>
     </form>
+    <DiagnosticPolicyDemo v-if="scene === 'observability'" />
     <WorkflowDemo />
     <EfficiencyDemo />
   </main>
 
   <div v-else class="demo-shell">
+    <DiagnosticPolicyDemo v-if="scene === 'observability'" />
     <header class="demo-header">
       <div>
         <span class="lab-mark">FI / SCENARIO LAB</span>

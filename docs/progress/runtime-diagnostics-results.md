@@ -476,13 +476,13 @@ D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手�
 
 ### D5 原任务完成矩阵
 
-| 开发计划§5原任务 | 实际入口及实现位置 | 同代码证据 |
-| --- | --- | --- |
-| project/release/build/asset checksum上传管理接口及最小CLI | `sourcemaps.controller.ts`、`sourcemaps.ts`、`tools/sourcemaps.mjs`；签发/撤销、上传、元数据查询、删除、下载 | 两浏览器均经正式CLI上传实际发布字节；重复幂等、冲突/校验和/非法格式/超限拒绝；CLI私密异常与相同请求重试单测 |
-| 服务端源码映射与源码片段 | `sourcemap-worker.mjs`、`sourcemap-parser.ts`、`RuntimeDiagnostics.read/exportEvidence`；统一详情与D4稳定实例页的源码定位面板 | SDK→ingestion→Kafka→consumer→存储→授权API→UI；精确源码位置、具名调用段、片段、编译栈、复制和两种派生导出；无sourcesContent仍定位 |
-| 失败状态与严格版本匹配 | 完整URL/query/project/release/build/JS SHA256匹配；map SHA256验证文件；错误树逐帧及逐栈状态 | 错release/build/checksum、无身份、歧义、缺map、删除、cause/子错误；Unicode/CRLF、匿名/无名称、非法/indexed/远端引用、帧/错误树/解析/输出/并发预算 |
-| 持久化、授权、删除/保留期、备份恢复、可撤销凭证 | 增量010、`sourcemap-data`私有卷、5分钟清理、`scripts/production`及共享归档函数；无映射缓存 | admin/read+export/read/viewer/跨项目/未登录/外部token/appId/上传凭证；撤read/export/移除成员、旧下载地址、打开页及异步复核；真实升级/重启/破坏恢复与故障回收 |
-| 真实压缩构建及双浏览器 | `tools/build-d5-fixture.mjs`、`examples/sourcemaps/源码场景.ts`；部署实验室“D5 压缩源码异常” | CLI上传esbuild产物并校验部署JS；Chromium固定4:9、WebKit固定4:13；两者具名调用段固定8:12，片段含throw语句，未上传框架帧保留明确失败状态 |
+| 开发计划§5原任务                                          | 实际入口及实现位置                                                                                                            | 同代码证据                                                                                                                                                   |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| project/release/build/asset checksum上传管理接口及最小CLI | `sourcemaps.controller.ts`、`sourcemaps.ts`、`tools/sourcemaps.mjs`；签发/撤销、上传、元数据查询、删除、下载                  | 两浏览器均经正式CLI上传实际发布字节；重复幂等、冲突/校验和/非法格式/超限拒绝；CLI私密异常与相同请求重试单测                                                  |
+| 服务端源码映射与源码片段                                  | `sourcemap-worker.mjs`、`sourcemap-parser.ts`、`RuntimeDiagnostics.read/exportEvidence`；统一详情与D4稳定实例页的源码定位面板 | SDK→ingestion→Kafka→consumer→存储→授权API→UI；精确源码位置、具名调用段、片段、编译栈、复制和两种派生导出；无sourcesContent仍定位                             |
+| 失败状态与严格版本匹配                                    | 完整URL/query/project/release/build/JS SHA256匹配；map SHA256验证文件；错误树逐帧及逐栈状态                                   | 错release/build/checksum、无身份、歧义、缺map、删除、cause/子错误；Unicode/CRLF、匿名/无名称、非法/indexed/远端引用、帧/错误树/解析/输出/并发预算            |
+| 持久化、授权、删除/保留期、备份恢复、可撤销凭证           | 增量010、`sourcemap-data`私有卷、5分钟清理、`scripts/production`及共享归档函数；无映射缓存                                    | admin/read+export/read/viewer/跨项目/未登录/外部token/appId/上传凭证；撤read/export/移除成员、旧下载地址、打开页及异步复核；真实升级/重启/破坏恢复与故障回收 |
+| 真实压缩构建及双浏览器                                    | `tools/build-d5-fixture.mjs`、`examples/sourcemaps/源码场景.ts`；部署实验室“D5 压缩源码异常”                                  | CLI上传esbuild产物并校验部署JS；Chromium固定4:9、WebKit固定4:13；两者具名调用段固定8:12，片段含throw语句，未上传框架帧保留明确失败状态                       |
 
 ### 精确制品与最短复验
 
@@ -499,3 +499,16 @@ D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手�
 先前每次失败和修复在历史检查点保留。最终无未解决工程阻塞；下一步是用户按D5指南手工验收、评审Draft PR，之后再决定合并及D6实施。本段之后的文档提交仅收尾证据，精确文档SHA在PR/交付回复记录，不冒充重新运行过全套CI的代码。
 
 证据包已实际下载校验：[D5摘要](https://github.com/captainamari/frontend-insight/actions/runs/38199033567/artifacts/11724623989) 10,484 bytes、25份JSON（21份testedCommit均匹配），SHA256 `58196ff5eb0c78ffaa886afa96815ebda6c411eb53099edbb7586da8791d7938`；[Ubuntu22摘要](https://github.com/captainamari/frontend-insight/actions/runs/38199033462/artifacts/11724434196) 2,540 bytes、5份同提交JSON，SHA256 `b79382d3e8fd55f4088fab7907e60b9c7bf3d9f4151cf28093667b48fca6ddac`。D5包只有摘要/包体/必要位置与checksum，无整map、源码、诊断正文、上传凭据、trace或完整服务日志。Ubuntu22三轮真实双浏览器各2项通过。
+
+## D6 实施检查点（2026-10-12，尚未完成验证）
+
+基线：D5 PR #34已合入refactor，合并SHA `3be410c82250f1235c894dfc61e654b1b8d5eed1`，包含D5文档提交`c787aaee99650cb84b59c3ea116398f28afc0966`。新分支`agent/runtime-diagnostics-d6-policy-operations`。没有自动合并、生产操作或代填人工验收。
+
+| D6原任务                | 当前实现位置                                                                                     | 待完成验证                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| 能力授权、策略和SDK生效 | DiagnosticSettings、DiagnosticOperations、共享policy合同、SDK可选policy入口；复用workflow-config | 浏览器编辑发布/同步、并发冲突、关闭恢复、兼容与失联 |
+| 生命周期与维护          | 011增量、持久墓碑、详情/导出复核、容量/清理状态、D5备份扩展验证                                  | 实际删除/晚到重试、物理清理、破坏恢复与Ubuntu22     |
+| 链路观测                | 有界健康快照、receipt拒收状态、persisted_at延迟、维护页                                          | 计数来源、去重/退避、故障与元数据隔离               |
+| 接入/角色/实验室        | D6指南、实际部署DiagnosticPolicyDemo                                                             | Chromium/WebKit真实链路及继承D0–D5/R5回归           |
+
+本地未安装Docker，真实服务/浏览器/恢复通过GitHub Actions执行。初轮本地检查发现新subpath缺Vitest source alias、demo runtime/beforeSend签名及测试初始化异步竞争，逐项修复，不提高预算。尚无D6完整成功CI，不可验收；下一步`pnpm check`后推送并检查D6/Ubuntu22工作流，读取失败日志修复。迁移、代码、测试、页面均处实施中，详见D6指南。

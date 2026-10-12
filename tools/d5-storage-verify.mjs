@@ -1,7 +1,14 @@
 // Only the disposable frontend-insight-m5 stack. Never takes production targets.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, mkdirSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  readFileSync,
+  existsSync,
+  mkdirSync,
+  writeFileSync,
+  mkdtempSync,
+  rmSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -120,6 +127,31 @@ async function main() {
   // source files, raw facts and original diagnostic envelopes, including grants/revocations.
   run(["stop", "api", "consumer"]);
   phase = "backup";
+  const d6 = existsSync("artifacts/d6-chromium.json")
+    ? JSON.parse(readFileSync("artifacts/d6-chromium.json", "utf8"))
+    : null;
+  const d6Snapshot = d6
+    ? sql(
+        `SELECT CONCAT(revision,':',retention_days,':',JSON_EXTRACT(config,'$.enabled')) FROM diagnostic_policies WHERE project_id='${d6.projectId}'`,
+      )
+    : null;
+  if (d6) {
+    assert.equal(
+      sql(
+        `SELECT COUNT(*) FROM diagnostic_deletions WHERE project_id='${d6.projectId}' AND event_id='${d6.deletedEvent}'`,
+      ),
+      "1",
+    );
+    assert.equal(
+      ch(
+        `SELECT count(DISTINCT event_id) FROM raw_events WHERE project_id='${d6.projectId}' AND event_id IN (${d6.baseEventIds.map((id) => `'${id}'`).join(",")}) FORMAT TabSeparated`,
+      )
+        .toString()
+        .trim(),
+      String(d6.baseEventIds.length),
+    );
+  }
+
   const mysql = run([
     "exec",
     "-T",
@@ -154,6 +186,12 @@ async function main() {
   sql("DELETE FROM diagnostic_sourcemaps");
   sql("DELETE FROM diagnostic_upload_credentials");
   sql("DELETE FROM diagnostic_grants");
+  if (d6) {
+    sql("DELETE FROM diagnostic_policies");
+    sql("DELETE FROM diagnostic_deletions");
+    sql("DELETE FROM diagnostic_health");
+  }
+
   ch("TRUNCATE TABLE diagnostic_details");
   run(["up", "--detach", "--no-build", "--wait", "api"]);
   assert.equal((await detail()).state, "unavailable");
@@ -199,6 +237,65 @@ async function main() {
     ).status,
     403,
   );
+  if (d6) {
+    assert.equal(
+      sql(
+        `SELECT CONCAT(revision,':',retention_days,':',JSON_EXTRACT(config,'$.enabled')) FROM diagnostic_policies WHERE project_id='${d6.projectId}'`,
+      ),
+      d6Snapshot,
+    );
+    const d6root = `http://127.0.0.1:3000/api/projects/${d6.projectId}/diagnostics`;
+    assert.equal(
+      (
+        await (
+          await request(d6root + `/instances/${d6.deletedEvent}`, { headers })
+        ).json()
+      ).state,
+      "deleted",
+    );
+    assert.equal(
+      (
+        await (
+          await request(d6root + `/instances/${d6.readyEvent}`, { headers })
+        ).json()
+      ).state,
+      "ready",
+    );
+    assert.equal(
+      (
+        await request(d6root + `/instances/${d6.readyEvent}`, {
+          headers: { authorization: `Bearer ${viewer.accessToken}` },
+        })
+      ).status,
+      403,
+    );
+    assert(
+      Number(
+        sql(
+          `SELECT COUNT(*) FROM diagnostic_health WHERE project_id='${d6.projectId}'`,
+        ),
+      ) > 0,
+    );
+    mkdirSync("artifacts", { recursive: true });
+    writeFileSync(
+      "artifacts/d6-restore.json",
+      JSON.stringify(
+        {
+          testedCommit: process.env.GITHUB_SHA,
+          actualDestructiveRestore: true,
+          policy: true,
+          grantRevocation: true,
+          deletionTombstone: true,
+          health: true,
+          baseCountsUnchanged: true,
+          oldBackupBoundary:
+            "only state at backup time; reconcile later revocations before reopening",
+        },
+        null,
+        2,
+      ),
+    );
+  }
   phase = "missing-corrupt";
   const file = "/var/lib/frontend-insight/sourcemaps/" + proof.artifactId + ".map";
   const saved = run(["exec", "-T", "api", "cat", file]);

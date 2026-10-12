@@ -75,3 +75,7 @@ Origin 是来源协议、主机和端口，例如 `https://ops.example.com` 或 
 管理员打开“审计”，按分页检查配置、接口、规则等变更和操作结果。遇到争议时，保存时间、项目、对象版本、请求 ID 及相关条目，不只凭当前界面猜测是谁改的。审计不能恢复已清除的明文凭证。
 
 查阅依据：[设置 UI](../../../apps/web/src/views/SettingsView.vue)、[R7 接入及接口说明](../v1.8-r7-acceptance.md)、[项目设置接口](../../../apps/api/src/projects.controller.ts)。
+
+## D6 诊断设置与维护入口
+
+管理员：项目设置→诊断策略与维护，发布策略、管理read/export、查看容量与健康、明确eventId删除。授权诊断成员：使用D4详情/搜索/导出；普通viewer继续质量统计，不能管理。接入开发者：使用可选policy入口与部署实验室。维护者：执行受限备份恢复，开放服务前核对权限、凭证和墓碑。详见[D6指南](../runtime-diagnostics-d6.md)，验证状态以results为准，不把实施中的功能称为已验收。

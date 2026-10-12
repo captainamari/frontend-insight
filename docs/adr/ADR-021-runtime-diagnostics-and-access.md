@@ -35,3 +35,7 @@ R8 手工验收发现错误已入库，但原始消息不展示、SDK 首帧与 
 ## D5 制品实现补充
 
 普通v3 map在服务端受限worker内解析；项目/release/build/完整资源URL与JS校验和严格匹配。原始栈不改写，源码为派生视图。可选errors模块采集时冻结构建清单，不放宽beforeSend的证据保护。文件私有持久卷、元数据及凭证hash在MySQL增量010；当前成员read读取片段，read+export下载整map，admin管理，独立上传凭证无读取能力。预算、失败/保留期/备份恢复与实际验证状态见[D5指南](../guides/runtime-diagnostics-d5.md)和results。
+
+## D6 实施状态
+
+D5 PR #34已合并；D6策略/维护实施及验证中，未完成交付。采用本地授权与远端策略交集、版本冲突检查、单实例删除墓碑及有界健康快照。策略、角色、删除/恢复与回滚边界见[D6指南](../guides/runtime-diagnostics-d6.md)，实际CI证据见results；D7未实施。

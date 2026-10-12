@@ -95,3 +95,9 @@ D3不包含D4产品检索导出、D5源码映射或D7长期压力。上一节D2�
 维护重点：URL origin/query不得为了方便匹配而删除；同身份不同内容不覆盖；SDK基础包无解析依赖；逐帧状态包括cause/子错误；read不等于export；无缓存不代表可以省掉异步返回前权限/文件状态复核。运行恢复验证只允许隔离栈，不把脚本存在或单测通过称为恢复成功。
 
 D5维护基线：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；[完整专项验证](https://github.com/captainamari/frontend-insight/actions/runs/38199033567)与[隔离Ubuntu22生产配置验证](https://github.com/captainamari/frontend-insight/actions/runs/38199033462)已成功。实际生产与Jesse手工验收不在这些自动化结论内。
+
+## D6 从配置到维护的源码阅读
+
+读取`DiagnosticSettings.vue`→`DiagnosticsController`→`DiagnosticOperations.publish`事务及revision；随后看`IngestionController.workflowConfig`的公开配置投影→可选SDK`policy.ts`交集及生命周期→`RuntimeDiagnostics.admit`最新服务端准入→consumer.persist→receipt延迟与维护页。诊断失败不删除基础raw_events。
+
+删除链路从明确eventId到持久墓碑；并发读取返回前复核、晚到consumer不将receipt改回ready、后台mutation物理回收。对照`policy.test.ts`与真实浏览器`policy.spec.ts`，再读D5恢复脚本中的D6策略/撤权/墓碑破坏恢复断言。不能从脚本存在推断执行通过。接入、观测口径、回滚及旧备份限制见[D6指南](../guides/runtime-diagnostics-d6.md)。
