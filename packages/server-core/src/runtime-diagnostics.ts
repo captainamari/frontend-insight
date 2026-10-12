@@ -226,13 +226,23 @@ export class RuntimeDiagnostics {
           ? JSON.parse(config)
           : config
         : DEFAULT_DIAGNOSTIC_POLICY;
+      const ids = events
+        .filter((event) => event.diagnostic)
+        .map((event) => event.eventId);
+      const [deletedRows] = await c.query<RowDataPacket[]>(
+        `SELECT event_id FROM diagnostic_deletions WHERE project_id=? AND event_id IN (${ids.map(() => "?").join(",")})`,
+        [project, ...ids],
+      );
+      const deletedIds = new Set(deletedRows.map((row) => String(row.event_id)));
       for (const event of events) {
         if (!event.diagnostic) continue;
         const inputDigest = digest(event);
+        const { raw: originalRaw, ...initialMetadata } = event.diagnostic;
+        void originalRaw;
         // The unique receipt reserves this event before spending the page budget.
         // Concurrent identical retries wait for commit and reuse its final result.
         const [reservation] = await c.execute<ResultSetHeader>(
-          "INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at) VALUES(?,?,?,?,'pending',?,?)",
+          "INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at,capture_metadata,byte_size) VALUES(?,?,?,?,'pending',?,?,?,?)",
           [
             project,
             event.eventId,
@@ -240,6 +250,8 @@ export class RuntimeDiagnostics {
             digest(event.diagnostic),
             new Date(now + Number(policies[0]!.retention_days) * 86400000),
             new Date(now),
+            JSON.stringify(initialMetadata),
+            Buffer.byteLength(JSON.stringify(event.diagnostic)),
           ],
         );
         const existing = reservation.affectedRows
@@ -273,13 +285,9 @@ export class RuntimeDiagnostics {
             );
           continue;
         }
-        const [deleted] = await c.query<RowDataPacket[]>(
-          "SELECT id FROM diagnostic_deletions WHERE project_id=? AND event_id=?",
-          [project, event.eventId],
-        );
         let state = "pending";
-        if (deleted.length || !policy.enabled) {
-          state = deleted.length ? "deleted" : "disabled";
+        if (deletedIds.has(event.eventId) || !policy.enabled) {
+          state = deletedIds.has(event.eventId) ? "deleted" : "disabled";
           event.diagnostic = absent(event.diagnostic, "unavailable");
         } else if (
           Buffer.byteLength(JSON.stringify(event.diagnostic)) > policy.envelopeBytes
@@ -318,22 +326,21 @@ export class RuntimeDiagnostics {
             "INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES(?,?,?) ON DUPLICATE KEY UPDATE admitted=admitted",
             [project, event.pageViewId, window],
           );
-          const [rates] = await c.query<RowDataPacket[]>(
-            "SELECT admitted FROM diagnostic_rate_windows WHERE project_id=? AND page_view_id=? AND window_start=? FOR UPDATE",
-            [project, event.pageViewId, window],
+          const [admission] = await c.execute<ResultSetHeader>(
+            "UPDATE diagnostic_rate_windows SET admitted=admitted+1 WHERE project_id=? AND page_view_id=? AND window_start=? AND admitted<?",
+            [
+              project,
+              event.pageViewId,
+              window,
+              Math.min(policy.envelopesPerMinute, DIAGNOSTIC_LIMITS.envelopesPerMinute),
+            ],
           );
-          if (
-            Number(rates[0]!.admitted) >=
-            Math.min(policy.envelopesPerMinute, DIAGNOSTIC_LIMITS.envelopesPerMinute)
-          ) {
+          if (!admission.affectedRows) {
             event.diagnostic = absent(event.diagnostic, "rate_limited");
             state = "rate_limited";
-          } else
-            await c.execute(
-              "UPDATE diagnostic_rate_windows SET admitted=admitted+1 WHERE project_id=? AND page_view_id=? AND window_start=?",
-              [project, event.pageViewId, window],
-            );
+          }
         }
+        if (state === "pending") continue;
         const { raw: _raw, ...captureMetadata } = event.diagnostic;
         void _raw;
         await c.execute(
