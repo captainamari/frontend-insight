@@ -234,6 +234,7 @@ export class RuntimeDiagnostics {
         [project, ...ids],
       );
       const deletedIds = new Set(deletedRows.map((row) => String(row.event_id)));
+      const admissionCandidates: FrontendInsightEventV3[] = [];
       for (const event of events) {
         if (!event.diagnostic) continue;
         const inputDigest = digest(event);
@@ -321,24 +322,8 @@ export class RuntimeDiagnostics {
         )
           state = event.diagnostic.status;
         else {
-          const window = Math.floor(now / 60000);
-          await c.execute(
-            "INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES(?,?,?) ON DUPLICATE KEY UPDATE admitted=admitted",
-            [project, event.pageViewId, window],
-          );
-          const [admission] = await c.execute<ResultSetHeader>(
-            "UPDATE diagnostic_rate_windows SET admitted=admitted+1 WHERE project_id=? AND page_view_id=? AND window_start=? AND admitted<?",
-            [
-              project,
-              event.pageViewId,
-              window,
-              Math.min(policy.envelopesPerMinute, DIAGNOSTIC_LIMITS.envelopesPerMinute),
-            ],
-          );
-          if (!admission.affectedRows) {
-            event.diagnostic = absent(event.diagnostic, "rate_limited");
-            state = "rate_limited";
-          }
+          admissionCandidates.push(event);
+          continue;
         }
         if (state === "pending") continue;
         const { raw: _raw, ...captureMetadata } = event.diagnostic;
@@ -354,6 +339,66 @@ export class RuntimeDiagnostics {
             event.eventId,
           ],
         );
+      }
+      if (admissionCandidates.length) {
+        const window = Math.floor(now / 60000);
+        const pages = [
+          ...new Set(admissionCandidates.map((event) => event.pageViewId)),
+        ].sort();
+        await c.execute(
+          `INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES ${pages.map(() => "(?,?,?)").join(",")} ON DUPLICATE KEY UPDATE admitted=admitted`,
+          pages.flatMap((page) => [project, page, window]),
+        );
+        const [rateRows] = await c.query<RowDataPacket[]>(
+          `SELECT page_view_id,admitted FROM diagnostic_rate_windows WHERE project_id=? AND window_start=? AND page_view_id IN (${pages.map(() => "?").join(",")}) ORDER BY page_view_id FOR UPDATE`,
+          [project, window, ...pages],
+        );
+        const admitted = new Map(
+          rateRows.map((row) => [String(row.page_view_id), Number(row.admitted)]),
+        );
+        const increments = new Map<string, number>();
+        const limited: FrontendInsightEventV3[] = [];
+        const limit = Math.min(
+          policy.envelopesPerMinute,
+          DIAGNOSTIC_LIMITS.envelopesPerMinute,
+        );
+        for (const event of admissionCandidates) {
+          const used =
+            (admitted.get(event.pageViewId) ?? 0) +
+            (increments.get(event.pageViewId) ?? 0);
+          if (used >= limit) limited.push(event);
+          else
+            increments.set(
+              event.pageViewId,
+              (increments.get(event.pageViewId) ?? 0) + 1,
+            );
+        }
+        const changed = [...increments].filter(([, count]) => count > 0);
+        if (changed.length)
+          await c.execute(
+            `UPDATE diagnostic_rate_windows SET admitted=admitted+CASE page_view_id ${changed.map(() => "WHEN ? THEN ?").join(" ")} ELSE 0 END WHERE project_id=? AND window_start=? AND page_view_id IN (${changed.map(() => "?").join(",")})`,
+            [
+              ...changed.flatMap(([page, count]) => [page, count]),
+              project,
+              window,
+              ...changed.map(([page]) => page),
+            ],
+          );
+        for (const event of limited) {
+          event.diagnostic = absent(event.diagnostic!, "rate_limited");
+          const { raw: _raw, ...captureMetadata } = event.diagnostic;
+          void _raw;
+          await c.execute(
+            "UPDATE diagnostic_receipts SET storage_digest=?,state='rate_limited',capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
+            [
+              digest(event.diagnostic),
+              JSON.stringify(captureMetadata),
+              Buffer.byteLength(JSON.stringify(event.diagnostic)),
+              project,
+              event.eventId,
+            ],
+          );
+        }
       }
       await c.commit();
     } catch (e) {
