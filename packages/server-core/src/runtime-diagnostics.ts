@@ -210,11 +210,18 @@ export class RuntimeDiagnostics {
   ) {
     const c = await this.mysql.pool.getConnection();
     try {
-      // Initialize in autocommit: INSERT IGNORE takes a shared duplicate-key lock.
-      // Holding it while upgrading to FOR UPDATE deadlocks concurrent admissions.
-      await c.execute("INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)", [
-        project,
-      ]);
+      // Avoid a duplicate-key write on the same project for every ingestion request.
+      // Only the first request initializes the row; the transaction below still
+      // takes a shared policy lock against concurrent publish/delete operations.
+      const [knownPolicies] = await c.query<RowDataPacket[]>(
+        "SELECT project_id FROM diagnostic_policies WHERE project_id=?",
+        [project],
+      );
+      if (!knownPolicies.length)
+        await c.execute(
+          "INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)",
+          [project],
+        );
       await c.beginTransaction();
       const [policies] = await c.query<RowDataPacket[]>(
         "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR SHARE",
