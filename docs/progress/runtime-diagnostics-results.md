@@ -631,3 +631,8 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 - [诊断CI 38238995166](https://github.com/captainamari/frontend-insight/actions/runs/38238995166) 仅负载步骤失败；R1–R8 [38238995138](https://github.com/captainamari/frontend-insight/actions/runs/38238995138) 与 Ubuntu22 [38238995192](https://github.com/captainamari/frontend-insight/actions/runs/38238995192) 同SHA成功。证据包SHA-256校验一致。
 - 普通20/200eps接收p95=15.47/37.21ms；异常20eps=85.62ms，均通过100ms门禁。异常200eps的2000条全部持久化，接收p95=812.34ms，实际199.27eps，未达标；持久化p95=11.087s但在5分钟可见门禁内。详情、导出、维护、搜索和实际SourceMap查询均小于72ms。
 - 继续优化每批50条异常事件的页面限额路径：在同一事务内批量创建窗口、按固定页面顺序锁定、内存计算20条上限并单次条件更新；事件收据、策略锁、删除互斥和超限精确状态保持。阈值和负载不变。
+
+### D7 dbbce805 剩余负载瓶颈
+
+- [诊断CI 38332320934](https://github.com/captainamari/frontend-insight/actions/runs/38332320934)：批量页面窗口后异常200eps实际达到200.00eps，2000条全部持久化，生成器门禁已通过；接收p95=756.87ms，仍超过100ms。普通20/200eps=15.05/45.59ms，异常20eps=86.16ms。唯一剩余失败为异常200eps接收p95。
+- 分阶段sanitize p95=174.31ms，剩余数据库热点为每批最多50条收据逐条INSERT IGNORE。改为事务内批量预留、批量读取归属、批量最终状态更新；临时预留标识在提交前清除。并发重复投递以预留归属确保只扣一次限额；已准入事件重试使用首次结果，策略后续变化不改写原信封。页面限额批量锁定逻辑保持。等待同负载复测，不调整100ms门禁。
