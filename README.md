@@ -80,4 +80,4 @@ pnpm test:r8:e2e
 
 D7 清理依据和兼容保留项见 [清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。
 
-D7完整验收与发布准备见[当前执行指南](docs/guides/runtime-diagnostics-d7.md)和[仓库清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。当前尚未完成工程验收，不代表已生产发布。
+D7完整验收与发布准备见[当前执行指南](docs/guides/runtime-diagnostics-d7.md)和[仓库清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。同一运行代码的自动化工程验收已完成；Jesse手工验收和生产发布批准仍待确认。
