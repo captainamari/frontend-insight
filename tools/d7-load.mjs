@@ -75,7 +75,7 @@ headers = {
 const report = {
   testedCommit: process.env.GITHUB_SHA,
   method:
-    "nearest rank; unique clients with one page lifetime per second, no disabled admission; all synthetic; samples exclude warmups",
+    "nearest rank; unique clients with one page lifetime per second; size-bounded requests paced across each second at the target event rate; no disabled admission; all synthetic; samples exclude warmups",
   thresholds: { ingestionP95Ms: 100, visibilityP95Ms: 300000, queryP95Ms: 2000 },
   environment: {
     node: process.version,
@@ -209,32 +209,38 @@ try {
       ids.length = 0;
       const begin = performance.now();
       let requests = 0;
+      const pending = [],
+        scheduleDrifts = [];
       for (let second = 0; second < seconds; second++) {
-        await wait(Math.max(0, begin + second * 1000 - performance.now()));
         const events = Array.from({ length: eps }, (_, i) => event(second * eps + i));
+        const batches = [];
         let batch = [],
           bytes = 0;
-        const sends = [];
         for (const e of events) {
           const size = Buffer.byteLength(JSON.stringify(e));
           if (batch.length && (bytes + size > 100000 || batch.length >= 50)) {
-            sends.push(send(batch));
-            requests++;
+            batches.push(batch);
             batch = [];
             bytes = 0;
           }
           batch.push(e);
           bytes += size;
         }
-        if (batch.length) {
-          sends.push(send(batch));
+        if (batch.length) batches.push(batch);
+        let scheduledEvents = 0;
+        for (const current of batches) {
+          const due = begin + ((second * eps + scheduledEvents) * 1000) / eps;
+          await wait(Math.max(0, due - performance.now()));
+          scheduleDrifts.push(Math.max(0, performance.now() - due));
+          pending.push(send(current));
           requests++;
+          scheduledEvents += current.length;
         }
-        await Promise.all(sends);
       }
+      const schedulingCompletedMs = performance.now() - begin;
+      await Promise.all(pending);
       const completedMs = performance.now() - begin;
-      await wait(Math.max(0, begin + seconds * 1000 - performance.now()));
-      const scheduledMs = performance.now() - begin,
+      const scheduledMs = Math.max(seconds * 1000, schedulingCompletedMs),
         expected = eps * seconds;
       const deadline = Date.now() + 300000;
       while (Date.now() < deadline) {
@@ -347,7 +353,9 @@ try {
         requests,
         requestsPerSecond: (requests * 1000) / scheduledMs,
         achievedEventsPerSecond: (expected * 1000) / scheduledMs,
-        completedMs,
+        schedulingCompletedMs,
+        drainCompletedMs: completedMs,
+        maxScheduleDriftMs: Math.max(...scheduleDrifts),
         scheduledMs,
         ingestionP95Ms: p95(samples),
         ingestionSamples: samples.length,
@@ -362,7 +370,7 @@ try {
         timings,
       };
       report.profiles.push(measurement);
-      if (completedMs > seconds * 1000)
+      if (schedulingCompletedMs > seconds * 1000)
         failures.push(`${kind}_${eps}_load_generator_missed_rate`);
       if (measurement.ingestionP95Ms > 100)
         failures.push(`${kind}_${eps}_ingestion_p95`);

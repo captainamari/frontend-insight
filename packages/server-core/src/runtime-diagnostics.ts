@@ -13,14 +13,14 @@ import {
   type DiagnosticSearchQuery,
 } from "./diagnostic-search.js";
 import { diagnosticErrorView } from "./error-stack.js";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type { ClickHouseClient } from "@clickhouse/client";
 import type {
   DiagnosticEnvelope,
   FrontendInsightEventV3,
 } from "@frontend-insight/event-contract";
 import { DIAGNOSTIC_LIMITS } from "@frontend-insight/event-contract/constants";
-import type { RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket, ResultSetHeader } from "mysql2/promise";
 import type { MySqlStore } from "./mysql-store.js";
 import type { KafkaEventEnvelope, Principal } from "./model.js";
 
@@ -234,11 +234,58 @@ export class RuntimeDiagnostics {
         [project, ...ids],
       );
       const deletedIds = new Set(deletedRows.map((row) => String(row.event_id)));
-      const reservation = randomUUID();
-      const allPrepared = events.flatMap((event) => {
-        if (!event.diagnostic) return [];
+      const admissionCandidates: FrontendInsightEventV3[] = [];
+      for (const event of events) {
+        if (!event.diagnostic) continue;
         const inputDigest = digest(event);
-        const originalDiagnostic = structuredClone(event.diagnostic);
+        const { raw: originalRaw, ...initialMetadata } = event.diagnostic;
+        void originalRaw;
+        // The unique receipt reserves this event before spending the page budget.
+        // Concurrent identical retries wait for commit and reuse its final result.
+        const [reservation] = await c.execute<ResultSetHeader>(
+          "INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at,capture_metadata,byte_size) VALUES(?,?,?,?,'pending',?,?,?,?)",
+          [
+            project,
+            event.eventId,
+            inputDigest,
+            digest(event.diagnostic),
+            new Date(now + Number(policies[0]!.retention_days) * 86400000),
+            new Date(now),
+            JSON.stringify(initialMetadata),
+            Buffer.byteLength(JSON.stringify(event.diagnostic)),
+          ],
+        );
+        const existing = reservation.affectedRows
+          ? []
+          : (
+              await c.query<RowDataPacket[]>(
+                "SELECT input_digest,storage_digest,state FROM diagnostic_receipts WHERE project_id=? AND event_id=? FOR SHARE",
+                [project, event.eventId],
+              )
+            )[0];
+        if (!reservation.affectedRows && existing[0]) {
+          if (existing[0].input_digest !== inputDigest)
+            throw new Error("DIAGNOSTICS_EVENT_CONFLICT");
+          if (
+            [
+              "rate_limited",
+              "too_large",
+              "disabled",
+              "deleted",
+              "policy_suppressed",
+            ].includes(existing[0].state) &&
+            existing[0].storage_digest !== digest(event.diagnostic)
+          )
+            event.diagnostic = absent(
+              event.diagnostic,
+              existing[0].state === "rate_limited"
+                ? "rate_limited"
+                : existing[0].state === "too_large"
+                  ? "too_large"
+                  : "unavailable",
+            );
+          continue;
+        }
         let state = "pending";
         if (deletedIds.has(event.eventId) || !policy.enabled) {
           state = deletedIds.has(event.eventId) ? "deleted" : "disabled";
@@ -249,165 +296,108 @@ export class RuntimeDiagnostics {
           state = "too_large";
           event.diagnostic = absent(event.diagnostic, "too_large");
         } else if (
-          (policy.level === "errors" &&
-            (event.diagnostic.raw.console ||
-              event.diagnostic.raw.requests ||
-              event.diagnostic.raw.request)) ||
+          policy.level === "errors" &&
+          (event.diagnostic.raw.console ||
+            event.diagnostic.raw.requests ||
+            event.diagnostic.raw.request)
+        ) {
+          state = "policy_suppressed";
+          event.diagnostic = absent(event.diagnostic, "unavailable");
+        } else if (
           (Array.isArray(event.diagnostic.raw.console) &&
             event.diagnostic.raw.console.some(
-              (row: unknown) =>
-                !policy.consoleLevels.includes((row as { level?: string })?.level),
+              (r: unknown) =>
+                !policy.consoleLevels.includes((r as { level?: string })?.level),
             )) ||
           diagnosticRequestsSuppressed(event.diagnostic.raw, policy)
         ) {
           state = "policy_suppressed";
           event.diagnostic = absent(event.diagnostic, "unavailable");
+        }
+
+        if (state !== "pending") {
+          /* server policy already decided; keep its precise receipt reason */
         } else if (
           ["rate_limited", "too_large", "unavailable"].includes(event.diagnostic.status)
         )
           state = event.diagnostic.status;
+        else {
+          admissionCandidates.push(event);
+          continue;
+        }
+        if (state === "pending") continue;
         const { raw: _raw, ...captureMetadata } = event.diagnostic;
         void _raw;
-        return [
-          {
-            event,
-            inputDigest,
-            originalDiagnostic,
-            state,
-            storageDigest: digest(event.diagnostic),
-            captureMetadata,
-            byteSize: Buffer.byteLength(JSON.stringify(event.diagnostic)),
-          },
-        ];
-      });
-      const byEvent = new Map<string, (typeof allPrepared)[number]>();
-      for (const item of allPrepared) {
-        const prior = byEvent.get(item.event.eventId);
-        if (prior && prior.inputDigest !== item.inputDigest)
-          throw new Error("DIAGNOSTICS_EVENT_CONFLICT");
-        if (!prior) byEvent.set(item.event.eventId, item);
-      }
-      const prepared = [...byEvent.values()];
-      if (prepared.length) {
         await c.execute(
-          `INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at,capture_metadata,byte_size) VALUES ${prepared.map(() => "(?,?,?,?,?,?,?,?,?)").join(",")}`,
-          prepared.flatMap((item) => [
+          "UPDATE diagnostic_receipts SET storage_digest=?,state=?,capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
+          [
+            digest(event.diagnostic),
+            state,
+            JSON.stringify(captureMetadata),
+            Buffer.byteLength(JSON.stringify(event.diagnostic)),
             project,
-            item.event.eventId,
-            item.inputDigest,
-            item.storageDigest,
-            item.state,
-            new Date(now + Number(policies[0]!.retention_days) * 86400000),
-            new Date(now),
-            JSON.stringify({ ...item.captureMetadata, __reservation: reservation }),
-            item.byteSize,
-          ]),
+            event.eventId,
+          ],
         );
-        const [receiptRows] = await c.query<RowDataPacket[]>(
-          `SELECT event_id,input_digest,storage_digest,state,capture_metadata FROM diagnostic_receipts WHERE project_id=? AND event_id IN (${prepared.map(() => "?").join(",")}) FOR SHARE`,
-          [project, ...prepared.map((item) => item.event.eventId)],
+      }
+      if (admissionCandidates.length) {
+        const window = Math.floor(now / 60000);
+        const pages = [
+          ...new Set(admissionCandidates.map((event) => event.pageViewId)),
+        ].sort();
+        await c.execute(
+          `INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES ${pages.map(() => "(?,?,?)").join(",")} ON DUPLICATE KEY UPDATE admitted=admitted`,
+          pages.flatMap((page) => [project, page, window]),
         );
-        const receipts = new Map(receiptRows.map((row) => [String(row.event_id), row]));
-        const owned = [];
-        const admissionCandidates = [];
-        for (const item of prepared) {
-          const row = receipts.get(item.event.eventId)!;
-          const metadata =
-            typeof row.capture_metadata === "string"
-              ? JSON.parse(row.capture_metadata)
-              : row.capture_metadata;
-          if (metadata?.__reservation !== reservation) {
-            if (row.input_digest !== item.inputDigest)
-              throw new Error("DIAGNOSTICS_EVENT_CONFLICT");
-            item.event.diagnostic = structuredClone(item.originalDiagnostic);
-            if (
-              [
-                "rate_limited",
-                "too_large",
-                "disabled",
-                "deleted",
-                "policy_suppressed",
-              ].includes(row.state) &&
-              row.storage_digest !== digest(item.originalDiagnostic)
-            )
-              item.event.diagnostic = absent(
-                item.event.diagnostic,
-                row.state === "rate_limited"
-                  ? "rate_limited"
-                  : row.state === "too_large"
-                    ? "too_large"
-                    : "unavailable",
-              );
-            continue;
-          }
-          owned.push(item);
-          if (item.state === "pending") admissionCandidates.push(item);
-        }
-        if (admissionCandidates.length) {
-          const window = Math.floor(now / 60000);
-          const pages = [
-            ...new Set(admissionCandidates.map((item) => item.event.pageViewId)),
-          ].sort();
-          await c.execute(
-            `INSERT INTO diagnostic_rate_windows(project_id,page_view_id,window_start) VALUES ${pages.map(() => "(?,?,?)").join(",")} ON DUPLICATE KEY UPDATE admitted=admitted`,
-            pages.flatMap((page) => [project, page, window]),
-          );
-          const [rateRows] = await c.query<RowDataPacket[]>(
-            `SELECT page_view_id,admitted FROM diagnostic_rate_windows WHERE project_id=? AND window_start=? AND page_view_id IN (${pages.map(() => "?").join(",")}) ORDER BY page_view_id FOR UPDATE`,
-            [project, window, ...pages],
-          );
-          const admitted = new Map(
-            rateRows.map((row) => [String(row.page_view_id), Number(row.admitted)]),
-          );
-          const increments = new Map<string, number>();
-          const limit = Math.min(
-            policy.envelopesPerMinute,
-            DIAGNOSTIC_LIMITS.envelopesPerMinute,
-          );
-          for (const item of admissionCandidates) {
-            const page = item.event.pageViewId;
-            const used = (admitted.get(page) ?? 0) + (increments.get(page) ?? 0);
-            if (used >= limit) {
-              item.event.diagnostic = absent(item.event.diagnostic!, "rate_limited");
-              item.state = "rate_limited";
-              item.storageDigest = digest(item.event.diagnostic);
-              const { raw: _raw, ...captureMetadata } = item.event.diagnostic;
-              void _raw;
-              item.captureMetadata = captureMetadata;
-              item.byteSize = Buffer.byteLength(JSON.stringify(item.event.diagnostic));
-            } else increments.set(page, (increments.get(page) ?? 0) + 1);
-          }
-          const changed = [...increments].filter(([, count]) => count > 0);
-          if (changed.length)
-            await c.execute(
-              `UPDATE diagnostic_rate_windows SET admitted=admitted+CASE page_view_id ${changed.map(() => "WHEN ? THEN ?").join(" ")} ELSE 0 END WHERE project_id=? AND window_start=? AND page_view_id IN (${changed.map(() => "?").join(",")})`,
-              [
-                ...changed.flatMap(([page, count]) => [page, count]),
-                project,
-                window,
-                ...changed.map(([page]) => page),
-              ],
+        const [rateRows] = await c.query<RowDataPacket[]>(
+          `SELECT page_view_id,admitted FROM diagnostic_rate_windows WHERE project_id=? AND window_start=? AND page_view_id IN (${pages.map(() => "?").join(",")}) ORDER BY page_view_id FOR UPDATE`,
+          [project, window, ...pages],
+        );
+        const admitted = new Map(
+          rateRows.map((row) => [String(row.page_view_id), Number(row.admitted)]),
+        );
+        const increments = new Map<string, number>();
+        const limited: FrontendInsightEventV3[] = [];
+        const limit = Math.min(
+          policy.envelopesPerMinute,
+          DIAGNOSTIC_LIMITS.envelopesPerMinute,
+        );
+        for (const event of admissionCandidates) {
+          const used =
+            (admitted.get(event.pageViewId) ?? 0) +
+            (increments.get(event.pageViewId) ?? 0);
+          if (used >= limit) limited.push(event);
+          else
+            increments.set(
+              event.pageViewId,
+              (increments.get(event.pageViewId) ?? 0) + 1,
             );
         }
-        if (owned.length)
+        const changed = [...increments].filter(([, count]) => count > 0);
+        if (changed.length)
           await c.execute(
-            `UPDATE diagnostic_receipts SET storage_digest=CASE event_id ${owned.map(() => "WHEN ? THEN ?").join(" ")} ELSE storage_digest END,state=CASE event_id ${owned.map(() => "WHEN ? THEN ?").join(" ")} ELSE state END,capture_metadata=CASE event_id ${owned.map(() => "WHEN ? THEN ?").join(" ")} ELSE capture_metadata END,byte_size=CASE event_id ${owned.map(() => "WHEN ? THEN ?").join(" ")} ELSE byte_size END WHERE project_id=? AND event_id IN (${owned.map(() => "?").join(",")})`,
+            `UPDATE diagnostic_rate_windows SET admitted=admitted+CASE page_view_id ${changed.map(() => "WHEN ? THEN ?").join(" ")} ELSE 0 END WHERE project_id=? AND window_start=? AND page_view_id IN (${changed.map(() => "?").join(",")})`,
             [
-              ...owned.flatMap((item) => [item.event.eventId, item.storageDigest]),
-              ...owned.flatMap((item) => [item.event.eventId, item.state]),
-              ...owned.flatMap((item) => [
-                item.event.eventId,
-                JSON.stringify(item.captureMetadata),
-              ]),
-              ...owned.flatMap((item) => [item.event.eventId, item.byteSize]),
+              ...changed.flatMap(([page, count]) => [page, count]),
               project,
-              ...owned.map((item) => item.event.eventId),
+              window,
+              ...changed.map(([page]) => page),
             ],
           );
-        for (const item of allPrepared) {
-          const canonical = byEvent.get(item.event.eventId)!;
-          if (item !== canonical && canonical.event.diagnostic)
-            item.event.diagnostic = structuredClone(canonical.event.diagnostic);
+        for (const event of limited) {
+          event.diagnostic = absent(event.diagnostic!, "rate_limited");
+          const { raw: _raw, ...captureMetadata } = event.diagnostic;
+          void _raw;
+          await c.execute(
+            "UPDATE diagnostic_receipts SET storage_digest=?,state='rate_limited',capture_metadata=?,byte_size=? WHERE project_id=? AND event_id=?",
+            [
+              digest(event.diagnostic),
+              JSON.stringify(captureMetadata),
+              Buffer.byteLength(JSON.stringify(event.diagnostic)),
+              project,
+              event.eventId,
+            ],
+          );
         }
       }
       await c.commit();
