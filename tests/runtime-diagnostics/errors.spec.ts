@@ -247,8 +247,11 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
   );
   await expect(page.getByTestId("diagnostic-stack")).toContainText("renderChart");
   await expect(
-    page.getByTestId("diagnostic-stack").locator('[data-token="function"]'),
-  ).toContainText("renderChart");
+    page
+      .getByTestId("diagnostic-stack")
+      .locator('[data-token="function"]')
+      .filter({ hasText: /^renderChart$/ }),
+  ).toHaveCount(1);
   await expect(page.getByLabel("JavaScript 编译栈")).toHaveAttribute(
     "data-testid",
     "diagnostic-stack",
