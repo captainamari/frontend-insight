@@ -62,9 +62,13 @@ function featureFixture(name = "feature_exposed"): FrontendInsightEventBatchV3 {
 }
 
 function setup(
-  options: { publishError?: boolean; projectOverride?: ProjectIngestionConfig } = {},
+  options: {
+    publishError?: boolean;
+    projectOverride?: ProjectIngestionConfig;
+    markReceived?: () => Promise<void>;
+  } = {},
 ) {
-  const markReceived = vi.fn(async () => {});
+  const markReceived = vi.fn(options.markReceived ?? (async () => {}));
   const markRejected = vi.fn(async () => {});
   const store = {
     getIngestionProject: vi.fn(async () => options.projectOverride ?? project),
@@ -125,6 +129,20 @@ describe("contract v3 ingestion pipeline", () => {
       true,
     );
     expect(JSON.stringify(timings)).not.toContain(rawUserId);
+  });
+
+  it("does not delay Kafka acceptance behind best-effort status telemetry", async () => {
+    let finish!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const { manager, markReceived } = setup({ markReceived: () => pending });
+    await expect(manager.accept(fixture(), context)).resolves.toMatchObject({
+      acceptedEvents: 2,
+    });
+    expect(markReceived).toHaveBeenCalledOnce();
+    finish();
+    await pending;
   });
 
   it.each(invalidLegacyBatches)(
