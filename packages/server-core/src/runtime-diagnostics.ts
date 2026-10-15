@@ -26,8 +26,16 @@ import type { KafkaEventEnvelope, Principal } from "./model.js";
 
 export type DiagnosticCapability = "diagnostics.read" | "diagnostics.export";
 export class DiagnosticAccessError extends Error {}
-const digest = (value: unknown) =>
-  createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const digestJson = (json: string) => createHash("sha256").update(json).digest("hex");
+const digest = (value: unknown) => digestJson(JSON.stringify(value));
+// Admission only ever replaces event.diagnostic; it never mutates raw or other nested
+// evidence. Keep the large raw strings shared so 50 concurrent requests do not copy
+// every envelope on the Node event loop. A fresh shell per retry still prevents an
+// aborted transaction's suppression decision from leaking into the next attempt.
+const cloneAdmissionEvents = (events: FrontendInsightEventV3[]) =>
+  events.map((event) =>
+    event.diagnostic ? { ...event, diagnostic: { ...event.diagnostic } } : { ...event },
+  );
 const absent = (
   d: DiagnosticEnvelope,
   status: "rate_limited" | "unavailable" | "too_large",
@@ -73,6 +81,7 @@ export function diagnosticRequestsSuppressed(
 export class RuntimeDiagnostics {
   sourceMaps?: SourceMaps;
   readonly operations: DiagnosticOperations;
+  private readonly knownPolicyRows = new Set<string>();
   constructor(private readonly mysql: MySqlStore) {
     this.operations = new DiagnosticOperations(mysql, this);
   }
@@ -187,7 +196,7 @@ export class RuntimeDiagnostics {
     // Retry only MySQL deadlocks, with fresh envelopes after full transaction rollback.
     // Never carry a suppressed envelope from an aborted transaction into a retry.
     for (let attempt = 0; ; attempt++) {
-      const candidate = structuredClone(events);
+      const candidate = cloneAdmissionEvents(events);
       try {
         await this.admitTransaction(project, candidate, now);
         for (let i = 0; i < events.length; i++) {
@@ -213,15 +222,19 @@ export class RuntimeDiagnostics {
       // Avoid a duplicate-key write on the same project for every ingestion request.
       // Only the first request initializes the row; the transaction below still
       // takes a shared policy lock against concurrent publish/delete operations.
-      const [knownPolicies] = await c.query<RowDataPacket[]>(
-        "SELECT project_id FROM diagnostic_policies WHERE project_id=?",
-        [project],
-      );
-      if (!knownPolicies.length)
-        await c.execute(
-          "INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)",
+      if (!this.knownPolicyRows.has(project)) {
+        const [knownPolicies] = await c.query<RowDataPacket[]>(
+          "SELECT project_id FROM diagnostic_policies WHERE project_id=?",
           [project],
         );
+        if (!knownPolicies.length)
+          await c.execute(
+            "INSERT IGNORE INTO diagnostic_policies(project_id) VALUES(?)",
+            [project],
+          );
+        if (this.knownPolicyRows.size >= 10_000) this.knownPolicyRows.clear();
+        this.knownPolicyRows.add(project);
+      }
       await c.beginTransaction();
       const [policies] = await c.query<RowDataPacket[]>(
         "SELECT retention_days,config FROM diagnostic_policies WHERE project_id=? FOR SHARE",
@@ -244,7 +257,10 @@ export class RuntimeDiagnostics {
       const admissionCandidates: FrontendInsightEventV3[] = [];
       for (const event of events) {
         if (!event.diagnostic) continue;
-        const inputDigest = digest(event);
+        const inputDigest = digestJson(JSON.stringify(event));
+        const diagnosticJson = JSON.stringify(event.diagnostic);
+        const initialStorageDigest = digestJson(diagnosticJson);
+        const initialByteSize = Buffer.byteLength(diagnosticJson);
         const { raw: originalRaw, ...initialMetadata } = event.diagnostic;
         void originalRaw;
         // The unique receipt reserves this event before spending the page budget.
@@ -255,11 +271,11 @@ export class RuntimeDiagnostics {
             project,
             event.eventId,
             inputDigest,
-            digest(event.diagnostic),
+            initialStorageDigest,
             new Date(now + Number(policies[0]!.retention_days) * 86400000),
             new Date(now),
             JSON.stringify(initialMetadata),
-            Buffer.byteLength(JSON.stringify(event.diagnostic)),
+            initialByteSize,
           ],
         );
         const existing = reservation.affectedRows
@@ -281,7 +297,7 @@ export class RuntimeDiagnostics {
               "deleted",
               "policy_suppressed",
             ].includes(existing[0].state) &&
-            existing[0].storage_digest !== digest(event.diagnostic)
+            existing[0].storage_digest !== initialStorageDigest
           )
             event.diagnostic = absent(
               event.diagnostic,
@@ -297,9 +313,7 @@ export class RuntimeDiagnostics {
         if (deletedIds.has(event.eventId) || !policy.enabled) {
           state = deletedIds.has(event.eventId) ? "deleted" : "disabled";
           event.diagnostic = absent(event.diagnostic, "unavailable");
-        } else if (
-          Buffer.byteLength(JSON.stringify(event.diagnostic)) > policy.envelopeBytes
-        ) {
+        } else if (initialByteSize > policy.envelopeBytes) {
           state = "too_large";
           event.diagnostic = absent(event.diagnostic, "too_large");
         } else if (
