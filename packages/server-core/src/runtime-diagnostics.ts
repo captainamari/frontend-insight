@@ -36,6 +36,7 @@ const cloneAdmissionEvents = (events: FrontendInsightEventV3[]) =>
   events.map((event) =>
     event.diagnostic ? { ...event, diagnostic: { ...event.diagnostic } } : { ...event },
   );
+const FAST_ADMISSION_COLLISION = "DIAGNOSTICS_FAST_ADMISSION_COLLISION";
 const absent = (
   d: DiagnosticEnvelope,
   status: "rate_limited" | "unavailable" | "too_large",
@@ -195,16 +196,26 @@ export class RuntimeDiagnostics {
   async admit(project: string, events: FrontendInsightEventV3[], now: number) {
     // Retry only MySQL deadlocks, with fresh envelopes after full transaction rollback.
     // Never carry a suppressed envelope from an aborted transaction into a retry.
+    let forceSequentialReceipts = false;
     for (let attempt = 0; ; attempt++) {
       const candidate = cloneAdmissionEvents(events);
       try {
-        await this.admitTransaction(project, candidate, now);
+        await this.admitTransaction(project, candidate, now, forceSequentialReceipts);
         for (let i = 0; i < events.length; i++) {
           const diagnostic = candidate[i]!.diagnostic;
           if (diagnostic) events[i]!.diagnostic = diagnostic;
         }
         return;
       } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === FAST_ADMISSION_COLLISION &&
+          !forceSequentialReceipts
+        ) {
+          forceSequentialReceipts = true;
+          attempt -= 1;
+          continue;
+        }
         if ((error as { code?: string })?.code !== "ER_LOCK_DEADLOCK" || attempt >= 2)
           throw error;
         await new Promise((resolve) => setTimeout(resolve, 5 * (attempt + 1)));
@@ -216,6 +227,7 @@ export class RuntimeDiagnostics {
     project: string,
     events: FrontendInsightEventV3[],
     now: number,
+    forceSequentialReceipts: boolean,
   ) {
     const c = await this.mysql.pool.getConnection();
     try {
@@ -255,14 +267,82 @@ export class RuntimeDiagnostics {
       );
       const deletedIds = new Set(deletedRows.map((row) => String(row.event_id)));
       const admissionCandidates: FrontendInsightEventV3[] = [];
-      for (const event of events) {
-        if (!event.diagnostic) continue;
-        const inputDigest = digestJson(JSON.stringify(event));
-        const diagnosticJson = JSON.stringify(event.diagnostic);
-        const initialStorageDigest = digestJson(diagnosticJson);
-        const initialByteSize = Buffer.byteLength(diagnosticJson);
-        const { raw: originalRaw, ...initialMetadata } = event.diagnostic;
-        void originalRaw;
+      const diagnosticEvents = events.filter(
+        (event): event is FrontendInsightEventV3 & { diagnostic: DiagnosticEnvelope } =>
+          Boolean(event.diagnostic),
+      );
+      const prepared = new Map(
+        diagnosticEvents.map((event) => {
+          const diagnosticJson = JSON.stringify(event.diagnostic);
+          const { raw: originalRaw, ...initialMetadata } = event.diagnostic;
+          void originalRaw;
+          return [
+            event,
+            {
+              inputDigest: digestJson(JSON.stringify(event)),
+              initialStorageDigest: digestJson(diagnosticJson),
+              initialByteSize: Buffer.byteLength(diagnosticJson),
+              initialMetadata,
+            },
+          ] as const;
+        }),
+      );
+      const fastAdmission =
+        !forceSequentialReceipts &&
+        new Set(diagnosticEvents.map((event) => event.eventId)).size ===
+          diagnosticEvents.length &&
+        diagnosticEvents.every((event) => {
+          const item = prepared.get(event)!;
+          return (
+            !deletedIds.has(event.eventId) &&
+            policy.enabled &&
+            item.initialByteSize <= policy.envelopeBytes &&
+            !(
+              policy.level === "errors" &&
+              (event.diagnostic.raw.console ||
+                event.diagnostic.raw.requests ||
+                event.diagnostic.raw.request)
+            ) &&
+            !(
+              Array.isArray(event.diagnostic.raw.console) &&
+              event.diagnostic.raw.console.some(
+                (row: unknown) =>
+                  !policy.consoleLevels.includes((row as { level?: string })?.level),
+              )
+            ) &&
+            !diagnosticRequestsSuppressed(event.diagnostic.raw, policy) &&
+            !["rate_limited", "too_large", "unavailable"].includes(
+              event.diagnostic.status,
+            )
+          );
+        });
+      if (fastAdmission && diagnosticEvents.length) {
+        const [reservation] = await c.execute<ResultSetHeader>(
+          `INSERT IGNORE INTO diagnostic_receipts(project_id,event_id,input_digest,storage_digest,state,expires_at,created_at,capture_metadata,byte_size) VALUES ${diagnosticEvents.map(() => "(?,?,?,?,'pending',?,?,?,?)").join(",")}`,
+          diagnosticEvents.flatMap((event) => {
+            const item = prepared.get(event)!;
+            return [
+              project,
+              event.eventId,
+              item.inputDigest,
+              item.initialStorageDigest,
+              new Date(now + Number(policies[0]!.retention_days) * 86400000),
+              new Date(now),
+              JSON.stringify(item.initialMetadata),
+              item.initialByteSize,
+            ];
+          }),
+        );
+        // The common high-throughput path owns every new receipt. Any retry or
+        // concurrent duplicate rolls this transaction back and re-enters the exact
+        // per-event path below, which preserves conflict and first-result semantics.
+        if (reservation.affectedRows !== diagnosticEvents.length)
+          throw new Error(FAST_ADMISSION_COLLISION);
+        admissionCandidates.push(...diagnosticEvents);
+      }
+      for (const event of fastAdmission ? [] : diagnosticEvents) {
+        const { inputDigest, initialStorageDigest, initialByteSize, initialMetadata } =
+          prepared.get(event)!;
         // The unique receipt reserves this event before spending the page budget.
         // Concurrent identical retries wait for commit and reuse its final result.
         const [reservation] = await c.execute<ResultSetHeader>(
