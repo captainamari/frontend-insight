@@ -647,35 +647,37 @@ D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已
 - [诊断CI 38335139799](https://github.com/captainamari/frontend-insight/actions/runs/38335139799)：持续调度精确达到200eps、50requests/s，最大漂移85.45ms；异常200eps接收p95=679.85ms，仍失败。普通20/200eps=13.23/19.62ms，异常20eps=26.35ms。
 - 所有MySQL相关阶段在50requests/s时同步升至约75ms。根因之一是每个诊断请求都对已存在的同一项目策略行执行INSERT IGNORE，造成热点重复键写锁。改为只读存在检查，仅首次缺失时初始化；事务内策略共享锁、发布/删除排他锁及实时策略读取均保留。负载和阈值不变。
 
-## D7 最终工程证据（2026-10-13）
+## D7 最终工程证据（2026-10-15）
 
-D7 最终运行代码为 `73f5da8d273d5c730e3bc2e974f6301fc07ce91d`。本节取代前面的执行检查点；失败轮次仍保留为问题定位记录。原七项与新增仓库清理均已实现并在清理后的同一代码 SHA 验证。自动化工程验收完成，Jesse 手工验收和生产发布批准仍待确认；没有自动合并或操作生产。
+D7 最终运行代码为 `709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`。本节取代前面的执行检查点；失败轮次仍保留为问题定位记录。原七项、新增仓库清理和安全代码富展示均已实现并在清理后的同一代码 SHA 验证。自动化工程验收完成；Jesse 已确认业务逻辑和采集内容无问题，富展示视觉复核、完整手工验收和生产发布批准仍待确认；没有自动合并或操作生产。
 
-| 工作流                                                                                                                  | 结果与真实范围                                                                                             | 证据                                                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Runtime diagnostics D7 38336455663](https://github.com/captainamari/frontend-insight/actions/runs/38336455663)         | 成功；D0–D6字段/权限/双浏览器、真实Vue、离线恢复、MySQL实停、负载、SourceMap、破坏恢复、R5分母             | artifact `diagnostics-d7-73f5da8d273d5c730e3bc2e974f6301fc07ce91d`，SHA-256 `cc140801beb5944cc79b22408ac627dbc06981467afdd1c7d5d6f4be0dd2369e`；33个文件，全部JSON `testedCommit`已核对 |
-| [D7 inherited R1–R8 38336455536](https://github.com/captainamari/frontend-insight/actions/runs/38336455536)             | 成功；静态/单元/构建、R1–R8实际服务与Chromium/WebKit、质量负载、003–011升级、Kafka/consumer/ClickHouse恢复 | artifact `d7-products-73f5da8d273d5c730e3bc2e974f6301fc07ce91d`，SHA-256 `8c507fca1479be19438f25eb095bef0e69773dd3f1c17ce8e179a0788691e11c`；51份JSON均为最终SHA                        |
-| [Ubuntu22 Production deployment 38336455570](https://github.com/captainamari/frontend-insight/actions/runs/38336455570) | 成功；生产Compose、TLS双浏览器、保留卷重建、备份→破坏→恢复、恢复后API/UI                                   | artifact `production-deployment-evidence`，SHA-256 `e4ec80d0c901b7d9804d7b22a3a3e53eebbe9b24871034ede398bcdb389df958`；五份JSON均为最终SHA                                              |
+| 工作流                                                                                                                  | 结果与真实范围                                                                                                  | 证据                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Runtime diagnostics D7 38674827756](https://github.com/captainamari/frontend-insight/actions/runs/38674827756)         | 成功；D0–D6字段/权限/双浏览器、安全富展示、真实Vue、离线恢复、MySQL实停、负载、SourceMap、破坏恢复、R5分母      | artifact `diagnostics-d7-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `4d11ba2bbc04e0455689fa6212994d62821c26194dc459584445ae77bde2c0f2`；33个文件，28份含`testedCommit`的JSON均已核对 |
+| [D7 inherited R1–R8 38674827236](https://github.com/captainamari/frontend-insight/actions/runs/38674827236)             | 成功；静态/645项单元/构建、R1–R8实际服务与Chromium/WebKit、质量负载、003–011升级、Kafka/consumer/ClickHouse恢复 | artifact `d7-products-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `21ec31f7323c8e36fadbbf5db2860e41172133637128c681925cca6688c5e4ee`；51份JSON均为最终SHA                             |
+| [Ubuntu22 Production deployment 38674827162](https://github.com/captainamari/frontend-insight/actions/runs/38674827162) | 成功；生产Compose、TLS双浏览器、保留卷重建、备份→破坏→恢复、恢复后API/UI                                        | artifact `production-deployment-evidence`，SHA-256 `51ed7b41f210f31dafedc75a8a227ff778e77b09c46e3b53a7c0c2d06c1cebf5`；五份JSON均为最终SHA                                                   |
 
-最终性能环境为 GitHub Ubuntu runner：Linux Azure x64、4 vCPU AMD EPYC 9V45、约16.7GB内存、Node24.21.0、Docker28.0.4、Compose2.38.2。容器上限MySQL768MiB、Kafka1.5GiB、ClickHouse2GiB，API/consumer未在该compose另设上限。nearest-rank p95排除每组3次预热；所有数据为隔离合成数据。
+最终性能环境为 GitHub Ubuntu runner：Linux Azure x64、4 vCPU AMD EPYC 7763、约16.7GB内存、Node24.21.0、Docker28.0.4、Compose2.38.2。容器上限MySQL768MiB、Kafka1.5GiB、ClickHouse2GiB，API/consumer未在该compose另设上限。nearest-rank p95排除每组3次预热；所有数据为隔离合成数据。
 
 | 场景           | 实际速率                    | ingestion p95 | persistence p95 | 结果                    |
 | -------------- | --------------------------- | ------------: | --------------: | ----------------------- |
-| 正常20eps×60s  | 20 events/s、1 request/s    |        9.44ms |          不适用 | 通过100ms接收门禁       |
-| 正常200eps×10s | 200 events/s、4 requests/s  |       12.36ms |          不适用 | 通过                    |
-| 异常20eps×60s  | 20 events/s、5 requests/s   |       23.47ms |            55ms | 通过                    |
-| 异常200eps×10s | 200 events/s、50 requests/s |       36.90ms |         5,188ms | 接收及5分钟可见门禁通过 |
+| 正常20eps×60s  | 20 events/s、1 request/s    |       10.46ms |          不适用 | 通过100ms接收门禁       |
+| 正常200eps×10s | 200 events/s、4 requests/s  |       16.94ms |          不适用 | 通过                    |
+| 异常20eps×60s  | 20 events/s、5 requests/s   |       23.52ms |            69ms | 通过                    |
+| 异常200eps×10s | 200 events/s、50 requests/s |       52.89ms |         9,562ms | 接收及5分钟可见门禁通过 |
 
-四组共6,400个正式事件，异常原文256/2,048/16,384/60,000字节，100,000字节/50事件批次，多客户端页面限额与项目准入保持启用。调度完成/排空分别为59,000.97/59,007.14、9,750.18/9,760.44、59,949.34/59,957.88、9,994.88/10,007.99ms；最大调度漂移1.51/1.05/2.36/26.13ms。没有把请求数当事件数或把拒收量当持久化吞吐。
+四组共6,400个正式事件，异常原文256/2,048/16,384/60,000字节，100,000字节/50事件批次，多客户端页面限额与项目准入保持启用。调度完成/排空分别为59,000.05/59,008.32、9,749.55/9,757.17、59,949.35/59,958.56、9,996.79/10,023.84ms；最大调度漂移2.02/1.73/2.76/43.58ms。没有把请求数当事件数或把拒收量当持久化吞吐。
 
-详情/导出/维护/搜索p95为25.91/22.65/6.16/40.40ms；实际SourceMap 20样本p95=49.98ms，均低于测量前固定的2秒目标。异常20/200eps分别为1,203/2,003存储行（含3预热），逻辑原文23,701,524/39,503,124 bytes，信封23,912,049/39,853,649，元数据210,525/350,525，receipt文本元数据380,148/632,948 bytes。
+两档异常负载取较高值时，详情/导出/维护/搜索p95为40.73/34.70/12.06/73.09ms；实际SourceMap 20样本p95=84.13ms，均低于测量前固定的2秒目标。异常20/200eps分别为1,203/2,003存储行（含3预热），逻辑原文23,701,524/39,503,124 bytes，信封23,912,049/39,853,649，元数据210,525/350,525，receipt文本元数据380,148/632,948 bytes。
 
-共享ClickHouse active parts为raw_events198,777 bytes、diagnostic_details520,770、schema_migrations1,087；SourceMap文件分配12KiB，无未完成mutation。这些是共享物理占用，不能当单项目精确磁盘。以本次高度可压缩合成信封约19.9KiB/事件、连续错误和14天保留作未压缩逻辑投影：20eps约480.9GB，200eps约4.813TB；压缩比未知且不含备份，不能承诺生产容量。
+共享ClickHouse active parts为raw_events191,254 bytes、diagnostic_details518,540、schema_migrations1,088；SourceMap文件分配12KiB，无未完成mutation。这些是共享物理占用，不能当单项目精确磁盘。以本次高度可压缩合成信封约19.9KiB/事件、连续错误和14天保留作未压缩逻辑投影：20eps约480.9GB，200eps约4.813TB；压缩比未知且不含备份，不能承诺生产容量。
 
-基础SDK为36,756 raw bytes、12,287/12,288 gzip bytes；errors/console/requests/policy/quality为2,305/2,741/4,976/2,667/5,239，完整诊断24,976，带quality30,215 bytes。Chromium同步关闭/开启/64KiB信封p95为0.1/0.2/0.2ms，WebKit为0/1/1ms；每项20预热+200样本，不含传输。
+基础SDK为36,756 raw bytes、12,287/12,288 gzip bytes；errors/console/requests/policy/quality为2,305/2,741/4,976/2,667/5,239，完整诊断24,976，带quality30,215 bytes。Chromium同步关闭/开启/64KiB信封p95为0.2/0.3/0.4ms，WebKit为0/1/1ms；每项20预热+200样本，不含传输。
 
 MySQL故障证据实际停止依赖，故障时未知不显示零；恢复后相同eventId两次成功传输保留2份raw副本，唯一基础事实和产品次数均为1。D6破坏恢复复验策略、撤权、删除墓碑、健康和基础计数。Ubuntu证据还验证镜像层不含CI秘密、合法非空持久表、私有SourceMap归档和恢复后双浏览器；演练在备份后没有新的授权变更，生产恢复仍须对账备份后的撤权/删除。
 
 仓库清理将根目录16个显式阶段Playwright配置移动至`tests/config/`并更新package、workflow和文档；默认自动发现配置保留根目录。检查614个跟踪文件，没有证据充分的无关构建物/日志/截图/压缩包可删除或需要归档。M0–M8历史命名仍被CI、Compose、卷或公开命令使用，保留兼容。清理后clean checkout完成frozen install、生成、check、全部真实浏览器、Docker构建、升级和恢复。
+
+富展示使用JavaScript/JSON/stack/text词法token、CSS行号、换行切换及SourceMap唯一命中行高亮；所有token均为Vue文本节点，不使用`v-html`。单元测试验证格式化前后原文一致与XSS惰性，Chromium/WebKit真实产品流验证函数/关键字token、源码行及`script`/`svg onload`不执行；复制/导出仍读取服务端原始证据。
 
 真实覆盖仍有边界：Firefox只有栈格式fixture；React没有完整渲染树；D3不clone/tee或代读业务响应，XHR不自动采正文；内存离线队列不保证关页投递；已下载文件不可远程收回；CI容量不等于生产容量。发布顺序、回滚隔离、恢复对账和Jesse最短手工路径见[D7指南](../guides/runtime-diagnostics-d7.md)。

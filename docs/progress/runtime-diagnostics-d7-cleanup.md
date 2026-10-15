@@ -44,6 +44,6 @@
 
 ## 最终验证与保留疑点
 
-清理后的运行代码 `73f5da8d273d5c730e3bc2e974f6301fc07ce91d` 已从 GitHub clean checkout 执行 frozen install、生成、格式/Lint/类型/单元/构建、全部阶段真实浏览器入口、Docker 构建、增量升级、隔离部署和破坏恢复。最终三条同 SHA CI 及 artifact 校验见 [D7结果](runtime-diagnostics-results.md)。因此结论基于移动后的仓库，不沿用清理前成功。
+清理后的最终运行代码 `709db4bb9f66a178cb0e58d7a1bbf23423b5dc05` 已从 GitHub clean checkout 执行 frozen install、生成、格式/Lint/类型/645项单元测试/构建、全部阶段真实浏览器入口、Docker 构建、增量升级、隔离部署和破坏恢复。最终三条同 SHA CI 及 artifact 校验见 [D7结果](runtime-diagnostics-results.md)。因此结论基于移动后的仓库及富展示/性能修复后的代码，不沿用清理前或较早候选成功。
 
 本批没有删除或归档文件：614个初始跟踪文件中未发现证据充分的无关、重复或可再生产物。旧 M0–M4、M7/M8 名称仍被工作流、Compose、卷、公开命令和历史复现实验使用，保留兼容；若未来停止支持，应另批明确下线外部命令、卷名和工作流。当前唯一疑点是这些历史入口何时退役，缺少产品决定，不能据此删除。

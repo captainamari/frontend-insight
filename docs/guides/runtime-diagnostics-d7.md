@@ -1,6 +1,6 @@
 # D7 工程验收与发布准备
 
-基线 D6 #35 已合入 `refactor` 的 `590c17b6e25ff3d002355705a5009a70e5d8473c`。D7 分支为 `agent/runtime-diagnostics-d7-acceptance-cleanup`，Draft PR 为 [#36](https://github.com/captainamari/frontend-insight/pull/36)。最终运行代码候选为 `73f5da8d273d5c730e3bc2e974f6301fc07ce91d`；自动化工程验收已经完成，Jesse 手工验收和实际发布批准仍待确认。
+基线 D6 #35 已合入 `refactor` 的 `590c17b6e25ff3d002355705a5009a70e5d8473c`。D7 分支为 `agent/runtime-diagnostics-d7-acceptance-cleanup`，Draft PR 为 [#36](https://github.com/captainamari/frontend-insight/pull/36)。最终运行代码候选为 `709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`；自动化工程验收已经完成。Jesse 已确认业务逻辑和采集内容无问题；安全代码富展示仍待最终视觉复核，完整手工验收和实际发布批准仍待确认。
 
 ## D7 完成矩阵
 
@@ -17,16 +17,16 @@
 
 ## D0–D7 最终状态
 
-| 批次 | 实现状态                                | 最终入口                                     | 人工状态                            |
-| ---- | --------------------------------------- | -------------------------------------------- | ----------------------------------- |
-| D0   | 已合入；合同、受限存储与访问            | D7 的 D0 升级/身份/日志/双浏览器回归         | 不以历史合并代填人工通过            |
-| D1   | 已合入；可定位错误与框架适配            | D7 的 D1 浏览器、实验室及 Firefox 栈 fixture | 同上                                |
-| D2   | 已合入；console 原文上下文              | D7 的 D2 双浏览器和单元回归                  | 同上                                |
-| D3   | 已合入；受控 fetch 与显式关联           | D7 的 D3 双浏览器和请求合同回归              | 同上                                |
-| D4   | 已合入；详情、搜索、稳定链接、复制/导出 | D7 的 D4 权限/查询/双浏览器回归              | 同上                                |
-| D5   | 已合入；CLI SourceMap 与生命周期        | D7 的 D5 双浏览器、存储和恢复                | 同上                                |
-| D6   | PR #35 已合入；策略、维护和健康         | D7 的 D6 双浏览器及破坏恢复                  | Jesse 尚未确认全部手工场景          |
-| D7   | 工程实现与同 SHA 自动化验收完成         | `73f5da8d…` 的三条最终 CI                    | 等待 Jesse 手工验收；未批准生产发布 |
+| 批次 | 实现状态                                | 最终入口                                     | 人工状态                                                      |
+| ---- | --------------------------------------- | -------------------------------------------- | ------------------------------------------------------------- |
+| D0   | 已合入；合同、受限存储与访问            | D7 的 D0 升级/身份/日志/双浏览器回归         | 不以历史合并代填人工通过                                      |
+| D1   | 已合入；可定位错误与框架适配            | D7 的 D1 浏览器、实验室及 Firefox 栈 fixture | 同上                                                          |
+| D2   | 已合入；console 原文上下文              | D7 的 D2 双浏览器和单元回归                  | 同上                                                          |
+| D3   | 已合入；受控 fetch 与显式关联           | D7 的 D3 双浏览器和请求合同回归              | 同上                                                          |
+| D4   | 已合入；详情、搜索、稳定链接、复制/导出 | D7 的 D4 权限/查询/双浏览器回归              | 同上                                                          |
+| D5   | 已合入；CLI SourceMap 与生命周期        | D7 的 D5 双浏览器、存储和恢复                | 同上                                                          |
+| D6   | PR #35 已合入；策略、维护和健康         | D7 的 D6 双浏览器及破坏恢复                  | Jesse 尚未确认全部手工场景                                    |
+| D7   | 工程实现与同 SHA 自动化验收完成         | `709db4bb…` 的三条最终 CI                    | 业务/采集已确认；富展示与完整手工验收待 Jesse，未批准生产发布 |
 
 ## R1–R8 原产品回归映射
 
@@ -45,40 +45,40 @@
 
 ## 最终自动化证据
 
-运行代码 `73f5da8d273d5c730e3bc2e974f6301fc07ce91d`：
+运行代码 `709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`：
 
-- [Runtime diagnostics D7 38336455663](https://github.com/captainamari/frontend-insight/actions/runs/38336455663)：成功；artifact `diagnostics-d7-73f5da8d273d5c730e3bc2e974f6301fc07ce91d`，SHA-256 `cc140801beb5944cc79b22408ac627dbc06981467afdd1c7d5d6f4be0dd2369e`。
-- [Ubuntu 22.04 Production deployment 38336455570](https://github.com/captainamari/frontend-insight/actions/runs/38336455570)：成功；artifact `production-deployment-evidence`，SHA-256 `e4ec80d0c901b7d9804d7b22a3a3e53eebbe9b24871034ede398bcdb389df958`。
-- [D7 inherited R1–R8 38336455536](https://github.com/captainamari/frontend-insight/actions/runs/38336455536)：成功；artifact `d7-products-73f5da8d273d5c730e3bc2e974f6301fc07ce91d`，SHA-256 `8c507fca1479be19438f25eb095bef0e69773dd3f1c17ce8e179a0788691e11c`。
+- [Runtime diagnostics D7 38674827756](https://github.com/captainamari/frontend-insight/actions/runs/38674827756)：成功；artifact `diagnostics-d7-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `4d11ba2bbc04e0455689fa6212994d62821c26194dc459584445ae77bde2c0f2`。
+- [Ubuntu 22.04 Production deployment 38674827162](https://github.com/captainamari/frontend-insight/actions/runs/38674827162)：成功；artifact `production-deployment-evidence`，SHA-256 `51ed7b41f210f31dafedc75a8a227ff778e77b09c46e3b53a7c0c2d06c1cebf5`。
+- [D7 inherited R1–R8 38674827236](https://github.com/captainamari/frontend-insight/actions/runs/38674827236)：成功；artifact `d7-products-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `21ec31f7323c8e36fadbbf5db2860e41172133637128c681925cca6688c5e4ee`。
 
-诊断 artifact 共 33 个文件、R1–R8 artifact 共 51 份 JSON，所有 JSON 的 `testedCommit` 已逐个核对；Ubuntu artifact 五份 JSON 也均为同一 SHA。证据只含字段/角色/性能摘要，不上传完整原文、SourceMap、凭据、trace 或全量服务日志。
+诊断 artifact 共 33 个文件，其中 28 份带 `testedCommit` 的 JSON 均已逐个核对；R1–R8 artifact 共 51 份 JSON、Ubuntu artifact 五份 JSON 也均为同一 SHA。证据只含字段/角色/性能摘要，不上传完整原文、SourceMap、凭据、trace 或全量服务日志。
 
 ## 性能与容量实测
 
 硬门禁沿用 requirements-v1.8：基础 SDK gzip ≤12 KiB、同步处理 p95 ≤2 ms、ingestion p95 ≤100 ms、数据可见 p95 ≤5 min、核心查询 p95 ≤2 s。详情、搜索、导出、SourceMap 与维护查询均按 2 s 目标测量；没有提高预算。
 
-环境为 GitHub Ubuntu runner：Linux Azure x64、4 vCPU AMD EPYC 9V45、约 16.7 GB 内存、Node 24.21.0、Docker 28.0.4、Compose 2.38.2。MySQL/Kafka/ClickHouse 容器上限分别为 768 MiB/1.5 GiB/2 GiB；API/consumer 在该 compose 未另设内存上限。结果只适用于该隔离合成环境。
+环境为 GitHub Ubuntu runner：Linux Azure x64、4 vCPU AMD EPYC 7763、约 16.7 GB 内存、Node 24.21.0、Docker 28.0.4、Compose 2.38.2。MySQL/Kafka/ClickHouse 容器上限分别为 768 MiB/1.5 GiB/2 GiB；API/consumer 在该 compose 未另设内存上限。结果只适用于该隔离合成环境。
 
 | 负载                    | 事件/请求速率               | ingestion p95 |    persistence p95 |                调度/排空 | 结论                      |
 | ----------------------- | --------------------------- | ------------: | -----------------: | -----------------------: | ------------------------- |
-| 正常 20 events/s，60 s  | 20 events/s；1 request/s    |       9.44 ms | 不适用诊断 receipt | 59,000.97 / 59,007.14 ms | 通过                      |
-| 正常 200 events/s，10 s | 200 events/s；4 requests/s  |      12.36 ms |             不适用 |   9,750.18 / 9,760.44 ms | 通过                      |
-| 异常 20 events/s，60 s  | 20 events/s；5 requests/s   |      23.47 ms |              55 ms | 59,949.34 / 59,957.88 ms | 通过                      |
-| 异常 200 events/s，10 s | 200 events/s；50 requests/s |      36.90 ms |           5,188 ms |  9,994.88 / 10,007.99 ms | 接收和 5 min 可见门禁通过 |
+| 正常 20 events/s，60 s  | 20 events/s；1 request/s    |      10.46 ms | 不适用诊断 receipt | 59,000.05 / 59,008.32 ms | 通过                      |
+| 正常 200 events/s，10 s | 200 events/s；4 requests/s  |      16.94 ms |             不适用 |   9,749.55 / 9,757.17 ms | 通过                      |
+| 异常 20 events/s，60 s  | 20 events/s；5 requests/s   |      23.52 ms |              69 ms | 59,949.35 / 59,958.56 ms | 通过                      |
+| 异常 200 events/s，10 s | 200 events/s；50 requests/s |      52.89 ms |           9,562 ms |  9,996.79 / 10,023.84 ms | 接收和 5 min 可见门禁通过 |
 
-负载共 6,400 个正式事件，另有每组 3 次预热；异常原文使用 256/2,048/16,384/60,000 字节四档合成数据，批次不超过 100,000 字节/50 事件。请求按事件位置铺满每秒，最大调度漂移分别为 1.51/1.05/2.36/26.13 ms。events/s、requests/s、调度完成和响应排空分别报告；没有关闭页面限额或项目准入。nearest-rank p95 排除预热。
+负载共 6,400 个正式事件，另有每组 3 次预热；异常原文使用 256/2,048/16,384/60,000 字节四档合成数据，批次不超过 100,000 字节/50 事件。请求按事件位置铺满每秒，最大调度漂移分别为 2.02/1.73/2.76/43.58 ms。events/s、requests/s、调度完成和响应排空分别报告；没有关闭页面限额或项目准入。nearest-rank p95 排除预热。
 
-异常 20/200 events/s 分别保存 1,203/2,003 行（含 3 个预热），逻辑原文 23,701,524/39,503,124 bytes，信封 23,912,049/39,853,649 bytes，信封元数据 210,525/350,525 bytes，receipt 文本元数据 380,148/632,948 bytes。代表性查询 p95：详情 25.91 ms、导出 22.65 ms、维护 6.16 ms、搜索 40.40 ms；实际 SourceMap 20 样本 p95 49.98 ms，均低于 2 s。
+异常 20/200 events/s 分别保存 1,203/2,003 行（含 3 个预热），逻辑原文 23,701,524/39,503,124 bytes，信封 23,912,049/39,853,649 bytes，信封元数据 210,525/350,525 bytes，receipt 文本元数据 380,148/632,948 bytes。两档负载中取较高的代表性查询 p95：详情 40.73 ms、导出 34.70 ms、维护 12.06 ms、搜索 73.09 ms；实际 SourceMap 20 样本 p95 84.13 ms，均低于 2 s。
 
-共享 ClickHouse active parts 实际占用为 raw_events 198,777 bytes、diagnostic_details 520,770 bytes、schema_migrations 1,087 bytes；SourceMap 文件分配 12 KiB。它们是共享隔离实例物理值，不是单项目精确磁盘。按本次高度可压缩合成信封约 19.9 KiB/事件、连续异常流量和 14 天保留期做未压缩逻辑投影：20 events/s 约 480.9 GB，200 events/s 约 4.813 TB；压缩比未知，备份副本未计入，不能用作生产容量承诺。到期/主动删除先变为逻辑不可读，物理回收与 ClickHouse mutation/文件清理另行观测；本次结束时无未完成 mutation。
+共享 ClickHouse active parts 实际占用为 raw_events 191,254 bytes、diagnostic_details 518,540 bytes、schema_migrations 1,088 bytes；SourceMap 文件分配 12 KiB。它们是共享隔离实例物理值，不是单项目精确磁盘。按本次高度可压缩合成信封约 19.9 KiB/事件、连续异常流量和 14 天保留期做未压缩逻辑投影：20 events/s 约 480.9 GB，200 events/s 约 4.813 TB；压缩比未知，备份副本未计入，不能用作生产容量承诺。到期/主动删除先变为逻辑不可读，物理回收与 ClickHouse mutation/文件清理另行观测；本次结束时无未完成 mutation。
 
-基础 SDK 为 36,756 raw bytes、**12,287/12,288 gzip bytes**。可选 errors/console/requests/policy/quality 分别为 2,305/2,741/4,976/2,667/5,239 bytes；完整诊断组合 24,976 bytes，带 quality 30,215 bytes。真实浏览器同步捕获 p95：Chromium 关闭/开启/64 KiB 信封为 0.1/0.2/0.2 ms，WebKit 为 0/1/1 ms；每项 20 次预热后 200 样本，计时只含同步捕获、不含传输。
+基础 SDK 为 36,756 raw bytes、**12,287/12,288 gzip bytes**。可选 errors/console/requests/policy/quality 分别为 2,305/2,741/4,976/2,667/5,239 bytes；完整诊断组合 24,976 bytes，带 quality 30,215 bytes。真实浏览器同步捕获 p95：Chromium 关闭/开启/64 KiB 信封为 0.2/0.3/0.4 ms，WebKit 为 0/1/1 ms；每项 20 次预热后 200 样本，计时只含同步捕获、不含传输。
 
 ## 最短手工验收
 
 1. 按 D6 指南在隔离项目启用策略，给工程师 viewer 授予 read+export；保留一个仅 read 和一个普通 viewer。
-2. 实验室依次触发 TypeError、未处理 Promise、Vue 框架捕获、连续 console 后错误、503（应用已读取正文）、超时/取消/网络失败和资源加载失败。沿错误组→实例检查 message/name/原始栈、cause、嵌套对象、console 顺序、完整 URL/query、正文与显式 request/operation/workflow 关联；无显式 ID 的只标时间邻近。
-3. 用 D5 正式 CLI 上传压缩构建 map，核对固定源码位置；错 release、缺 map、无 sourcesContent 时仍显示编译栈和准确降级状态。
+2. 实验室依次触发 TypeError、未处理 Promise、Vue 框架捕获、连续 console 后错误、503（应用已读取正文）、超时/取消/网络失败和资源加载失败。沿错误组→实例检查 message/name/原始栈、cause、嵌套对象、console 顺序、完整 URL/query、正文与显式 request/operation/workflow 关联；代码证据应有语义着色、行号和换行切换，但复制/导出仍保持原文；无显式 ID 的只标时间邻近。
+3. 用 D5 正式 CLI 上传压缩构建 map，核对固定源码位置及唯一高亮源码行；错 release、缺 map、无 sourcesContent 时仍显示编译栈和准确降级状态。
 4. 刷新稳定链接，切换 env/release/时间窗，搜索、复制并导出；核对超长换行和 HTML/XSS 样本只显示文本。撤权后让已打开页面、复制和旧下载链接再次请求，均应被服务端拒绝。
 5. 关闭策略并等待 SDK 同步，确认 collector 停止且基础质量计数不变；让旧/离线 SDK 投递，确认服务端拒收。重新启用后不重复包装、监听或计数。
 6. 维护页核对未知/等待/过期/写失败状态、健康和容量口径。删除指定 eventId 后，详情/搜索/导出不可复活，而基础统计仍在。
@@ -106,3 +106,4 @@ Ubuntu 22.04 CI 已实际执行部署、TLS 双浏览器、保留卷重建、备
 - D3 只采受控 fetch 与应用提供的已读响应文本；不 clone/tee，不调用业务 `Response.text/json`，XHR 不宣称自动采原文；`quality.observeApi` 仍是 API 事实唯一入口。
 - 离线队列仅为有界内存队列，关页后不保证投递；已下载文件无法远程收回。
 - CI 容量和时延不是生产承诺。上线前仍需目标环境容量预检、真实证书/网络配置、Jesse 手工验收和明确发布批准。
+- 代码富文本仅为安全的文本 token 展示，不是可执行预览；HTML/SVG/script 样本必须保持惰性文本，复制/导出不得混入行号或着色标记。

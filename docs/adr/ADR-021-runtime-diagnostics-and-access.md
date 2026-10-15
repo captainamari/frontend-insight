@@ -38,4 +38,4 @@ R8 手工验收发现错误已入库，但原始消息不展示、SDK 首帧与 
 
 ## D6 实施状态
 
-D5 PR #34已合并；D6四项已实现，运行代码a3d6754fdf379b9efe391839856c3a217ec446a6的专项与Ubuntu22真实CI均成功。采用本地授权与远端策略交集、版本冲突检查、单实例删除墓碑及有界健康快照。策略、角色、删除/恢复与回滚边界见[D6指南](../guides/runtime-diagnostics-d6.md)，实际CI证据见results。D7运行代码`73f5da8d273d5c730e3bc2e974f6301fc07ce91d`的诊断专项、继承R1–R8及Ubuntu22隔离部署/恢复均成功；工程证据、性能和边界见[D7指南](../guides/runtime-diagnostics-d7.md)，手工验收与生产发布仍待Jesse确认。
+D5 PR #34已合并；D6四项已实现，运行代码a3d6754fdf379b9efe391839856c3a217ec446a6的专项与Ubuntu22真实CI均成功。采用本地授权与远端策略交集、版本冲突检查、单实例删除墓碑及有界健康快照。策略、角色、删除/恢复与回滚边界见[D6指南](../guides/runtime-diagnostics-d6.md)，实际CI证据见results。D7运行代码`709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`的诊断专项、继承R1–R8及Ubuntu22隔离部署/恢复均成功；诊断原文与源码使用纯文本token富展示，不执行HTML/SVG/script，复制/导出仍取服务端原文。工程证据、性能和边界见[D7指南](../guides/runtime-diagnostics-d7.md)，手工验收与生产发布仍待Jesse确认。

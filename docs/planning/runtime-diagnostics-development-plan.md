@@ -162,7 +162,7 @@ D0/D1/D2 状态以结果文档与实际证据为准；D3 当前实现与验证�
 
 ### D7 — 完整验收与发布证据（P0 交付门，依赖 D0–D6）
 
-当前：D6 PR #35 已合入 refactor `590c17b`；D7运行代码`73f5da8d273d5c730e3bc2e974f6301fc07ce91d`已通过同SHA诊断专项、R1–R8及Ubuntu22隔离部署/恢复工程门禁；Jesse手工验收和生产发布批准待确认。
+当前：D6 PR #35 已合入 refactor `590c17b`；D7运行代码`709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`已通过同SHA诊断专项、R1–R8及Ubuntu22隔离部署/恢复工程门禁，并完成安全代码富展示与200 events/s准入优化；Jesse已确认业务逻辑和采集内容无问题，富展示最终视觉复核、完整手工验收和生产发布批准仍待确认。
 
 - [x] 同一代码 SHA 完成原文 → SDK → ingestion → Kafka → consumer → 存储 → 授权 API → UI 的字段一致性验证；模拟值覆盖 URL 参数、消息、正文、嵌套对象，不用真实业务数据作为测试 fixture。
 - [x] Chromium/WebKit 全链路；Firefox 至少栈格式 fixture，真实浏览器是否加入专项在 D0 CI 预算中落定，不冒充已覆盖。

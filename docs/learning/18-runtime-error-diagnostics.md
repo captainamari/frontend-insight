@@ -104,4 +104,4 @@ D5维护基线：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；[完整专项验�
 
 ## D7维护入口
 
-最终工程验收入口为[D7指南](../guides/runtime-diagnostics-d7.md)，目录变更依据见[清理记录](../progress/runtime-diagnostics-d7-cleanup.md)。最终运行代码`73f5da8d273d5c730e3bc2e974f6301fc07ce91d`已通过D7专项、R1–R8继承回归及Ubuntu22隔离部署/恢复；维护时仍须以新候选同SHA复验，不能沿用本次成功。网络/5xx重试耗尽后保留有界内存事件，恢复后flush以原eventId投递；永久4xx不重试，关页后没有持久离线队列。测试实际挂载Vue树的错误事件与适配器fixture是两种证据，Firefox当前只栈fixture。
+最终工程验收入口为[D7指南](../guides/runtime-diagnostics-d7.md)，目录变更依据见[清理记录](../progress/runtime-diagnostics-d7-cleanup.md)。最终运行代码`709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`已通过D7专项、R1–R8继承回归及Ubuntu22隔离部署/恢复；维护时仍须以新候选同SHA复验，不能沿用本次成功。网络/5xx重试耗尽后保留有界内存事件，恢复后flush以原eventId投递；永久4xx不重试，关页后没有持久离线队列。测试实际挂载Vue树的错误事件与适配器fixture是两种证据，Firefox当前只栈fixture。详情中的错误、栈、console、请求和SourceMap源码由安全token组件展示，必须使用文本节点而不是`v-html`；行号/着色不进入复制或导出原文。
