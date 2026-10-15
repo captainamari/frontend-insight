@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": { "vue": ["../../apps/demo-app/node_modules/vue/dist/vue.d.ts"] }
+  },
+  "include": ["d7-framework.ts"]
+}

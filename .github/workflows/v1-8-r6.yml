@@ -42,7 +42,7 @@ jobs:
         run: pnpm check
 
       - name: Validate R4-C browser test entrypoints
-        run: pnpm exec playwright test -c playwright.r4c.config.ts --list
+        run: pnpm exec playwright test -c tests/config/playwright.r4c.config.ts --list
 
       - name: Record SDK bundle delta against the inherited base
         run: |

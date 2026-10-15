@@ -32,7 +32,7 @@ D0 已实现并通过真实 CI，等待用户评审/合并；不代表整条诊�
 
 - `./scripts/dev verify-d0-upgrade`：独立数据库 MySQL 7→8→9、ClickHouse 4→5，保存 sentinel 和旧 checksum，重复迁移不再应用。
 - `./scripts/dev verify-d0`：真实 ingestion/Kafka/consumer/数据库/API、角色矩阵、重试、冲突、限流、旧 v3、TTL、详情表临时不可用恢复及 DLQ。**仅用于可丢弃的测试堆栈**，会临时重命名诊断表，不能在生产运行。
-- `pnpm exec playwright test -c playwright.diagnostics.config.ts`：Chromium/WebKit SDK 原文、beforeSend、拆批、授权读取一致性。
+- `pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`：Chromium/WebKit SDK 原文、beforeSend、拆批、授权读取一致性。
 - `node tools/d0-log-check.mjs`：只输出成功元数据，检查服务日志没有合成标记。
 - `.github/workflows/runtime-diagnostics-d0.yml`：静态/全量单测/构建、上述验证及继承 R5-A/B 浏览器回归。
 
@@ -430,7 +430,7 @@ D0真实权限/TTL/幂等/部分写入恢复及保留数据的增量升级通过
 
 本轮此前三次失败及具体修复保留在上方检查点，未删除断言、放宽权限或降低门禁。完整CI已完成，无剩余工程阻塞；下一步是按[D4指南](../guides/runtime-diagnostics-d4.md#可执行手工验收)由用户验收/评审Draft PR。最短路径：部署实验室“D3请求503→异常” → 管理端dev/近7天刷新 → 错误组/实例 → 搜索 `FI_D3_SYNTHETIC` → 诊断上下文 → 稳定链接与JSON/文本下载 → 分别撤销export/read验证。
 
-之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
+之后的文档收尾提交只更新本节、decisions、计划、ADR与指南；其精确SHA记录在PR和交付回复，不冒充重新跑过全套CI的代码。可复跑 `pnpm check`、`./scripts/dev verify-d0`、`pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`、`pnpm test:r5a:e2e`、`pnpm test:r5b:e2e`及指南中的隔离初始化/日志检查命令。用户合并D4后再核实最新origin/refactor进入D5。
 
 ## D5 开发过程检查点（历史，最终状态见下方交付证据）
 
@@ -488,7 +488,7 @@ D5开发计划§5的五项均已实现并通过自动化验证；等待Jesse手�
 
 实际构建JS SHA256：`ca6626e62201bbba4c5bd91990ec06062aebda98a7712e0e810797af2be6222e`；map SHA256：`46f5c7da19ef89efd654435288ac077aac0cdbfebb712cc04a86e84141bb3952`。浏览器列差异来自各自抛错位置，编译函数名差异来自V8的function.name与WebKit的压缩绑定名；源码函数名仅取map的names，不猜测。未提供名称的throw位置仍明确为null；第8行第12列具名调用段为renderSourceMapScenario。
 
-[完整CLI、部署顺序、迁移/回滚、保留/容量及手工验收](../guides/runtime-diagnostics-d5.md)。最快自动化复验：隔离bootstrap/up/smoke后，运行`pnpm exec playwright test -c playwright.diagnostics.config.ts sourcemaps.spec.ts`和`node tools/d5-storage-verify.mjs`。人工入口为部署demo的`/observability?acceptance=fast`，点击场景按钮后从管理端dev/近7天/release=d5-lab-v1打开诊断详情或eventId稳定链接；期望同时看到编译栈和上述源码位置。
+[完整CLI、部署顺序、迁移/回滚、保留/容量及手工验收](../guides/runtime-diagnostics-d5.md)。最快自动化复验：隔离bootstrap/up/smoke后，运行`pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts`和`node tools/d5-storage-verify.mjs`。人工入口为部署demo的`/observability?acceptance=fast`，点击场景按钮后从管理端dev/近7天/release=d5-lab-v1打开诊断详情或eventId稳定链接；期望同时看到编译栈和上述源码位置。
 
 ### 边界与可恢复交接
 
@@ -574,3 +574,110 @@ D6第五轮 `38214741256` / `d6c84e83ae7568a9d448405e9c7d231b35043205` 已通过
 自动复验使用`.github/workflows/runtime-diagnostics-d6.yml`完整顺序及production-deployment工作流；本地无Docker/浏览器socket许可，完整证明来自上述真实Actions。发布先备份→011→consumer/API/UI→可选SDK；回滚保留表/卷，旧API不理解墓碑，不能直接开放原文读取。当前无未解决工程阻塞。下一步为评审/手工验收，再由用户决定合并与D7实施。
 
 本段后的提交仅中文文档收尾，不改变运行代码；文档SHA记录于PR和最终交付回复，不冒充再次执行了完整CI。
+
+## D7 执行检查点（2026-10-12，未交付）
+
+D6 #35 已合入 refactor `590c17b6e25ff3d002355705a5009a70e5d8473c`。继续已有D7工作，Draft PR [#36](https://github.com/captainamari/frontend-insight/pull/36)，分支`agent/runtime-diagnostics-d7-acceptance-cleanup`。八项矩阵及测量前冻结门禁见[D7指南](../guides/runtime-diagnostics-d7.md)，清理依据见[清理记录](runtime-diagnostics-d7-cleanup.md)。D0–D6为已实现历史基线，不能代替D7最终候选验证；D7工程验收尚未通过，Jesse手工验收和发布批准均待确认。
+
+已推送候选`4586df061d122693694823c35157bbd03cedb599`，真实CI：[诊断专项38224965969](https://github.com/captainamari/frontend-insight/actions/runs/38224965969)、[R1–R8回归38224965936](https://github.com/captainamari/frontend-insight/actions/runs/38224965936)、[Ubuntu22隔离部署38224966171](https://github.com/captainamari/frontend-insight/actions/runs/38224966171)。当前均不能当作最终成功。本地pnpm check通过83文件638单测、类型/格式/契约/Lint/全部构建；基础gzip12,288/12,288 bytes，完整诊断组合24,977、带quality30,216 bytes（本机Node24.19.0，尚待最终CI）。
+
+本批修复：SDK网络/5xx三次重试耗尽后原先丢弃批次，现保留稳定eventId的有界内存队列并在后续flush重试；永久4xx不无限重试。新增瞬断恢复、永久拒收和重试期间积压边界单测。真实挂载Vue组件事件抛错与双浏览器断网恢复测试已经进入专项；完整框架覆盖不再引用适配器fixture冒充。当前又补充同步capture关闭/开启和最大65536字节信封测量，最终结果待复验。
+
+失败历史：清理后候选f92c2dac的[R1–R8 CI38223878892](https://github.com/captainamari/frontend-insight/actions/runs/38223878892)在R8阶段失败。刷新fixture缺少D4新增capabilities接口；M8把四类事件误写成至少四个HTTP包。已补fixture并改为精确断言两条错误+API+performance事实，保留原内容检查，未提高超时或删除事实断言。新候选需复验。
+
+新增正常/异常20eps×60秒、200eps×10秒负载工具`tools/d7-load.mjs`；不绕过20/page/min准入，采用固定多客户端，记录速率、持久化、查询与逻辑容量。压力和容量门禁尚无最终实测成功证据，不宣称生产容量。原D7全部七项仍未勾选，新增清理第八项不替代原范围。
+
+### D7 第二轮失败与修复
+
+候选`3e5099ea8f865208ed97080a20b2fe3e7c3f8f2f`的[Ubuntu22部署/恢复38226795396](https://github.com/captainamari/frontend-insight/actions/runs/38226795396)全部成功，包含关闭TLS入口的真实破坏恢复。该成功不覆盖后续SDK修复。
+
+[诊断38226795225](https://github.com/captainamari/frontend-insight/actions/runs/38226795225)在新acceptance fixture失败：筛选offline诊断时对没有diagnostic的普通page_view执行JSON.stringify后直接includes，产生TypeError。此前真实挂载Vue、原文入库/导出和15条离线队列保留已走到断言；仍不把局部步骤当整个场景成功。修复筛选条件，保留15条唯一事件、逐条原文入库及2ms门禁。[R1–R8回归38226795341](https://github.com/captainamari/frontend-insight/actions/runs/38226795341)发现刷新fixture还缺D4影响统计请求；补准确空响应，仍对未知接口抛错。本地实际Chromium通过六种时间窗刷新fixture，不冒充真实服务验证。
+
+本批又修复销毁期间网络失败：销毁后的队列容量为0，重试耗尽后清空并明确计入丢弃，不把原文积压保存在已销毁tracker中；正常关闭的既有best-effort发送路径继续保留。新增销毁/正在重试的资源边界单测。本地完整check现83文件639单测通过；基础gzip12,284/12,288、完整诊断24,973、带quality30,212 bytes，最终同SHA CI待重跑。
+
+### D7 第三轮继承与测量入口修复
+
+候选`bcf721ee2164f74ba6ea9495e2edfa94097ee104`的[Ubuntu22 CI38228221219](https://github.com/captainamari/frontend-insight/actions/runs/38228221219)全部成功。诊断专项[38228221310](https://github.com/captainamari/frontend-insight/actions/runs/38228221310)已通过双浏览器框架/断网恢复/2ms、D0–D6原文、权限与真实备份恢复及R5回归，但MySQL故障验证最后的计数SQL对MergeTree raw_events误用FINAL而失败；前面的停止/恢复和原文一致性已执行，整项仍未完成。已去掉不支持的FINAL，继续对真实行数和uniqExact两者断言，不改变去重标准。
+
+继承产品回归[38228221366](https://github.com/captainamari/frontend-insight/actions/runs/38228221366)已通过R8、SDK双浏览器与R5–R7、20/200质量事实负载，旧R2升级验证器只预期到009导致失败（实际正确应用010/011）。已补全003–011预期，原始记录与001/002 checksum不变、重复迁移零新增等断言保留；没有修改已应用迁移。
+
+测量入口同时明确逻辑原文JSON、信封元数据、MySQL收据文本（不含定长列/索引）与共享物理parts/待清理分开，不把收据抽样或全信封当项目精确磁盘用量。记录CPU型号/OS/Node/Docker/Compose；验证异常时也保留数字证据，失败仍抛出，不放宽阈值。最终同SHA全量复验待执行。
+
+### D7 继承回归成功与恢复事实口径
+
+`17316936d01a7091abfac8fedc51d86194a45cf2`的[R1–R8 CI38230212574](https://github.com/captainamari/frontend-insight/actions/runs/38230212574)全部成功，包括003–011保留数据升级、各角色实际产品流程、20/200质量事实负载、Kafka/consumer/ClickHouse停机恢复和真实恢复。该候选的[Ubuntu22 CI38230212623](https://github.com/captainamari/frontend-insight/actions/runs/38230212623)也全部成功。后续变更仍须最终同SHA复验。
+
+[诊断38230212586](https://github.com/captainamari/frontend-insight/actions/runs/38230212586)的MySQL恢复验证对原始传输副本数量预期错误：两次成功POST保留两份MergeTree传输记录，既定产品事实查询按eventId去重（与D0一致）。改为同时要求两份传输副本、一个唯一eventId和页面totalOccurrences=1，增加产品层断言，不把物理行数冒充逻辑事实。负载工具等待基础事件与ready收据同时就绪，保持5分钟门禁。
+
+复核资源边界发现本地maximumQueueSize负值可能使新增积压裁剪循环无法终止，NaN可能失去界限；已将本地容量安全归一化到1–100整数，并增加负值、NaN、0、分数和Infinity的网络失败场景。只有SDK私有trackerConfig/emitCustom额外压缩，公共字段未改。最终包体与浏览器门禁仍以最新候选为准。
+
+### D7 修复检查点：140f3629 压测失败
+
+- 代码 `140f3629071d0ea5f2fbb4db1550a1ece69080e5` 的 Ubuntu22 工作流 [38234109987](https://github.com/captainamari/frontend-insight/actions/runs/38234109987) 成功，下载证据包校验一致，5份JSON均为该SHA。
+- 诊断工作流 [38234109765](https://github.com/captainamari/frontend-insight/actions/runs/38234109765) 中原MySQL恢复去重失败已修复；双浏览器链路与实际恢复通过，负载阶段失败。普通20eps接收p95=13.98ms；普通200eps=168.78ms，超100ms门禁；异常负载首轮返回503。未宣称诊断工程验收通过。
+- 准入事务中INSERT IGNORE重复行的共享锁再升级FOR UPDATE存在并发死锁风险；改为事务前自动提交初始化，事务内仍锁定策略并原子计入限额，增加8路同eventId并发重试回归。压测追加低基数拒绝码及已有服务端分阶段数字耗时，继续定位性能；不增加预算，不减少负载。
+
+### D7 a46d55b1 实测与锁粒度优化
+
+- [诊断CI 38235779055](https://github.com/captainamari/frontend-insight/actions/runs/38235779055)：8路并发重试与原恢复步骤成功，四组6400条全部接收/入库，无503。普通20/200eps接收p95=14.66/70.30ms；异常20/200eps=144.40/1310.17ms；200异常生成耗时12.15s，未达10s目标，不能宣称承受200eps。详情/导出/维护/搜索及SourceMap查询均小于100ms，持久化p95=253/8275ms。性能门禁仍失败。
+- 分阶段证据显示异常准入串行等待；调整为策略共享锁，策略发布/删除继续排他锁。事件唯一收据先预占，重试沿用既有结果；页面窗口保留排他更新。仅MySQL死锁最多重试2次，每次完整回滚并重新复制原始信封，避免携带已抑制内容。新增22路同页面并发，仍必须恰好20准入/2抑制。等待最终实测，不放宽门禁。
+
+准入进一步减少数据库往返：删除墓碑按批读取（仍由策略锁与删除互斥），收据初次插入同时保存非原文元数据；正常准入不再立即写回相同值。页面计数采用带上限条件的原子UPDATE，保留实际每页面限额。未改变负载与阈值。
+
+`d1e613ad` 的新增8路重试、22路同页限额及原故障恢复均已通过真实集成；后续501条搜索候选门禁超时，原因是新增并发样本复用了该门禁项目，实际总数多22条。将并发样本移到独立项目，保留原501精确计数断言与搜索上限；不改变业务门禁。
+
+### D7 530c9ace 压测进度
+
+- [诊断CI 38238995166](https://github.com/captainamari/frontend-insight/actions/runs/38238995166) 仅负载步骤失败；R1–R8 [38238995138](https://github.com/captainamari/frontend-insight/actions/runs/38238995138) 与 Ubuntu22 [38238995192](https://github.com/captainamari/frontend-insight/actions/runs/38238995192) 同SHA成功。证据包SHA-256校验一致。
+- 普通20/200eps接收p95=15.47/37.21ms；异常20eps=85.62ms，均通过100ms门禁。异常200eps的2000条全部持久化，接收p95=812.34ms，实际199.27eps，未达标；持久化p95=11.087s但在5分钟可见门禁内。详情、导出、维护、搜索和实际SourceMap查询均小于72ms。
+- 继续优化每批50条异常事件的页面限额路径：在同一事务内批量创建窗口、按固定页面顺序锁定、内存计算20条上限并单次条件更新；事件收据、策略锁、删除互斥和超限精确状态保持。阈值和负载不变。
+
+### D7 dbbce805 剩余负载瓶颈
+
+- [诊断CI 38332320934](https://github.com/captainamari/frontend-insight/actions/runs/38332320934)：批量页面窗口后异常200eps实际达到200.00eps，2000条全部持久化，生成器门禁已通过；接收p95=756.87ms，仍超过100ms。普通20/200eps=15.05/45.59ms，异常20eps=86.16ms。唯一剩余失败为异常200eps接收p95。
+- 分阶段sanitize p95=174.31ms，剩余数据库热点为每批最多50条收据逐条INSERT IGNORE。改为事务内批量预留、批量读取归属、批量最终状态更新；临时预留标识在提交前清除。并发重复投递以预留归属确保只扣一次限额；已准入事件重试使用首次结果，策略后续变化不改写原信封。页面限额批量锁定逻辑保持。等待同负载复测，不调整100ms门禁。
+
+### D7 c0f34405 负载模型校正
+
+- [诊断CI 38333724799](https://github.com/captainamari/frontend-insight/actions/runs/38333724799)：批量收据未改善异常200eps接收p95（767.41ms），说明数据库往返不是主因；该复杂实现回退到已通过全部语义回归的批量页面窗口版本。
+- 负载器此前在每个整秒边界同时发出该秒全部大小受限请求。异常200eps包含256/2048/16384/60000字节分布，产生远高于均值的瞬时请求洪峰；报告却只以200 events/s均值描述，测量口径不准确。修正为保持相同6400事件、大小分布、100000字节/50事件批次、客户端数、持续时间和服务端准入，将批次按事件序号均匀调度在每秒内。新增调度完成、排空完成和最大调度漂移；达速门禁以调度完成计算，响应p95仍保持100ms硬门禁。
+
+### D7 fbc8b315 持续200eps瓶颈
+
+- [诊断CI 38335139799](https://github.com/captainamari/frontend-insight/actions/runs/38335139799)：持续调度精确达到200eps、50requests/s，最大漂移85.45ms；异常200eps接收p95=679.85ms，仍失败。普通20/200eps=13.23/19.62ms，异常20eps=26.35ms。
+- 所有MySQL相关阶段在50requests/s时同步升至约75ms。根因之一是每个诊断请求都对已存在的同一项目策略行执行INSERT IGNORE，造成热点重复键写锁。改为只读存在检查，仅首次缺失时初始化；事务内策略共享锁、发布/删除排他锁及实时策略读取均保留。负载和阈值不变。
+
+## D7 最终工程证据（2026-10-15）
+
+D7 最终运行代码为 `709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`。本节取代前面的执行检查点；失败轮次仍保留为问题定位记录。原七项、新增仓库清理和安全代码富展示均已实现并在清理后的同一代码 SHA 验证。自动化工程验收完成；Jesse 已确认业务逻辑和采集内容无问题，富展示视觉复核、完整手工验收和生产发布批准仍待确认；没有自动合并或操作生产。
+
+| 工作流                                                                                                                  | 结果与真实范围                                                                                                  | 证据                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Runtime diagnostics D7 38674827756](https://github.com/captainamari/frontend-insight/actions/runs/38674827756)         | 成功；D0–D6字段/权限/双浏览器、安全富展示、真实Vue、离线恢复、MySQL实停、负载、SourceMap、破坏恢复、R5分母      | artifact `diagnostics-d7-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `4d11ba2bbc04e0455689fa6212994d62821c26194dc459584445ae77bde2c0f2`；33个文件，28份含`testedCommit`的JSON均已核对 |
+| [D7 inherited R1–R8 38674827236](https://github.com/captainamari/frontend-insight/actions/runs/38674827236)             | 成功；静态/645项单元/构建、R1–R8实际服务与Chromium/WebKit、质量负载、003–011升级、Kafka/consumer/ClickHouse恢复 | artifact `d7-products-709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`，SHA-256 `21ec31f7323c8e36fadbbf5db2860e41172133637128c681925cca6688c5e4ee`；51份JSON均为最终SHA                             |
+| [Ubuntu22 Production deployment 38674827162](https://github.com/captainamari/frontend-insight/actions/runs/38674827162) | 成功；生产Compose、TLS双浏览器、保留卷重建、备份→破坏→恢复、恢复后API/UI                                        | artifact `production-deployment-evidence`，SHA-256 `51ed7b41f210f31dafedc75a8a227ff778e77b09c46e3b53a7c0c2d06c1cebf5`；五份JSON均为最终SHA                                                   |
+
+最终性能环境为 GitHub Ubuntu runner：Linux Azure x64、4 vCPU AMD EPYC 7763、约16.7GB内存、Node24.21.0、Docker28.0.4、Compose2.38.2。容器上限MySQL768MiB、Kafka1.5GiB、ClickHouse2GiB，API/consumer未在该compose另设上限。nearest-rank p95排除每组3次预热；所有数据为隔离合成数据。
+
+| 场景           | 实际速率                    | ingestion p95 | persistence p95 | 结果                    |
+| -------------- | --------------------------- | ------------: | --------------: | ----------------------- |
+| 正常20eps×60s  | 20 events/s、1 request/s    |       10.46ms |          不适用 | 通过100ms接收门禁       |
+| 正常200eps×10s | 200 events/s、4 requests/s  |       16.94ms |          不适用 | 通过                    |
+| 异常20eps×60s  | 20 events/s、5 requests/s   |       23.52ms |            69ms | 通过                    |
+| 异常200eps×10s | 200 events/s、50 requests/s |       52.89ms |         9,562ms | 接收及5分钟可见门禁通过 |
+
+四组共6,400个正式事件，异常原文256/2,048/16,384/60,000字节，100,000字节/50事件批次，多客户端页面限额与项目准入保持启用。调度完成/排空分别为59,000.05/59,008.32、9,749.55/9,757.17、59,949.35/59,958.56、9,996.79/10,023.84ms；最大调度漂移2.02/1.73/2.76/43.58ms。没有把请求数当事件数或把拒收量当持久化吞吐。
+
+两档异常负载取较高值时，详情/导出/维护/搜索p95为40.73/34.70/12.06/73.09ms；实际SourceMap 20样本p95=84.13ms，均低于测量前固定的2秒目标。异常20/200eps分别为1,203/2,003存储行（含3预热），逻辑原文23,701,524/39,503,124 bytes，信封23,912,049/39,853,649，元数据210,525/350,525，receipt文本元数据380,148/632,948 bytes。
+
+共享ClickHouse active parts为raw_events191,254 bytes、diagnostic_details518,540、schema_migrations1,088；SourceMap文件分配12KiB，无未完成mutation。这些是共享物理占用，不能当单项目精确磁盘。以本次高度可压缩合成信封约19.9KiB/事件、连续错误和14天保留作未压缩逻辑投影：20eps约480.9GB，200eps约4.813TB；压缩比未知且不含备份，不能承诺生产容量。
+
+基础SDK为36,756 raw bytes、12,287/12,288 gzip bytes；errors/console/requests/policy/quality为2,305/2,741/4,976/2,667/5,239，完整诊断24,976，带quality30,215 bytes。Chromium同步关闭/开启/64KiB信封p95为0.2/0.3/0.4ms，WebKit为0/1/1ms；每项20预热+200样本，不含传输。
+
+MySQL故障证据实际停止依赖，故障时未知不显示零；恢复后相同eventId两次成功传输保留2份raw副本，唯一基础事实和产品次数均为1。D6破坏恢复复验策略、撤权、删除墓碑、健康和基础计数。Ubuntu证据还验证镜像层不含CI秘密、合法非空持久表、私有SourceMap归档和恢复后双浏览器；演练在备份后没有新的授权变更，生产恢复仍须对账备份后的撤权/删除。
+
+仓库清理将根目录16个显式阶段Playwright配置移动至`tests/config/`并更新package、workflow和文档；默认自动发现配置保留根目录。检查614个跟踪文件，没有证据充分的无关构建物/日志/截图/压缩包可删除或需要归档。M0–M8历史命名仍被CI、Compose、卷或公开命令使用，保留兼容。清理后clean checkout完成frozen install、生成、check、全部真实浏览器、Docker构建、升级和恢复。
+
+富展示使用JavaScript/JSON/stack/text词法token、CSS行号、换行切换及SourceMap唯一命中行高亮；所有token均为Vue文本节点，不使用`v-html`。单元测试验证格式化前后原文一致与XSS惰性，Chromium/WebKit真实产品流验证函数/关键字token、源码行及`script`/`svg onload`不执行；复制/导出仍读取服务端原始证据。
+
+真实覆盖仍有边界：Firefox只有栈格式fixture；React没有完整渲染树；D3不clone/tee或代读业务响应，XHR不自动采正文；内存离线队列不保证关页投递；已下载文件不可远程收回；CI容量不等于生产容量。发布顺序、回滚隔离、恢复对账和Jesse最短手工路径见[D7指南](../guides/runtime-diagnostics-d7.md)。

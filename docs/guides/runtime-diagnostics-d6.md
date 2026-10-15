@@ -175,7 +175,7 @@ D7继续执行全路线压力、长期容量、完整发布验收与最终手工
 D6特定场景（仅可丢弃的隔离环境，前提是既有bootstrap/up/smoke及D5场景已按工作流执行）：
 
 ```bash
-pnpm exec playwright test -c playwright.diagnostics.config.ts policy.spec.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts policy.spec.ts
 node tools/d5-storage-verify.mjs # 实际破坏/恢复，严禁指向生产
 ```
 

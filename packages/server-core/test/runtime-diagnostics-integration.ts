@@ -373,6 +373,10 @@ try {
   );
   // Retried IDs do not consume more admission capacity or overwrite evidence.
   for (let i = 0; i < 3; i++) await call("/v1/events", "", "POST", b, 202);
+  // Concurrent duplicate admission must neither deadlock nor spend the page budget.
+  await Promise.all(
+    Array.from({ length: 8 }, () => call("/v1/events", "", "POST", b, 202)),
+  );
   const changed = structuredClone(b);
   changed.events[0]!.diagnostic!.raw = { message: "different" };
   await call("/v1/events", "", "POST", changed, 409);
@@ -399,6 +403,39 @@ try {
     [pid],
   );
   assert.equal(Number(rates[0]!.n), 20);
+  // Independent admissions share the policy lock, but the same page budget stays atomic.
+  const concurrentProject = await call(
+    "/api/projects",
+    token,
+    "POST",
+    {
+      name: "D7 concurrent " + randomUUID(),
+      timezone: "UTC",
+      origins: ["http://127.0.0.1:4174"],
+    },
+    201,
+  );
+  const remainingInWindow = 60000 - (Date.now() % 60000);
+  if (remainingInWindow < 5000)
+    await new Promise((resolve) => setTimeout(resolve, remainingInWindow + 10));
+  const simultaneous = Array.from({ length: 22 }, () => {
+    const next = make();
+    next.events[0]!.appId = String(concurrentProject.appId);
+    return next;
+  });
+  await Promise.all(
+    simultaneous.map((next) => call("/v1/events", "", "POST", next, 202)),
+  );
+  const [concurrentRates] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT SUM(admitted) n FROM diagnostic_rate_windows WHERE project_id=?",
+    [concurrentProject.id],
+  );
+  assert.equal(Number(concurrentRates[0]!.n), 20);
+  const [concurrentRejected] = await mysql.pool.query<RowDataPacket[]>(
+    "SELECT COUNT(*) n FROM diagnostic_receipts WHERE project_id=? AND state='rate_limited'",
+    [concurrentProject.id],
+  );
+  assert.equal(Number(concurrentRejected[0]!.n), 2);
   const listed = await call(
     `/api/projects/${pid}/observability/occurrences?env=dev&range=7d&mode=all`,
     viewerToken,

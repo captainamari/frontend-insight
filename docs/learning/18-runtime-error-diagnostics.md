@@ -1,6 +1,6 @@
 # 18. D1–D5 运行时诊断维护路径
 
-先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6已实现并通过完整真实CI（待手工/评审），D7未完成。
+先阅读 ADR-021 与 D0–D5 接入说明。本章按批次解释错误原文、console、请求关联、搜索导出与SourceMap。前序章节保留当时的范围边界，最新实现及真实CI状态统一以[诊断结果](../progress/runtime-diagnostics-results.md)为准；D6已实现且PR #35已合入；D7同SHA自动化工程验收已通过，Jesse手工验收和生产发布批准待确认。
 
 ## 从浏览器到页面
 
@@ -37,12 +37,12 @@
 ```bash
 pnpm exec vitest run packages/web-tracker/test/errors.test.ts packages/server-core/test/error-stack.test.ts
 pnpm check
-pnpm exec playwright test -c playwright.diagnostics.config.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
 ```
 
 真实服务前置见 D1 指南。专项 CI 继承 D0 迁移、六身份、故障、TTL、日志/DLQ与 R5-A/B 真实分母回归。测试 fixture 路由只提供 SDK/合成业务场景，后端 ingestion/Kafka/consumer/数据库/API/管理页面为真实服务。
 
-基础包保持 12 KiB gzip 门禁，errors 为显式可选入口；报告须同时给出基础、errors、quality 和实际组合总量。errors 提取 p95 在 Chromium/WebKit 测量，不把 Node 单测耗时当真实浏览器性能。Firefox 只测栈格式；完整 D7 压力/备份恢复未完成。
+基础包保持 12 KiB gzip 门禁，errors 为显式可选入口；报告须同时给出基础、errors、quality 和实际组合总量。errors 提取 p95 在 Chromium/WebKit 测量，不把 Node 单测耗时当真实浏览器性能。Firefox 只测栈格式；D7已在隔离CI完成压力和破坏恢复，生产容量仍须按目标环境验证。
 
 后续 D3 入口：D2 合并后从最新 refactor 开始请求、操作与工作流关联；不改变原文权限和基础计数。
 
@@ -59,7 +59,7 @@ D2 已新增 console 实现（最终验证状态以 results 为准）。接入�
 
 排错时依次看：接入是否启用 → scope 是否冲突 → 配置级别/页面/窗口 → 实际 records/预算说明 → 信封采集状态 → 存储状态 → 当前访问权限 → UI 过滤条件。不要把“debug 没有显示”直接解释为采集故障。
 
-验证：`pnpm exec vitest run packages/web-tracker/test/console.test.ts`；真实链路 `pnpm exec playwright test -c playwright.diagnostics.config.ts`。D0 真实权限/TTL/故障 fixture 也含 console 原文，继承的负向检查不删除。性能数据是同步局部测量，D3 请求关联、D5 SourceMap、D7 完整发布验收仍需分别实施。
+验证：`pnpm exec vitest run packages/web-tracker/test/console.test.ts`；真实链路 `pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts`。D0 真实权限/TTL/故障 fixture 也含 console 原文，继承的负向检查不删除。性能数据是同步局部测量，D3 请求关联、D5 SourceMap、D7 完整发布验收仍需分别实施。
 
 ## D3：请求证据与显式关联
 
@@ -101,3 +101,7 @@ D5维护基线：`8d7a8f3dd5e40db3e662e226cfe7b1698fea7470`；[完整专项验�
 读取`DiagnosticSettings.vue`→`DiagnosticsController`→`DiagnosticOperations.publish`事务及revision；随后看`IngestionController.workflowConfig`的公开配置投影→可选SDK`policy.ts`交集及生命周期→`RuntimeDiagnostics.admit`最新服务端准入→consumer.persist→receipt延迟与维护页。诊断失败不删除基础raw_events。
 
 删除链路从明确eventId到持久墓碑；并发读取返回前复核、晚到consumer不将receipt改回ready、后台mutation物理回收。对照`policy.test.ts`与真实浏览器`policy.spec.ts`，再读D5恢复脚本中的D6策略/撤权/墓碑破坏恢复断言。不能从脚本存在推断执行通过。接入、观测口径、回滚及旧备份限制见[D6指南](../guides/runtime-diagnostics-d6.md)。
+
+## D7维护入口
+
+最终工程验收入口为[D7指南](../guides/runtime-diagnostics-d7.md)，目录变更依据见[清理记录](../progress/runtime-diagnostics-d7-cleanup.md)。最终运行代码`709db4bb9f66a178cb0e58d7a1bbf23423b5dc05`已通过D7专项、R1–R8继承回归及Ubuntu22隔离部署/恢复；维护时仍须以新候选同SHA复验，不能沿用本次成功。网络/5xx重试耗尽后保留有界内存事件，恢复后flush以原eventId投递；永久4xx不重试，关页后没有持久离线队列。测试实际挂载Vue树的错误事件与适配器fixture是两种证据，Firefox当前只栈fixture。详情中的错误、栈、console、请求和SourceMap源码由安全token组件展示，必须使用文本节点而不是`v-html`；行号/着色不进入复制或导出原文。

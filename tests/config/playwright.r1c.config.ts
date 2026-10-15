@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./tests/v1.8/r5b",
+  testDir: "../v1.8/r1c",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
@@ -9,7 +9,7 @@ export default defineConfig({
   reporter: process.env.CI ? "line" : "list",
   use: {
     baseURL: process.env.M5_WEB_URL ?? "http://127.0.0.1:4173",
-    trace: "off", // Authenticated requests contain tokens; use safe assertions/screenshots.
+    trace: process.env.FI_PRIVACY_NO_TRACE ? "off" : "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [

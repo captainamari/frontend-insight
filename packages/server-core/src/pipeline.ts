@@ -238,6 +238,7 @@ interface CachedProject {
 }
 
 export class IngestionManager {
+  private readonly diagnostics: RuntimeDiagnostics;
   private readonly cache = new Map<string, CachedProject>();
   private readonly limiter: IngestionRateLimiter;
   private readonly latencySamples: number[] = [];
@@ -263,6 +264,7 @@ export class IngestionManager {
     } = {},
   ) {
     if (userHmacKey.length < 32) throw new Error("USER_HMAC_KEY_TOO_SHORT");
+    this.diagnostics = new RuntimeDiagnostics(store);
     this.limiter = new IngestionRateLimiter(
       options.maximumRequestsPerMinute ?? 600,
       options.now ?? Date.now,
@@ -326,6 +328,12 @@ export class IngestionManager {
       if (!project) throw new IngestionError("PROJECT_NOT_FOUND", 404);
       this.assertProject(project, context);
       checkpoint("projectMs");
+      const directoryRead = this.options.directories
+        ? this.options.directories(project.id).then(
+            (value) => ({ value }),
+            (error: unknown) => ({ error }),
+          )
+        : Promise.resolve({ value: [] as DirectoryVersion[] });
       try {
         await this.options.checkProbe?.(project.id, validation.value.sdk.version);
       } catch (e) {
@@ -368,7 +376,9 @@ export class IngestionManager {
         }
       }
       checkpoint("workflowMs");
-      const directories = (await this.options.directories?.(project.id)) ?? [];
+      const directoryResult = await directoryRead;
+      if ("error" in directoryResult) throw directoryResult.error;
+      const directories = directoryResult.value;
       checkpoint("directoryMs");
       const { batch, enrichments, objects } = this.sanitize(
         project,
@@ -378,11 +388,7 @@ export class IngestionManager {
       );
       if (batch.events.some((e) => e.diagnostic)) {
         try {
-          await new RuntimeDiagnostics(this.store).admit(
-            project.id,
-            batch.events,
-            nowMs,
-          );
+          await this.diagnostics.admit(project.id, batch.events, nowMs);
         } catch (e) {
           throw new IngestionError(
             e instanceof Error && e.message === "DIAGNOSTICS_EVENT_CONFLICT"
@@ -416,7 +422,11 @@ export class IngestionManager {
         throw new IngestionError("KAFKA_UNAVAILABLE", 503);
       }
       checkpoint("kafkaMs");
-      await this.store
+      // Kafka acknowledgement defines request acceptance. The project status row is
+      // best-effort operational telemetry (its failures were already non-fatal), so
+      // do not hold the HTTP response behind a second MySQL round trip. The pool
+      // bounds outstanding writes and markIngested supplies the durable queryable fact.
+      void this.store
         .markReceived({
           projectId: project.id,
           requestId,

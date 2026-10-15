@@ -255,6 +255,18 @@ test("D5 deployed compressed source → CLI → SDK/Kafka/storage → authorized
   await expect(page.getByTestId("source-mapping")).toContainText(
     "throw new TypeError(label);",
   );
+  await expect(
+    page
+      .getByTestId("source-mapping")
+      .locator(".diagnostic-code-line.active")
+      .filter({ hasText: "throw new TypeError(label);" }),
+  ).toHaveCount(1);
+  await expect(
+    page
+      .getByTestId("source-mapping")
+      .locator('.diagnostic-code-line.active [data-token="keyword"]')
+      .filter({ hasText: /^throw$/ }),
+  ).toHaveCount(1);
   await expect(page.getByTestId("diagnostic-stack")).toContainText("/d5/fixture.js:1:");
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {

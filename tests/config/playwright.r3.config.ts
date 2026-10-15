@@ -1,17 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+
 export default defineConfig({
-  testDir: "./tests/production/browser",
+  testDir: "../v1.8/r3",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
   workers: 1,
-  reporter: "line",
+  reporter: process.env.CI ? "line" : "list",
   use: {
-    baseURL: "https://127.0.0.1:8443",
-    ignoreHTTPSErrors: true, // Isolated CI self-signed TLS edge only.
-    trace: "off",
-    screenshot: "off",
-    video: "off",
+    baseURL: process.env.M5_WEB_URL ?? "http://127.0.0.1:4173",
+    trace: process.env.FI_PRIVACY_NO_TRACE ? "off" : "retain-on-failure",
+    screenshot: "only-on-failure",
   },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },

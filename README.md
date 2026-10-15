@@ -73,3 +73,11 @@ pnpm test:r8:e2e
 ```
 
 完整回归由 `.github/workflows/v1-8-r8.yml` 执行 R1–R7、真实 SDK/存储、双浏览器、性能、隐私、负载与故障恢复；Ubuntu 22.04 生产 Compose 独立验证。执行方法见 [v1.8 最终 Mac 验收](docs/guides/v1.8-local-acceptance-macos.md) 和 [Ubuntu 生产指南](docs/guides/production-ubuntu-22.04.md)。当前工程/自动化/手工验收/业务批准分别见 [R8 results](docs/progress/v1.8-r8-results.md)。Linux CI 不能替代目标 Mac、目标服务器或真实规则批准。
+
+## 目录与维护入口
+
+`apps/` 是 API、consumer、管理端和实验室；`packages/` 是契约、SDK、存储和领域实现；`infra/` 是 Compose/Docker/代理；`scripts/` 保留公开部署与恢复命令；`tools/` 是工程验证和 SourceMap CLI；`tests/config/` 统一阶段浏览器配置，默认 SDK 浏览器配置仍在根目录；`docs/` 按需求、计划、ADR、指南、学习与历史结果分组。
+
+D7 清理依据和兼容保留项见 [清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。
+
+D7完整验收与发布准备见[当前执行指南](docs/guides/runtime-diagnostics-d7.md)和[仓库清理记录](docs/progress/runtime-diagnostics-d7-cleanup.md)。同一运行代码的自动化工程验收已完成；Jesse手工验收和生产发布批准仍待确认。

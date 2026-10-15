@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount } from "vue";
 import RequestTimeline from "./RequestTimeline.vue";
+import DiagnosticCodeBlock from "./DiagnosticCodeBlock.vue";
 import { api, ApiError } from "../api";
 const props = defineProps<{ projectId: string; eventId: string | null }>();
 interface Detail {
@@ -419,7 +420,12 @@ onBeforeUnmount(() => {
       <h4>错误名称</h4>
       <pre>{{ show(result.view.error.name) }}</pre>
       <h4>原始错误消息</h4>
-      <pre data-testid="diagnostic-message">{{ show(result.view.error.message) }}</pre>
+      <DiagnosticCodeBlock
+        :value="show(result.view.error.message)"
+        label="错误消息"
+        :line-numbers="false"
+        test-id="diagnostic-message"
+      />
       <button type="button" @click="copy('message')">复制错误消息</button>
       <p>{{ labels[result.view.stack.state] ?? result.view.stack.state }}</p>
       <template v-if="result.view.error.resourceUrl !== undefined"
@@ -428,7 +434,12 @@ onBeforeUnmount(() => {
       </template>
       <details open>
         <summary>原始编译栈</summary>
-        <pre data-testid="diagnostic-stack">{{ show(result.view.error.stack) }}</pre>
+        <DiagnosticCodeBlock
+          :value="show(result.view.error.stack)"
+          language="stack"
+          label="JavaScript 编译栈"
+          test-id="diagnostic-stack"
+        />
         <button type="button" @click="copy('stack')">复制编译栈</button>
       </details>
       <table v-if="result.view.stack.frames.length" aria-label="结构化栈帧">
@@ -481,27 +492,51 @@ onBeforeUnmount(() => {
             {{ frame.original.function ?? "未提供函数名" }} ·
             {{ frame.original.line }}:{{ frame.original.column }}
           </p>
-          <pre v-if="frame.snippet">{{
-            frame.snippet.map((line) => `${line.line}: ${line.text}`).join("\n")
-          }}</pre>
+          <DiagnosticCodeBlock
+            v-if="frame.snippet"
+            :lines="frame.snippet"
+            :highlight-line="frame.original?.line ?? null"
+            language="javascript"
+            label="映射源码"
+          />
         </div>
         <details>
           <summary>匹配制品身份</summary>
-          <pre>{{ show(result.sourceMapping.artifacts) }}</pre>
+          <DiagnosticCodeBlock
+            :value="result.sourceMapping.artifacts"
+            language="json"
+            label="SourceMap 制品身份"
+          />
         </details>
       </section>
       <details v-if="result.view.error.cause !== undefined">
         <summary>cause 原因链（有界）</summary>
-        <pre>{{ show(result.view.error.cause) }}</pre>
+        <DiagnosticCodeBlock
+          :value="result.view.error.cause"
+          language="json"
+          label="cause 原因链"
+        />
       </details>
       <details v-if="result.view.error.errors !== undefined">
         <summary>AggregateError 子错误（有界）</summary>
-        <pre>{{ show(result.view.error.errors) }}</pre>
+        <DiagnosticCodeBlock
+          :value="result.view.error.errors"
+          language="json"
+          label="AggregateError 子错误"
+        />
       </details>
       <details>
         <summary>完整已采集错误与截断说明</summary>
-        <pre>{{ show(result.view.error) }}</pre>
-        <pre>{{ show(result.view.extraction) }}</pre>
+        <DiagnosticCodeBlock
+          :value="result.view.error"
+          language="json"
+          label="完整错误"
+        />
+        <DiagnosticCodeBlock
+          :value="result.view.extraction"
+          language="json"
+          label="提取与截断说明"
+        />
       </details>
       <section aria-label="console 上下文">
         <h4>console 上下文</h4>
@@ -549,7 +584,11 @@ onBeforeUnmount(() => {
               record?.source ?? "unknown"
             }}
           </p>
-          <pre>{{ show(record?.parameters ?? record) }}</pre>
+          <DiagnosticCodeBlock
+            :value="record?.parameters ?? record"
+            language="json"
+            label="console 参数"
+          />
           <p v-if="issuesFor(record).length">
             截断 / 省略 / 不可读取：{{ issuesFor(record).join("、") }} · 已知省略字节{{
               record.omittedBytesExact === false ? "下界" : ""
@@ -562,14 +601,26 @@ onBeforeUnmount(() => {
             window：窗口外淘汰；capacity：条数淘汰；bytes：总字节淘汰；scope：归属冲突清空；entry：记录预算不足；envelopeOmitted：信封容量不足。omittedBytesExact=false
             表示仅有省略字节下界，未遍历内容不能精确计量。
           </p>
-          <pre>{{ show(result.view.console?.metadata) }}</pre>
+          <DiagnosticCodeBlock
+            :value="result.view.console?.metadata"
+            language="json"
+            label="console 采集元数据"
+          />
         </details>
       </section>
       <details v-if="result.diagnostic">
         <summary>完整已存诊断原文与关联信息</summary>
         <p>原始采集字段；未提供的上下文不推测。关联强度以时间线说明为准。</p>
-        <pre>{{ show(result.diagnostic.raw) }}</pre>
-        <pre>{{ show(result.diagnostic.correlation) }}</pre>
+        <DiagnosticCodeBlock
+          :value="result.diagnostic.raw"
+          language="json"
+          label="已存诊断原文"
+        />
+        <DiagnosticCodeBlock
+          :value="result.diagnostic.correlation"
+          language="json"
+          label="关联信息"
+        />
       </details>
       <RequestTimeline
         :data="result.view.requests"

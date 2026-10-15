@@ -140,7 +140,7 @@ node tools/sourcemaps.mjs upload --api http://127.0.0.1:4173 \
   --js artifacts/d5-build/fixture.js --map artifacts/d5-build/fixture.js.map \
   --credential-file /tmp/lab.sourcemap-credential.json
 pnpm exec playwright install chromium webkit
-pnpm exec playwright test -c playwright.diagnostics.config.ts sourcemaps.spec.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts
 node tools/d5-storage-verify.mjs
 ```
 

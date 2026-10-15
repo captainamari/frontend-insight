@@ -140,7 +140,7 @@ M5_ALLOW_NON_ARM64=1 ./scripts/dev bootstrap # Linux 测试环境；Mac 可省�
 ./scripts/dev up
 ./scripts/dev smoke
 pnpm exec playwright install chromium webkit
-pnpm exec playwright test -c playwright.diagnostics.config.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
 ```
 
 1. 登录管理端 `http://127.0.0.1:4173`（本地 seed admin），打开演示项目的页面质量，选择 dev、近 7 天。

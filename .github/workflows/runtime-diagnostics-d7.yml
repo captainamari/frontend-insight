@@ -1,0 +1,88 @@
+name: Runtime diagnostics D7
+on:
+  push:
+    branches: ["agent/runtime-diagnostics-d7-*"]
+    paths-ignore: ["docs/**", "README.md"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: diagnostics-d7-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  d7:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      M5_ALLOW_NON_ARM64: "1"
+      FI_PRIVACY_NO_TRACE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - name: Install diagnostic browsers
+        timeout-minutes: 10
+        run: |
+          if test -f /etc/apt/apt-mirrors.txt; then
+            sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/apt-mirrors.txt
+          fi
+          pnpm exec playwright install --with-deps chromium webkit
+      - name: Isolated services
+        run: |
+          ./scripts/dev bootstrap
+          ./scripts/dev up
+          ./scripts/dev smoke
+      - name: Preserve existing data through incremental migrations
+        run: ./scripts/dev verify-d0-upgrade
+      - name: Real role matrix, rate limits, retries, TTL and partial write recovery
+        run: ./scripts/dev verify-d0
+      - name: D5 deployed sourcemaps and CLI in Chromium and WebKit
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts sourcemaps.spec.ts --max-failures=1
+      - name: D6 settings and real SDK policy lifecycle in both browsers
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts policy.spec.ts --max-failures=1
+      - name: Mounted Vue framework and actual offline drain in both browsers
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts acceptance.spec.ts --max-failures=1
+      - name: D5 persistence, lifecycle and actual backup restoration
+        run: node tools/d5-storage-verify.mjs
+      - name: D4 troubleshooting in Chromium and WebKit
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts troubleshooting.spec.ts --max-failures=1
+      - name: Inherited SDK transport in Chromium and WebKit
+        run: pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts console.spec.ts errors.spec.ts requests.spec.ts transport.spec.ts --max-failures=1
+      - name: Inherited quality and denominator regressions
+        run: |
+          pnpm test:r5a:e2e
+          pnpm test:r5b:e2e
+          node tools/r5b-storage-privacy.mjs
+      - name: Actual MySQL dependency failure and idempotent diagnostic recovery
+        run: node tools/d7-fault.mjs
+      - name: Diagnostic normal and storm load at 20 and 200 events per second
+        run: node tools/d7-load.mjs
+      - name: Diagnostic raw is absent from service logs
+        run: node tools/d0-log-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostics-d7-${{ github.sha }}
+          path: |
+            artifacts/d0-*.json
+            artifacts/d1-*.json
+            artifacts/d2-*.json
+            artifacts/d3-*.json
+            artifacts/d4-*.json
+            artifacts/d5-*.json
+            artifacts/d6-*.json
+            artifacts/d7-*.json
+            packages/web-tracker/dist/policy-bundle-report.json
+            artifacts/r5b-privacy.json
+            packages/web-tracker/dist/bundle-report.json
+            packages/web-tracker/dist/diagnostics-bundle-report.json
+            packages/web-tracker/dist/console-bundle-report.json
+            packages/web-tracker/dist/requests-bundle-report.json
+          retention-days: 7
+          if-no-files-found: ignore
+      - if: always()
+        run: ./scripts/dev down

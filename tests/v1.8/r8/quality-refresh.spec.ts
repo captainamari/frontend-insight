@@ -16,8 +16,18 @@ test("quality refresh advances presets, preserves custom ranges and resets curso
         accessToken: "ui-test-only",
         user: { id: "ui", displayName: "UI fixture", globalRole: "admin" },
       };
+    } else if (url.pathname.endsWith("/diagnostics/capabilities")) {
+      body = { read: false, export: false, manage: false };
     } else if (url.pathname.endsWith("/access")) {
       body = { id: "ui", name: "UI fixture", timezone: "Asia/Shanghai" };
+    } else if (/\/observability\/groups\/[a-f0-9]{64}\/impact$/.test(url.pathname)) {
+      body = {
+        selected: null,
+        history: null,
+        releases: [],
+        historyReleases: [],
+        historyFrom: "2026-10-01T00:00:00.000Z",
+      };
     } else if (url.pathname.endsWith("/observability/occurrences")) {
       queries.push(url.searchParams);
       body = {

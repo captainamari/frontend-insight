@@ -332,4 +332,84 @@ describe("D0 explicit diagnostic transport", () => {
     ).toBe("too_large");
     tracker.destroy();
   });
+  it("retains transiently failed events with stable IDs and drains after recovery", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "offline_d7"));
+    tracker.featureExposed("sales_dashboard");
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const failed = tracker.flush();
+    await failed;
+    const original = (await payload(fetchMock)).events;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(tracker.getDiagnostics().queueSize).toBe(original.length);
+    expect(tracker.getDiagnostics().retries).toBe(2);
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await tracker.flush();
+    expect((await payload(fetchMock, 3)).events).toEqual(original);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
+  it("does not retain permanently rejected requests", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker(config(runtime, "permanent_d7"));
+    fetchMock.mockResolvedValue(new Response(null, { status: 422 }));
+    await tracker.flush();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
+  it("bounds retained backlog while new events arrive during retries", async () => {
+    const { runtime, fetchMock } = createRuntime();
+    const tracker = createTracker({
+      ...config(runtime, "bounded_d7"),
+      maximumQueueSize: 3,
+    });
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const failed = tracker.flush();
+    for (let i = 0; i < 8; i++) tracker.featureExposed("sales_dashboard");
+    await failed;
+    expect(tracker.getDiagnostics().queueSize).toBe(3);
+    expect(tracker.getDiagnostics().droppedEvents).toBeGreaterThan(0);
+    fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+    await tracker.flush();
+    expect((await payload(fetchMock, 3)).events).toHaveLength(3);
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+    tracker.destroy();
+  });
+  it("does not retain backlog in a destroyed tracker after an in-flight outage", async () => {
+    const { runtime, fetchMock } = createRuntime({ beacon: false });
+    const tracker = createTracker(config(runtime, "destroyed_offline_d7"));
+    fetchMock.mockRejectedValue(new Error("synthetic offline"));
+    const pending = tracker.flush();
+    tracker.featureExposed("sales_dashboard");
+    tracker.destroy();
+    await pending;
+    expect(tracker.getDiagnostics().state).toBe("destroyed");
+    expect(tracker.getDiagnostics().queueSize).toBe(0);
+  });
+  it("normalizes queue limits so invalid local configuration cannot create an unbounded retry queue", async () => {
+    let index = 0;
+    for (const [limit, capacity] of [
+      [Number.NaN, 100],
+      [-2, 1],
+      [0, 100],
+      [1.8, 1],
+      [Infinity, 100],
+    ] as const) {
+      const { runtime, fetchMock } = createRuntime({ beacon: false });
+      const tracker = createTracker({
+        ...config(runtime, `queue_limit_d7_${index++}`),
+        maximumQueueSize: limit,
+      });
+      fetchMock.mockRejectedValue(new Error("synthetic offline"));
+      const pending = tracker.flush();
+      for (let n = 0; n < 120; n++) tracker.featureExposed("sales_dashboard");
+      await pending;
+      expect(tracker.getDiagnostics().queueSize).toBeLessThanOrEqual(capacity);
+      expect(tracker.getDiagnostics().droppedEvents).toBeGreaterThan(0);
+      fetchMock.mockResolvedValue(new Response(null, { status: 202 }));
+      await tracker.flush();
+      tracker.destroy();
+    }
+  });
 });

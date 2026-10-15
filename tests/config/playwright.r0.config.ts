@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./tests/v1.8/r0",
+  testDir: "../v1.8/r0",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,

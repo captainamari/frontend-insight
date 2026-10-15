@@ -46,8 +46,11 @@ function createPool(mysqlUrl: string): Pool {
     user: decodeURIComponent(url.username),
     password: decodeURIComponent(url.password),
     database: url.pathname.replace(/^\//, ""),
-    connectionLimit: 10,
-    queueLimit: 100,
+    // Admission performs short, independent transactions for each bounded request.
+    // Keep enough connections for the documented 50 requests/s diagnostic profile
+    // without changing any event, byte, or latency budget.
+    connectionLimit: 32,
+    queueLimit: 256,
     waitForConnections: true,
     timezone: "Z",
   });

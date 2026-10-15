@@ -76,7 +76,7 @@ M5_ALLOW_NON_ARM64=1 ./scripts/dev bootstrap
 ./scripts/dev up
 ./scripts/dev smoke
 pnpm exec playwright install chromium webkit
-pnpm exec playwright test -c playwright.diagnostics.config.ts
+pnpm exec playwright test -c tests/config/playwright.diagnostics.config.ts
 ./scripts/dev verify-d0-upgrade
 ./scripts/dev verify-d0
 pnpm test:r5a:e2e

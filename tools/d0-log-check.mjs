@@ -33,6 +33,7 @@ assert(!logs.includes("FI_D4_SYNTHETIC"), "D4_SERVICE_LOG_LEAK");
 assert(!logs.includes("FI_D5_SYNTHETIC"), "D5_SERVICE_LOG_LEAK");
 assert(!logs.includes("D6 synthetic context"), "D6_CONTEXT_LOG_LEAK");
 assert(!logs.includes("D6 policy synthetic error"), "D6_ERROR_LOG_LEAK");
+assert(!logs.includes("FI_D7_SYNTHETIC"), "D7_SERVICE_LOG_LEAK");
 assert(!logs.includes("fi_sm_"), "D5_CREDENTIAL_LOG_LEAK");
 writeFileSync(
   "artifacts/d0-logs.json",
