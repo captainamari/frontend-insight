@@ -246,8 +246,16 @@ test("D1 real SDK → services → authorized API → quality UI with raw errors
     "FI_D1_SYNTHETIC token=explicit\n<svg onload=alert(1)>纯文本",
   );
   await expect(page.getByTestId("diagnostic-stack")).toContainText("renderChart");
+  await expect(
+    page.getByTestId("diagnostic-stack").locator('[data-token="function"]'),
+  ).toContainText("renderChart");
+  await expect(page.getByLabel("JavaScript 编译栈")).toHaveAttribute(
+    "data-testid",
+    "diagnostic-stack",
+  );
   await expect(page.getByRole("table", { name: "结构化栈帧" })).toContainText("10:20");
   expect(await page.getByRole("dialog").locator("svg[onload]").count()).toBe(0);
+  expect(await page.getByRole("dialog").locator("script").count()).toBe(0);
   // Clipboard transport is environment-dependent; supply a browser clipboard sink,
   // while exercising the real button's reauthorization and exact text selection.
   await page.evaluate(() =>

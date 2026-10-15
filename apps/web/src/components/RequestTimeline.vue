@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import DiagnosticCodeBlock from "./DiagnosticCodeBlock.vue";
 const props = defineProps<{
   data:
     | {
@@ -13,7 +14,6 @@ const props = defineProps<{
 }>();
 defineEmits<{ copy: [] }>();
 const filter = ref("all");
-const show = (v: unknown) => (typeof v === "string" ? v : JSON.stringify(v, null, 2));
 const labels: Record<string, string> = {
   legacy: "历史数据没有请求上下文，无法恢复正文。",
   not_enabled: "请求诊断未启用。",
@@ -36,6 +36,10 @@ const labels: Record<string, string> = {
 };
 const field = (value: unknown) =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+const codeLanguage = (key: string) =>
+  ["requestHeaders", "responseHeaders", "requestBody", "responseBody"].includes(key)
+    ? "json"
+    : "text";
 const rows = computed(() =>
   [
     ...(props.data?.records ?? []),
@@ -131,7 +135,12 @@ const capturedAt = computed(() => field(props.data?.metadata).capturedAt);
             {{ labels[String(field(r[key]).state)] ?? field(r[key]).state }}
             {{ field(r[key]).reason }}
           </p>
-          <pre>{{ field(r[key]).value ?? "无可用原文" }}</pre>
+          <DiagnosticCodeBlock
+            :value="field(r[key]).value ?? '无可用原文'"
+            :language="codeLanguage(key)"
+            :label="key"
+            :line-numbers="!['url', 'responseUrl'].includes(key)"
+          />
           <p v-if="field(r[key]).state === 'truncated'">
             已保留 JSON 值字节：{{ field(r[key]).bytes }}；省略字节{{
               field(r[key]).omittedBytesExact === false ? "下界" : ""
@@ -139,16 +148,20 @@ const capturedAt = computed(() => field(props.data?.metadata).capturedAt);
           </p>
         </div>
         <h5>request / trace / operation / workflow instance / step / attempt</h5>
-        <pre>{{ show(r.association) }}</pre>
+        <DiagnosticCodeBlock :value="r.association" language="json" label="关联标识" />
       </template>
-      <pre v-else>{{ show(r) }}</pre>
+      <DiagnosticCodeBlock v-else :value="r" language="json" label="时间线事件" />
     </details>
     <details>
       <summary>请求采集与预算说明</summary>
       <p>
         window：窗口淘汰；capacity：条数或并发上限；bytes：字节淘汰；scope：页面切换；excluded：配置/SDK/上传排除；envelopeOmitted：总信封裁剪。不将这些情况视作基础错误或请求计数减少。
       </p>
-      <pre>{{ show(data?.metadata) }}</pre>
+      <DiagnosticCodeBlock
+        :value="data?.metadata"
+        language="json"
+        label="请求采集元数据"
+      />
     </details>
   </section>
 </template>
