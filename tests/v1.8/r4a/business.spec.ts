@@ -261,6 +261,7 @@ test("late responses cannot overwrite a changed env or an open drill context", a
   await page.goto(url);
   await ready(page);
   await page.getByLabel("项目环境", { exact: true }).selectOption("dev");
+  await expect(page).toHaveURL(/env=dev/);
   await ready(page);
   await page.goBack();
   await ready(page);
