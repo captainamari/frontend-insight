@@ -1,0 +1,103 @@
+name: Validate and publish VPS delivery
+on:
+  push:
+    branches: [fix/vps-validation-20261021]
+    paths: [.github/workflows/publish-vps-validated.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: publish-vps-validated-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  production:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      FI_PRIVACY_NO_TRACE: "1"
+      SOURCE_COMMIT: 7b8041b0a544bf164bcd31cd95589dd2c7b0c1dc
+      RELEASE: vps-20261021-7b8041b0a544
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 7b8041b0a544bf164bcd31cd95589dd2c7b0c1dc
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Set temporary credential input path
+        run: echo "FI_BOOTSTRAP_INPUT=$RUNNER_TEMP/production-bootstrap.json" >> "$GITHUB_ENV"
+      - run: npm install --global pnpm@11.15.1
+      - run: pnpm install --frozen-lockfile
+      - name: Validate production scripts and memory boundaries
+        run: |
+          bash -n scripts/production scripts/deployment-info tools/production-ci
+          pnpm exec vitest run tests/production/capacity.test.ts
+      - name: Record actual Docker versions
+        run: |
+          docker version --format 'client={{.Client.Version}} server={{.Server.Version}}'
+          docker compose version
+      - name: Prepare root-owned secrets and production capacity preflight
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci prepare
+      - name: Deploy actual production stack and verify secret isolation
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci deploy
+      - name: Bootstrap one real admin without fixtures or environment passwords
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci bootstrap
+      - name: Start isolated TLS edge
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci tls
+      - run: pnpm exec playwright install --with-deps chromium webkit
+      - name: Production HTTPS browser SDK collector storage and settings
+        run: GITHUB_SHA="$SOURCE_COMMIT" pnpm exec playwright test -c tests/config/playwright.production.config.ts
+      - name: Recreate production containers with retained volumes
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci restart
+      - name: Verify retained login and event data in both browsers
+        env:
+          FI_PRODUCTION_PHASE: retained
+        run: GITHUB_SHA="$SOURCE_COMMIT" pnpm exec playwright test -c tests/config/playwright.production.config.ts
+      - name: Backup and restore populated durable schema in isolated CI
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci restore-drill
+      - name: Verify restored accounts projects policies and events in both browsers
+        env:
+          FI_PRODUCTION_PHASE: restored
+        run: GITHUB_SHA="$SOURCE_COMMIT" pnpm exec playwright test -c tests/config/playwright.production.config.ts
+      - name: Verify exact commit evidence
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci evidence
+      - name: Publish the verified images and verify digest pulls
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          trap 'docker logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          mkdir -p artifacts
+          for service in app web; do
+            image="ghcr.io/captainamari/frontend-insight-$service:$RELEASE"
+            original="$(docker image inspect "frontend-insight-$service:production-ci" --format '{{.Id}}')"
+            docker tag "frontend-insight-$service:production-ci" "$image"
+            docker push "$image"
+            docker pull "$image"
+            digest="$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')"
+            docker pull "$digest"
+            pulled="$(docker image inspect "$digest" --format '{{.Id}}')"
+            test "$original" = "$pulled"
+            SERVICE="$service" IMAGE="$image" DIGEST="$digest" IMAGE_ID="$original" node --input-type=module -e '
+              import {writeFileSync} from "node:fs";
+              writeFileSync("artifacts/release-"+process.env.SERVICE+".json",JSON.stringify({sourceCommit:process.env.SOURCE_COMMIT,image:process.env.IMAGE,digest:process.env.DIGEST,imageId:process.env.IMAGE_ID,architecture:"linux/amd64",testedBeforePush:true,pulledByDigest:true,runId:process.env.GITHUB_RUN_ID},null,2));'
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-image-manifest
+          path: artifacts/release-*.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-deployment-evidence
+          path: artifacts/production-*.json
+      - name: Safe container state on failure
+        if: failure()
+        run: sudo bash scripts/production status
+      - name: Stop isolated services
+        if: always()
+        run: GITHUB_SHA="$SOURCE_COMMIT" bash tools/production-ci cleanup

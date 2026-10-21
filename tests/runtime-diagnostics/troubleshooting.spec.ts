@@ -252,7 +252,10 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     .toContain(stable);
   const newPage = await context.newPage();
   await newPage.goto(stable); // sessionStorage does not transfer: login then resolve again.
-  if (newPage.url().includes("/login")) {
+  await expect(
+    newPage.getByLabel("邮箱").or(newPage.getByTestId("diagnostic-message")),
+  ).toBeVisible();
+  if (await newPage.getByLabel("邮箱").isVisible()) {
     await newPage.getByLabel("邮箱").fill("viewer@example.invalid");
     await newPage.getByLabel("密码").fill("LocalViewer-1234");
     await newPage.getByRole("button", { name: "登录", exact: true }).click();

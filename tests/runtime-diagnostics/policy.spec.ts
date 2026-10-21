@@ -123,6 +123,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
   ).toContainText("发布成功");
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"version": "d6-3"',
+  );
   const restored = await send();
   await expect
     .poll(async () => (await detail(restored.eventId)).state, { timeout: 45000 })
