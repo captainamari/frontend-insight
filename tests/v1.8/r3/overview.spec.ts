@@ -544,7 +544,15 @@ for (const role of ["admin", "viewer"] as const) {
     await page.goBack();
     await ready(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    const forwarded = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === `/api/projects/${projectId}/overview` &&
+        url.searchParams.get("range") === "30d"
+      );
+    });
     await page.goForward();
+    await forwarded;
     await ready(page);
     // Project navigation destroys the old resource, including pending responses.
     mode = "hold";

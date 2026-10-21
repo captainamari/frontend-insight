@@ -110,9 +110,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   // Offline SDK still holds the old policy; server admission already enforces shutdown.
   const offlineEvent = await send();
   await expect
-    .poll(async () => (await detail(offlineEvent.eventId)).state, {
-      timeout: 45000,
-    })
+    .poll(async () => (await detail(offlineEvent.eventId)).state, { timeout: 45000 })
     .toBe("disabled");
   await demo.getByLabel("模拟策略网络失败", { exact: false }).uncheck();
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
@@ -125,12 +123,12 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
   ).toContainText("发布成功");
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
-  await expect(demo.getByTestId("d6-policy-state")).toContainText('"version": "d6-3"');
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"version": "d6-3"',
+  );
   const restored = await send();
   await expect
-    .poll(async () => (await detail(restored.eventId)).state, {
-      timeout: 45000,
-    })
+    .poll(async () => (await detail(restored.eventId)).state, { timeout: 45000 })
     .toBe("ready");
   expect(JSON.stringify(restored.diagnostic?.raw)).toContain("D6 synthetic context");
   const viewer = await (
@@ -150,9 +148,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   expect((await request.get(root + "/settings", { headers: vh })).status()).toBe(403);
   expect(
     (
-      await request.delete(root + `/instances/${first.eventId}`, {
-        headers: vh,
-      })
+      await request.delete(root + `/instances/${first.eventId}`, { headers: vh })
     ).status(),
   ).toBe(403);
   const granted = await request.put(root + `/grants/${viewer.user.userId}`, {
@@ -221,9 +217,7 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       (e: { eventId: string }) => e.eventId === first.eventId,
     ),
   ).toBe(false);
-  const again = await request.delete(root + `/instances/${first.eventId}`, {
-    headers,
-  });
+  const again = await request.delete(root + `/instances/${first.eventId}`, { headers });
   expect(again.status()).toBe(200);
   const health = await (await request.get(root + "/maintenance", { headers })).json();
   expect(health.health.length).toBeGreaterThan(0);

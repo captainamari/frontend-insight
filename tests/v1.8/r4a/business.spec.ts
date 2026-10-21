@@ -134,10 +134,7 @@ for (const role of ["admin", "viewer"] as const)
     await binding.locator("summary").click();
     if (role === "viewer") {
       await expect(
-        binding.getByRole("button", {
-          name: "保存业务分析展示到草稿",
-          exact: true,
-        }),
+        binding.getByRole("button", { name: "保存业务分析展示到草稿", exact: true }),
       ).toHaveCount(0);
       const forged = await api(
         page,

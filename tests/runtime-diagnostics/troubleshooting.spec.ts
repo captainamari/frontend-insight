@@ -43,11 +43,8 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
       body: "<!doctype html><p>Synthetic D4 fixture</p>",
     }),
   );
-  const wire: {
-    eventId: string;
-    diagnostic?: { raw: unknown };
-    release?: string;
-  }[] = [];
+  const wire: { eventId: string; diagnostic?: { raw: unknown }; release?: string }[] =
+    [];
   page.on("request", (r) => {
     if (r.url().endsWith("/v1/events") && r.postData())
       wire.push(...JSON.parse(r.postData()!).events);
@@ -104,21 +101,14 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     expect(
       (
         await (
-          await request.get(root + `/diagnostics/instances/${e.eventId}`, {
-            headers,
-          })
+          await request.get(root + `/diagnostics/instances/${e.eventId}`, { headers })
         ).json()
       ).diagnostic,
     ).toEqual(e.diagnostic);
   }
   const to = new Date(Date.now() + 1000).toISOString();
   const scope = { env: "dev", from, to, category: "all" };
-  const search = {
-    ...scope,
-    term: "token=查找\n中文😀",
-    field: "message",
-    limit: 1,
-  };
+  const search = { ...scope, term: "token=查找\n中文😀", field: "message", limit: 1 };
   const foundResponse = await request.post(root + "/diagnostics/search", {
     headers,
     data: search,
@@ -159,10 +149,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     (
       await request.post(root + "/diagnostics/search", {
         headers,
-        data: {
-          ...search,
-          from: new Date(Date.now() - 8 * 86400000).toISOString(),
-        },
+        data: { ...search, from: new Date(Date.now() - 8 * 86400000).toISOString() },
       })
     ).status(),
   ).toBe(422);
@@ -189,10 +176,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     3, 3,
   ]);
   for (const format of ["json", "text"]) {
-    const response = await request.post(exportUrl, {
-      headers,
-      data: { format },
-    });
+    const response = await request.post(exportUrl, { headers, data: { format } });
     expect(response.status()).toBe(201);
     expect(response.headers()["cache-control"]).toContain("no-store");
     expect(response.headers()["content-disposition"]).toContain("attachment");
@@ -216,10 +200,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   // Cross-project first, then ordinary viewer, read-only, read+export.
   expect(
     (
-      await request.post(root + "/diagnostics/search", {
-        headers: vh,
-        data: search,
-      })
+      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
     ).status(),
   ).toBe(403);
   await request.put(root + `/members/${viewer.user.userId}`, {
@@ -236,10 +217,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await request.put(grant, { headers, data: { read: true, export: false } });
   expect(
     (
-      await request.post(root + "/diagnostics/search", {
-        headers: vh,
-        data: search,
-      })
+      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
     ).status(),
   ).toBe(201);
   expect(
@@ -308,12 +286,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   expect((await request.get(exportUrl, { headers: vh })).status()).toBe(404);
   await page.goto(
     `/projects/${project.id}/pages?` +
-      new URLSearchParams({
-        ...scope,
-        range: "custom",
-        mode: "all",
-        groupId: group,
-      }),
+      new URLSearchParams({ ...scope, range: "custom", mode: "all", groupId: group }),
   );
   await expect(page.getByRole("table", { name: "版本影响比较" })).toContainText(
     "d4-v1",
@@ -362,10 +335,7 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   });
   expect(
     (
-      await request.post(root + "/diagnostics/search", {
-        headers: vh,
-        data: search,
-      })
+      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
     ).status(),
   ).toBe(403);
   await request.put(grant, { headers, data: { read: true, export: true } });
