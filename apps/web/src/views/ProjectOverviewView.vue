@@ -25,6 +25,12 @@ const data = ref<OverviewResponse | null>(null),
 let generation = 0,
   controller: AbortController | null = null;
 const drill = ref("");
+function openDrill(value: string, event: MouseEvent) {
+  // WebKit does not focus buttons on pointer clicks. Give the drawer a real
+  // trigger to restore focus to when it closes, including Escape dismissal.
+  if (event.currentTarget instanceof HTMLElement) event.currentTarget.focus();
+  drill.value = value;
+}
 const signature = computed(() =>
   JSON.stringify([
     route.params.projectId,
@@ -256,13 +262,13 @@ onBeforeUnmount(() => {
           label="运营分数"
           :selection="dims('operational')"
           @selection="selection('operational', $event)"
-          @explain="drill = 'operational'"
+          @explain="openDrill('operational', $event)"
         /><OverviewScore
           :score="data.quality"
           label="质量分数"
           :selection="dims('quality')"
           @selection="selection('quality', $event)"
-          @explain="drill = 'quality'"
+          @explain="openDrill('quality', $event)"
         />
       </div>
       <p>
@@ -306,7 +312,7 @@ onBeforeUnmount(() => {
             <p v-if="m.rawValue !== null">
               已观测原始值 {{ m.rawValue }}（完整性未验证）
             </p>
-            <button @click="drill = 'metric:' + m.definition.metricKey">
+            <button @click="openDrill('metric:' + m.definition.metricKey, $event)">
               查看{{ m.definition.displayName }}定义与证据
             </button>
           </article>
@@ -347,7 +353,7 @@ onBeforeUnmount(() => {
         <article v-for="a in data.alerts.items" :key="a.id">
           <h3>{{ a.title }} · {{ a.severity }}</h3>
           <p>{{ a.evidence }}</p>
-          <button @click="drill = 'alert:' + a.id">查看告警证据</button>
+          <button @click="openDrill('alert:' + a.id, $event)">查看告警证据</button>
         </article>
         <details>
           <summary>规则和评估范围</summary>

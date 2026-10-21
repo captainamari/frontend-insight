@@ -7,7 +7,7 @@ const props = defineProps<{
   label: string;
   selection: string[];
 }>();
-const emit = defineEmits<{ selection: [string[]]; explain: [] }>();
+const emit = defineEmits<{ selection: [string[]]; explain: [MouseEvent] }>();
 const dims = computed(() => props.score.result?.dimensions ?? []);
 const chosen = computed(() => {
   const keys = props.selection.length
@@ -140,7 +140,9 @@ const show = (n: number | null | undefined) => (n == null ? "—" : n.toFixed(2)
           />{{ d.displayName }}</label
         >
       </details>
-      <button @click="emit('explain')">查看{{ label }}解释与血缘</button></template
+      <button @click="emit('explain', $event)">
+        查看{{ label }}解释与血缘
+      </button></template
     >
   </section>
 </template>
