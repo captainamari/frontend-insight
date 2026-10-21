@@ -25,13 +25,17 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   expect(made.status()).toBe(201);
   const project = await made.json(),
     root = `/api/projects/${project.id}/diagnostics`;
-  const initial = await (await request.get(root + "/settings", { headers })).json();
+  const initial = await (
+    await request.get(root + "/settings", { headers })
+  ).json();
   expect(initial.revision).toBe(0);
   await page.goto(`/projects/${project.id}/settings?tab=diagnostics&env=dev`);
   await page.getByLabel("邮箱").fill("admin@example.invalid");
   await page.getByLabel("密码", { exact: true }).fill("LocalAdmin-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "诊断策略与维护" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "诊断策略与维护" }),
+  ).toBeVisible();
   await page.getByLabel("新证据保留天数").fill("2");
   await page.getByRole("button", { name: "保存并发布诊断策略" }).click();
   await expect(
@@ -45,7 +49,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       })
     ).status(),
   ).toBe(409);
-  const published = await (await request.get(root + "/settings", { headers })).json();
+  const published = await (
+    await request.get(root + "/settings", { headers })
+  ).json();
   expect(published.policy.retentionDays).toBe(2);
   expect(published.revision).toBe(1);
   const demo = await context.newPage(),
@@ -68,14 +74,22 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       );
     }
   });
-  await demo.goto(`http://127.0.0.1:4174/observability?d6AppId=${project.appId}`);
+  await demo.goto(
+    `http://127.0.0.1:4174/observability?d6AppId=${project.appId}`,
+  );
   await demo.getByRole("button", { name: "初始化 D6 SDK" }).click();
-  await expect(demo.getByTestId("d6-policy-state")).toContainText('"state": "active"');
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"state": "active"',
+  );
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
-  await expect(demo.getByTestId("d6-policy-state")).toContainText('"version": "d6-1"');
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"version": "d6-1"',
+  );
   const send = async () => {
     const n = captured.length;
-    await demo.getByRole("button", { name: "D6 日志后错误", exact: true }).click();
+    await demo
+      .getByRole("button", { name: "D6 日志后错误", exact: true })
+      .click();
     await expect
       .poll(async () => ({
         count: captured.length,
@@ -89,7 +103,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   };
   const first = await send();
   expect(first.diagnostic?.policyVersion).toBe("d6-1");
-  expect(JSON.stringify(first.diagnostic?.raw)).toContain("D6 synthetic context");
+  expect(JSON.stringify(first.diagnostic?.raw)).toContain(
+    "D6 synthetic context",
+  );
   const detail = async (id: string) =>
     await (await request.get(root + `/instances/${id}`, { headers })).json();
   await expect
@@ -110,11 +126,15 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   // Offline SDK still holds the old policy; server admission already enforces shutdown.
   const offlineEvent = await send();
   await expect
-    .poll(async () => (await detail(offlineEvent.eventId)).state, { timeout: 45000 })
+    .poll(async () => (await detail(offlineEvent.eventId)).state, {
+      timeout: 45000,
+    })
     .toBe("disabled");
   await demo.getByLabel("模拟策略网络失败", { exact: false }).uncheck();
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
-  await expect(demo.getByTestId("d6-policy-state")).toContainText('"enabled": []');
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"enabled": []',
+  );
   const off = await send();
   expect(off.diagnostic?.raw).toEqual({});
   await page.getByLabel("启用诊断采集", { exact: true }).check();
@@ -123,11 +143,18 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     page.getByRole("region", { name: "诊断策略与维护" }).getByRole("status"),
   ).toContainText("发布成功");
   await demo.getByRole("button", { name: "同步 D6 策略" }).click();
+  await expect(demo.getByTestId("d6-policy-state")).toContainText(
+    '"version": "d6-3"',
+  );
   const restored = await send();
   await expect
-    .poll(async () => (await detail(restored.eventId)).state, { timeout: 45000 })
+    .poll(async () => (await detail(restored.eventId)).state, {
+      timeout: 45000,
+    })
     .toBe("ready");
-  expect(JSON.stringify(restored.diagnostic?.raw)).toContain("D6 synthetic context");
+  expect(JSON.stringify(restored.diagnostic?.raw)).toContain(
+    "D6 synthetic context",
+  );
   const viewer = await (
     await request.post("/api/auth/login", {
       data: { email: "viewer@example.invalid", password: "LocalViewer-1234" },
@@ -142,10 +169,14 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     },
   );
   expect(memberAdded.status()).toBe(200);
-  expect((await request.get(root + "/settings", { headers: vh })).status()).toBe(403);
+  expect(
+    (await request.get(root + "/settings", { headers: vh })).status(),
+  ).toBe(403);
   expect(
     (
-      await request.delete(root + `/instances/${first.eventId}`, { headers: vh })
+      await request.delete(root + `/instances/${first.eventId}`, {
+        headers: vh,
+      })
     ).status(),
   ).toBe(403);
   const granted = await request.put(root + `/grants/${viewer.user.userId}`, {
@@ -154,7 +185,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
   });
   expect(granted.status()).toBe(200);
   expect(
-    (await request.get(root + `/instances/${first.eventId}`, { headers: vh })).status(),
+    (
+      await request.get(root + `/instances/${first.eventId}`, { headers: vh })
+    ).status(),
   ).toBe(200);
   expect(
     (
@@ -169,7 +202,9 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
     data: { read: false, export: false },
   });
   expect(
-    (await request.get(root + `/instances/${first.eventId}`, { headers: vh })).status(),
+    (
+      await request.get(root + `/instances/${first.eventId}`, { headers: vh })
+    ).status(),
   ).toBe(403);
   await page.getByLabel("实例 eventId", { exact: true }).fill(first.eventId);
   await page.getByLabel("确认删除此项目此实例的原文").check();
@@ -214,9 +249,13 @@ test("D6 settings publication → deployed SDK → storage, shutdown, deletion a
       (e: { eventId: string }) => e.eventId === first.eventId,
     ),
   ).toBe(false);
-  const again = await request.delete(root + `/instances/${first.eventId}`, { headers });
+  const again = await request.delete(root + `/instances/${first.eventId}`, {
+    headers,
+  });
   expect(again.status()).toBe(200);
-  const health = await (await request.get(root + "/maintenance", { headers })).json();
+  const health = await (
+    await request.get(root + "/maintenance", { headers })
+  ).json();
   expect(health.health.length).toBeGreaterThan(0);
   expect(health.diskBytes).toBeNull();
   expect(JSON.stringify(health)).not.toContain("D6 synthetic context");

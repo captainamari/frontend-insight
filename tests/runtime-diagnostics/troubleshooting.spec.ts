@@ -30,10 +30,10 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     await page.route(`**/d4-${file}.js`, (r) =>
       r.fulfill({
         contentType: "text/javascript",
-        body: readFileSync(`packages/web-tracker/dist/${file}.js`, "utf8").replaceAll(
-          '"./errors.js"',
-          '"./d4-errors.js"',
-        ),
+        body: readFileSync(
+          `packages/web-tracker/dist/${file}.js`,
+          "utf8",
+        ).replaceAll('"./errors.js"', '"./d4-errors.js"'),
       }),
     );
   // A browser harness uses built SDK modules. All data/API/UI services are real deployed containers.
@@ -43,8 +43,11 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
       body: "<!doctype html><p>Synthetic D4 fixture</p>",
     }),
   );
-  const wire: { eventId: string; diagnostic?: { raw: unknown }; release?: string }[] =
-    [];
+  const wire: {
+    eventId: string;
+    diagnostic?: { raw: unknown };
+    release?: string;
+  }[] = [];
   page.on("request", (r) => {
     if (r.url().endsWith("/v1/events") && r.postData())
       wire.push(...JSON.parse(r.postData()!).events);
@@ -101,14 +104,21 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     expect(
       (
         await (
-          await request.get(root + `/diagnostics/instances/${e.eventId}`, { headers })
+          await request.get(root + `/diagnostics/instances/${e.eventId}`, {
+            headers,
+          })
         ).json()
       ).diagnostic,
     ).toEqual(e.diagnostic);
   }
   const to = new Date(Date.now() + 1000).toISOString();
   const scope = { env: "dev", from, to, category: "all" };
-  const search = { ...scope, term: "token=查找\n中文😀", field: "message", limit: 1 };
+  const search = {
+    ...scope,
+    term: "token=查找\n中文😀",
+    field: "message",
+    limit: 1,
+  };
   const foundResponse = await request.post(root + "/diagnostics/search", {
     headers,
     data: search,
@@ -149,7 +159,10 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
     (
       await request.post(root + "/diagnostics/search", {
         headers,
-        data: { ...search, from: new Date(Date.now() - 8 * 86400000).toISOString() },
+        data: {
+          ...search,
+          from: new Date(Date.now() - 8 * 86400000).toISOString(),
+        },
       })
     ).status(),
   ).toBe(422);
@@ -167,16 +180,21 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   const group = list.items[0].groupId;
   const impact = await (
     await request.get(
-      root + `/observability/groups/${group}/impact?` + new URLSearchParams(scope),
+      root +
+        `/observability/groups/${group}/impact?` +
+        new URLSearchParams(scope),
       { headers },
     )
   ).json();
   expect(impact.selected.occurrences).toBe(6);
-  expect(impact.releases.map((r: { occurrences: number }) => r.occurrences)).toEqual([
-    3, 3,
-  ]);
+  expect(
+    impact.releases.map((r: { occurrences: number }) => r.occurrences),
+  ).toEqual([3, 3]);
   for (const format of ["json", "text"]) {
-    const response = await request.post(exportUrl, { headers, data: { format } });
+    const response = await request.post(exportUrl, {
+      headers,
+      data: { format },
+    });
     expect(response.status()).toBe(201);
     expect(response.headers()["cache-control"]).toContain("no-store");
     expect(response.headers()["content-disposition"]).toContain("attachment");
@@ -200,7 +218,10 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   // Cross-project first, then ordinary viewer, read-only, read+export.
   expect(
     (
-      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
+      await request.post(root + "/diagnostics/search", {
+        headers: vh,
+        data: search,
+      })
     ).status(),
   ).toBe(403);
   await request.put(root + `/members/${viewer.user.userId}`, {
@@ -217,11 +238,16 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await request.put(grant, { headers, data: { read: true, export: false } });
   expect(
     (
-      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
+      await request.post(root + "/diagnostics/search", {
+        headers: vh,
+        data: search,
+      })
     ).status(),
   ).toBe(201);
   expect(
-    (await request.post(exportUrl, { headers: vh, data: { format: "json" } })).status(),
+    (
+      await request.post(exportUrl, { headers: vh, data: { format: "json" } })
+    ).status(),
   ).toBe(403);
   const stable = `/projects/${project.id}/diagnostics/${event}`;
   await page.goto(stable);
@@ -230,7 +256,9 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await page.getByLabel("密码").fill("LocalViewer-1234");
   await page.getByRole("button", { name: "登录", exact: true }).click();
   await expect(page.getByTestId("diagnostic-message")).toContainText("中文😀");
-  await expect(page.getByRole("button", { name: "下载 JSON 证据" })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "下载 JSON 证据" }),
+  ).toBeDisabled();
   await page.reload();
   await expect(page.getByTestId("diagnostic-stack")).toContainText("ODD STACK");
   await expect(
@@ -248,11 +276,16 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   );
   await page.getByRole("button", { name: "复制稳定实例链接" }).click();
   await expect
-    .poll(() => page.evaluate(() => (window as unknown as { copied: string }).copied))
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { copied: string }).copied),
+    )
     .toContain(stable);
   const newPage = await context.newPage();
   await newPage.goto(stable); // sessionStorage does not transfer: login then resolve again.
-  if (newPage.url().includes("/login")) {
+  await expect(
+    newPage.getByLabel("邮箱").or(newPage.getByTestId("diagnostic-message")),
+  ).toBeVisible();
+  if (await newPage.getByLabel("邮箱").isVisible()) {
     await newPage.getByLabel("邮箱").fill("viewer@example.invalid");
     await newPage.getByLabel("密码").fill("LocalViewer-1234");
     await newPage.getByRole("button", { name: "登录", exact: true }).click();
@@ -263,36 +296,51 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await newPage.close();
   await page.bringToFront();
   await request.put(grant, { headers, data: { read: true, export: true } });
-  await page.getByRole("button", { name: "重新授权并读取", exact: true }).click();
-  await expect(page.getByRole("button", { name: "下载 JSON 证据" })).toBeEnabled();
+  await page
+    .getByRole("button", { name: "重新授权并读取", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "下载 JSON 证据" }),
+  ).toBeEnabled();
   for (const name of ["下载 JSON 证据", "下载文本证据"]) {
     const downloaded = page.waitForEvent("download", { timeout: 20000 });
-    await page.getByRole("button", { name, exact: true }).click({ timeout: 10000 });
+    await page
+      .getByRole("button", { name, exact: true })
+      .click({ timeout: 10000 });
     const file = await downloaded;
     const path = await file.path();
     expect(readFileSync(path!, "utf8")).toContain("FI_D4_SYNTHETIC");
   }
   expect(await page.locator("img[onerror]").count()).toBe(0);
   await request.put(grant, { headers, data: { read: true, export: false } });
-  await expect(page.getByRole("button", { name: "下载 JSON 证据" })).toBeDisabled({
+  await expect(
+    page.getByRole("button", { name: "下载 JSON 证据" }),
+  ).toBeDisabled({
     timeout: 7000,
   });
   expect(
-    (await request.post(exportUrl, { headers: vh, data: { format: "json" } })).status(),
+    (
+      await request.post(exportUrl, { headers: vh, data: { format: "json" } })
+    ).status(),
   ).toBe(403);
   expect((await request.get(exportUrl, { headers: vh })).status()).toBe(404);
   await page.goto(
     `/projects/${project.id}/pages?` +
-      new URLSearchParams({ ...scope, range: "custom", mode: "all", groupId: group }),
+      new URLSearchParams({
+        ...scope,
+        range: "custom",
+        mode: "all",
+        groupId: group,
+      }),
   );
   await expect(page.getByRole("table", { name: "版本影响比较" })).toContainText(
     "d4-v1",
   );
   await page.getByLabel("搜索词", { exact: true }).fill("FI_D4_SYNTHETIC");
   await page.getByRole("button", { name: "搜索原文", exact: true }).click();
-  await expect(page.getByRole("region", { name: "授权原文搜索" })).toContainText(
-    "命中 6 个实例",
-  );
+  await expect(
+    page.getByRole("region", { name: "授权原文搜索" }),
+  ).toContainText("命中 6 个实例");
   expect(page.url()).not.toContain("SYNTHETIC");
   await page
     .getByRole("button", { name: /查看命中实例/ })
@@ -323,7 +371,9 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   await expect(page.getByLabel("搜索词", { exact: true })).toHaveValue("");
   releaseSearch();
   await page.unroute("**" + root + "/diagnostics/search");
-  await expect(page.getByRole("button", { name: /查看命中实例/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /查看命中实例/ })).toHaveCount(
+    0,
+  );
   await page.goto(stable);
   await expect(page.getByTestId("diagnostic-message")).toBeVisible();
   await request.put(grant, { headers, data: { read: false, export: false } });
@@ -332,13 +382,18 @@ test("D4 engineer workflow: bounded search, group impact, stable links, download
   });
   expect(
     (
-      await request.post(root + "/diagnostics/search", { headers: vh, data: search })
+      await request.post(root + "/diagnostics/search", {
+        headers: vh,
+        data: search,
+      })
     ).status(),
   ).toBe(403);
   await request.put(grant, { headers, data: { read: true, export: true } });
   await request.delete(root + `/members/${viewer.user.userId}`, { headers });
   expect(
-    (await request.post(exportUrl, { headers: vh, data: { format: "json" } })).status(),
+    (
+      await request.post(exportUrl, { headers: vh, data: { format: "json" } })
+    ).status(),
   ).toBe(403);
   expect((await request.get(detailUrl, { headers: vh })).status()).toBe(403);
   mkdirSync("artifacts", { recursive: true });

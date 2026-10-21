@@ -1,7 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import type { BusinessResponse } from "../../../apps/web/src/business-types";
-const evidence = JSON.parse(readFileSync("artifacts/r4a-integration.json", "utf8")) as {
+const evidence = JSON.parse(
+  readFileSync("artifacts/r4a-integration.json", "utf8"),
+) as {
   project: { id: string; name: string };
   moduleId: string;
   alternateModuleId: string;
@@ -9,7 +11,8 @@ const evidence = JSON.parse(readFileSync("artifacts/r4a-integration.json", "utf8
   versions: { operational: string };
 };
 const projectId = evidence.project.id;
-const url = `/projects/${projectId}/business?` + new URLSearchParams(evidence.query);
+const url =
+  `/projects/${projectId}/business?` + new URLSearchParams(evidence.query);
 async function login(page: Page, role: "admin" | "viewer") {
   await page.goto("/login");
   await page.getByLabel("邮箱").fill(role + "@example.invalid");
@@ -75,21 +78,29 @@ for (const role of ["admin", "viewer"] as const)
     const firstUsableMs = Date.now() - start;
     await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/business`));
     const defaultModule = new URL(page.url()).searchParams.get("moduleId");
-    expect([evidence.moduleId, evidence.alternateModuleId]).toContain(defaultModule);
+    expect([evidence.moduleId, evidence.alternateModuleId]).toContain(
+      defaultModule,
+    );
     await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
       defaultModule!,
     );
-    await page.getByLabel("功能模块", { exact: true }).selectOption(evidence.moduleId);
+    await page
+      .getByLabel("功能模块", { exact: true })
+      .selectOption(evidence.moduleId);
     await ready(page);
     await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
       evidence.moduleId,
     );
-    await page.getByRole("button", { name: "返回全部项目", exact: true }).click();
+    await page
+      .getByRole("button", { name: "返回全部项目", exact: true })
+      .click();
     await expect(page).toHaveURL(entry);
     await page.goto(url);
     await ready(page);
     await expect(page.locator(".cards article")).toHaveCount(3);
-    await page.getByLabel("显示观察值趋势（非正式指标）", { exact: true }).check();
+    await page
+      .getByLabel("显示观察值趋势（非正式指标）", { exact: true })
+      .check();
     await expect(page).toHaveURL(/businessValues=observed/);
     await page.goBack();
     await ready(page);
@@ -106,7 +117,9 @@ for (const role of ["admin", "viewer"] as const)
       .getByLabel("功能模块", { exact: true })
       .selectOption(evidence.alternateModuleId);
     await ready(page);
-    await expect(page).toHaveURL(new RegExp("moduleId=" + evidence.alternateModuleId));
+    await expect(page).toHaveURL(
+      new RegExp("moduleId=" + evidence.alternateModuleId),
+    );
     await page.goBack();
     await ready(page);
     await expect(page.getByLabel("功能模块", { exact: true })).toHaveValue(
@@ -114,7 +127,9 @@ for (const role of ["admin", "viewer"] as const)
     );
     const analysis = page.url();
     await page.locator(".cards article").first().getByRole("button").click();
-    await expect(page.getByRole("dialog", { name: "模块指标解释" })).toBeVisible();
+    await expect(
+      page.getByRole("dialog", { name: "模块指标解释" }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "进入对应指标定义与版本" }).click();
     await expect(
       page.getByRole("heading", { name: "指标管理", exact: true }),
@@ -134,7 +149,10 @@ for (const role of ["admin", "viewer"] as const)
     await binding.locator("summary").click();
     if (role === "viewer") {
       await expect(
-        binding.getByRole("button", { name: "保存业务分析展示到草稿", exact: true }),
+        binding.getByRole("button", {
+          name: "保存业务分析展示到草稿",
+          exact: true,
+        }),
       ).toHaveCount(0);
       const forged = await api(
         page,
@@ -144,7 +162,9 @@ for (const role of ["admin", "viewer"] as const)
       );
       expect(forged.status).toBe(403);
     }
-    await page.getByRole("button", { name: "返回原业务分析", exact: true }).click();
+    await page
+      .getByRole("button", { name: "返回原业务分析", exact: true })
+      .click();
     await ready(page);
     await expect(page).toHaveURL(analysis);
     await page.reload();
@@ -160,7 +180,8 @@ for (const role of ["admin", "viewer"] as const)
         role,
         browserName,
         firstUsableMs,
-        source: "real integration fixture project, no production capacity claim",
+        source:
+          "real integration fixture project, no production capacity claim",
       }),
     );
   });
@@ -173,7 +194,8 @@ test("isolated normal values null zero version gaps keyboard stale retry and per
   const real = (
     await api(
       page,
-      `/api/projects/${projectId}/business?` + new URLSearchParams(evidence.query),
+      `/api/projects/${projectId}/business?` +
+        new URLSearchParams(evidence.query),
     )
   ).body as BusinessResponse;
   const fixture = structuredClone(real);
@@ -230,7 +252,9 @@ test("isolated normal values null zero version gaps keyboard stale retry and per
   const cards = page.getByRole("region", { name: "模块指标卡片" });
   await cards.focus();
   await page.keyboard.press("End");
-  await expect.poll(() => cards.evaluate((e) => e.scrollLeft)).toBeGreaterThan(0);
+  await expect
+    .poll(() => cards.evaluate((e) => e.scrollLeft))
+    .toBeGreaterThan(0);
   await page.getByText("views 趋势等价表与缺口原因", { exact: true }).click();
   await expect(page.getByText("GAP", { exact: true }).first()).toBeVisible();
   failure = true;
@@ -288,12 +312,18 @@ test("late responses cannot overwrite a changed env or an open drill context", a
   await page.getByRole("button", { name: "刷新业务分析", exact: true }).click();
   await start;
   await page.locator(".cards article").first().getByRole("button").click();
-  await expect(page.getByRole("dialog", { name: "模块指标解释" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "模块指标解释" }),
+  ).toBeVisible();
   await page.goForward();
   await ready(page);
-  await expect(page.getByRole("dialog", { name: "模块指标解释" })).not.toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "模块指标解释" }),
+  ).not.toBeVisible();
   release();
   await done;
   await expect(page).toHaveURL(/env=dev/);
-  await expect(page.getByText("所选范围无事实", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("所选范围无事实", { exact: false }),
+  ).toBeVisible();
 });
